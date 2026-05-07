@@ -282,7 +282,6 @@ export default function InputDokumenPage() {
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <form onSubmit={handleSubmit} className="p-8 space-y-8">
-          {/* Klasifikasi Arsip */}
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
               <div>
@@ -545,7 +544,6 @@ export default function InputDokumenPage() {
 
           <div className="border-t border-gray-100" />
 
-          {/* Detail Dokumen */}
           <div className="space-y-6">
             <div>
               <label
@@ -590,7 +588,6 @@ export default function InputDokumenPage() {
 
           <div className="border-t border-gray-100" />
 
-          {/* Upload File */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-3">
               File Dokumen <span className="text-red-500">*</span>

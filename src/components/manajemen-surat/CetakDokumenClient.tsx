@@ -256,7 +256,6 @@ function MiniPdfPreview({
       <div className="rounded-lg bg-[#f4f6fb] p-4">
         <div className="max-h-[78vh] overflow-y-auto overflow-x-hidden rounded-lg bg-[#eef2f7] p-4">
           <div className="mx-auto w-full max-w-[560px] rounded-lg bg-white p-3 shadow-sm ring-1 ring-gray-200">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={fileUrl}
               alt={formatDocumentFileName(fileName)}
