@@ -1,0 +1,431 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Send, UploadCloud } from "lucide-react";
+
+import FeatureHeader from "@/components/ui/FeatureHeader";
+import DatePickerInput from "@/components/ui/DatePickerInput";
+import { useAppToast } from "@/components/ui/AppToastProvider";
+import { validatePersuratanFile } from "@/lib/utils/file";
+import { letterPriorityService } from "@/services/letter-priority.service";
+import { toApiDateTime } from "@/services/api.utils";
+import { suratKeluarService } from "@/services/surat-keluar.service";
+
+type SuratKeluarFormState = {
+  namaPenerima: string;
+  alamatPenerima: string;
+  namaSurat: string;
+  tanggalPengiriman: string;
+  mediaPengiriman: string;
+  sifatSurat: string;
+};
+
+const INITIAL_FORM_STATE: SuratKeluarFormState = {
+  namaPenerima: "",
+  alamatPenerima: "",
+  namaSurat: "",
+  tanggalPengiriman: "",
+  mediaPengiriman: "",
+  sifatSurat: "",
+};
+
+function normalizeMediaValue(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return "";
+  if (normalized === "langsung / tangan") return "langsung";
+  return normalized;
+}
+
+export default function InputSuratKeluarPage() {
+  const { showToast } = useAppToast();
+  const [formData, setFormData] =
+    useState<SuratKeluarFormState>(INITIAL_FORM_STATE);
+  const [file, setFile] = useState<File | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [letterPriorities, setLetterPriorities] = useState<
+    { id: string; name: string }[]
+  >([]);
+  const [isMasterLoading, setIsMasterLoading] = useState(true);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadMasterData() {
+      setIsMasterLoading(true);
+
+      try {
+        const priorities = await letterPriorityService.getAll();
+        if (!ignore) {
+          setLetterPriorities(
+            priorities.map((item) => ({ id: item.id, name: item.name })),
+          );
+        }
+      } catch (error) {
+        if (!ignore) {
+          showToast(
+            error instanceof Error
+              ? error.message
+              : "Gagal memuat prioritas surat",
+            "error",
+          );
+        }
+      } finally {
+        if (!ignore) {
+          setIsMasterLoading(false);
+        }
+      }
+    }
+
+    void loadMasterData();
+
+    return () => {
+      ignore = true;
+    };
+  }, [showToast]);
+
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const nextFile = e.target.files[0];
+      const validationMessage = validatePersuratanFile(nextFile);
+
+      if (validationMessage) {
+        e.target.value = "";
+        setFile(null);
+        showToast(validationMessage, "error");
+        return;
+      }
+
+      setFile(nextFile);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const nextFile = e.dataTransfer.files[0];
+      const validationMessage = validatePersuratanFile(nextFile);
+
+      if (validationMessage) {
+        setFile(null);
+        showToast(validationMessage, "error");
+        return;
+      }
+
+      setFile(nextFile);
+    }
+  };
+
+  const handleReset = () => {
+    setFormData(INITIAL_FORM_STATE);
+    setFile(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formData.tanggalPengiriman) {
+      showToast("Tanggal pengiriman wajib diisi!", "error");
+      return;
+    }
+
+    if (!formData.sifatSurat) {
+      showToast("Sifat surat wajib dipilih!", "error");
+      return;
+    }
+
+    if (!file) {
+      showToast("File arsip wajib diupload!", "error");
+      return;
+    }
+
+    const fileValidationMessage = validatePersuratanFile(file);
+    if (fileValidationMessage) {
+      showToast(fileValidationMessage, "error");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      await suratKeluarService.create({
+        letter_prioritie_id: formData.sifatSurat,
+        delivery_media: normalizeMediaValue(formData.mediaPengiriman),
+        send_date: toApiDateTime(formData.tanggalPengiriman),
+        mail_number: formData.namaSurat.trim(),
+        name: formData.namaPenerima.trim(),
+        file: file ?? undefined,
+        address: formData.alamatPenerima.trim(),
+      });
+
+      showToast("Surat keluar berhasil disimpan!", "success");
+      handleReset();
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Gagal menyimpan surat keluar",
+        "error",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto animate-fade-in">
+      <FeatureHeader
+        title="Input Surat Keluar"
+        subtitle="Catat dan arsipkan surat keluar yang dikirim."
+        icon={<Send />}
+      />
+
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <form onSubmit={handleSubmit} className="p-8 space-y-8">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              <div>
+                <label
+                  htmlFor="namaPenerima"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  Nama Penerima <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="namaPenerima"
+                  type="text"
+                  name="namaPenerima"
+                  value={formData.namaPenerima}
+                  onChange={handleChange}
+                  className="input"
+                  placeholder="Contoh: PT Mitra Solusi"
+                  required
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="tanggalPengiriman"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  Tanggal Pengiriman <span className="text-red-500">*</span>
+                </label>
+                <DatePickerInput
+                  value={formData.tanggalPengiriman}
+                  onChange={(nextValue) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      tanggalPengiriman: nextValue,
+                    }))
+                  }
+                />
+                <p className="mt-2 text-xs text-slate-500">
+                  Isi sesuai tanggal surat dikirim.
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="alamatPenerima"
+                className="block text-sm font-medium text-gray-700 mb-2"
+              >
+                Alamat Penerima <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                id="alamatPenerima"
+                name="alamatPenerima"
+                value={formData.alamatPenerima}
+                onChange={handleChange}
+                rows={2}
+                className="textarea resize-none"
+                placeholder="Alamat lengkap penerima..."
+                required
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-gray-100" />
+
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              <div>
+                <label
+                  htmlFor="namaSurat"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  Nama/Nomor Surat <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="namaSurat"
+                  type="text"
+                  name="namaSurat"
+                  value={formData.namaSurat}
+                  onChange={handleChange}
+                  className="input"
+                  placeholder="Contoh: 005/OUT/2023"
+                  required
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="mediaPengiriman"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  Media Pengiriman <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="mediaPengiriman"
+                  name="mediaPengiriman"
+                  value={formData.mediaPengiriman}
+                  onChange={handleChange}
+                  className="select"
+                  required
+                >
+                  <option value="">Pilih Media</option>
+                  <option value="email">Email</option>
+                  <option value="kurir">Kurir</option>
+                  <option value="langsung">Langsung / Tangan</option>
+                  <option value="pos">Pos</option>
+                </select>
+                <p className="mt-2 text-xs text-slate-500">
+                  Pilih cara surat ini dikirim.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              <div>
+                <label
+                  htmlFor="sifatSurat"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  Sifat Surat <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="sifatSurat"
+                  name="sifatSurat"
+                  value={formData.sifatSurat}
+                  onChange={handleChange}
+                  className="select"
+                  disabled={isMasterLoading}
+                  required
+                >
+                  <option value="">
+                    {isMasterLoading
+                      ? "Memuat Sifat Surat..."
+                      : "Pilih Sifat Surat"}
+                  </option>
+                  {letterPriorities.map((priority) => (
+                    <option key={priority.id} value={priority.id}>
+                      {priority.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs text-slate-500">
+                  Pilih sifat surat yang sesuai.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-100" />
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              Upload File <span className="text-red-500">*</span>
+            </label>
+            <div
+              className={[
+                "file-upload",
+                "flex flex-col items-center justify-center",
+                dragOver ? "dragover" : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onDrop={handleDrop}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onClick={() =>
+                document.getElementById("file-input-keluar")?.click()
+              }
+            >
+              <input
+                id="file-input-keluar"
+                type="file"
+                onChange={handleFileChange}
+                className="hidden"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+              />
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mb-4 text-blue-600">
+                <UploadCloud className="w-8 h-8" />
+              </div>
+              {file ? (
+                <div>
+                  <p className="text-sm font-bold text-gray-800">{file.name}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {(file.size / 1024).toFixed(2)} KB
+                  </p>
+                </div>
+                ) : (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">
+                    <span className="text-primary-600 font-bold">
+                      Klik untuk upload
+                    </span>{" "}
+                    atau drag & drop
+                  </p>
+                    <p className="text-xs text-gray-400 mt-2">
+                      PDF, DOC, XLS, Gambar (Max 10MB)
+                    </p>
+                  </div>
+                )}
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              Upload file surat keluar sebelum simpan.
+            </p>
+          </div>
+
+          <div className="border-t border-gray-100 pt-6 flex flex-col sm:flex-row justify-end gap-3">
+            <button
+              type="button"
+              onClick={handleReset}
+              className="btn btn-outline"
+            >
+              Reset Form
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="btn btn-primary"
+            >
+              {isLoading ? (
+                <span className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Menyimpan...
+                </span>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  Simpan Surat Keluar
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
