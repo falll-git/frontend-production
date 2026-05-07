@@ -40,9 +40,14 @@ import {
   SETUP_PAGE_SEARCH_INPUT_CLASS,
   SETUP_PAGE_SEARCH_LABEL_CLASS,
   SETUP_PAGE_SEARCH_WRAPPER_CLASS,
+  SETUP_PAGE_TABLE_BODY_CLASS,
+  SETUP_PAGE_TABLE_CARD_CLASS,
+  SETUP_PAGE_TABLE_CLASS,
   SETUP_PAGE_TABLE_CELL_CLASS,
   SETUP_PAGE_TABLE_HEADER_CELL_CLASS,
+  SETUP_PAGE_TABLE_HEAD_CLASS,
   SETUP_PAGE_TABLE_ROW_CLASS,
+  SETUP_PAGE_TABLE_SCROLL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { divisionService } from "@/services/division.service";
 import { roleService } from "@/services/role.service";
@@ -714,9 +719,9 @@ export default function ManajemenUserPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1480px] text-left text-sm">
+      <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
+        <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
+          <table className={`${SETUP_PAGE_TABLE_CLASS} min-w-[1480px]`}>
             <colgroup>
               <col className="w-16" />
               <col className="w-48" />
@@ -730,7 +735,7 @@ export default function ManajemenUserPage() {
               <col className="w-36" />
               <col className="w-36" />
             </colgroup>
-            <thead className="border-b border-gray-200 bg-gray-50">
+            <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
               <tr>
                 <th className={SETUP_PAGE_NUMBER_HEADER_CELL_CLASS}>
                   No
@@ -751,22 +756,22 @@ export default function ManajemenUserPage() {
                   Divisi
                 </th>
                 <th
-                  className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-36 text-center`}
+                  className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-36 !text-center`}
                 >
                   Role
                 </th>
                 <th
-                  className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-36 text-center`}
+                  className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-36 !text-center`}
                 >
                   Akses Restrict
                 </th>
                 <th
-                  className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-32 text-center`}
+                  className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-32 !text-center`}
                 >
                   Status
                 </th>
                 <th
-                  className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-40 text-center`}
+                  className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-40 !text-center`}
                 >
                   Aktivasi Akun
                 </th>
@@ -775,7 +780,7 @@ export default function ManajemenUserPage() {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className={SETUP_PAGE_TABLE_BODY_CLASS}>
               {filteredUsers.map((user, index) => {
                 const resolvedRoleName = getResolvedRoleName(user);
                 const resolvedDivisionName = getResolvedDivisionName(user);
@@ -802,22 +807,22 @@ export default function ManajemenUserPage() {
                     <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} whitespace-nowrap text-sm text-gray-700`}>
                       {resolvedDivisionName}
                     </td>
-                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} whitespace-nowrap text-center`}>
+                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} whitespace-nowrap !text-center`}>
                       <span className="text-sm text-gray-700">
                         {resolvedRoleName}
                       </span>
                     </td>
-                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} text-center`}>
+                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} !text-center`}>
                       <span className={getBooleanPillClass(user.is_restrict)}>
                         {user.is_restrict ? "Ya" : "Tidak"}
                       </span>
                     </td>
-                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} text-center`}>
+                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} !text-center`}>
                       <span className={getBooleanPillClass(user.is_active)}>
                         {user.is_active ? "Aktif" : "Nonaktif"}
                       </span>
                     </td>
-                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} text-center`}>
+                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} !text-center`}>
                       <span className={getOnboardingPillClass(user.onboarding_status)}>
                         {getOnboardingLabel(user)}
                       </span>

@@ -24,7 +24,12 @@ import {
   SETUP_PAGE_SEARCH_INPUT_CLASS,
   SETUP_PAGE_SEARCH_LABEL_CLASS,
   SETUP_PAGE_SEARCH_WRAPPER_CLASS,
+  SETUP_PAGE_TABLE_BODY_CLASS,
+  SETUP_PAGE_TABLE_CARD_CLASS,
+  SETUP_PAGE_TABLE_CLASS,
   SETUP_PAGE_TABLE_HEADER_CELL_CLASS,
+  SETUP_PAGE_TABLE_HEAD_CLASS,
+  SETUP_PAGE_TABLE_SCROLL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { menuService } from "@/services/menu.service";
 import {
@@ -78,10 +83,10 @@ type MenuGroup = {
 };
 
 const SECTION_CARD_CLASS =
-  "overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm";
+  SETUP_PAGE_TABLE_CARD_CLASS;
 const PERM_HEADER_CLASS =
-  "w-20 px-2 py-4 text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-500";
-const PERM_CELL_CLASS = "w-20 px-2 py-4 text-center align-middle";
+  "w-20 px-2 py-3 !text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-600 whitespace-nowrap";
+const PERM_CELL_CLASS = "w-20 px-2 py-3 !text-center align-middle";
 const GROUP_ROW_CLASS = "border-y border-gray-200 bg-gray-50/80";
 
 const FEATURE_LABELS: Record<string, string> = {
@@ -924,9 +929,9 @@ export default function SetupRoleMenuPage() {
       </div>
 
       <div className={SECTION_CARD_CLASS}>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-left text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50">
+        <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
+          <table className={`${SETUP_PAGE_TABLE_CLASS} min-w-[960px]`}>
+            <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
               <tr>
                 <th
                   className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} min-w-[320px]`}
@@ -937,12 +942,12 @@ export default function SetupRoleMenuPage() {
                 <th className={PERM_HEADER_CLASS}>Tambah</th>
                 <th className={PERM_HEADER_CLASS}>Ubah</th>
                 <th className={PERM_HEADER_CLASS}>Hapus</th>
-                <th className="w-48 px-3 py-4 text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+                <th className="w-48 px-3 py-3 !text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-600 whitespace-nowrap">
                   Fitur Khusus
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className={SETUP_PAGE_TABLE_BODY_CLASS}>
               {isPageLoading && (
                 <tr>
                   <td colSpan={6} className={SETUP_PAGE_EMPTY_STATE_CELL_CLASS}>

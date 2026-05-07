@@ -32,9 +32,14 @@ import {
   SETUP_PAGE_SEARCH_WRAPPER_CLASS,
   SETUP_PAGE_STATUS_CELL_CLASS,
   SETUP_PAGE_STATUS_HEADER_CELL_CLASS,
+  SETUP_PAGE_TABLE_BODY_CLASS,
+  SETUP_PAGE_TABLE_CARD_CLASS,
+  SETUP_PAGE_TABLE_CLASS,
   SETUP_PAGE_TABLE_CELL_CLASS,
   SETUP_PAGE_TABLE_HEADER_CELL_CLASS,
+  SETUP_PAGE_TABLE_HEAD_CLASS,
   SETUP_PAGE_TABLE_ROW_CLASS,
+  SETUP_PAGE_TABLE_SCROLL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { storageService } from "@/services/storage.service";
 
@@ -317,10 +322,10 @@ export default function SetupTempatPenyimpananPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-              <thead className="border-b border-gray-200 bg-gray-50">
+      <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
+        <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
+          <table className={SETUP_PAGE_TABLE_CLASS}>
+              <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
                 <tr>
                   <th className={SETUP_PAGE_NUMBER_HEADER_CELL_CLASS}>
                     No
@@ -348,7 +353,7 @@ export default function SetupTempatPenyimpananPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className={SETUP_PAGE_TABLE_BODY_CLASS}>
                 {filtered.map((t, idx) => (
                   <tr
                     key={t.id}

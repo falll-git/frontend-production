@@ -27,7 +27,12 @@ import {
   SETUP_PAGE_SEARCH_INPUT_CLASS,
   SETUP_PAGE_SEARCH_LABEL_CLASS,
   SETUP_PAGE_SEARCH_WRAPPER_CLASS,
+  SETUP_PAGE_TABLE_BODY_CLASS,
+  SETUP_PAGE_TABLE_CARD_CLASS,
+  SETUP_PAGE_TABLE_CLASS,
   SETUP_PAGE_TABLE_HEADER_CELL_CLASS,
+  SETUP_PAGE_TABLE_HEAD_CLASS,
+  SETUP_PAGE_TABLE_SCROLL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { ROLES } from "@/lib/rbac";
 import { roleMenuService } from "@/services/role-menu.service";
@@ -64,7 +69,7 @@ const BADGE_UTAMA_CLASS =
   "inline-flex items-center rounded-full border border-[#157ec3]/15 bg-[#157ec3]/8 px-2.5 py-1 text-[11px] font-semibold text-[#0d5a8f]";
 
 const SECTION_CARD_CLASS =
-  "overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm";
+  SETUP_PAGE_TABLE_CARD_CLASS;
 
 export default function SetupRolePage() {
   const { showToast } = useAppToast();
@@ -305,9 +310,9 @@ export default function SetupRolePage() {
         <div className="border-b border-gray-100 bg-gray-50/70 px-5 py-4">
           <h2 className="text-sm font-semibold text-gray-900">Role Utama</h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50">
+        <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
+          <table className={SETUP_PAGE_TABLE_CLASS}>
+            <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
               <tr>
                 <th className={SETUP_PAGE_NUMBER_HEADER_CELL_CLASS}>
                   No
@@ -320,7 +325,7 @@ export default function SetupRolePage() {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className={SETUP_PAGE_TABLE_BODY_CLASS}>
               {coreRoles.map((role, index) => (
                 <tr
                   key={role.id}
@@ -372,9 +377,9 @@ export default function SetupRolePage() {
         <div className="border-b border-gray-100 bg-gray-50/70 px-5 py-4">
           <h2 className="text-sm font-semibold text-gray-900">Role Tambahan</h2>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50">
+        <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
+          <table className={SETUP_PAGE_TABLE_CLASS}>
+            <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
               <tr>
                 <th className={SETUP_PAGE_NUMBER_HEADER_CELL_CLASS}>
                   No
@@ -387,7 +392,7 @@ export default function SetupRolePage() {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className={SETUP_PAGE_TABLE_BODY_CLASS}>
               {customRoles.map((role, index) => (
                 <tr
                   key={role.id}
@@ -401,7 +406,7 @@ export default function SetupRolePage() {
                   >
                     {role.name}
                   </td>
-                  <td className={`${SETUP_PAGE_COMPACT_CELL_CLASS} w-28 text-right`}>
+                  <td className={`${SETUP_PAGE_COMPACT_CELL_CLASS} w-28 !text-right`}>
                     <div className="inline-flex items-center gap-2">
                       <button
                         type="button"

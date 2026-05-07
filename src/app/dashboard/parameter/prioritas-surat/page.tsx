@@ -28,7 +28,12 @@ import {
   SETUP_PAGE_SEARCH_INPUT_CLASS,
   SETUP_PAGE_SEARCH_LABEL_CLASS,
   SETUP_PAGE_SEARCH_WRAPPER_CLASS,
+  SETUP_PAGE_TABLE_BODY_CLASS,
+  SETUP_PAGE_TABLE_CARD_CLASS,
+  SETUP_PAGE_TABLE_CLASS,
   SETUP_PAGE_TABLE_HEADER_CELL_CLASS,
+  SETUP_PAGE_TABLE_HEAD_CLASS,
+  SETUP_PAGE_TABLE_SCROLL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { letterPriorityService } from "@/services/letter-priority.service";
 import type { LetterPriority } from "@/types/master.types";
@@ -228,10 +233,10 @@ export default function SetupPrioritasSuratPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50">
+      <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
+        <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
+          <table className={SETUP_PAGE_TABLE_CLASS}>
+            <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
               <tr>
                 <th className={SETUP_PAGE_NUMBER_HEADER_CELL_CLASS}>
                   No
@@ -244,7 +249,7 @@ export default function SetupPrioritasSuratPage() {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className={SETUP_PAGE_TABLE_BODY_CLASS}>
               {filtered.map((priority, index) => (
                 <tr
                   key={priority.id}
@@ -258,7 +263,7 @@ export default function SetupPrioritasSuratPage() {
                   >
                     {priority.name}
                   </td>
-                  <td className={`${SETUP_PAGE_COMPACT_CELL_CLASS} w-28 text-right`}>
+                  <td className={`${SETUP_PAGE_COMPACT_CELL_CLASS} w-28 !text-right`}>
                     <div className="inline-flex items-center gap-2">
                       <button
                         onClick={() => openEdit(priority)}
