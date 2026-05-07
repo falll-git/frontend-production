@@ -160,6 +160,12 @@ export interface UserRecord {
   division_name?: string;
   email_verified_at?: string | null;
   password_set_at?: string | null;
+  deactivated_at?: string | null;
+  deactivated_by?: string | null;
+  deactivation_reason?: string | null;
+  reactivated_at?: string | null;
+  reactivated_by?: string | null;
+  reactivation_reason?: string | null;
   invitation_pending?: boolean;
   onboarding_status?: OnboardingStatus;
 }
@@ -194,7 +200,6 @@ export interface UserPayload {
   email: string;
   password?: string;
   phone?: string;
-  is_active?: boolean;
   is_restrict?: boolean;
   role_id: string;
   division_id: string;

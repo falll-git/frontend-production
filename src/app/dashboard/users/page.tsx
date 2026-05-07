@@ -9,6 +9,8 @@ import {
   Plus,
   Save,
   Search,
+  ShieldCheck,
+  ShieldOff,
   Trash2,
   Users,
   X,
@@ -60,7 +62,6 @@ type UserFormState = {
   division_id: string;
   role_id: string;
   is_restrict: boolean;
-  is_active: boolean;
   password: string;
 };
 
@@ -72,7 +73,6 @@ const EMPTY_FORM: UserFormState = {
   division_id: "",
   role_id: "",
   is_restrict: false,
-  is_active: true,
   password: "",
 };
 const PILL_BASE_CLASS =
@@ -86,6 +86,11 @@ type ManualInvitationState = {
   userName: string;
   url: string | null;
   reason?: string;
+};
+
+type AccessActionState = {
+  user: UserRecord;
+  action: "close" | "reactivate";
 };
 
 function normalizeTextInput(value: string) {
@@ -234,6 +239,11 @@ export default function ManajemenUserPage() {
   const [inviteLoadingId, setInviteLoadingId] = useState<string | null>(null);
   const [manualInvitation, setManualInvitation] =
     useState<ManualInvitationState | null>(null);
+  const [accessAction, setAccessAction] = useState<AccessActionState | null>(
+    null,
+  );
+  const [accessReason, setAccessReason] = useState("");
+  const [isAccessSubmitting, setIsAccessSubmitting] = useState(false);
 
   const usersRouteDecision = useMemo(
     () => getDashboardRouteDecision("/dashboard/users", role, authUser?.role_id),
@@ -301,9 +311,11 @@ export default function ManajemenUserPage() {
     router.replace("/dashboard");
   }, [loadData, role, router, showToast, usersRouteDecision.allowed]);
 
-  const superAdminCount = useMemo(
+  const activeItCount = useMemo(
     () =>
-      users.filter((user) => getResolvedAppRole(user) === ROLES.IT)
+      users.filter(
+        (user) => user.is_active && getResolvedAppRole(user) === ROLES.IT,
+      )
         .length,
     [getResolvedAppRole, users],
   );
@@ -363,7 +375,6 @@ export default function ManajemenUserPage() {
       division_id: user.division_id,
       role_id: user.role_id,
       is_restrict: user.is_restrict,
-      is_active: user.is_active,
       password: "",
     });
     setShowModal(true);
@@ -374,14 +385,88 @@ export default function ManajemenUserPage() {
 
     if (
       getResolvedAppRole(user) === ROLES.IT &&
-      superAdminCount <= 1
+      user.is_active &&
+      activeItCount <= 1
     ) {
-      showToast("Tidak bisa menghapus user IT terakhir.", "warning");
+      showToast("Tidak bisa menghapus akun IT aktif terakhir.", "warning");
       return;
     }
 
     setDeleteUser(user);
     setShowDelete(true);
+  };
+
+  const handleOpenAccessAction = (user: UserRecord) => {
+    if (!requireUpdateUserAction()) return;
+
+    if (user.is_active && user.id === authUser?.id) {
+      showToast("Anda tidak dapat menutup akses akun sendiri.", "warning");
+      return;
+    }
+
+    if (
+      user.is_active &&
+      getResolvedAppRole(user) === ROLES.IT &&
+      activeItCount <= 1
+    ) {
+      showToast("Tidak bisa menutup akses akun IT aktif terakhir.", "warning");
+      return;
+    }
+
+    setAccessAction({
+      user,
+      action: user.is_active ? "close" : "reactivate",
+    });
+    setAccessReason("");
+  };
+
+  const handleConfirmAccessAction = async () => {
+    if (!requireUpdateUserAction()) return;
+    if (!accessAction) return;
+
+    const reason = normalizeTextInput(accessReason);
+    if (reason.length < 5) {
+      showToast("Alasan minimal 5 karakter.", "warning");
+      return;
+    }
+
+    setIsAccessSubmitting(true);
+
+    try {
+      const updatedUser =
+        accessAction.action === "close"
+          ? await userService.closeAccess(accessAction.user.id, reason)
+          : await userService.reactivateAccess(accessAction.user.id, reason);
+
+      setUsers((prev) =>
+        prev.map((item) =>
+          item.id === updatedUser.id
+            ? {
+                ...updatedUser,
+                role_name: roleNameById.get(updatedUser.role_id),
+                division_name: divisionNameById.get(updatedUser.division_id),
+              }
+            : item,
+        ),
+      );
+      showToast(
+        accessAction.action === "close"
+          ? "Akses pengguna berhasil ditutup."
+          : "Akses pengguna berhasil diaktifkan kembali.",
+        "success",
+      );
+      setAccessAction(null);
+      setAccessReason("");
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Gagal memperbarui akses pengguna",
+        "error",
+      );
+    } finally {
+      setIsAccessSubmitting(false);
+    }
   };
 
   const confirmDelete = async () => {
@@ -524,10 +609,11 @@ export default function ManajemenUserPage() {
     if (
       editUser &&
       getResolvedAppRole(editUser) === ROLES.IT &&
+      editUser.is_active &&
       nextAppRole !== ROLES.IT &&
-      superAdminCount <= 1
+      activeItCount <= 1
     ) {
-      showToast("Tidak bisa mengubah role IT terakhir.", "warning");
+      showToast("Tidak bisa mengubah role akun IT aktif terakhir.", "warning");
       return;
     }
 
@@ -539,7 +625,6 @@ export default function ManajemenUserPage() {
         username: normalizedUsername,
         email: normalizedEmail,
         phone: formData.phone.trim() || undefined,
-        is_active: formData.is_active,
         is_restrict: formData.is_restrict,
         role_id: formData.role_id,
         division_id: formData.division_id,
@@ -761,6 +846,27 @@ export default function ManajemenUserPage() {
                               />
                             ) : (
                               <Mail className="w-4 h-4" aria-hidden="true" />
+                            )}
+                          </button>
+                        ) : null}
+                        {canUpdateUsers ? (
+                          <button
+                            onClick={() => handleOpenAccessAction(user)}
+                            className={`${ACTION_ICON_BUTTON_CLASS} ${
+                              user.is_active
+                                ? "text-red-600 hover:bg-red-50 hover:text-red-700"
+                                : "text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                            }`}
+                            title={
+                              user.is_active
+                                ? "Tutup Akses"
+                                : "Aktifkan Kembali"
+                            }
+                          >
+                            {user.is_active ? (
+                              <ShieldOff className="w-4 h-4" aria-hidden="true" />
+                            ) : (
+                              <ShieldCheck className="w-4 h-4" aria-hidden="true" />
                             )}
                           </button>
                         ) : null}
@@ -1016,28 +1122,6 @@ export default function ManajemenUserPage() {
                 </div>
               ) : null}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status
-                </label>
-                <select
-                  value={formData.is_active ? "Aktif" : "Nonaktif"}
-                  onChange={(event) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      is_active: event.target.value === "Aktif",
-                    }))
-                  }
-                  className="select"
-                >
-                  <option value="Aktif">Aktif</option>
-                  <option value="Nonaktif">Nonaktif</option>
-                </select>
-                <p className="mt-2 text-xs text-slate-500">
-                  Kalau dinonaktifkan, user tidak bisa login.
-                </p>
-              </div>
-
               {editUser ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1210,6 +1294,123 @@ export default function ManajemenUserPage() {
                 className="btn btn-outline"
               >
                 Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {accessAction ? (
+        <div
+          data-dashboard-overlay="true"
+          className="fixed inset-0 p-4"
+          style={{
+            background: "rgba(0, 0, 0, 0.55)",
+            zIndex: 10000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onClick={() => {
+            if (!isAccessSubmitting) setAccessAction(null);
+          }}
+        >
+          <div
+            className="bg-white rounded-lg shadow-sm w-full max-w-lg overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {accessAction.action === "close"
+                    ? "Tutup Akses Pengguna"
+                    : "Aktifkan Kembali Pengguna"}
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  {accessAction.user.name} - {accessAction.user.email}
+                </p>
+              </div>
+              <button
+                onClick={() => setAccessAction(null)}
+                className="btn btn-ghost btn-sm"
+                title="Tutup"
+                disabled={isAccessSubmitting}
+              >
+                <X className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
+                <p className="text-sm font-semibold text-slate-800">
+                  {accessAction.action === "close"
+                    ? "Akun ini tidak bisa login setelah akses ditutup."
+                    : "Akun ini bisa login kembali setelah diaktifkan."}
+                </p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  Riwayat data pengguna tetap tersimpan untuk audit dan laporan.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Alasan <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={accessReason}
+                  onChange={(event) => setAccessReason(event.target.value)}
+                  className="input min-h-28 resize-none"
+                  placeholder={
+                    accessAction.action === "close"
+                      ? "Contoh: Pengguna sudah tidak bertugas di unit ini."
+                      : "Contoh: Pengguna kembali bertugas dan akses perlu dibuka."
+                  }
+                  disabled={isAccessSubmitting}
+                />
+                <p className="mt-2 text-xs text-slate-500">
+                  Minimal 5 karakter. Alasan ini disimpan sebagai catatan perubahan akses.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row justify-end gap-3">
+              <button
+                onClick={() => setAccessAction(null)}
+                className="btn btn-outline"
+                disabled={isAccessSubmitting}
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => void handleConfirmAccessAction()}
+                disabled={isAccessSubmitting || normalizeTextInput(accessReason).length < 5}
+                className={
+                  accessAction.action === "close"
+                    ? "btn border-red-600 bg-red-600 text-white hover:bg-red-700"
+                    : "btn border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
+                }
+              >
+                {isAccessSubmitting ? (
+                  <>
+                    <span
+                      className="button-spinner"
+                      style={
+                        {
+                          ["--spinner-size"]: "18px",
+                          ["--spinner-border"]: "2px",
+                        } as React.CSSProperties
+                      }
+                      aria-hidden="true"
+                    />
+                    <span>Menyimpan...</span>
+                  </>
+                ) : (
+                  <span>
+                    {accessAction.action === "close"
+                      ? "Tutup Akses"
+                      : "Aktifkan Kembali"}
+                  </span>
+                )}
               </button>
             </div>
           </div>

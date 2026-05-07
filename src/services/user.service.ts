@@ -103,6 +103,18 @@ function mapUser(record: UnknownRecord): UserRecord | null {
       readString(record, "email_verified_at", "emailVerifiedAt") ?? null,
     password_set_at:
       readString(record, "password_set_at", "passwordSetAt") ?? null,
+    deactivated_at:
+      readString(record, "deactivated_at", "deactivatedAt") ?? null,
+    deactivated_by:
+      readString(record, "deactivated_by", "deactivatedBy") ?? null,
+    deactivation_reason:
+      readString(record, "deactivation_reason", "deactivationReason") ?? null,
+    reactivated_at:
+      readString(record, "reactivated_at", "reactivatedAt") ?? null,
+    reactivated_by:
+      readString(record, "reactivated_by", "reactivatedBy") ?? null,
+    reactivation_reason:
+      readString(record, "reactivation_reason", "reactivationReason") ?? null,
     invitation_pending:
       "invitation_pending" in record || "invitationPending" in record
         ? readBoolean(record, "invitation_pending", "invitationPending")
@@ -238,6 +250,28 @@ export const userService = {
 
     if (!mapped) {
       throw new Error("Respons kirim undangan dari server tidak valid");
+    }
+
+    return mapped;
+  },
+  closeAccess: async (id: string, reason: string): Promise<UserRecord> => {
+    const res = await api.post(`/users/${id}/close-access`, { reason });
+    const record = extractRecord(res.data);
+    const mapped = record ? mapUser(record) : null;
+
+    if (!mapped) {
+      throw new Error("Respons tutup akses dari server tidak valid");
+    }
+
+    return mapped;
+  },
+  reactivateAccess: async (id: string, reason: string): Promise<UserRecord> => {
+    const res = await api.post(`/users/${id}/reactivate-access`, { reason });
+    const record = extractRecord(res.data);
+    const mapped = record ? mapUser(record) : null;
+
+    if (!mapped) {
+      throw new Error("Respons aktivasi ulang dari server tidak valid");
     }
 
     return mapped;
