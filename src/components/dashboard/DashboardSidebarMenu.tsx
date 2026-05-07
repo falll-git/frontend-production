@@ -17,8 +17,10 @@ import { MenuLucideIcon } from "./MenuLucideIcon";
 
 function splitRoots(visible: DashboardMenuNode[]) {
   const sorted = [...visible].sort((a, b) => a.order - b.order);
-  const dashboard = sorted.find((n) => normalizePath(n.url) === "/dashboard");
-  const rest = sorted.filter((n) => normalizePath(n.url) !== "/dashboard");
+  const dashboard = sorted.find(
+    (n) => n.name === "Dashboard" && normalizePath(n.url) === "/dashboard",
+  );
+  const rest = sorted.filter((n) => n.id !== dashboard?.id);
   const admin = rest.filter((n) => ADMINISTRATOR_SECTION_ROOT_NAMES.has(n.name));
   const main = rest.filter((n) => !ADMINISTRATOR_SECTION_ROOT_NAMES.has(n.name));
   return { dashboard, main, admin };
