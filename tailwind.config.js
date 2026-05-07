@@ -1,3 +1,4 @@
+/** @type {import('tailwindcss').Config} */
 const primary = {
   50: "#eff8ff",
   100: "#d9efff",
