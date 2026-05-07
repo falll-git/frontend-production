@@ -28,6 +28,10 @@ type ModuleCard = {
   buttonText?: string;
 };
 
+type ResolvedModuleCard = ModuleCard & {
+  isAllowed: boolean;
+};
+
 function hexToRgb(value: string): string | null {
   const hex = value.replace("#", "").trim();
   if (hex.length !== 3 && hex.length !== 6) return null;
@@ -57,6 +61,7 @@ function DashboardPremiumCard({
   className = "",
   accentColor = "#157ec3",
   buttonText = "Akses Modul",
+  isDisabled = false,
 }: {
   title: string;
   icon: ReactNode;
@@ -66,20 +71,17 @@ function DashboardPremiumCard({
   className?: string;
   accentColor?: string;
   buttonText?: string;
+  isDisabled?: boolean;
 }) {
   const accentRgb = hexToRgb(accentColor) ?? "21, 126, 195";
   const cardStyle = {
     "--card-accent": accentColor,
     "--card-accent-rgb": accentRgb,
   } as CSSProperties;
-
-  return (
-    <ProtectedLink
-      href={href}
-      className={`uiverse-card ${className}`}
-      style={cardStyle}
-      title={title}
-    >
+  const cardClassName =
+    `uiverse-card ${className}${isDisabled ? " rbac-disabled" : ""}`.trim();
+  const content = (
+    <>
       <div className="uiverse-card-shine" aria-hidden="true" />
       <div className="uiverse-card-glow" aria-hidden="true" />
       <div className="uiverse-card-content">
@@ -100,6 +102,30 @@ function DashboardPremiumCard({
           </div>
         </div>
       </div>
+    </>
+  );
+
+  if (isDisabled) {
+    return (
+      <div
+        className={cardClassName}
+        style={cardStyle}
+        title="Belum memiliki akses laporan ini."
+        aria-disabled="true"
+      >
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <ProtectedLink
+      href={href}
+      className={cardClassName}
+      style={cardStyle}
+      title={title}
+    >
+      {content}
     </ProtectedLink>
   );
 }
@@ -154,7 +180,7 @@ export default function DashboardOverviewClient() {
   const { user, role, status } = useAuth();
   const [isLoading] = useState(false);
 
-  const moduleCards = useMemo(() => {
+  const moduleCards = useMemo<ResolvedModuleCard[]>(() => {
     const list: ModuleCard[] = [
       {
         title: "Laporan Arsip Digital",
@@ -192,9 +218,11 @@ export default function DashboardOverviewClient() {
 
     if (status !== "authenticated" || !role) return [];
 
-    return list.filter((card) =>
-      getDashboardRouteDecision(card.href, role, user?.role_id).allowed,
-    );
+    return list.map((card) => ({
+      ...card,
+      isAllowed: getDashboardRouteDecision(card.href, role, user?.role_id)
+        .allowed,
+    }));
   }, [role, status, user?.role_id]);
 
   if (isLoading) {
@@ -250,6 +278,7 @@ export default function DashboardOverviewClient() {
                 icon={card.icon}
                 subtitle={card.subtitle}
                 buttonText={card.buttonText}
+                isDisabled={!card.isAllowed}
               />
             ))}
           </div>

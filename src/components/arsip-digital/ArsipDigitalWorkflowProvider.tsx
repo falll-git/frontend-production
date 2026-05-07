@@ -9,8 +9,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 
+import { useAuth } from "@/components/auth/AuthProvider";
 import { useAppToast } from "@/components/ui/AppToastProvider";
+import { hasDashboardCapability } from "@/lib/rbac";
 import { arsipService, type CreateDokumenPayload } from "@/services/arsip.service";
 import { disposisiArsipService } from "@/services/disposisi-arsip.service";
 import { peminjamanService } from "@/services/peminjaman.service";
@@ -79,28 +82,107 @@ interface ArsipDigitalWorkflowProviderProps {
 const ArsipDigitalWorkflowContext =
   createContext<ArsipDigitalWorkflowValue | null>(null);
 
+const ARSIP_DIGITAL_ROOT_PATH = "/dashboard/arsip-digital";
+
+const DIGITAL_DOCUMENT_READ_PATHS = [
+  "/dashboard/arsip-digital/input-dokumen",
+  "/dashboard/arsip-digital/ruang-arsip/list-dokumen",
+  "/dashboard/arsip-digital/ruang-arsip/tempat-penyimpanan",
+  "/dashboard/arsip-digital/ruang-arsip/jatuh-tempo",
+  "/dashboard/arsip-digital/laporan",
+];
+
+const ACCESS_REQUEST_READ_PATHS = [
+  "/dashboard/arsip-digital/disposisi/pengajuan",
+  "/dashboard/arsip-digital/disposisi/permintaan",
+  "/dashboard/arsip-digital/disposisi/historis",
+  "/dashboard/arsip-digital/laporan",
+];
+
+const LOAN_READ_PATHS = [
+  "/dashboard/arsip-digital/peminjaman/request",
+  "/dashboard/arsip-digital/peminjaman/accept",
+  "/dashboard/arsip-digital/peminjaman/laporan",
+  "/dashboard/arsip-digital/historis/peminjaman",
+  "/dashboard/arsip-digital/laporan",
+];
+
+const STORAGE_HISTORY_PATH = "/dashboard/arsip-digital/historis/penyimpanan";
+
+function isArsipDigitalPath(pathname: string) {
+  return (
+    pathname === ARSIP_DIGITAL_ROOT_PATH ||
+    pathname.startsWith(`${ARSIP_DIGITAL_ROOT_PATH}/`)
+  );
+}
+
 export function ArsipDigitalWorkflowProvider({
   children,
 }: ArsipDigitalWorkflowProviderProps): ReactNode {
   const { showToast } = useAppToast();
+  const pathname = usePathname();
+  const { status, role, user } = useAuth();
   const [dokumen, setDokumen] = useState<Dokumen[]>([]);
   const [disposisi, setDisposisi] = useState<Disposisi[]>([]);
   const [peminjaman, setPeminjaman] = useState<Peminjaman[]>([]);
   const [aktivitasPenyimpanan, setAktivitasPenyimpanan] = useState<
     AktivitasPenyimpanan[]
   >([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const roleId = user?.role_id ?? null;
+  const canReadDigitalDocuments = DIGITAL_DOCUMENT_READ_PATHS.some((path) =>
+    hasDashboardCapability(path, role, roleId, "read"),
+  );
+  const canReadAccessRequests = ACCESS_REQUEST_READ_PATHS.some((path) =>
+    hasDashboardCapability(path, role, roleId, "read"),
+  );
+  const canReadLoans = LOAN_READ_PATHS.some((path) =>
+    hasDashboardCapability(path, role, roleId, "read"),
+  );
+  const canReadStorageHistories = hasDashboardCapability(
+    STORAGE_HISTORY_PATH,
+    role,
+    roleId,
+    "read",
+  );
+  const hasReadableWorkflowEndpoint =
+    canReadDigitalDocuments ||
+    canReadAccessRequests ||
+    canReadLoans ||
+    canReadStorageHistories;
+  const shouldAutoLoad =
+    status === "authenticated" &&
+    isArsipDigitalPath(pathname) &&
+    hasReadableWorkflowEndpoint;
 
   const refreshWorkflowData = useCallback(async (): Promise<void> => {
+    if (!hasReadableWorkflowEndpoint) {
+      setDokumen([]);
+      setDisposisi([]);
+      setPeminjaman([]);
+      setAktivitasPenyimpanan([]);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const [dokumenRows, disposisiRows, peminjamanRows, aktivitasRows] =
         await Promise.all([
-          arsipService.getAll(),
-          disposisiArsipService.getAll(),
-          peminjamanService.getAll(),
-          arsipService.getStorageHistories(),
+          canReadDigitalDocuments
+            ? arsipService.getAll()
+            : Promise.resolve<Dokumen[]>([]),
+          canReadAccessRequests
+            ? disposisiArsipService.getAll()
+            : Promise.resolve<Disposisi[]>([]),
+          canReadLoans
+            ? peminjamanService.getAll()
+            : Promise.resolve<Peminjaman[]>([]),
+          canReadStorageHistories
+            ? arsipService.getStorageHistories()
+            : Promise.resolve<AktivitasPenyimpanan[]>([]),
         ]);
 
       setDokumen(dokumenRows);
@@ -121,9 +203,20 @@ export function ArsipDigitalWorkflowProvider({
     } finally {
       setIsLoading(false);
     }
-  }, [showToast]);
+  }, [
+    canReadAccessRequests,
+    canReadDigitalDocuments,
+    canReadLoans,
+    canReadStorageHistories,
+    hasReadableWorkflowEndpoint,
+    showToast,
+  ]);
 
   useEffect(() => {
+    if (!shouldAutoLoad) {
+      return undefined;
+    }
+
     const timeoutId = window.setTimeout(() => {
       void refreshWorkflowData();
     }, 0);
@@ -131,7 +224,7 @@ export function ArsipDigitalWorkflowProvider({
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [refreshWorkflowData]);
+  }, [refreshWorkflowData, shouldAutoLoad]);
 
   const createDokumen = useCallback(
     async (params: CreateDokumenPayload): Promise<Dokumen> => {
