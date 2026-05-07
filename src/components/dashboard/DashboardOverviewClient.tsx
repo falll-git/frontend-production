@@ -17,7 +17,7 @@ import {
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import ProtectedLink from "@/components/rbac/ProtectedLink";
-import { getRoleLabel } from "@/lib/rbac";
+import { getDashboardRouteDecision, getRoleLabel } from "@/lib/rbac";
 
 type ModuleCard = {
   title: string;
@@ -191,8 +191,11 @@ export default function DashboardOverviewClient() {
     ];
 
     if (status !== "authenticated" || !role) return [];
-    return list;
-  }, [role, status]);
+
+    return list.filter((card) =>
+      getDashboardRouteDecision(card.href, role, user?.role_id).allowed,
+    );
+  }, [role, status, user?.role_id]);
 
   if (isLoading) {
     return (
@@ -231,25 +234,27 @@ export default function DashboardOverviewClient() {
         </div>
       </div>
 
-      <div className="mt-8 animate-fade-in">
-        <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-800">
-          <Grid2x2 className="h-6 w-6 text-gray-600" aria-hidden="true" />
-          Laporan Modul
-        </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {moduleCards.map((card) => (
-            <DashboardPremiumCard
-              key={card.href}
-              title={card.title}
-              href={card.href}
-              accentColor={card.accentColor}
-              icon={card.icon}
-              subtitle={card.subtitle}
-              buttonText={card.buttonText}
-            />
-          ))}
+      {moduleCards.length > 0 ? (
+        <div className="mt-8 animate-fade-in">
+          <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-800">
+            <Grid2x2 className="h-6 w-6 text-gray-600" aria-hidden="true" />
+            Laporan Modul
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {moduleCards.map((card) => (
+              <DashboardPremiumCard
+                key={card.href}
+                title={card.title}
+                href={card.href}
+                accentColor={card.accentColor}
+                icon={card.icon}
+                subtitle={card.subtitle}
+                buttonText={card.buttonText}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      ) : null}
     </>
   );
 }
