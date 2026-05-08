@@ -406,7 +406,7 @@ export default function LaporanPeminjamanPage() {
               {filteredData.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-6 py-12 text-center text-sm text-gray-500"
                   >
                     Belum ada data peminjaman yang sesuai.

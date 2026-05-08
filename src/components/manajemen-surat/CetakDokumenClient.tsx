@@ -674,7 +674,7 @@ export default function CetakDokumenClient() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(420px,600px)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-100 bg-white px-5 py-4">
             <p className="text-center text-sm font-semibold text-gray-900">
@@ -891,7 +891,7 @@ export default function CetakDokumenClient() {
               </table>
             </div>
           ) : (
-            <div className="flex h-72 flex-col items-center justify-center px-6 text-center">
+            <div className="flex min-h-[640px] flex-col items-center justify-center px-6 text-center">
               <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100">
                 <SearchX className="h-8 w-8 text-gray-400" aria-hidden="true" />
               </div>

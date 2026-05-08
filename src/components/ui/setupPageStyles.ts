@@ -1,5 +1,5 @@
 export const SETUP_PAGE_SEARCH_CARD_CLASS =
-  "rounded-lg border border-gray-200 bg-white p-4";
+  "w-full rounded-lg border border-gray-200 bg-white p-4";
 
 export const SETUP_PAGE_WIDTH_SM_CLASS = "w-full max-w-[560px]";
 
@@ -25,7 +25,7 @@ export const SETUP_PAGE_SEARCH_INPUT_CLASS =
   "h-11 w-full rounded-lg border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 outline-none transition placeholder:text-gray-400 focus:border-[#1773B0] focus:ring-3 focus:ring-[#1773B0]/10";
 
 export const SETUP_PAGE_TABLE_CARD_CLASS =
-  "overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm";
+  "w-full overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm";
 
 export const SETUP_PAGE_TABLE_SCROLL_CLASS = "overflow-x-auto";
 

@@ -31,11 +31,23 @@ export default function DatePickerInput({
 }: DatePickerInputProps) {
   const [open, setOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const [dropdownStyle, setDropdownStyle] = React.useState<React.CSSProperties>({});
 
   const selected = React.useMemo(() => parseSelectedDate(value), [value]);
 
   React.useEffect(() => {
     if (!open) return;
+
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setDropdownStyle({
+        position: "fixed",
+        top: rect.bottom + 8,
+        left: rect.left,
+        zIndex: 9999,
+      });
+    }
+
     const handlePointerDown = (event: MouseEvent | TouchEvent) => {
       const target = event.target as Node | null;
       if (!target) return;
@@ -76,7 +88,7 @@ export default function DatePickerInput({
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-2 w-fit rounded-lg border bg-white shadow-sm">
+        <div style={dropdownStyle} className="w-fit rounded-lg border bg-white shadow-sm">
           <Calendar
             mode="single"
             captionLayout="dropdown"
