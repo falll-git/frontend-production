@@ -39,11 +39,15 @@ const MASTER_DATA_SCOPED_PATHS = [
 ];
 
 const STORAGE_READ_PATHS = [
+  "/dashboard/arsip-digital/input-dokumen",
   "/dashboard/parameter/tempat-penyimpanan",
   "/dashboard/arsip-digital/ruang-arsip/tempat-penyimpanan",
 ];
 
-const DOCUMENT_TYPE_READ_PATH = "/dashboard/parameter/jenis-dokumen";
+const DOCUMENT_TYPE_READ_PATHS = [
+  "/dashboard/arsip-digital/input-dokumen",
+  "/dashboard/parameter/jenis-dokumen",
+];
 
 function isScopedPath(pathname: string, paths: string[]) {
   return paths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
@@ -64,11 +68,8 @@ export function ArsipDigitalMasterDataProvider({
   const canReadStorage = STORAGE_READ_PATHS.some((path) =>
     hasDashboardCapability(path, role, roleId, "read"),
   );
-  const canReadDocumentType = hasDashboardCapability(
-    DOCUMENT_TYPE_READ_PATH,
-    role,
-    roleId,
-    "read",
+  const canReadDocumentType = DOCUMENT_TYPE_READ_PATHS.some((path) =>
+    hasDashboardCapability(path, role, roleId, "read"),
   );
   const shouldAutoLoad =
     status === "authenticated" &&
