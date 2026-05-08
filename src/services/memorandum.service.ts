@@ -378,6 +378,27 @@ export const memorandumService = {
     const record = extractRecord(res.data);
     return record ? mapMemorandumRecord(record) : null;
   },
+  update: async (
+    id: string,
+    data: Partial<
+      Pick<
+        MemorandumPayload,
+        | "origin_division_id"
+        | "regarding"
+        | "memo_date"
+        | "received_date"
+        | "due_date"
+        | "memo_number"
+        | "description"
+        | "file"
+      >
+    >,
+  ): Promise<Memorandum | null> => {
+    const formData = toMultipartFormData(data);
+    const res = await api.put(`/memorandums/${id}`, formData);
+    const record = extractRecord(res.data);
+    return record ? mapMemorandumRecord(record) : null;
+  },
   redispose: async (
     id: string,
     data: MemorandumRedispositionPayload,

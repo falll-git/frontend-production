@@ -73,6 +73,7 @@ export interface SuratMasuk {
   keterangan?: string;
   tanggalTerima: string;
   sifat: SifatSurat;
+  letterPrioritieId?: string;
   disposisiKepada: string[];
   statusDisposisi: "Pending" | "Dalam Proses" | "Selesai" | "Terlambat";
   status: SuratMasukStatus;

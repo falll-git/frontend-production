@@ -1,18 +1,29 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpen, Search, Send, X, FileText } from "lucide-react";
+import { AlertCircle, BookOpen, Search, Send, X, FileText } from "lucide-react";
 import DatePickerInput from "@/components/ui/DatePickerInput";
 import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import { useArsipDigitalMasterData } from "@/components/arsip-digital/ArsipDigitalMasterDataProvider";
 import { useArsipDigitalWorkflow } from "@/components/arsip-digital/ArsipDigitalWorkflowProvider";
+import { useProtectedAction } from "@/hooks/useProtectedAction";
+
+const REQUEST_PEMINJAMAN_MENU_URL =
+  "/dashboard/arsip-digital/peminjaman/request";
 
 export default function RequestPeminjamanPage() {
   const { showToast } = useAppToast();
+  const { ensureCapability, hasCapability, status } = useProtectedAction();
   const { tempatPenyimpanan } = useArsipDigitalMasterData();
   const { dokumen, submitPeminjaman } = useArsipDigitalWorkflow();
+  const canCreatePeminjaman = hasCapability(
+    REQUEST_PEMINJAMAN_MENU_URL,
+    "create",
+  );
+  const showCreateBlockedNotice =
+    status === "authenticated" && !canCreatePeminjaman;
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
   const [showModal, setShowModal] = useState(false);
@@ -51,6 +62,8 @@ export default function RequestPeminjamanPage() {
   );
 
   const handleCheckbox = (id: string) => {
+    if (!canCreatePeminjaman) return;
+
     const doc = dokumenList.find((item) => item.id === id);
     if (!doc || doc.statusKey !== "AVAILABLE") return;
 
@@ -60,6 +73,8 @@ export default function RequestPeminjamanPage() {
   };
 
   const handleSelectAll = () => {
+    if (!canCreatePeminjaman) return;
+
     const availableDocs = filteredDokumen.filter(
       (item) => item.statusKey === "AVAILABLE",
     );
@@ -71,6 +86,8 @@ export default function RequestPeminjamanPage() {
   };
 
   const handleSubmit = async () => {
+    if (!ensureCapability(REQUEST_PEMINJAMAN_MENU_URL, "create")) return;
+
     if (selectedDocs.length === 0) {
       showToast("Pilih minimal satu dokumen untuk diajukan.", "warning");
       return;
@@ -148,6 +165,19 @@ export default function RequestPeminjamanPage() {
         icon={<BookOpen />}
       />
 
+      {showCreateBlockedNotice && (
+        <div className="mb-6 flex max-w-2xl gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-semibold">Akses request belum aktif</p>
+            <p className="mt-1">
+              Role Anda dapat membuka menu ini, tetapi belum memiliki izin
+              membuat permohonan peminjaman.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 max-w-2xl mb-8">
         <h3 className="text-blue-800 font-semibold mb-2 flex items-center gap-2">
           Prosedur Peminjaman:
@@ -179,7 +209,7 @@ export default function RequestPeminjamanPage() {
           </div>
           <button
             onClick={() => setShowModal(true)}
-            disabled={selectedDocs.length === 0}
+            disabled={!canCreatePeminjaman || selectedDocs.length === 0}
             className="btn btn-primary px-6 py-2.5 transition-all"
           >
             <Send className="w-4 h-4 mr-2" />
@@ -205,6 +235,7 @@ export default function RequestPeminjamanPage() {
                         filteredDokumen.filter((item) => item.statusKey === "AVAILABLE").length > 0
                       }
                       onCheckedChange={handleSelectAll}
+                      disabled={!canCreatePeminjaman}
                       ariaLabel="Pilih semua dokumen tersedia"
                       size={20}
                     />
@@ -247,7 +278,10 @@ export default function RequestPeminjamanPage() {
                       <UiverseCheckbox
                         checked={selectedDocs.includes(doc.id)}
                         onCheckedChange={() => handleCheckbox(doc.id)}
-                        disabled={doc.statusKey !== "AVAILABLE"}
+                        disabled={
+                          !canCreatePeminjaman ||
+                          doc.statusKey !== "AVAILABLE"
+                        }
                         ariaLabel={`Pilih dokumen ${doc.kode}`}
                         size={20}
                       />
@@ -403,6 +437,7 @@ export default function RequestPeminjamanPage() {
                   !formData.tanggalPeminjaman ||
                   !formData.tanggalPengembalian ||
                   !formData.alasan.trim() ||
+                  !canCreatePeminjaman ||
                   isLoading
                 }
                 className="btn btn-primary"

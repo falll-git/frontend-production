@@ -19,6 +19,7 @@ import {
   FileText,
   Inbox,
   Mail,
+  Pencil,
   PlayCircle,
   Search,
   SearchX,
@@ -41,6 +42,7 @@ import SuratMasukDisposisiModal from "@/components/manajemen-surat/SuratMasukDis
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import { Button } from "@/components/ui/button";
+import DatePickerInput from "@/components/ui/DatePickerInput";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 import { useDocumentPreviewContext } from "@/components/ui/DocumentPreviewContext";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
@@ -58,12 +60,15 @@ import {
   type SuratUser,
 } from "@/types/surat.types";
 import { formatDate, formatDateTime, parseDateString } from "@/lib/utils/date";
-import { isValidFileUrl } from "@/lib/utils/file";
+import { isValidFileUrl, validatePersuratanFile } from "@/lib/utils/file";
 import { toApiDateTime } from "@/services/api.utils";
 import { correspondenceService } from "@/services/correspondence.service";
+import { divisionService } from "@/services/division.service";
+import { letterPriorityService } from "@/services/letter-priority.service";
 import { memorandumService } from "@/services/memorandum.service";
 import { suratKeluarService } from "@/services/surat-keluar.service";
 import { suratMasukService } from "@/services/surat-masuk.service";
+import type { Division, LetterPriority } from "@/types/master.types";
 
 type ReportKind = "surat-masuk" | "surat-keluar" | "memorandum";
 type SortValue = "terbaru" | "terlama" | "tenggat-terdekat" | "tenggat-terlama";
@@ -232,6 +237,21 @@ function sortRecords<T>(
 
 function formatDisplayDate(value: string) {
   return formatDate(value);
+}
+
+function toDateInputValue(value: string | undefined | null) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value.slice(0, 10);
+  return parsed.toISOString().slice(0, 10);
+}
+
+function normalizeDeliveryMediaValue(value: string | undefined | null) {
+  const normalized = (value ?? "").trim().toLowerCase();
+  if (!normalized) return "";
+  if (normalized.includes("langsung")) return "langsung";
+  if (["email", "kurir", "pos"].includes(normalized)) return normalized;
+  return normalized;
 }
 
 function formatTenggatDate(value: string) {
@@ -691,6 +711,20 @@ function DetailButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+function EditButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${ACTION_ICON_BUTTON_CLASS} text-blue-600 hover:bg-blue-50 hover:text-blue-700`}
+      title="Ubah"
+      aria-label="Ubah"
+    >
+      <Pencil className="w-4 h-4" aria-hidden="true" />
+    </button>
+  );
+}
+
 function DisposisiButton({
   onClick,
   isRedisposisi = false,
@@ -758,6 +792,7 @@ function WorkflowActionPanel({
   onComplete,
   onRedispose,
   isBusy,
+  canUpdateStatus,
   canRedispose,
   redispositionLabel,
 }: {
@@ -766,6 +801,7 @@ function WorkflowActionPanel({
   onComplete: () => void;
   onRedispose: () => void;
   isBusy: boolean;
+  canUpdateStatus: boolean;
   canRedispose: boolean;
   redispositionLabel: string;
 }) {
@@ -774,7 +810,7 @@ function WorkflowActionPanel({
   return (
     <DetailSection title="Tindak Lanjut">
       <div className="flex flex-wrap gap-3">
-        {currentDisposition.can_start ? (
+        {canUpdateStatus && currentDisposition.can_start ? (
           <Button
             type="button"
             variant="outline"
@@ -788,7 +824,7 @@ function WorkflowActionPanel({
           </Button>
         ) : null}
 
-        {currentDisposition.can_complete ? (
+        {canUpdateStatus && currentDisposition.can_complete ? (
           <Button
             type="button"
             variant="outline"
@@ -817,6 +853,550 @@ function WorkflowActionPanel({
         ) : null}
       </div>
     </DetailSection>
+  );
+}
+
+type EditFormState = {
+  letterPriorityId: string;
+  personName: string;
+  address: string;
+  documentNumber: string;
+  documentDate: string;
+  regarding: string;
+  description: string;
+  deliveryMedia: string;
+  status: "ACTIVE" | "INACTIVE";
+  originDivisionId: string;
+  receivedDate: string;
+  dueDate: string;
+};
+
+type EditCorrespondencePayload =
+  | {
+      kind: "surat-masuk";
+      id: string;
+      data: Parameters<typeof suratMasukService.update>[1];
+    }
+  | {
+      kind: "surat-keluar";
+      id: string;
+      data: Parameters<typeof suratKeluarService.update>[1];
+    }
+  | {
+      kind: "memorandum";
+      id: string;
+      data: Parameters<typeof memorandumService.update>[1];
+    };
+
+const EMPTY_EDIT_FORM: EditFormState = {
+  letterPriorityId: "",
+  personName: "",
+  address: "",
+  documentNumber: "",
+  documentDate: "",
+  regarding: "",
+  description: "",
+  deliveryMedia: "",
+  status: "ACTIVE",
+  originDivisionId: "",
+  receivedDate: "",
+  dueDate: "",
+};
+
+function buildEditInitialState(target: DetailState): EditFormState {
+  if (target.kind === "surat-masuk") {
+    return {
+      ...EMPTY_EDIT_FORM,
+      letterPriorityId: target.record.letterPrioritieId ?? "",
+      personName: target.record.pengirim,
+      address: target.record.alamatPengirim,
+      documentNumber: target.record.namaSurat,
+      documentDate: toDateInputValue(target.record.tanggalTerima),
+      regarding: target.record.perihal,
+      description: target.record.keterangan ?? "",
+    };
+  }
+
+  if (target.kind === "surat-keluar") {
+    return {
+      ...EMPTY_EDIT_FORM,
+      letterPriorityId: target.record.letterPrioritieId ?? "",
+      personName: target.record.penerima,
+      address: target.record.alamatPenerima,
+      documentNumber: target.record.namaSurat,
+      documentDate: toDateInputValue(target.record.tanggalKirim),
+      deliveryMedia: normalizeDeliveryMediaValue(
+        target.record.mediaRaw ?? target.record.media,
+      ),
+      status:
+        target.record.statusLabel.trim().toLowerCase() === "nonaktif"
+          ? "INACTIVE"
+          : "ACTIVE",
+    };
+  }
+
+  return {
+    ...EMPTY_EDIT_FORM,
+    originDivisionId: target.record.originDivisionId ?? "",
+    documentNumber: target.record.noMemo,
+    documentDate: toDateInputValue(target.record.tanggal),
+    receivedDate: toDateInputValue(
+      target.record.receivedDate ?? target.record.tanggal,
+    ),
+    dueDate: toDateInputValue(target.record.tenggatWaktu),
+    regarding: target.record.perihal,
+    description: target.record.keterangan,
+  };
+}
+
+function EditCorrespondenceModal({
+  target,
+  letterPriorities,
+  divisions,
+  isOptionsLoading,
+  isSubmitting,
+  onClose,
+  onSubmit,
+}: {
+  target: DetailState;
+  letterPriorities: LetterPriority[];
+  divisions: Division[];
+  isOptionsLoading: boolean;
+  isSubmitting: boolean;
+  onClose: () => void;
+  onSubmit: (payload: EditCorrespondencePayload) => Promise<void>;
+}) {
+  const { showToast } = useAppToast();
+  const [form, setForm] = useState<EditFormState>(() =>
+    buildEditInitialState(target),
+  );
+  const [file, setFile] = useState<File | null>(null);
+
+  const title =
+    target.kind === "surat-masuk"
+      ? "Ubah Surat Masuk"
+      : target.kind === "surat-keluar"
+        ? "Ubah Surat Keluar"
+        : "Ubah Memorandum";
+
+  const handleChange = (
+    event: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >,
+  ) => {
+    const { name, value } = event.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextFile = event.target.files?.[0] ?? null;
+    if (!nextFile) {
+      setFile(null);
+      return;
+    }
+
+    const validationMessage = validatePersuratanFile(nextFile);
+    if (validationMessage) {
+      event.target.value = "";
+      setFile(null);
+      showToast(validationMessage, "error");
+      return;
+    }
+
+    setFile(nextFile);
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (target.kind === "surat-masuk") {
+      if (
+        !form.letterPriorityId ||
+        !form.personName.trim() ||
+        !form.address.trim() ||
+        !form.documentNumber.trim() ||
+        !form.documentDate ||
+        !form.regarding.trim()
+      ) {
+        showToast("Lengkapi data surat masuk yang wajib.", "warning");
+        return;
+      }
+
+      await onSubmit({
+        kind: target.kind,
+        id: String(target.record.id),
+        data: {
+          letter_prioritie_id: form.letterPriorityId,
+          name: form.personName.trim(),
+          address: form.address.trim(),
+          mail_number: form.documentNumber.trim(),
+          receive_date: toApiDateTime(form.documentDate),
+          regarding: form.regarding.trim(),
+          description: form.description.trim(),
+          file: file ?? undefined,
+        },
+      });
+      return;
+    }
+
+    if (target.kind === "surat-keluar") {
+      if (
+        !form.letterPriorityId ||
+        !form.personName.trim() ||
+        !form.address.trim() ||
+        !form.documentNumber.trim() ||
+        !form.documentDate ||
+        !form.deliveryMedia
+      ) {
+        showToast("Lengkapi data surat keluar yang wajib.", "warning");
+        return;
+      }
+
+      await onSubmit({
+        kind: target.kind,
+        id: String(target.record.id),
+        data: {
+          letter_prioritie_id: form.letterPriorityId,
+          name: form.personName.trim(),
+          address: form.address.trim(),
+          mail_number: form.documentNumber.trim(),
+          send_date: toApiDateTime(form.documentDate),
+          delivery_media: form.deliveryMedia,
+          status: form.status,
+          file: file ?? undefined,
+        },
+      });
+      return;
+    }
+
+    if (
+      !form.originDivisionId ||
+      !form.documentNumber.trim() ||
+      !form.documentDate ||
+      !form.receivedDate ||
+      !form.regarding.trim() ||
+      !form.description.trim()
+    ) {
+      showToast("Lengkapi data memorandum yang wajib.", "warning");
+      return;
+    }
+
+    await onSubmit({
+      kind: target.kind,
+      id: String(target.record.id),
+      data: {
+        origin_division_id: form.originDivisionId,
+        memo_number: form.documentNumber.trim(),
+        memo_date: toApiDateTime(form.documentDate),
+        received_date: toApiDateTime(form.receivedDate),
+        due_date: form.dueDate ? toApiDateTime(form.dueDate) : undefined,
+        regarding: form.regarding.trim(),
+        description: form.description.trim(),
+        file: file ?? undefined,
+      },
+    });
+  };
+
+  return (
+    <div
+      data-dashboard-overlay="true"
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+    >
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div
+        className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-6 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Perubahan mengikuti izin update pada role-menu.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-200"
+            aria-label="Tutup"
+            title="Tutup"
+          >
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
+          <div className="grid gap-5 md:grid-cols-2">
+            {target.kind !== "memorandum" ? (
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Sifat Surat <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="letterPriorityId"
+                  value={form.letterPriorityId}
+                  onChange={handleChange}
+                  disabled={isOptionsLoading || isSubmitting}
+                  className="select"
+                  required
+                >
+                  <option value="">
+                    {isOptionsLoading ? "Memuat sifat surat..." : "Pilih sifat"}
+                  </option>
+                  {letterPriorities.map((priority) => (
+                    <option key={priority.id} value={priority.id}>
+                      {priority.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Divisi Asal <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="originDivisionId"
+                  value={form.originDivisionId}
+                  onChange={handleChange}
+                  disabled={isOptionsLoading || isSubmitting}
+                  className="select"
+                  required
+                >
+                  <option value="">
+                    {isOptionsLoading ? "Memuat divisi..." : "Pilih divisi"}
+                  </option>
+                  {divisions.map((division) => (
+                    <option key={division.id} value={division.id}>
+                      {division.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                {target.kind === "memorandum"
+                  ? "No Memo"
+                  : "Nama / Nomor Surat"}{" "}
+                <span className="text-red-500">*</span>
+              </label>
+              <input
+                name="documentNumber"
+                value={form.documentNumber}
+                onChange={handleChange}
+                disabled={isSubmitting}
+                className="input"
+                required
+              />
+            </div>
+
+            {target.kind !== "memorandum" ? (
+              <>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    {target.kind === "surat-masuk"
+                      ? "Nama Pengirim"
+                      : "Nama Penerima"}{" "}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    name="personName"
+                    value={form.personName}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                    className="input"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    {target.kind === "surat-masuk"
+                      ? "Alamat Pengirim"
+                      : "Alamat Penerima"}{" "}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    name="address"
+                    value={form.address}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                    className="input"
+                    required
+                  />
+                </div>
+              </>
+            ) : null}
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                {target.kind === "surat-keluar"
+                  ? "Tanggal Pengiriman"
+                  : target.kind === "memorandum"
+                    ? "Tanggal Memo"
+                    : "Tanggal Penerimaan"}{" "}
+                <span className="text-red-500">*</span>
+              </label>
+              <DatePickerInput
+                value={form.documentDate}
+                onChange={(nextValue) =>
+                  setForm((prev) => ({ ...prev, documentDate: nextValue }))
+                }
+              />
+            </div>
+
+            {target.kind === "surat-keluar" ? (
+              <>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Media Pengiriman <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="deliveryMedia"
+                    value={form.deliveryMedia}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                    className="select"
+                    required
+                  >
+                    <option value="">Pilih media</option>
+                    <option value="email">Email</option>
+                    <option value="kurir">Kurir</option>
+                    <option value="langsung">Langsung / Tangan</option>
+                    <option value="pos">Pos</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Status <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="status"
+                    value={form.status}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                    className="select"
+                    required
+                  >
+                    <option value="ACTIVE">Aktif</option>
+                    <option value="INACTIVE">Nonaktif</option>
+                  </select>
+                </div>
+              </>
+            ) : null}
+
+            {target.kind === "memorandum" ? (
+              <>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Tanggal Diterima <span className="text-red-500">*</span>
+                  </label>
+                  <DatePickerInput
+                    value={form.receivedDate}
+                    onChange={(nextValue) =>
+                      setForm((prev) => ({ ...prev, receivedDate: nextValue }))
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Tenggat Waktu
+                  </label>
+                  <DatePickerInput
+                    value={form.dueDate}
+                    onChange={(nextValue) =>
+                      setForm((prev) => ({ ...prev, dueDate: nextValue }))
+                    }
+                  />
+                </div>
+              </>
+            ) : null}
+
+            {target.kind !== "surat-keluar" ? (
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  {target.kind === "memorandum" ? "Perihal Memo" : "Perihal Surat"}{" "}
+                  <span className="text-red-500">*</span>
+                </label>
+                <input
+                  name="regarding"
+                  value={form.regarding}
+                  onChange={handleChange}
+                  disabled={isSubmitting}
+                  className="input"
+                  required
+                />
+              </div>
+            ) : null}
+
+            {target.kind === "memorandum" ? (
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Tujuan Awal
+                </label>
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                  {target.record.targetDivisionNames?.join(", ") ||
+                    target.record.divisiTujuanAwal.join(", ") ||
+                    "-"}
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Divisi tujuan awal tidak dapat diubah setelah memorandum dibuat.
+                </p>
+              </div>
+            ) : null}
+
+            {target.kind !== "surat-keluar" ? (
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  {target.kind === "memorandum"
+                    ? "Keterangan Memo"
+                    : "Keterangan Surat"}
+                </label>
+                <textarea
+                  name="description"
+                  value={form.description}
+                  onChange={handleChange}
+                  disabled={isSubmitting}
+                  rows={3}
+                  className="textarea resize-none"
+                />
+              </div>
+            ) : null}
+
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Ganti File
+              </label>
+              <input
+                type="file"
+                onChange={handleFileChange}
+                disabled={isSubmitting}
+                className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                Kosongkan jika file lama tetap digunakan.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-col justify-end gap-3 border-t border-gray-100 pt-5 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
+              Batal
+            </Button>
+            <Button type="submit" disabled={isSubmitting || isOptionsLoading}>
+              {isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
@@ -1021,6 +1601,14 @@ export default function LaporanPersuratanClient() {
   const [selectedDetail, setSelectedDetail] = useState<DetailState | null>(
     null,
   );
+  const [editTarget, setEditTarget] = useState<DetailState | null>(null);
+  const [isUpdatingCorrespondence, setIsUpdatingCorrespondence] =
+    useState(false);
+  const [letterPriorities, setLetterPriorities] = useState<LetterPriority[]>(
+    [],
+  );
+  const [divisions, setDivisions] = useState<Division[]>([]);
+  const [isEditOptionsLoading, setIsEditOptionsLoading] = useState(false);
   const [suratMasukRecords, setSuratMasukRecords] = useState<
     SuratMasukRecord[]
   >([]);
@@ -1078,6 +1666,9 @@ export default function LaporanPersuratanClient() {
     date.setHours(0, 0, 0, 0);
     return date;
   }, []);
+  const canUpdateSuratMasuk = hasCapability(SURAT_MASUK_MENU_URL, "update");
+  const canUpdateSuratKeluar = hasCapability(SURAT_KELUAR_MENU_URL, "update");
+  const canUpdateMemorandum = hasCapability(MEMORANDUM_MENU_URL, "update");
   const canDeleteSuratMasuk = hasCapability(SURAT_MASUK_MENU_URL, "delete");
   const canDeleteSuratKeluar = hasCapability(SURAT_KELUAR_MENU_URL, "delete");
   const canDeleteMemorandum = hasCapability(MEMORANDUM_MENU_URL, "delete");
@@ -1101,6 +1692,21 @@ export default function LaporanPersuratanClient() {
   const requireDeleteMemorandumAction = () =>
     ensureCapability(MEMORANDUM_MENU_URL, "delete", {
       message: "Anda tidak memiliki akses untuk menghapus memorandum.",
+    });
+
+  const requireUpdateSuratMasukAction = () =>
+    ensureCapability(SURAT_MASUK_MENU_URL, "update", {
+      message: "Anda tidak memiliki akses untuk mengubah surat masuk.",
+    });
+
+  const requireUpdateSuratKeluarAction = () =>
+    ensureCapability(SURAT_KELUAR_MENU_URL, "update", {
+      message: "Anda tidak memiliki akses untuk mengubah surat keluar.",
+    });
+
+  const requireUpdateMemorandumAction = () =>
+    ensureCapability(MEMORANDUM_MENU_URL, "update", {
+      message: "Anda tidak memiliki akses untuk mengubah memorandum.",
     });
 
   const requireRedisposeSuratMasukAction = () =>
@@ -1478,6 +2084,8 @@ export default function LaporanPersuratanClient() {
     dispositionId: string,
     status: "IN_PROGRESS" | "COMPLETED",
   ) => {
+    if (!requireUpdateSuratMasukAction()) return;
+
     setIsUpdatingDispositionStatus(true);
     try {
       const updated = await suratMasukService.updateDispositionStatus(
@@ -1527,6 +2135,8 @@ export default function LaporanPersuratanClient() {
     dispositionId: string,
     status: "IN_PROGRESS" | "COMPLETED",
   ) => {
+    if (!requireUpdateMemorandumAction()) return;
+
     setIsUpdatingDispositionStatus(true);
     try {
       const updated = await memorandumService.updateDispositionStatus(
@@ -1836,6 +2446,55 @@ export default function LaporanPersuratanClient() {
 
   const activeConfig = activeKind ? activeSectionConfig[activeKind] : null;
 
+  const loadEditOptions = useCallback(
+    async (kind: ReportKind) => {
+      setIsEditOptionsLoading(true);
+      try {
+        if (kind === "memorandum") {
+          const rows = await divisionService.getAll();
+          setDivisions(
+            [...rows].sort((left, right) => left.name.localeCompare(right.name)),
+          );
+          return;
+        }
+
+        const rows = await letterPriorityService.getAll();
+        setLetterPriorities(
+          rows
+            .filter((item) => item.status !== "Nonaktif")
+            .sort((left, right) => left.name.localeCompare(right.name)),
+        );
+      } catch (error) {
+        showToast(
+          error instanceof Error
+            ? error.message
+            : "Gagal memuat data pendukung perubahan.",
+          "error",
+        );
+      } finally {
+        setIsEditOptionsLoading(false);
+      }
+    },
+    [showToast],
+  );
+
+  const handleOpenEdit = (target: DetailState) => {
+    if (target.kind === "surat-masuk" && !requireUpdateSuratMasukAction()) {
+      return;
+    }
+
+    if (target.kind === "surat-keluar" && !requireUpdateSuratKeluarAction()) {
+      return;
+    }
+
+    if (target.kind === "memorandum" && !requireUpdateMemorandumAction()) {
+      return;
+    }
+
+    setEditTarget(target);
+    void loadEditOptions(target.kind);
+  };
+
   const handleSelectCard = (kind: ReportKind) => {
     setActiveKind(kind);
     setSearchValue("");
@@ -1867,6 +2526,89 @@ export default function LaporanPersuratanClient() {
     setSelectedDisposisiUserId("");
     setDisposisiUserSearch("");
     setDisposisiCatatan("");
+  };
+
+  const handleSubmitEdit = async (payload: EditCorrespondencePayload) => {
+    if (payload.kind === "surat-masuk" && !requireUpdateSuratMasukAction()) {
+      return;
+    }
+
+    if (payload.kind === "surat-keluar" && !requireUpdateSuratKeluarAction()) {
+      return;
+    }
+
+    if (payload.kind === "memorandum" && !requireUpdateMemorandumAction()) {
+      return;
+    }
+
+    setIsUpdatingCorrespondence(true);
+
+    try {
+      let nextDetail: DetailState | null = null;
+
+      if (payload.kind === "surat-masuk") {
+        const updated = await suratMasukService.update(payload.id, payload.data);
+        const nextState = await refreshReportData();
+        const nextRecord =
+          nextState.incoming.find((item) => String(item.id) === payload.id) ??
+          updated;
+
+        if (nextRecord) {
+          nextDetail = { kind: "surat-masuk", record: nextRecord };
+        }
+      }
+
+      if (payload.kind === "surat-keluar") {
+        const updated = await suratKeluarService.update(
+          payload.id,
+          payload.data,
+        );
+        const nextState = await refreshReportData();
+        const nextRecord =
+          nextState.outgoing.find((item) => String(item.id) === payload.id) ??
+          updated;
+
+        if (nextRecord) {
+          nextDetail = { kind: "surat-keluar", record: nextRecord };
+        }
+      }
+
+      if (payload.kind === "memorandum") {
+        const updated = await memorandumService.update(payload.id, payload.data);
+        const nextState = await refreshReportData();
+        const nextRecord =
+          nextState.memorandums.find(
+            (item) => String(item.id) === payload.id,
+          ) ?? updated;
+
+        if (nextRecord) {
+          nextDetail = { kind: "memorandum", record: nextRecord };
+        }
+      }
+
+      if (nextDetail) {
+        const detail = nextDetail;
+        setSelectedDetail((prev) =>
+          prev &&
+          prev.kind === detail.kind &&
+          String(prev.record.id) === String(detail.record.id)
+            ? detail
+            : prev,
+        );
+      }
+
+      setEditTarget(null);
+      showToast("Data persuratan berhasil diperbarui.", "success");
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Gagal memperbarui data persuratan.",
+        "error",
+      );
+    } finally {
+      setIsUpdatingCorrespondence(false);
+    }
   };
 
   const handleCloseDisposisiSidebar = () => {
@@ -2225,6 +2967,16 @@ export default function LaporanPersuratanClient() {
                         </td>
                         <td className={REPORT_ACTION_CELL_CLASS}>
                           <div className="flex items-center justify-center gap-3 whitespace-nowrap">
+                            {canUpdateSuratMasuk ? (
+                              <EditButton
+                                onClick={() =>
+                                  handleOpenEdit({
+                                    kind: "surat-masuk",
+                                    record,
+                                  })
+                                }
+                              />
+                            ) : null}
                             {canDeleteSuratMasuk ? (
                               <DeleteButton
                                 onClick={() => handleDeleteSuratMasuk(record)}
@@ -2362,6 +3114,16 @@ export default function LaporanPersuratanClient() {
                         </td>
                         <td className={REPORT_ACTION_CELL_CLASS}>
                           <div className="flex items-center justify-center gap-3 whitespace-nowrap">
+                            {canUpdateSuratKeluar ? (
+                              <EditButton
+                                onClick={() =>
+                                  handleOpenEdit({
+                                    kind: "surat-keluar",
+                                    record,
+                                  })
+                                }
+                              />
+                            ) : null}
                             {canDeleteSuratKeluar ? (
                               <DeleteButton
                                 onClick={() => handleDeleteSuratKeluar(record)}
@@ -2524,6 +3286,16 @@ export default function LaporanPersuratanClient() {
                         </td>
                         <td className={REPORT_ACTION_CELL_CLASS}>
                           <div className="flex items-center justify-center gap-3 whitespace-nowrap">
+                            {canUpdateMemorandum ? (
+                              <EditButton
+                                onClick={() =>
+                                  handleOpenEdit({
+                                    kind: "memorandum",
+                                    record,
+                                  })
+                                }
+                              />
+                            ) : null}
                             {canDeleteMemorandum ? (
                               <DeleteButton
                                 onClick={() => handleDeleteMemorandum(record)}
@@ -2598,6 +3370,26 @@ export default function LaporanPersuratanClient() {
 
             return (
               <div className="space-y-6">
+                {canUpdateSuratMasuk ? (
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() =>
+                        handleOpenEdit({
+                          kind: "surat-masuk",
+                          record: selectedDetail.record,
+                        })
+                      }
+                    >
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                      Ubah Data
+                    </Button>
+                  </div>
+                ) : null}
+
                 <DetailSection title="Informasi Surat">
                   <DetailRow
                     label="Nama Pengirim"
@@ -2720,6 +3512,7 @@ export default function LaporanPersuratanClient() {
                     handleOpenDisposisiSidebar(selectedDetail.record.id)
                   }
                   isBusy={isUpdatingDispositionStatus}
+                  canUpdateStatus={canUpdateSuratMasuk}
                   canRedispose={canRedisposeSuratMasuk}
                   redispositionLabel={getWorkflowActionLabel(
                     currentUserDisposition,
@@ -2749,6 +3542,26 @@ export default function LaporanPersuratanClient() {
 
         {selectedDetail?.kind === "surat-keluar" ? (
           <div className="space-y-6">
+            {canUpdateSuratKeluar ? (
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() =>
+                    handleOpenEdit({
+                      kind: "surat-keluar",
+                      record: selectedDetail.record,
+                    })
+                  }
+                >
+                  <Pencil className="h-4 w-4" aria-hidden="true" />
+                  Ubah Data
+                </Button>
+              </div>
+            ) : null}
+
             <DetailSection title="Informasi Surat">
               <DetailRow
                 label="Nama Penerima"
@@ -2796,6 +3609,26 @@ export default function LaporanPersuratanClient() {
 
             return (
               <div className="space-y-6">
+                {canUpdateMemorandum ? (
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() =>
+                        handleOpenEdit({
+                          kind: "memorandum",
+                          record: selectedDetail.record,
+                        })
+                      }
+                    >
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                      Ubah Data
+                    </Button>
+                  </div>
+                ) : null}
+
                 <DetailSection title="Informasi Memorandum">
                   <DetailRow label="No Memo" value={selectedDetail.record.noMemo} />
                   <DetailRow
@@ -2906,6 +3739,7 @@ export default function LaporanPersuratanClient() {
                     handleOpenMemorandumDisposisi(selectedDetail.record.id)
                   }
                   isBusy={isUpdatingDispositionStatus}
+                  canUpdateStatus={canUpdateMemorandum}
                   canRedispose={canRedisposeMemorandum}
                   redispositionLabel={getWorkflowActionLabel(
                     currentUserDisposition,
@@ -2964,6 +3798,22 @@ export default function LaporanPersuratanClient() {
         onClose={handleCloseMemorandumDisposisi}
         onSubmit={handleSubmitMemorandumDisposisi}
       />
+      {editTarget ? (
+        <EditCorrespondenceModal
+          key={`${editTarget.kind}-${String(editTarget.record.id)}`}
+          target={editTarget}
+          letterPriorities={letterPriorities}
+          divisions={divisions}
+          isOptionsLoading={isEditOptionsLoading}
+          isSubmitting={isUpdatingCorrespondence}
+          onClose={() => {
+            if (!isUpdatingCorrespondence) {
+              setEditTarget(null);
+            }
+          }}
+          onSubmit={handleSubmitEdit}
+        />
+      ) : null}
       <DeleteConfirmModal
         isOpen={deleteTarget !== null}
         title="Hapus Surat Masuk?"

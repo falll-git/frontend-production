@@ -103,6 +103,15 @@ export const suratKeluarService = {
     const record = extractRecord(res.data);
     return record ? mapSuratKeluarRecord(record) : null;
   },
+  update: async (
+    id: string,
+    data: Partial<OutgoingMailPayload> & { status?: "ACTIVE" | "INACTIVE" },
+  ): Promise<SuratKeluar | null> => {
+    const formData = toMultipartFormData(data);
+    const res = await api.put(`/outgoing-mails/${id}`, formData);
+    const record = extractRecord(res.data);
+    return record ? mapSuratKeluarRecord(record) : null;
+  },
   remove: async (id: string): Promise<void> => {
     await api.delete(`/outgoing-mails/${id}`);
   },

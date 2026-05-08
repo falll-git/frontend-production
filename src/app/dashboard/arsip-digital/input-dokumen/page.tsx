@@ -1,17 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, UploadCloud } from "lucide-react";
+import { AlertCircle, Check, UploadCloud } from "lucide-react";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import { useArsipDigitalMasterData } from "@/components/arsip-digital/ArsipDigitalMasterDataProvider";
 import { useArsipDigitalWorkflow } from "@/components/arsip-digital/ArsipDigitalWorkflowProvider";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import DatePickerInput from "@/components/ui/DatePickerInput";
+import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { validateDigitalArchiveFile } from "@/lib/utils/file";
 import { divisionService } from "@/services/division.service";
 import { userService } from "@/services/user.service";
 import type { UserRecord } from "@/types/auth.types";
 import type { Division } from "@/types/master.types";
+
+const INPUT_DOKUMEN_MENU_URL = "/dashboard/arsip-digital/input-dokumen";
 
 type RestrictOption = "Ya" | "Tidak";
 
@@ -43,8 +46,12 @@ const INITIAL_FORM_STATE: FormState = {
 
 export default function InputDokumenPage() {
   const { showToast } = useAppToast();
+  const { ensureCapability, hasCapability, status } = useProtectedAction();
   const { tempatPenyimpanan, jenisDokumen } = useArsipDigitalMasterData();
   const { createDokumen } = useArsipDigitalWorkflow();
+  const canCreateDokumen = hasCapability(INPUT_DOKUMEN_MENU_URL, "create");
+  const showCreateBlockedNotice =
+    status === "authenticated" && !canCreateDokumen;
   const [formData, setFormData] = useState<FormState>(INITIAL_FORM_STATE);
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -159,6 +166,8 @@ export default function InputDokumenPage() {
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canCreateDokumen) return;
+
     if (event.target.files && event.target.files[0]) {
       const selectedFile = event.target.files[0];
       const validationMessage = validateDigitalArchiveFile(selectedFile);
@@ -176,6 +185,9 @@ export default function InputDokumenPage() {
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault();
     setDragOver(false);
+
+    if (!canCreateDokumen) return;
+
     if (event.dataTransfer.files && event.dataTransfer.files[0]) {
       const selectedFile = event.dataTransfer.files[0];
       const validationMessage = validateDigitalArchiveFile(selectedFile);
@@ -196,6 +208,8 @@ export default function InputDokumenPage() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    if (!ensureCapability(INPUT_DOKUMEN_MENU_URL, "create")) return;
 
     if (
       !formData.tempatPenyimpananId ||
@@ -279,6 +293,19 @@ export default function InputDokumenPage() {
         subtitle="Masukkan data dokumen baru ke dalam sistem arsip digital."
         icon={<UploadCloud />}
       />
+
+      {showCreateBlockedNotice && (
+        <div className="mb-6 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-semibold">Akses input belum aktif</p>
+            <p className="mt-1">
+              Role Anda dapat membuka menu ini, tetapi belum memiliki izin
+              membuat dokumen arsip digital.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <form onSubmit={handleSubmit} className="p-8 space-y-8">
@@ -606,7 +633,11 @@ export default function InputDokumenPage() {
               }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
-              onClick={() => document.getElementById("fileInput")?.click()}
+              onClick={() => {
+                if (canCreateDokumen) {
+                  document.getElementById("fileInput")?.click();
+                }
+              }}
             >
               <input
                 id="fileInput"
@@ -614,6 +645,7 @@ export default function InputDokumenPage() {
                 onChange={handleFileChange}
                 className="hidden"
                 accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                disabled={!canCreateDokumen || isLoading}
               />
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center mb-4 transition-colors ${
@@ -667,7 +699,7 @@ export default function InputDokumenPage() {
             </button>
             <button
               type="submit"
-              disabled={isLoading || !file}
+              disabled={isLoading || !file || !canCreateDokumen}
               className="btn btn-primary"
             >
               {isLoading ? (

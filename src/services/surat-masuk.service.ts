@@ -372,6 +372,10 @@ export function mapSuratMasukRecord(
           : normalizedSifat === "terbatas"
             ? "Terbatas"
             : "Biasa",
+    letterPrioritieId:
+      readString(record, "letter_prioritie_id", "letterPrioritieId") ??
+      (letterPriorityRecord ? readString(letterPriorityRecord, "id") : null) ??
+      undefined,
     disposisiKepada,
     statusDisposisi: status.statusDisposisi as SuratMasuk["statusDisposisi"],
     status: status.status,
@@ -523,6 +527,27 @@ export const suratMasukService = {
       `/incoming-mails/${id}/dispositions/${dispositionId}/status`,
       data,
     );
+    const record = extractRecord(res.data);
+    return record ? mapSuratMasukRecord(record) : null;
+  },
+  update: async (
+    id: string,
+    data: Partial<
+      Pick<
+        IncomingMailPayload,
+        | "letter_prioritie_id"
+        | "regarding"
+        | "receive_date"
+        | "mail_number"
+        | "name"
+        | "description"
+        | "file"
+        | "address"
+      >
+    >,
+  ): Promise<SuratMasuk | null> => {
+    const formData = toMultipartFormData(data);
+    const res = await api.put(`/incoming-mails/${id}`, formData);
     const record = extractRecord(res.data);
     return record ? mapSuratMasukRecord(record) : null;
   },
