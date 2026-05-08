@@ -508,38 +508,49 @@ export function LaporanAktivitasMarketingPreview({
 export default function AdvancedReportSections() {
   const { role, status, user } = useAuth();
 
-  const reportAccess = useMemo(() => {
+  const visibleReports = useMemo(() => {
     const resolveAccess = (href: string) => {
       if (status !== "authenticated" || !role) return false;
       return getDashboardRouteDecision(href, role, user?.role_id).allowed;
     };
 
-    return {
-      pihakKetigaDokumen: resolveAccess(
-        "/dashboard/legal/laporan/pihak-ketiga/dokumen",
-      ),
-      pihakKetigaDanaTitipan: resolveAccess(
-        "/dashboard/legal/laporan/pihak-ketiga/dana-titipan",
-      ),
-      npf: resolveAccess("/dashboard/informasi-debitur/laporan/npf"),
-      aktivitasMarketing: resolveAccess(
-        "/dashboard/informasi-debitur/laporan/aktivitas-marketing",
-      ),
-    };
+    return [
+      {
+        key: "pihakKetigaDokumen",
+        isVisible: resolveAccess(
+          "/dashboard/legal/laporan/pihak-ketiga/dokumen",
+        ),
+        node: <LaporanPihakKetigaDokumenPreview />,
+      },
+      {
+        key: "pihakKetigaDanaTitipan",
+        isVisible: resolveAccess(
+          "/dashboard/legal/laporan/pihak-ketiga/dana-titipan",
+        ),
+        node: <LaporanPihakKetigaDanaTitipanPreview />,
+      },
+      {
+        key: "npf",
+        isVisible: resolveAccess("/dashboard/informasi-debitur/laporan/npf"),
+        node: <LaporanNpfPreview />,
+      },
+      {
+        key: "aktivitasMarketing",
+        isVisible: resolveAccess(
+          "/dashboard/informasi-debitur/laporan/aktivitas-marketing",
+        ),
+        node: <LaporanAktivitasMarketingPreview />,
+      },
+    ].filter((report) => report.isVisible);
   }, [role, status, user?.role_id]);
+
+  if (visibleReports.length === 0) return null;
 
   return (
     <div className="mt-10 space-y-10">
-      <LaporanPihakKetigaDokumenPreview
-        isDisabled={!reportAccess.pihakKetigaDokumen}
-      />
-      <LaporanPihakKetigaDanaTitipanPreview
-        isDisabled={!reportAccess.pihakKetigaDanaTitipan}
-      />
-      <LaporanNpfPreview isDisabled={!reportAccess.npf} />
-      <LaporanAktivitasMarketingPreview
-        isDisabled={!reportAccess.aktivitasMarketing}
-      />
+      {visibleReports.map((report) => (
+        <div key={report.key}>{report.node}</div>
+      ))}
     </div>
   );
 }
