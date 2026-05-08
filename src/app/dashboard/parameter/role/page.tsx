@@ -315,8 +315,8 @@ export default function SetupRolePage() {
           <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed`}>
             <colgroup>
               <col className="w-16" />
-              <col className="w-[340px]" />
-              <col className="w-[154px]" />
+              <col />
+              <col className="w-32" />
             </colgroup>
             <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
               <tr>
@@ -326,7 +326,7 @@ export default function SetupRolePage() {
                 <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
                   Nama Role
                 </th>
-                <th className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-[154px]`}>
+                <th className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-32`}>
                   Status
                 </th>
               </tr>
@@ -343,11 +343,11 @@ export default function SetupRolePage() {
                   <td
                     className={`${SETUP_PAGE_COMPACT_CELL_CLASS} text-sm font-semibold text-gray-900`}
                   >
-                    <div className="flex items-center justify-center gap-3">
+                    <div className="flex items-center gap-3">
                       <span>{role.name}</span>
                     </div>
                   </td>
-                  <td className={`${SETUP_PAGE_COMPACT_CELL_CLASS} !text-center`}>
+                  <td className={`${SETUP_PAGE_COMPACT_CELL_CLASS} !text-left`}>
                     <span className={BADGE_UTAMA_CLASS}>Role utama</span>
                   </td>
                 </tr>
@@ -387,7 +387,7 @@ export default function SetupRolePage() {
           <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed`}>
             <colgroup>
               <col className="w-16" />
-              <col className="w-[400px]" />
+              <col />
               <col className="w-24" />
             </colgroup>
             <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>

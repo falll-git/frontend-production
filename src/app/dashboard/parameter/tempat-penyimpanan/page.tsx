@@ -329,7 +329,7 @@ export default function SetupTempatPenyimpananPage() {
               <colgroup>
                 <col className="w-16" />
                 <col className="w-28" />
-                <col className="w-[250px]" />
+                <col />
                 <col className="w-36" />
                 <col className="w-24" />
                 <col className="w-28" />

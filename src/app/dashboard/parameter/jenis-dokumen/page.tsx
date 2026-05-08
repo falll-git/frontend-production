@@ -291,8 +291,8 @@ export default function SetupJenisDokumenPage() {
               <colgroup>
                 <col className="w-16" />
                 <col className="w-28" />
-                <col className="w-[260px]" />
-                <col className="w-[320px]" />
+                <col />
+                <col />
                 <col className="w-28" />
               </colgroup>
               <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>

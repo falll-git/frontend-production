@@ -233,7 +233,7 @@ export default function SetupDivisiPage() {
           <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed`}>
             <colgroup>
               <col className="w-16" />
-              <col className="w-[400px]" />
+              <col />
               <col className="w-24" />
             </colgroup>
             <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
