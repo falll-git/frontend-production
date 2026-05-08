@@ -1,16 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FileText, Send, UploadCloud } from "lucide-react";
+import { AlertCircle, FileText, Send, UploadCloud } from "lucide-react";
 import DatePickerInput from "@/components/ui/DatePickerInput";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import TenggatWaktuModal from "@/components/surat/TenggatWaktuModal";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { validatePersuratanFile } from "@/lib/utils/file";
 import { toApiDateTime } from "@/services/api.utils";
 import { divisionService } from "@/services/division.service";
 import { memorandumService } from "@/services/memorandum.service";
+
+const MEMORANDUM_MENU_URL =
+  "/dashboard/manajemen-surat/kelola-surat/input-memorandum";
 
 type DivisionOption = {
   id: string;
@@ -41,6 +45,10 @@ const INITIAL_FORM_DATA = {
 export default function InputMemorandumPage() {
   const { user } = useAuth();
   const { showToast } = useAppToast();
+  const { ensureCapability, hasCapability, status } = useProtectedAction();
+  const canCreateMemorandum = hasCapability(MEMORANDUM_MENU_URL, "create");
+  const showCreateBlockedNotice =
+    status === "authenticated" && !canCreateMemorandum;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
@@ -121,6 +129,8 @@ export default function InputMemorandumPage() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canCreateMemorandum) return;
+
     if (e.target.files && e.target.files[0]) {
       const nextFile = e.target.files[0];
       const validationMessage = validatePersuratanFile(nextFile);
@@ -139,6 +149,9 @@ export default function InputMemorandumPage() {
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setDragOver(false);
+
+    if (!canCreateMemorandum) return;
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const nextFile = e.dataTransfer.files[0];
       const validationMessage = validatePersuratanFile(nextFile);
@@ -155,6 +168,8 @@ export default function InputMemorandumPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!ensureCapability(MEMORANDUM_MENU_URL, "create")) return;
 
     if (!formData.originDivisionId) {
       showToast("Divisi asal memorandum wajib dipilih.", "error");
@@ -223,6 +238,8 @@ export default function InputMemorandumPage() {
     tenggatWaktu?: string;
     keteranganTenggat?: string;
   }) => {
+    if (!ensureCapability(MEMORANDUM_MENU_URL, "create")) return;
+
     if (!savedMemo) {
       setIsTenggatModalOpen(false);
       return;
@@ -287,6 +304,19 @@ export default function InputMemorandumPage() {
         icon={<FileText />}
       />
 
+      {showCreateBlockedNotice && (
+        <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-semibold">Akses input belum aktif</p>
+            <p className="mt-1">
+              Role Anda dapat membuka menu ini, tetapi belum memiliki izin
+              membuat memorandum.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="card p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -303,7 +333,7 @@ export default function InputMemorandumPage() {
                 value={formData.originDivisionId}
                 onChange={handleChange}
                 required
-                disabled={isMasterLoading || isLoading}
+                disabled={isMasterLoading || isLoading || !canCreateMemorandum}
                 className="select"
               >
                 <option value="">
@@ -414,7 +444,9 @@ export default function InputMemorandumPage() {
                         <input
                           type="checkbox"
                           checked={isChecked}
-                          disabled={isMasterLoading || isLoading}
+                          disabled={
+                            isMasterLoading || isLoading || !canCreateMemorandum
+                          }
                           onChange={() => handleToggleDivision(division.id)}
                           className="mt-1 h-4 w-4 rounded border-gray-300 text-[#157ec3] focus:ring-[#157ec3]"
                         />
@@ -503,14 +535,16 @@ export default function InputMemorandumPage() {
                 }}
                 onDragLeave={() => setDragOver(false)}
                 onClick={() => {
-                  if (!isLoading) fileInputRef.current?.click();
+                  if (!isLoading && canCreateMemorandum) {
+                    fileInputRef.current?.click();
+                  }
                 }}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
                   if ((e.key === "Enter" || e.key === " ") && !isLoading) {
                     e.preventDefault();
-                    fileInputRef.current?.click();
+                    if (canCreateMemorandum) fileInputRef.current?.click();
                   }
                 }}
               >
@@ -520,7 +554,7 @@ export default function InputMemorandumPage() {
                   onChange={handleFileChange}
                   className="hidden"
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                  disabled={isLoading}
+                  disabled={isLoading || !canCreateMemorandum}
                 />
                 <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mb-4 text-blue-600">
                   <UploadCloud className="w-8 h-8" aria-hidden="true" />
@@ -593,6 +627,7 @@ export default function InputMemorandumPage() {
               disabled={
                 isLoading ||
                 isMasterLoading ||
+                !canCreateMemorandum ||
                 !formData.originDivisionId ||
                 formData.targetDivisionIds.length === 0
               }

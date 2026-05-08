@@ -5,11 +5,15 @@ import { AlertCircle, Inbox, Send, UploadCloud } from "lucide-react";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import DatePickerInput from "@/components/ui/DatePickerInput";
 import { useAppToast } from "@/components/ui/AppToastProvider";
+import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { validatePersuratanFile } from "@/lib/utils/file";
 import { toApiDateTime } from "@/services/api.utils";
 import { divisionService } from "@/services/division.service";
 import { letterPriorityService } from "@/services/letter-priority.service";
 import { suratMasukService } from "@/services/surat-masuk.service";
+
+const SURAT_MASUK_MENU_URL =
+  "/dashboard/manajemen-surat/kelola-surat/input-surat-masuk";
 
 type DivisionOption = {
   id: string;
@@ -18,6 +22,10 @@ type DivisionOption = {
 
 export default function InputSuratMasukPage() {
   const { showToast } = useAppToast();
+  const { ensureCapability, hasCapability, status } = useProtectedAction();
+  const canCreateSuratMasuk = hasCapability(SURAT_MASUK_MENU_URL, "create");
+  const showCreateBlockedNotice =
+    status === "authenticated" && !canCreateSuratMasuk;
   const [formData, setFormData] = useState({
     namaPengirim: "",
     alamatPengirim: "",
@@ -98,6 +106,8 @@ export default function InputSuratMasukPage() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canCreateSuratMasuk) return;
+
     if (e.target.files && e.target.files[0]) {
       const nextFile = e.target.files[0];
       const validationMessage = validatePersuratanFile(nextFile);
@@ -116,6 +126,9 @@ export default function InputSuratMasukPage() {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
+
+    if (!canCreateSuratMasuk) return;
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const nextFile = e.dataTransfer.files[0];
       const validationMessage = validatePersuratanFile(nextFile);
@@ -145,6 +158,8 @@ export default function InputSuratMasukPage() {
   };
 
   const submitSuratMasuk = async () => {
+    if (!ensureCapability(SURAT_MASUK_MENU_URL, "create")) return;
+
     setIsLoading(true);
 
     try {
@@ -174,6 +189,8 @@ export default function InputSuratMasukPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!ensureCapability(SURAT_MASUK_MENU_URL, "create")) return;
 
     if (!formData.tanggalPenerimaan) {
       showToast("Tanggal penerimaan wajib diisi!", "error");
@@ -215,6 +232,19 @@ export default function InputSuratMasukPage() {
         subtitle="Form pencatatan dan pendisposisian surat masuk."
         icon={<Inbox />}
       />
+
+      {showCreateBlockedNotice && (
+        <div className="mb-6 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <div>
+            <p className="font-semibold">Akses input belum aktif</p>
+            <p className="mt-1">
+              Role Anda dapat membuka menu ini, tetapi belum memiliki izin
+              membuat surat masuk.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <form onSubmit={handleSubmit} className="p-8 space-y-8">
@@ -409,6 +439,7 @@ export default function InputSuratMasukPage() {
                   onChange={handleFileChange}
                   className="hidden"
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                  disabled={!canCreateSuratMasuk || isLoading}
                 />
                 <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mb-4 text-blue-600">
                   <UploadCloud className="w-8 h-8" />
@@ -469,7 +500,9 @@ export default function InputSuratMasukPage() {
                         <input
                           type="checkbox"
                           checked={isChecked}
-                          disabled={isMasterLoading || isLoading}
+                          disabled={
+                            isMasterLoading || isLoading || !canCreateSuratMasuk
+                          }
                           onChange={() => handleToggleDivision(division.id)}
                           className="mt-1 h-4 w-4 rounded border-gray-300 text-[#157ec3] focus:ring-[#157ec3]"
                         />
@@ -509,6 +542,7 @@ export default function InputSuratMasukPage() {
             <button
               type="submit"
               disabled={
+                !canCreateSuratMasuk ||
                 isLoading ||
                 isMasterLoading ||
                 formData.divisionIds.length === 0 ||
