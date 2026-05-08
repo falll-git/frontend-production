@@ -906,7 +906,7 @@ export default function CetakDokumenClient() {
           )}
         </div>
 
-        <div className="self-start rounded-lg border border-gray-200 bg-white p-4 shadow-sm xl:sticky xl:top-24">
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm xl:sticky xl:top-24">
           {selectedRecord ? (
             <div className="space-y-4">
               <MiniPdfPreview

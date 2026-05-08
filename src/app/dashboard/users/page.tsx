@@ -686,7 +686,7 @@ export default function ManajemenUserPage() {
   if (!canReadUsers) return null;
 
   return (
-    <div className="animate-fade-in space-y-6">
+    <div className="max-w-7xl mx-auto animate-fade-in space-y-6">
       <FeatureHeader
         title="Manajemen User"
         subtitle="Kelola pengguna, role, dan akses sistem"

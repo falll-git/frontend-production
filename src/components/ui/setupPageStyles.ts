@@ -1,13 +1,13 @@
 export const SETUP_PAGE_SEARCH_CARD_CLASS =
-  "w-full rounded-lg border border-gray-200 bg-white p-4";
+  "rounded-lg border border-gray-200 bg-white p-4";
 
-export const SETUP_PAGE_WIDTH_SM_CLASS = "w-full max-w-[560px]";
+export const SETUP_PAGE_WIDTH_SM_CLASS = "w-full";
 
-export const SETUP_PAGE_WIDTH_MD_CLASS = "w-full max-w-[860px]";
+export const SETUP_PAGE_WIDTH_MD_CLASS = "w-full";
 
-export const SETUP_PAGE_WIDTH_LG_CLASS = "w-full max-w-[900px]";
+export const SETUP_PAGE_WIDTH_LG_CLASS = "w-full";
 
-export const SETUP_PAGE_WIDTH_XL_CLASS = "w-full max-w-[1040px]";
+export const SETUP_PAGE_WIDTH_XL_CLASS = "w-full";
 
 export const SETUP_PAGE_WIDTH_2XL_CLASS = "w-full max-w-[1280px]";
 
