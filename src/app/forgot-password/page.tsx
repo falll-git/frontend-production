@@ -4,8 +4,9 @@ export const dynamic = "force-dynamic";
 
 import { useState } from "react";
 import Link from "next/link";
-import { AlertCircle, ArrowLeft, Check, Mail } from "lucide-react";
+import { ArrowLeft, Check, Mail } from "lucide-react";
 import AuthSplitLayout from "@/components/auth/AuthSplitLayout";
+import { useAppToast } from "@/components/ui/AppToastProvider";
 import { authService } from "@/services/auth.service";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -23,26 +24,25 @@ function humanizeForgotPasswordError(message: string): string {
 }
 
 export default function ForgotPasswordPage() {
+  const { showToast } = useAppToast();
   const [email, setEmail] = useState("");
   const [submittedEmail, setSubmittedEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [validationMessage, setValidationMessage] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading) return;
 
-    setValidationMessage("");
     const trimmedEmail = email.trim();
 
     if (!trimmedEmail) {
-      setValidationMessage("Email harap diisi.");
+      showToast("Email harap diisi.", "warning");
       return;
     }
 
     if (!EMAIL_PATTERN.test(trimmedEmail)) {
-      setValidationMessage("Masukkan alamat email yang valid.");
+      showToast("Masukkan alamat email yang valid.", "warning");
       return;
     }
 
@@ -52,11 +52,13 @@ export default function ForgotPasswordPage() {
       await authService.forgotPassword(trimmedEmail);
       setSubmittedEmail(trimmedEmail);
       setIsSuccess(true);
+      showToast("Link reset password telah dikirim ke email Anda.", "success");
     } catch (error) {
-      setValidationMessage(
+      showToast(
         humanizeForgotPasswordError(
           error instanceof Error ? error.message : "",
         ),
+        "error",
       );
     } finally {
       setIsLoading(false);
@@ -79,25 +81,6 @@ export default function ForgotPasswordPage() {
                 </p>
               </header>
 
-              {validationMessage ? (
-                <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle
-                      className="mt-1 h-5 w-5 shrink-0 text-amber-700"
-                      aria-hidden="true"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-amber-900">
-                        Permintaan belum dapat diproses
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-amber-800">
-                        {validationMessage}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
               <form onSubmit={handleSubmit} className="space-y-5" noValidate>
                 <div>
                   <label
@@ -112,10 +95,7 @@ export default function ForgotPasswordPage() {
                       id="email"
                       type="email"
                       value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        if (validationMessage) setValidationMessage("");
-                      }}
+                      onChange={(e) => setEmail(e.target.value)}
                       placeholder="Masukkan email Anda"
                       className="auth-input"
                     />
@@ -176,7 +156,6 @@ export default function ForgotPasswordPage() {
                   className="button"
                   onClick={() => {
                     setIsSuccess(false);
-                    setValidationMessage("");
                     setEmail(submittedEmail);
                   }}
                 >

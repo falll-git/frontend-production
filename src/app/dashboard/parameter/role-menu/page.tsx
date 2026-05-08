@@ -30,6 +30,7 @@ import {
   SETUP_PAGE_TABLE_HEADER_CELL_CLASS,
   SETUP_PAGE_TABLE_HEAD_CLASS,
   SETUP_PAGE_TABLE_SCROLL_CLASS,
+  SETUP_PAGE_WIDTH_MD_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { menuService } from "@/services/menu.service";
 import {
@@ -85,8 +86,11 @@ type MenuGroup = {
 const SECTION_CARD_CLASS =
   SETUP_PAGE_TABLE_CARD_CLASS;
 const PERM_HEADER_CLASS =
-  "w-20 px-2 py-3 !text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-600 whitespace-nowrap";
-const PERM_CELL_CLASS = "w-20 px-2 py-3 !text-center align-middle";
+  "w-[60px] px-1.5 py-3 !text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-600 whitespace-nowrap";
+const PERM_CELL_CLASS = "w-[60px] px-1.5 py-3 !text-center align-middle";
+const FEATURE_HEADER_CLASS =
+  "w-[220px] px-2 py-3 !text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-600 whitespace-nowrap";
+const FEATURE_CELL_CLASS = "w-[220px] px-2 py-3 align-middle";
 const GROUP_ROW_CLASS = "border-y border-gray-200 bg-gray-50/80";
 
 const FEATURE_LABELS: Record<string, string> = {
@@ -891,14 +895,14 @@ export default function SetupRoleMenuPage() {
         actions={null}
       />
 
-      <div className={SETUP_PAGE_SEARCH_CARD_CLASS}>
-        <label className="block text-sm font-medium text-gray-700">
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_MD_CLASS}`}>
+        <label className="block text-center text-sm font-medium text-gray-700">
           Pilih role
         </label>
         <select
           value={selectedRoleId}
           onChange={(event) => setSelectedRoleId(event.target.value)}
-          className="select mt-3 max-w-md"
+          className="select mx-auto mt-3 block w-full max-w-[320px]"
           disabled={isBusy}
         >
           <option value="">Pilih role yang mau diatur</option>
@@ -910,7 +914,7 @@ export default function SetupRoleMenuPage() {
         </select>
       </div>
 
-      <div className={SETUP_PAGE_SEARCH_CARD_CLASS}>
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_MD_CLASS}`}>
         <p className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Cari Menu</p>
         <div className={SETUP_PAGE_SEARCH_WRAPPER_CLASS}>
           <Search className={SETUP_PAGE_SEARCH_ICON_CLASS} aria-hidden="true" />
@@ -928,13 +932,21 @@ export default function SetupRoleMenuPage() {
         </div>
       </div>
 
-      <div className={SECTION_CARD_CLASS}>
+      <div className={`${SECTION_CARD_CLASS} ${SETUP_PAGE_WIDTH_MD_CLASS}`}>
         <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-          <table className={`${SETUP_PAGE_TABLE_CLASS} min-w-[960px]`}>
+          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed min-w-[860px]`}>
+            <colgroup>
+              <col className="w-[400px]" />
+              <col className="w-[60px]" />
+              <col className="w-[60px]" />
+              <col className="w-[60px]" />
+              <col className="w-[60px]" />
+              <col className="w-[220px]" />
+            </colgroup>
             <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
               <tr>
                 <th
-                  className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} min-w-[320px]`}
+                  className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-[400px]`}
                 >
                   Menu
                 </th>
@@ -942,7 +954,7 @@ export default function SetupRoleMenuPage() {
                 <th className={PERM_HEADER_CLASS}>Tambah</th>
                 <th className={PERM_HEADER_CLASS}>Ubah</th>
                 <th className={PERM_HEADER_CLASS}>Hapus</th>
-                <th className="w-48 px-3 py-3 !text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-600 whitespace-nowrap">
+                <th className={FEATURE_HEADER_CLASS}>
                   Fitur Khusus
                 </th>
               </tr>
@@ -996,8 +1008,6 @@ export default function SetupRoleMenuPage() {
                         const support =
                           supportByMenuId.get(row.menu.id) ??
                           getPermissionSupport(row);
-                        const paddingLeft = 24 + row.depth * 22;
-
                         const renderPermissionCell = (
                           key: PermKey,
                           label: string,
@@ -1056,7 +1066,7 @@ export default function SetupRoleMenuPage() {
                             !permission.can_read;
 
                           return (
-                            <td className="w-48 px-3 py-3 align-middle">
+                            <td className={FEATURE_CELL_CLASS}>
                               <div className="flex flex-col items-center gap-2">
                                 {supportedFeatures.length === 0 ? (
                                   <span className="text-xs font-medium text-gray-400">
@@ -1108,9 +1118,8 @@ export default function SetupRoleMenuPage() {
                           >
                             <td
                               className={`${SETUP_PAGE_COMPACT_CELL_CLASS} text-sm text-gray-900`}
-                              style={{ paddingLeft }}
                             >
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center justify-center gap-2">
                                 <p className="font-medium text-gray-900">
                                   {row.menu.name}
                                 </p>
@@ -1146,7 +1155,7 @@ export default function SetupRoleMenuPage() {
         </div>
 
         <div className="border-t border-gray-100 bg-gray-50 px-6 py-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-start">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
             <button
               type="button"
               onClick={() => void handleSave()}

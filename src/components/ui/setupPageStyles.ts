@@ -1,6 +1,16 @@
 export const SETUP_PAGE_SEARCH_CARD_CLASS =
   "rounded-lg border border-gray-200 bg-white p-4";
 
+export const SETUP_PAGE_WIDTH_SM_CLASS = "w-full max-w-[560px]";
+
+export const SETUP_PAGE_WIDTH_MD_CLASS = "w-full max-w-[860px]";
+
+export const SETUP_PAGE_WIDTH_LG_CLASS = "w-full max-w-[900px]";
+
+export const SETUP_PAGE_WIDTH_XL_CLASS = "w-full max-w-[1040px]";
+
+export const SETUP_PAGE_WIDTH_2XL_CLASS = "w-full max-w-[1280px]";
+
 export const SETUP_PAGE_ADD_BUTTON_CLASS = "btn btn-upload";
 
 export const SETUP_PAGE_SEARCH_LABEL_CLASS =
@@ -22,42 +32,42 @@ export const SETUP_PAGE_TABLE_SCROLL_CLASS = "overflow-x-auto";
 export const SETUP_PAGE_TABLE_CLASS =
   "min-w-full divide-y-2 divide-gray-200 text-sm";
 
-export const SETUP_PAGE_TABLE_HEAD_CLASS = "ltr:text-left rtl:text-right";
+export const SETUP_PAGE_TABLE_HEAD_CLASS = "text-center";
 
 export const SETUP_PAGE_TABLE_BODY_CLASS = "divide-y divide-gray-200";
 
 export const SETUP_PAGE_TABLE_HEADER_CELL_CLASS =
-  "px-3 py-3 !text-left text-xs font-semibold uppercase tracking-[0.08em] text-gray-600 whitespace-nowrap";
+  "px-3 py-3 !text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-600 whitespace-nowrap";
 
 export const SETUP_PAGE_TABLE_ROW_CLASS =
   "h-[64px] text-gray-900 transition-colors hover:bg-gray-50";
 
 export const SETUP_PAGE_TABLE_CELL_CLASS =
-  "px-3 py-3 !text-left align-middle whitespace-nowrap";
+  "px-3 py-3 !text-center align-middle whitespace-nowrap";
 
 export const SETUP_PAGE_COMPACT_ROW_CLASS =
   "h-[58px] text-gray-900 transition-colors hover:bg-gray-50";
 
 export const SETUP_PAGE_COMPACT_CELL_CLASS =
-  "px-3 py-2.5 !text-left align-middle whitespace-nowrap";
+  "px-3 py-2.5 !text-center align-middle whitespace-nowrap";
 
 export const SETUP_PAGE_NUMBER_HEADER_CELL_CLASS =
-  `${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-20`;
+  `${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-16`;
 
 export const SETUP_PAGE_NUMBER_CELL_CLASS =
-  `${SETUP_PAGE_TABLE_CELL_CLASS} w-20 text-sm text-gray-500 tabular-nums`;
+  `${SETUP_PAGE_TABLE_CELL_CLASS} w-16 text-sm text-gray-500 tabular-nums`;
 
 export const SETUP_PAGE_ACTION_HEADER_CELL_CLASS =
-  `${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-28 !text-right`;
+  `${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-24 !text-center`;
 
 export const SETUP_PAGE_ACTION_CELL_CLASS =
-  `${SETUP_PAGE_TABLE_CELL_CLASS} w-28 !text-right`;
+  `${SETUP_PAGE_TABLE_CELL_CLASS} w-24 !text-center`;
 
 export const SETUP_PAGE_STATUS_HEADER_CELL_CLASS =
-  `${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-32 !text-center`;
+  `${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-28 !text-center`;
 
 export const SETUP_PAGE_STATUS_CELL_CLASS =
-  `${SETUP_PAGE_TABLE_CELL_CLASS} w-32 !text-center`;
+  `${SETUP_PAGE_TABLE_CELL_CLASS} w-28 !text-center`;
 
 export const SETUP_PAGE_EMPTY_STATE_CELL_CLASS =
   "h-32 px-3 text-center align-middle text-sm text-gray-500";

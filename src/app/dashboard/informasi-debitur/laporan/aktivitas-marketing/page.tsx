@@ -1,5 +1,5 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+import { LaporanAktivitasMarketingPreview } from "@/components/dashboard/AdvancedReportSections";
 
 export default function LaporanAktivitasMarketingPage() {
-  return <ModuleSkeletonPage title="Laporan Aktivitas Marketing" />;
+  return <LaporanAktivitasMarketingPreview />;
 }

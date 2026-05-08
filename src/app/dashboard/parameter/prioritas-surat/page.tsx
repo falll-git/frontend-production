@@ -34,6 +34,7 @@ import {
   SETUP_PAGE_TABLE_HEADER_CELL_CLASS,
   SETUP_PAGE_TABLE_HEAD_CLASS,
   SETUP_PAGE_TABLE_SCROLL_CLASS,
+  SETUP_PAGE_WIDTH_SM_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { letterPriorityService } from "@/services/letter-priority.service";
 import type { LetterPriority } from "@/types/master.types";
@@ -217,7 +218,7 @@ export default function SetupPrioritasSuratPage() {
         }
       />
 
-      <div className={SETUP_PAGE_SEARCH_CARD_CLASS}>
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_SM_CLASS}`}>
         <p className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Cari Data</p>
         <div className={SETUP_PAGE_SEARCH_WRAPPER_CLASS}>
           <Search
@@ -233,9 +234,14 @@ export default function SetupPrioritasSuratPage() {
         </div>
       </div>
 
-      <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
+      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} ${SETUP_PAGE_WIDTH_SM_CLASS}`}>
         <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-          <table className={SETUP_PAGE_TABLE_CLASS}>
+          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed`}>
+            <colgroup>
+              <col className="w-16" />
+              <col className="w-[400px]" />
+              <col className="w-24" />
+            </colgroup>
             <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
               <tr>
                 <th className={SETUP_PAGE_NUMBER_HEADER_CELL_CLASS}>
@@ -263,8 +269,8 @@ export default function SetupPrioritasSuratPage() {
                   >
                     {priority.name}
                   </td>
-                  <td className={`${SETUP_PAGE_COMPACT_CELL_CLASS} w-28 !text-right`}>
-                    <div className="inline-flex items-center gap-2">
+                  <td className={`${SETUP_PAGE_COMPACT_CELL_CLASS} w-24 !text-center`}>
+                    <div className="inline-flex items-center justify-center gap-2">
                       <button
                         onClick={() => openEdit(priority)}
                         className={`${ACTION_ICON_BUTTON_CLASS} text-blue-600 hover:bg-blue-50 hover:text-blue-700`}

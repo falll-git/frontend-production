@@ -1,5 +1,5 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+import { LaporanNpfPreview } from "@/components/dashboard/AdvancedReportSections";
 
 export default function LaporanNpfPage() {
-  return <ModuleSkeletonPage title="Laporan NPF" />;
+  return <LaporanNpfPreview />;
 }

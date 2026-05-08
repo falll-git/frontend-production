@@ -33,6 +33,7 @@ import {
   SETUP_PAGE_TABLE_HEADER_CELL_CLASS,
   SETUP_PAGE_TABLE_HEAD_CLASS,
   SETUP_PAGE_TABLE_SCROLL_CLASS,
+  SETUP_PAGE_WIDTH_SM_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { ROLES } from "@/lib/rbac";
 import { roleMenuService } from "@/services/role-menu.service";
@@ -290,7 +291,7 @@ export default function SetupRolePage() {
         }
       />
 
-      <div className={SETUP_PAGE_SEARCH_CARD_CLASS}>
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_SM_CLASS}`}>
         <p className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Cari Data</p>
         <div className={SETUP_PAGE_SEARCH_WRAPPER_CLASS}>
           <Search
@@ -306,12 +307,17 @@ export default function SetupRolePage() {
         </div>
       </div>
 
-      <div className={SECTION_CARD_CLASS}>
+      <div className={`${SECTION_CARD_CLASS} ${SETUP_PAGE_WIDTH_SM_CLASS}`}>
         <div className="border-b border-gray-100 bg-gray-50/70 px-5 py-4">
           <h2 className="text-sm font-semibold text-gray-900">Role Utama</h2>
         </div>
         <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-          <table className={SETUP_PAGE_TABLE_CLASS}>
+          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed`}>
+            <colgroup>
+              <col className="w-16" />
+              <col className="w-[340px]" />
+              <col className="w-[154px]" />
+            </colgroup>
             <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
               <tr>
                 <th className={SETUP_PAGE_NUMBER_HEADER_CELL_CLASS}>
@@ -320,7 +326,7 @@ export default function SetupRolePage() {
                 <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
                   Nama Role
                 </th>
-                <th className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-48`}>
+                <th className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-[154px]`}>
                   Status
                 </th>
               </tr>
@@ -337,11 +343,11 @@ export default function SetupRolePage() {
                   <td
                     className={`${SETUP_PAGE_COMPACT_CELL_CLASS} text-sm font-semibold text-gray-900`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center gap-3">
                       <span>{role.name}</span>
                     </div>
                   </td>
-                  <td className={`${SETUP_PAGE_COMPACT_CELL_CLASS} text-left`}>
+                  <td className={`${SETUP_PAGE_COMPACT_CELL_CLASS} !text-center`}>
                     <span className={BADGE_UTAMA_CLASS}>Role utama</span>
                   </td>
                 </tr>
@@ -373,12 +379,17 @@ export default function SetupRolePage() {
         </div>
       </div>
 
-      <div className={SECTION_CARD_CLASS}>
+      <div className={`${SECTION_CARD_CLASS} ${SETUP_PAGE_WIDTH_SM_CLASS}`}>
         <div className="border-b border-gray-100 bg-gray-50/70 px-5 py-4">
           <h2 className="text-sm font-semibold text-gray-900">Role Tambahan</h2>
         </div>
         <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-          <table className={SETUP_PAGE_TABLE_CLASS}>
+          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed`}>
+            <colgroup>
+              <col className="w-16" />
+              <col className="w-[400px]" />
+              <col className="w-24" />
+            </colgroup>
             <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
               <tr>
                 <th className={SETUP_PAGE_NUMBER_HEADER_CELL_CLASS}>
@@ -406,8 +417,8 @@ export default function SetupRolePage() {
                   >
                     {role.name}
                   </td>
-                  <td className={`${SETUP_PAGE_COMPACT_CELL_CLASS} w-28 !text-right`}>
-                    <div className="inline-flex items-center gap-2">
+                  <td className={`${SETUP_PAGE_COMPACT_CELL_CLASS} w-24 !text-center`}>
+                    <div className="inline-flex items-center justify-center gap-2">
                       <button
                         type="button"
                         onClick={() => openEdit(role)}

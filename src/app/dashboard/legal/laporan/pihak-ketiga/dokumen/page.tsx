@@ -1,5 +1,5 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+import { LaporanPihakKetigaDokumenPreview } from "@/components/dashboard/AdvancedReportSections";
 
 export default function LaporanPihakKetigaDokumenPage() {
-  return <ModuleSkeletonPage title="Laporan Pihak 3 - Dokumen" />;
+  return <LaporanPihakKetigaDokumenPreview />;
 }

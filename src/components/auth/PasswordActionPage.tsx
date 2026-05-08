@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Check, Eye, EyeOff, Lock, ShieldAlert } from "lucide-react";
 import AuthSplitLayout from "@/components/auth/AuthSplitLayout";
+import { useAppToast } from "@/components/ui/AppToastProvider";
 import type {
   PasswordMutationResponse,
   PasswordTokenVerificationResponse,
@@ -96,6 +97,7 @@ export default function PasswordActionPage({
   submitPassword,
 }: PasswordActionPageProps) {
   const searchParams = useSearchParams();
+  const { showToast } = useAppToast();
   const token = searchParams.get("token")?.trim() ?? "";
 
   const [pageState, setPageState] = useState<PageState>("verifying");
@@ -151,27 +153,27 @@ export default function PasswordActionPage({
     const trimmedConfirmPassword = confirmPassword.trim();
 
     if (!trimmedPassword && !trimmedConfirmPassword) {
-      setFeedbackMessage("Password baru dan konfirmasi password harap diisi.");
+      showToast("Password baru dan konfirmasi password harap diisi.", "warning");
       return;
     }
 
     if (!trimmedPassword) {
-      setFeedbackMessage("Password baru harap diisi.");
+      showToast("Password baru harap diisi.", "warning");
       return;
     }
 
     if (!trimmedConfirmPassword) {
-      setFeedbackMessage("Konfirmasi password harap diisi.");
+      showToast("Konfirmasi password harap diisi.", "warning");
       return;
     }
 
     if (password.length < 8) {
-      setFeedbackMessage("Password minimal 8 karakter.");
+      showToast("Password minimal 8 karakter.", "warning");
       return;
     }
 
     if (password !== confirmPassword) {
-      setFeedbackMessage("Konfirmasi password tidak sesuai.");
+      showToast("Konfirmasi password tidak sesuai.", "warning");
       return;
     }
 
@@ -185,12 +187,11 @@ export default function PasswordActionPage({
         confirmPassword,
       });
       setPageState("success");
+      showToast(successTitle, "success");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Terjadi kesalahan pada server";
-      setFeedbackMessage(
-        humanizeSubmitError(mode, message, invalidDescription),
-      );
+      showToast(humanizeSubmitError(mode, message, invalidDescription), "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -298,20 +299,6 @@ export default function PasswordActionPage({
                   {heading}
                 </h2>
               </header>
-
-              {feedbackMessage ? (
-                <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left">
-                  <div className="flex items-start gap-3">
-                    <ShieldAlert
-                      className="mt-1 h-5 w-5 shrink-0 text-amber-700"
-                      aria-hidden="true"
-                    />
-                    <p className="text-sm font-medium leading-6 text-amber-900">
-                      {feedbackMessage}
-                    </p>
-                  </div>
-                </div>
-              ) : null}
 
               <form onSubmit={handleSubmit} className="space-y-5" noValidate>
                 <div>

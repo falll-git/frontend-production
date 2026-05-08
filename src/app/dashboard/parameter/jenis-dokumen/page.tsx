@@ -38,6 +38,7 @@ import {
   SETUP_PAGE_TABLE_HEAD_CLASS,
   SETUP_PAGE_TABLE_ROW_CLASS,
   SETUP_PAGE_TABLE_SCROLL_CLASS,
+  SETUP_PAGE_WIDTH_LG_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { documentTypeService } from "@/services/document-type.service";
 
@@ -268,7 +269,7 @@ export default function SetupJenisDokumenPage() {
         }
       />
 
-      <div className={SETUP_PAGE_SEARCH_CARD_CLASS}>
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_LG_CLASS}`}>
         <p className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Cari Data</p>
         <div className={SETUP_PAGE_SEARCH_WRAPPER_CLASS}>
           <Search
@@ -284,9 +285,16 @@ export default function SetupJenisDokumenPage() {
         </div>
       </div>
 
-      <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
+      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} ${SETUP_PAGE_WIDTH_LG_CLASS}`}>
         <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-          <table className={SETUP_PAGE_TABLE_CLASS}>
+          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed`}>
+              <colgroup>
+                <col className="w-16" />
+                <col className="w-28" />
+                <col className="w-[260px]" />
+                <col className="w-[320px]" />
+                <col className="w-28" />
+              </colgroup>
               <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
                 <tr>
                   <th className={SETUP_PAGE_NUMBER_HEADER_CELL_CLASS}>
@@ -321,7 +329,7 @@ export default function SetupJenisDokumenPage() {
                       </span>
                     </td>
                     <td className={SETUP_PAGE_TABLE_CELL_CLASS}>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-center gap-3">
                         <span className="text-sm font-semibold text-gray-900">
                           {j.nama}
                         </span>
@@ -334,7 +342,7 @@ export default function SetupJenisDokumenPage() {
                       {j.keterangan || "-"}
                     </td>
                     <td className={SETUP_PAGE_ACTION_CELL_CLASS}>
-                      <div className="inline-flex items-center gap-2">
+                      <div className="inline-flex items-center justify-center gap-2">
                         <button
                           onClick={() => openEdit(j.id)}
                           className={`${ACTION_ICON_BUTTON_CLASS} text-blue-600 hover:bg-blue-50 hover:text-blue-700`}

@@ -48,6 +48,7 @@ import {
   SETUP_PAGE_TABLE_HEAD_CLASS,
   SETUP_PAGE_TABLE_ROW_CLASS,
   SETUP_PAGE_TABLE_SCROLL_CLASS,
+  SETUP_PAGE_WIDTH_2XL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { divisionService } from "@/services/division.service";
 import { roleService } from "@/services/role.service";
@@ -702,7 +703,7 @@ export default function ManajemenUserPage() {
         }
       />
 
-      <div className={SETUP_PAGE_SEARCH_CARD_CLASS}>
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_2XL_CLASS}`}>
         <p className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Cari Data</p>
         <div className={SETUP_PAGE_SEARCH_WRAPPER_CLASS}>
           <Search
@@ -719,21 +720,21 @@ export default function ManajemenUserPage() {
         </div>
       </div>
 
-      <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
+      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} ${SETUP_PAGE_WIDTH_2XL_CLASS}`}>
         <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-          <table className={`${SETUP_PAGE_TABLE_CLASS} min-w-[1480px]`}>
+          <table className={`${SETUP_PAGE_TABLE_CLASS} min-w-[1280px]`}>
             <colgroup>
-              <col className="w-16" />
-              <col className="w-48" />
-              <col className="w-40" />
-              <col className="w-80" />
-              <col className="w-36" />
-              <col className="w-36" />
-              <col className="w-32" />
-              <col className="w-40" />
-              <col className="w-32" />
-              <col className="w-36" />
-              <col className="w-36" />
+              <col className="w-[56px]" />
+              <col className="w-[130px]" />
+              <col className="w-[110px]" />
+              <col className="w-[260px]" />
+              <col className="w-[120px]" />
+              <col className="w-[80px]" />
+              <col className="w-[80px]" />
+              <col className="w-[120px]" />
+              <col className="w-[96px]" />
+              <col className="w-[120px]" />
+              <col className="w-[108px]" />
             </colgroup>
             <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
               <tr>

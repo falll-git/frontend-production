@@ -7,19 +7,16 @@ import {
   type ReactNode,
 } from "react";
 import {
-  Activity,
   ArrowRight,
-  FileText,
   FolderArchive,
   Grid2x2,
-  HandCoins,
   Mail,
   Scale,
-  TrendingDown,
   Users,
 } from "lucide-react";
 
 import { useAuth } from "@/components/auth/AuthProvider";
+import AdvancedReportSections from "@/components/dashboard/AdvancedReportSections";
 import ProtectedLink from "@/components/rbac/ProtectedLink";
 import { getDashboardRouteDecision, getRoleLabel } from "@/lib/rbac";
 
@@ -218,38 +215,6 @@ export default function DashboardOverviewClient() {
         buttonText: "Akses Laporan",
         icon: <Scale className="w-8 h-8" aria-hidden="true" />,
       },
-      {
-        title: "Laporan Pihak 3 - Dokumen",
-        href: "/dashboard/legal/laporan/pihak-ketiga/dokumen",
-        accentColor: "#2563eb",
-        subtitle: "Notaris dan asuransi",
-        buttonText: "Akses Laporan",
-        icon: <FileText className="w-8 h-8" aria-hidden="true" />,
-      },
-      {
-        title: "Laporan Pihak 3 - Dana Titipan",
-        href: "/dashboard/legal/laporan/pihak-ketiga/dana-titipan",
-        accentColor: "#059669",
-        subtitle: "Dana titipan legal",
-        buttonText: "Akses Laporan",
-        icon: <HandCoins className="w-8 h-8" aria-hidden="true" />,
-      },
-      {
-        title: "Laporan NPF",
-        href: "/dashboard/informasi-debitur/laporan/npf",
-        accentColor: "#be123c",
-        subtitle: "Kualitas pembiayaan",
-        buttonText: "Akses Laporan",
-        icon: <TrendingDown className="w-8 h-8" aria-hidden="true" />,
-      },
-      {
-        title: "Laporan Aktivitas Marketing",
-        href: "/dashboard/informasi-debitur/laporan/aktivitas-marketing",
-        accentColor: "#0e7490",
-        subtitle: "Progress penanganan nasabah",
-        buttonText: "Akses Laporan",
-        icon: <Activity className="w-8 h-8" aria-hidden="true" />,
-      },
     ];
 
     if (status !== "authenticated" || !role) return [];
@@ -265,7 +230,7 @@ export default function DashboardOverviewClient() {
     return (
       <div className="space-y-8">
         <DashboardSkeletonBanner />
-        <DashboardSkeletonModules count={8} />
+        <DashboardSkeletonModules count={4} />
       </div>
     );
   }
@@ -320,6 +285,8 @@ export default function DashboardOverviewClient() {
           </div>
         </div>
       ) : null}
+
+      <AdvancedReportSections />
     </>
   );
 }

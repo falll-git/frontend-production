@@ -1,7 +1,13 @@
 "use client";
 
 import { JSX, useEffect, useState } from "react";
-import { AlertCircle, AlertTriangle, Check, Info, X } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  Info,
+  X,
+} from "lucide-react";
 
 export type ToastType = "success" | "error" | "warning" | "info";
 
@@ -9,14 +15,6 @@ export interface ToastItem {
   id: string;
   message: string;
   type: ToastType;
-}
-
-interface ToastProps {
-  message: string;
-  type: ToastType;
-  isVisible: boolean;
-  onClose: () => void;
-  duration?: number;
 }
 
 interface ToastContainerProps {
@@ -28,118 +26,124 @@ interface ToastContainerProps {
 interface ToastItemComponentProps {
   toast: ToastItem;
   onRemove: (id: string) => void;
-  duration?: number;
-  index: number;
+  duration: number;
 }
 
 const toastConfig: Record<
   ToastType,
   {
-    background: string;
     icon: JSX.Element;
-    label: string;
+    title: string;
+    wrapperClassName: string;
+    iconClassName: string;
+    titleClassName: string;
+    messageClassName: string;
   }
 > = {
   success: {
-    background: "#16a34a",
-    label: "Berhasil",
-    icon: <Check size={20} />,
+    title: "Berhasil",
+    icon: <CheckCircle2 className="h-6 w-6" aria-hidden="true" />,
+    wrapperClassName: "border-green-500 bg-green-50",
+    iconClassName: "text-green-700",
+    titleClassName: "text-green-800",
+    messageClassName: "text-green-700",
   },
   error: {
-    background: "#dc2626",
-    label: "Gagal",
-    icon: <AlertCircle size={20} />,
+    title: "Gagal",
+    icon: <AlertCircle className="h-6 w-6" aria-hidden="true" />,
+    wrapperClassName: "border-red-500 bg-red-50",
+    iconClassName: "text-red-700",
+    titleClassName: "text-red-800",
+    messageClassName: "text-red-700",
   },
   warning: {
-    background: "#d97706",
-    label: "Peringatan",
-    icon: <AlertTriangle size={20} />,
+    title: "Peringatan",
+    icon: <AlertTriangle className="h-6 w-6" aria-hidden="true" />,
+    wrapperClassName: "border-amber-500 bg-amber-50",
+    iconClassName: "text-amber-700",
+    titleClassName: "text-amber-800",
+    messageClassName: "text-amber-700",
   },
   info: {
-    background: "#157ec3",
-    label: "Informasi",
-    icon: <Info size={20} />,
+    title: "Informasi",
+    icon: <Info className="h-6 w-6" aria-hidden="true" />,
+    wrapperClassName: "border-blue-500 bg-blue-50",
+    iconClassName: "text-blue-700",
+    titleClassName: "text-blue-800",
+    messageClassName: "text-blue-700",
   },
 };
 
 function ToastItemComponent({
   toast,
   onRemove,
-  duration = 3000,
-  index,
+  duration,
 }: ToastItemComponentProps): JSX.Element {
   const [isLeaving, setIsLeaving] = useState(false);
+  const config = toastConfig[toast.type];
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const timer = window.setTimeout(() => {
       setIsLeaving(true);
-      setTimeout(() => onRemove(toast.id), 300);
+      window.setTimeout(() => onRemove(toast.id), 180);
     }, duration);
 
-    return () => clearTimeout(timer);
+    return () => window.clearTimeout(timer);
   }, [duration, onRemove, toast.id]);
 
-  const config = toastConfig[toast.type];
+  const closeToast = () => {
+    setIsLeaving(true);
+    window.setTimeout(() => onRemove(toast.id), 180);
+  };
 
   return (
     <div
-      className={`transition-colors duration-150 transform ${
+      role="alert"
+      className={[
+        "w-[min(380px,calc(100vw-2rem))] rounded-md border p-4 shadow-sm",
+        "transition-all duration-200 ease-out",
         isLeaving
-          ? "opacity-0 translate-x-full scale-95"
-          : "opacity-100 translate-x-0 scale-100"
-      }`}
-      style={{
-        marginBottom: "12px",
-        animation: "slideInRight 0.3s ease-out",
-        animationDelay: `${index * 50}ms`,
-      }}
+          ? "translate-x-4 opacity-0"
+          : "translate-x-0 opacity-100",
+        config.wrapperClassName,
+      ].join(" ")}
     >
-      <div
-        role="alert"
-        style={{
-          background: config.background,
-          width: "340px",
-          padding: "14px 16px",
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "start",
-          borderRadius: "8px",
-          boxShadow: "0 8px 20px rgba(15, 23, 42, 0.16)",
-        }}
-        className="group relative backdrop-blur-sm"
-      >
-        <div className="flex items-center justify-center w-7 h-7 mr-3 text-white shrink-0 bg-white/20 rounded-full">
+      <div className="flex items-start gap-4">
+        <div className={["-mt-0.5 shrink-0", config.iconClassName].join(" ")}>
           {config.icon}
         </div>
 
-        <div className="flex flex-col flex-1">
-          <span className="text-[10px] uppercase font-bold text-white/80 leading-none mb-1 tracking-wide">
-            {config.label}
-          </span>
-          <div className="font-semibold text-sm text-white leading-tight">
+        <div className="min-w-0 flex-1">
+          <strong
+            className={[
+              "block text-sm font-semibold leading-tight",
+              config.titleClassName,
+            ].join(" ")}
+          >
+            {config.title}
+          </strong>
+
+          <p
+            className={[
+              "mt-1 text-sm leading-5",
+              config.messageClassName,
+            ].join(" ")}
+          >
             {toast.message}
-          </div>
+          </p>
         </div>
 
         <button
-          onClick={() => {
-            setIsLeaving(true);
-            setTimeout(() => onRemove(toast.id), 300);
-          }}
-          aria-label="Tutup"
-          className="ml-2 p-1.5 rounded-full hover:bg-white/20 transition-colors text-white/80 hover:text-white"
+          type="button"
+          onClick={closeToast}
+          aria-label="Tutup notifikasi"
+          className={[
+            "-mr-1 -mt-1 rounded-md p-1 transition-colors",
+            "text-slate-400 hover:bg-white/70 hover:text-slate-700",
+          ].join(" ")}
         >
-          <X size={16} />
+          <X className="h-4 w-4" aria-hidden="true" />
         </button>
-
-        <div
-          className="absolute bottom-0 left-0 h-1 bg-white/30 rounded-b-xl"
-          style={{
-            animation: `shrink ${duration}ms linear forwards`,
-            width: "100%",
-          }}
-        />
       </div>
     </div>
   );
@@ -148,146 +152,20 @@ function ToastItemComponent({
 export function ToastContainer({
   toasts,
   onRemove,
-  duration = 3000,
-}: ToastContainerProps) {
+  duration = 4000,
+}: ToastContainerProps): JSX.Element | null {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed top-24 right-6 z-10000 flex flex-col">
-      <style jsx global>{`
-        @keyframes slideInRight {
-          from {
-            transform: translateX(100%);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
-        }
-        @keyframes shrink {
-          from {
-            width: 100%;
-          }
-          to {
-            width: 0%;
-          }
-        }
-      `}</style>
-      {toasts.slice(0, 5).map((toast, index) => (
+    <div className="fixed right-4 top-5 z-[10000] flex flex-col gap-3 sm:right-6 sm:top-6">
+      {toasts.slice(-5).map((toast) => (
         <ToastItemComponent
           key={toast.id}
           toast={toast}
           onRemove={onRemove}
           duration={duration}
-          index={index}
         />
       ))}
-    </div>
-  );
-}
-
-export default function Toast({
-  message,
-  type,
-  isVisible,
-  onClose,
-  duration = 3000,
-}: ToastProps) {
-  const [isLeaving, setIsLeaving] = useState(false);
-
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    let closeTimer: NodeJS.Timeout;
-    let animationFrame = 0;
-
-    if (isVisible) {
-      animationFrame = window.requestAnimationFrame(() => {
-        setIsLeaving(false);
-      });
-      timer = setTimeout(() => {
-        setIsLeaving(true);
-        closeTimer = setTimeout(onClose, 300);
-      }, duration);
-    }
-
-    return () => {
-      window.cancelAnimationFrame(animationFrame);
-      clearTimeout(timer);
-      clearTimeout(closeTimer);
-    };
-  }, [isVisible, duration, onClose]);
-
-  if (!isVisible) return null;
-
-  const config = toastConfig[type];
-
-  return (
-    <div
-      className={`fixed top-24 right-6 z-10000 transition-colors duration-150 transform ${
-        isLeaving
-          ? "opacity-0 translate-x-full scale-95"
-          : "opacity-100 translate-x-0 scale-100"
-      }`}
-    >
-      <style jsx global>{`
-        @keyframes shrink {
-          from {
-            width: 100%;
-          }
-          to {
-            width: 0%;
-          }
-        }
-      `}</style>
-      <div
-        role="alert"
-        style={{
-          background: config.background,
-          width: "340px",
-          padding: "14px 16px",
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "start",
-          borderRadius: "12px",
-          boxShadow:
-            "0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
-        }}
-        className="group relative backdrop-blur-sm"
-      >
-        <div className="flex items-center justify-center w-7 h-7 mr-3 text-white shrink-0 bg-white/20 rounded-full">
-          {config.icon}
-        </div>
-
-        <div className="flex flex-col flex-1">
-          <span className="text-[10px] uppercase font-bold text-white/80 leading-none mb-1 tracking-wide">
-            {config.label}
-          </span>
-          <div className="font-semibold text-sm text-white leading-tight">
-            {message}
-          </div>
-        </div>
-
-        <button
-          onClick={() => {
-            setIsLeaving(true);
-            setTimeout(onClose, 300);
-          }}
-          aria-label="Tutup"
-          className="ml-2 p-1.5 rounded-full hover:bg-white/20 transition-colors text-white/80 hover:text-white"
-        >
-          <X size={16} />
-        </button>
-
-        <div
-          className="absolute bottom-0 left-0 h-1 bg-white/30 rounded-b-xl"
-          style={{
-            animation: `shrink ${duration}ms linear forwards`,
-            width: "100%",
-          }}
-        />
-      </div>
     </div>
   );
 }

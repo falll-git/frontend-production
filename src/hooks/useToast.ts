@@ -4,23 +4,11 @@ import { useState, useCallback } from "react";
 import { ToastType, ToastItem } from "@/components/ui/Toast";
 import { createSafeId } from "@/lib/utils/random";
 
-interface ToastState {
-  isVisible: boolean;
-  message: string;
-  type: ToastType;
-}
-
 interface UseMultiToastResult {
   toasts: ToastItem[];
   showToast: (message: string, type?: ToastType) => void;
   removeToast: (id: string) => void;
   clearToasts: () => void;
-}
-
-interface UseToastResult {
-  toast: ToastState;
-  showToast: (message: string, type?: ToastType) => void;
-  hideToast: () => void;
 }
 
 export function useMultiToast(): UseMultiToastResult {
@@ -43,25 +31,4 @@ export function useMultiToast(): UseMultiToastResult {
   }, []);
 
   return { toasts, showToast, removeToast, clearToasts };
-}
-
-export function useToast(): UseToastResult {
-  const [toast, setToast] = useState<ToastState>({
-    isVisible: false,
-    message: "",
-    type: "success",
-  });
-
-  const showToast = useCallback(
-    (message: string, type: ToastType = "success") => {
-      setToast({ isVisible: true, message, type });
-    },
-    [],
-  );
-
-  const hideToast = useCallback(() => {
-    setToast((prev) => ({ ...prev, isVisible: false }));
-  }, []);
-
-  return { toast, showToast, hideToast };
 }

@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Eye, EyeOff, Lock, User } from "lucide-react";
+import { Eye, EyeOff, Lock, User } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import AuthSplitLayout from "@/components/auth/AuthSplitLayout";
+import { useAppToast } from "@/components/ui/AppToastProvider";
 import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
 
 function humanizeLoginError(message: string): string {
@@ -27,13 +28,12 @@ function humanizeLoginError(message: string): string {
 export default function LoginPage() {
   const router = useRouter();
   const { status, signIn } = useAuth();
+  const { showToast } = useAppToast();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [formError, setFormError] = useState("");
-  const [formErrorTitle, setFormErrorTitle] = useState("Gagal masuk");
 
   useEffect(() => {
     if (status === "authenticated") router.replace("/dashboard");
@@ -43,26 +43,21 @@ export default function LoginPage() {
     e.preventDefault();
     if (isLoading) return;
 
-    setFormError("");
-
     const trimmedUsername = username.trim();
     const isPasswordEmpty = !password.trim();
 
     if (!trimmedUsername && isPasswordEmpty) {
-      setFormErrorTitle("Data belum lengkap");
-      setFormError("Username dan password harap diisi.");
+      showToast("Username dan password harap diisi.", "warning");
       return;
     }
 
     if (!trimmedUsername) {
-      setFormErrorTitle("Data belum lengkap");
-      setFormError("Username harap diisi.");
+      showToast("Username harap diisi.", "warning");
       return;
     }
 
     if (isPasswordEmpty) {
-      setFormErrorTitle("Data belum lengkap");
-      setFormError("Password harap diisi.");
+      showToast("Password harap diisi.", "warning");
       return;
     }
 
@@ -73,8 +68,7 @@ export default function LoginPage() {
     setIsLoading(false);
 
     if (!result.ok) {
-      setFormErrorTitle("Gagal masuk");
-      setFormError(humanizeLoginError(result.message));
+      showToast(humanizeLoginError(result.message), "error");
       return;
     }
 
@@ -94,25 +88,6 @@ export default function LoginPage() {
               </div>
             </header>
 
-            {formError ? (
-              <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left">
-                <div className="flex items-start gap-3">
-                  <AlertCircle
-                    className="mt-1 h-5 w-5 shrink-0 text-amber-700"
-                    aria-hidden="true"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-amber-900">
-                      {formErrorTitle}
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-amber-800">
-                      {formError}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
             <form onSubmit={handleLogin} className="space-y-5" noValidate>
               <div>
                 <label
@@ -130,10 +105,7 @@ export default function LoginPage() {
                     id="username"
                     type="text"
                     value={username}
-                    onChange={(e) => {
-                      setUsername(e.target.value);
-                      if (formError) setFormError("");
-                    }}
+                    onChange={(e) => setUsername(e.target.value)}
                     placeholder="Masukkan username"
                     className="auth-input"
                   />
@@ -156,10 +128,7 @@ export default function LoginPage() {
                     id="password"
                     type={showPassword ? "text" : "password"}
                     value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      if (formError) setFormError("");
-                    }}
+                    onChange={(e) => setPassword(e.target.value)}
                     placeholder="Masukkan password"
                     className="auth-input auth-input-with-action"
                   />
