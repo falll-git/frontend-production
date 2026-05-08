@@ -228,7 +228,7 @@ export default function DashboardOverviewClient() {
             <Grid2x2 className="h-6 w-6 text-gray-600" aria-hidden="true" />
             Laporan Modul
           </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {moduleCards.map((card) => (
               <DashboardPremiumCard
                 key={card.href}
