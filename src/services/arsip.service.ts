@@ -372,7 +372,77 @@ export type CreateDokumenPayload = {
   file: File;
 };
 
+export type ArsipReportStorageOffice = {
+  id: string;
+  code: string | null;
+  name: string;
+  total_documents: number;
+  cabinet_count: number;
+  rack_count: number;
+  total_capacity: number;
+  used_rack_count: number;
+  empty_rack_count: number;
+  utilization_percent: number;
+  capacity_usage_percent: number;
+  pending_access_request_count: number;
+  borrowed_document_count: number;
+  overdue_document_count: number;
+  risk_count: number;
+};
+
+export type ArsipReportRiskItem = {
+  key: string;
+  label: string;
+  total: number;
+  severity: "normal" | "info" | "warning" | "critical";
+  report_key: string | null;
+  endpoint: string | null;
+  query: Record<string, unknown>;
+};
+
+export type ArsipReportBreakdownItem = {
+  id: string | null;
+  code: string | null;
+  name: string;
+  total: number;
+};
+
+export type ArsipReportQuickReport = {
+  key: string;
+  label: string;
+  description: string;
+  endpoint: string | null;
+  menu_url: string;
+};
+
 export type ArsipDigitalReportSummary = {
+  version: string | null;
+  generated_at: string | null;
+  scope: {
+    user_id: string | null;
+    role_name: string | null;
+    division_id: string | null;
+    division_name: string | null;
+    can_view_division_documents: boolean;
+    can_view_all_documents: boolean;
+    can_report_all: boolean;
+  };
+  overview: {
+    total_documents: number;
+    restricted_documents: number;
+    non_restricted_documents: number;
+    linked_to_debtor_documents: number;
+    due_soon_documents: number;
+    overdue_documents: number;
+    pending_access_requests: number;
+    pending_loans: number;
+    active_loans: number;
+    overdue_loans: number;
+    total_racks: number;
+    used_racks: number;
+    rack_utilization_percent: number;
+    capacity_usage_percent: number;
+  };
   documents: {
     total: number;
     restricted: number;
@@ -400,16 +470,309 @@ export type ArsipDigitalReportSummary = {
     cabinets: number;
     racks: number;
     used_racks: number;
+    utilization_percent: number;
+    capacity_usage_percent: number;
   };
+  storage_health: {
+    total_offices: number;
+    total_cabinets: number;
+    total_racks: number;
+    used_racks: number;
+    empty_racks: number;
+    total_capacity: number;
+    used_capacity: number;
+    utilization_percent: number;
+    capacity_usage_percent: number;
+    offices: ArsipReportStorageOffice[];
+    top_risk_offices: ArsipReportStorageOffice[];
+    top_document_offices: ArsipReportStorageOffice[];
+  };
+  risk_queue: ArsipReportRiskItem[];
+  workflow: {
+    access_requests: {
+      total: number;
+      pending: number;
+      approved: number;
+      rejected: number;
+      completion_percent: number;
+    };
+    loans: {
+      total: number;
+      pending: number;
+      approved: number;
+      handed_over: number;
+      borrowed: number;
+      active: number;
+      returned: number;
+      rejected: number;
+      overdue: number;
+      completion_percent: number;
+    };
+  };
+  breakdowns: {
+    by_document_type: ArsipReportBreakdownItem[];
+    by_owner_division: ArsipReportBreakdownItem[];
+    by_access_level: Array<{
+      key: string;
+      total: number;
+    }>;
+  };
+  quick_reports: ArsipReportQuickReport[];
 };
+
+function mapReportScope(record: AnyRecord | null): ArsipDigitalReportSummary["scope"] {
+  return {
+    user_id: readString(record ?? {}, "user_id"),
+    role_name: readString(record ?? {}, "role_name"),
+    division_id: readString(record ?? {}, "division_id"),
+    division_name: readString(record ?? {}, "division_name"),
+    can_view_division_documents: readBoolean(
+      record ?? {},
+      "can_view_division_documents",
+    ),
+    can_view_all_documents: readBoolean(record ?? {}, "can_view_all_documents"),
+    can_report_all: readBoolean(record ?? {}, "can_report_all"),
+  };
+}
+
+function mapReportStorageOffice(record: unknown): ArsipReportStorageOffice | null {
+  if (!isRecord(record)) return null;
+
+  const id = readString(record, "id");
+  const name = readString(record, "name");
+  if (!id || !name) return null;
+
+  return {
+    id,
+    code: readString(record, "code"),
+    name,
+    total_documents: readNumber(record, "total_documents") ?? 0,
+    cabinet_count: readNumber(record, "cabinet_count") ?? 0,
+    rack_count: readNumber(record, "rack_count") ?? 0,
+    total_capacity: readNumber(record, "total_capacity") ?? 0,
+    used_rack_count: readNumber(record, "used_rack_count") ?? 0,
+    empty_rack_count: readNumber(record, "empty_rack_count") ?? 0,
+    utilization_percent: readNumber(record, "utilization_percent") ?? 0,
+    capacity_usage_percent: readNumber(record, "capacity_usage_percent") ?? 0,
+    pending_access_request_count:
+      readNumber(record, "pending_access_request_count") ?? 0,
+    borrowed_document_count: readNumber(record, "borrowed_document_count") ?? 0,
+    overdue_document_count: readNumber(record, "overdue_document_count") ?? 0,
+    risk_count: readNumber(record, "risk_count") ?? 0,
+  };
+}
+
+function mapReportStorageOffices(value: unknown): ArsipReportStorageOffice[] {
+  return Array.isArray(value)
+    ? value
+        .map((item) => mapReportStorageOffice(item))
+        .filter((item): item is ArsipReportStorageOffice => item !== null)
+    : [];
+}
+
+function mapStorageHealth(
+  record: AnyRecord | null,
+  storage: ArsipDigitalReportSummary["storage"],
+): ArsipDigitalReportSummary["storage_health"] {
+  const offices = mapReportStorageOffices(record?.offices);
+  const topRiskOffices = mapReportStorageOffices(record?.top_risk_offices);
+  const topDocumentOffices = mapReportStorageOffices(
+    record?.top_document_offices,
+  );
+
+  return {
+    total_offices: readNumber(record ?? {}, "total_offices") ?? storage.offices,
+    total_cabinets:
+      readNumber(record ?? {}, "total_cabinets") ?? storage.cabinets,
+    total_racks: readNumber(record ?? {}, "total_racks") ?? storage.racks,
+    used_racks: readNumber(record ?? {}, "used_racks") ?? storage.used_racks,
+    empty_racks:
+      readNumber(record ?? {}, "empty_racks") ??
+      Math.max(storage.racks - storage.used_racks, 0),
+    total_capacity: readNumber(record ?? {}, "total_capacity") ?? 0,
+    used_capacity: readNumber(record ?? {}, "used_capacity") ?? 0,
+    utilization_percent:
+      readNumber(record ?? {}, "utilization_percent") ??
+      storage.utilization_percent,
+    capacity_usage_percent:
+      readNumber(record ?? {}, "capacity_usage_percent") ??
+      storage.capacity_usage_percent,
+    offices,
+    top_risk_offices: topRiskOffices.length
+      ? topRiskOffices
+      : offices.filter((item) => item.risk_count > 0),
+    top_document_offices: topDocumentOffices.length
+      ? topDocumentOffices.slice(0, 5)
+      : [...offices]
+          .sort((left, right) => right.total_documents - left.total_documents)
+          .slice(0, 5),
+  };
+}
+
+function mapRiskSeverity(value: string | null): ArsipReportRiskItem["severity"] {
+  switch (value) {
+    case "info":
+    case "warning":
+    case "critical":
+    case "normal":
+      return value;
+    default:
+      return "normal";
+  }
+}
+
+function mapRiskQueueItem(record: unknown): ArsipReportRiskItem | null {
+  if (!isRecord(record)) return null;
+
+  const key = readString(record, "key");
+  const label = readString(record, "label");
+  if (!key || !label) return null;
+
+  return {
+    key,
+    label,
+    total: readNumber(record, "total") ?? 0,
+    severity: mapRiskSeverity(readString(record, "severity")),
+    report_key: readString(record, "report_key"),
+    endpoint: readString(record, "endpoint"),
+    query: isRecord(record.query) ? record.query : {},
+  };
+}
+
+function mapBreakdownItem(record: unknown): ArsipReportBreakdownItem | null {
+  if (!isRecord(record)) return null;
+
+  return {
+    id: readString(record, "id"),
+    code: readString(record, "code"),
+    name: readString(record, "name", "key") ?? "-",
+    total: readNumber(record, "total") ?? 0,
+  };
+}
+
+function mapAccessLevelBreakdown(record: unknown): {
+  key: string;
+  total: number;
+} | null {
+  if (!isRecord(record)) return null;
+
+  const key = readString(record, "key");
+  if (!key) return null;
+
+  return {
+    key,
+    total: readNumber(record, "total") ?? 0,
+  };
+}
+
+function mapQuickReport(record: unknown): ArsipReportQuickReport | null {
+  if (!isRecord(record)) return null;
+
+  const key = readString(record, "key");
+  const label = readString(record, "label");
+  const menuUrl = readString(record, "menu_url");
+  if (!key || !label || !menuUrl) return null;
+
+  return {
+    key,
+    label,
+    description: readString(record, "description") ?? "",
+    endpoint: readString(record, "endpoint"),
+    menu_url: menuUrl,
+  };
+}
 
 function mapReportSummary(record: AnyRecord | null): ArsipDigitalReportSummary {
   const documents = readNestedRecord(record ?? {}, "documents") ?? {};
   const accessRequests = readNestedRecord(record ?? {}, "access_requests") ?? {};
   const loans = readNestedRecord(record ?? {}, "loans") ?? {};
   const storage = readNestedRecord(record ?? {}, "storage") ?? {};
+  const overview = readNestedRecord(record ?? {}, "overview") ?? {};
+  const workflow = readNestedRecord(record ?? {}, "workflow") ?? {};
+  const workflowAccessRequests =
+    readNestedRecord(workflow, "access_requests") ?? {};
+  const workflowLoans = readNestedRecord(workflow, "loans") ?? {};
+  const breakdowns = readNestedRecord(record ?? {}, "breakdowns") ?? {};
+  const storageSummary = {
+    offices: readNumber(storage, "offices") ?? 0,
+    cabinets: readNumber(storage, "cabinets") ?? 0,
+    racks: readNumber(storage, "racks") ?? 0,
+    used_racks: readNumber(storage, "used_racks") ?? 0,
+    utilization_percent: readNumber(storage, "utilization_percent") ?? 0,
+    capacity_usage_percent: readNumber(storage, "capacity_usage_percent") ?? 0,
+  };
+  const storageHealth = mapStorageHealth(
+    readNestedRecord(record ?? {}, "storage_health"),
+    storageSummary,
+  );
+  const activeLoans =
+    (readNumber(loans, "handed_over") ?? 0) +
+    (readNumber(loans, "borrowed") ?? 0);
+  const accessWorkflowTotal =
+    (readNumber(accessRequests, "pending") ?? 0) +
+    (readNumber(accessRequests, "approved") ?? 0) +
+    (readNumber(accessRequests, "rejected") ?? 0);
+  const loanWorkflowTotal =
+    (readNumber(loans, "pending") ?? 0) +
+    (readNumber(loans, "approved") ?? 0) +
+    (readNumber(loans, "handed_over") ?? 0) +
+    (readNumber(loans, "borrowed") ?? 0) +
+    (readNumber(loans, "returned") ?? 0) +
+    (readNumber(loans, "rejected") ?? 0);
 
   return {
+    version: readString(record ?? {}, "version"),
+    generated_at: readString(record ?? {}, "generated_at"),
+    scope: mapReportScope(readNestedRecord(record ?? {}, "scope")),
+    overview: {
+      total_documents:
+        readNumber(overview, "total_documents") ??
+        readNumber(documents, "total") ??
+        0,
+      restricted_documents:
+        readNumber(overview, "restricted_documents") ??
+        readNumber(documents, "restricted") ??
+        0,
+      non_restricted_documents:
+        readNumber(overview, "non_restricted_documents") ??
+        readNumber(documents, "non_restricted") ??
+        0,
+      linked_to_debtor_documents:
+        readNumber(overview, "linked_to_debtor_documents") ??
+        readNumber(documents, "linked_to_debtor") ??
+        0,
+      due_soon_documents:
+        readNumber(overview, "due_soon_documents") ??
+        readNumber(documents, "due_soon") ??
+        0,
+      overdue_documents:
+        readNumber(overview, "overdue_documents") ??
+        readNumber(documents, "overdue") ??
+        0,
+      pending_access_requests:
+        readNumber(overview, "pending_access_requests") ??
+        readNumber(accessRequests, "pending") ??
+        0,
+      pending_loans:
+        readNumber(overview, "pending_loans") ??
+        readNumber(loans, "pending") ??
+        0,
+      active_loans: readNumber(overview, "active_loans") ?? activeLoans,
+      overdue_loans:
+        readNumber(overview, "overdue_loans") ??
+        readNumber(loans, "overdue") ??
+        0,
+      total_racks:
+        readNumber(overview, "total_racks") ?? storageHealth.total_racks,
+      used_racks:
+        readNumber(overview, "used_racks") ?? storageHealth.used_racks,
+      rack_utilization_percent:
+        readNumber(overview, "rack_utilization_percent") ??
+        storageHealth.utilization_percent,
+      capacity_usage_percent:
+        readNumber(overview, "capacity_usage_percent") ??
+        storageHealth.capacity_usage_percent,
+    },
     documents: {
       total: readNumber(documents, "total") ?? 0,
       restricted: readNumber(documents, "restricted") ?? 0,
@@ -432,12 +795,90 @@ function mapReportSummary(record: AnyRecord | null): ArsipDigitalReportSummary {
       rejected: readNumber(loans, "rejected") ?? 0,
       overdue: readNumber(loans, "overdue") ?? 0,
     },
-    storage: {
-      offices: readNumber(storage, "offices") ?? 0,
-      cabinets: readNumber(storage, "cabinets") ?? 0,
-      racks: readNumber(storage, "racks") ?? 0,
-      used_racks: readNumber(storage, "used_racks") ?? 0,
+    storage: storageSummary,
+    storage_health: storageHealth,
+    risk_queue: Array.isArray(record?.risk_queue)
+      ? record.risk_queue
+          .map((item) => mapRiskQueueItem(item))
+          .filter((item): item is ArsipReportRiskItem => item !== null)
+      : [],
+    workflow: {
+      access_requests: {
+        total:
+          readNumber(workflowAccessRequests, "total") ?? accessWorkflowTotal,
+        pending:
+          readNumber(workflowAccessRequests, "pending") ??
+          readNumber(accessRequests, "pending") ??
+          0,
+        approved:
+          readNumber(workflowAccessRequests, "approved") ??
+          readNumber(accessRequests, "approved") ??
+          0,
+        rejected:
+          readNumber(workflowAccessRequests, "rejected") ??
+          readNumber(accessRequests, "rejected") ??
+          0,
+        completion_percent:
+          readNumber(workflowAccessRequests, "completion_percent") ?? 0,
+      },
+      loans: {
+        total: readNumber(workflowLoans, "total") ?? loanWorkflowTotal,
+        pending:
+          readNumber(workflowLoans, "pending") ??
+          readNumber(loans, "pending") ??
+          0,
+        approved:
+          readNumber(workflowLoans, "approved") ??
+          readNumber(loans, "approved") ??
+          0,
+        handed_over:
+          readNumber(workflowLoans, "handed_over") ??
+          readNumber(loans, "handed_over") ??
+          0,
+        borrowed:
+          readNumber(workflowLoans, "borrowed") ??
+          readNumber(loans, "borrowed") ??
+          0,
+        active: readNumber(workflowLoans, "active") ?? activeLoans,
+        returned:
+          readNumber(workflowLoans, "returned") ??
+          readNumber(loans, "returned") ??
+          0,
+        rejected:
+          readNumber(workflowLoans, "rejected") ??
+          readNumber(loans, "rejected") ??
+          0,
+        overdue:
+          readNumber(workflowLoans, "overdue") ??
+          readNumber(loans, "overdue") ??
+          0,
+        completion_percent: readNumber(workflowLoans, "completion_percent") ?? 0,
+      },
     },
+    breakdowns: {
+      by_document_type: Array.isArray(breakdowns.by_document_type)
+        ? breakdowns.by_document_type
+            .map((item) => mapBreakdownItem(item))
+            .filter((item): item is ArsipReportBreakdownItem => item !== null)
+        : [],
+      by_owner_division: Array.isArray(breakdowns.by_owner_division)
+        ? breakdowns.by_owner_division
+            .map((item) => mapBreakdownItem(item))
+            .filter((item): item is ArsipReportBreakdownItem => item !== null)
+        : [],
+      by_access_level: Array.isArray(breakdowns.by_access_level)
+        ? breakdowns.by_access_level
+            .map((item) => mapAccessLevelBreakdown(item))
+            .filter(
+              (item): item is { key: string; total: number } => item !== null,
+            )
+        : [],
+    },
+    quick_reports: Array.isArray(record?.quick_reports)
+      ? record.quick_reports
+          .map((item) => mapQuickReport(item))
+          .filter((item): item is ArsipReportQuickReport => item !== null)
+      : [],
   };
 }
 
