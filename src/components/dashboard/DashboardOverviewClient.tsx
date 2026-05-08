@@ -11,12 +11,9 @@ import {
   FolderArchive,
   Grid2x2,
   Mail,
-  Scale,
-  Users,
 } from "lucide-react";
 
 import { useAuth } from "@/components/auth/AuthProvider";
-import AdvancedReportSections from "@/components/dashboard/AdvancedReportSections";
 import ProtectedLink from "@/components/rbac/ProtectedLink";
 import { getDashboardRouteDecision, getRoleLabel } from "@/lib/rbac";
 
@@ -179,22 +176,6 @@ export default function DashboardOverviewClient() {
         buttonText: "Akses Laporan",
         icon: <Mail className="w-8 h-8" aria-hidden="true" />,
       },
-      {
-        title: "Laporan Debitur",
-        href: "/dashboard/informasi-debitur/laporan",
-        accentColor: "#0f766e",
-        subtitle: "Pembiayaan nasabah",
-        buttonText: "Akses Laporan",
-        icon: <Users className="w-8 h-8" aria-hidden="true" />,
-      },
-      {
-        title: "Laporan Legal",
-        href: "/dashboard/legal/laporan",
-        accentColor: "#d97706",
-        subtitle: "Dokumen dan progres legal",
-        buttonText: "Akses Laporan",
-        icon: <Scale className="w-8 h-8" aria-hidden="true" />,
-      },
     ];
 
     if (status !== "authenticated" || !role) return [];
@@ -247,7 +228,7 @@ export default function DashboardOverviewClient() {
             <Grid2x2 className="h-6 w-6 text-gray-600" aria-hidden="true" />
             Laporan Modul
           </h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {moduleCards.map((card) => (
               <DashboardPremiumCard
                 key={card.href}
@@ -262,8 +243,6 @@ export default function DashboardOverviewClient() {
           </div>
         </div>
       ) : null}
-
-      <AdvancedReportSections />
     </>
   );
 }
