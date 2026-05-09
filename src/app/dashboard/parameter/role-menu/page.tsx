@@ -934,9 +934,9 @@ export default function SetupRoleMenuPage() {
 
       <div className={`${SECTION_CARD_CLASS} ${SETUP_PAGE_WIDTH_MD_CLASS}`}>
         <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed min-w-[860px]`}>
+          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed w-full`}>
             <colgroup>
-              <col className="w-[400px]" />
+              <col />
               <col className="w-[60px]" />
               <col className="w-[60px]" />
               <col className="w-[60px]" />
@@ -945,9 +945,7 @@ export default function SetupRoleMenuPage() {
             </colgroup>
             <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
               <tr>
-                <th
-                  className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-[400px]`}
-                >
+                <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
                   Menu
                 </th>
                 <th className={PERM_HEADER_CLASS}>Baca</th>
