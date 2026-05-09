@@ -32,24 +32,24 @@ export const SETUP_PAGE_TABLE_SCROLL_CLASS = "overflow-x-auto";
 export const SETUP_PAGE_TABLE_CLASS =
   "min-w-full divide-y-2 divide-gray-200 text-sm";
 
-export const SETUP_PAGE_TABLE_HEAD_CLASS = "ltr:text-left rtl:text-right";
+export const SETUP_PAGE_TABLE_HEAD_CLASS = "text-center";
 
 export const SETUP_PAGE_TABLE_BODY_CLASS = "divide-y divide-gray-200";
 
 export const SETUP_PAGE_TABLE_HEADER_CELL_CLASS =
-  "px-3 py-3 !text-left text-xs font-semibold uppercase tracking-[0.08em] text-gray-600 whitespace-nowrap";
+  "px-3 py-3 !text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-600 whitespace-nowrap";
 
 export const SETUP_PAGE_TABLE_ROW_CLASS =
   "h-[64px] text-gray-900 transition-colors hover:bg-gray-50";
 
 export const SETUP_PAGE_TABLE_CELL_CLASS =
-  "px-3 py-3 !text-left align-middle whitespace-nowrap";
+  "px-3 py-3 !text-center align-middle whitespace-nowrap";
 
 export const SETUP_PAGE_COMPACT_ROW_CLASS =
   "h-[58px] text-gray-900 transition-colors hover:bg-gray-50";
 
 export const SETUP_PAGE_COMPACT_CELL_CLASS =
-  "px-3 py-2.5 !text-left align-middle whitespace-nowrap";
+  "px-3 py-2.5 !text-center align-middle whitespace-nowrap";
 
 export const SETUP_PAGE_NUMBER_HEADER_CELL_CLASS =
   `${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-16`;
