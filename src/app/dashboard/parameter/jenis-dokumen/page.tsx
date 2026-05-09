@@ -287,7 +287,7 @@ export default function SetupJenisDokumenPage() {
 
       <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} ${SETUP_PAGE_WIDTH_LG_CLASS}`}>
         <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed`}>
+          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed w-full`}>
               <colgroup>
                 <col className="w-16" />
                 <col className="w-28" />
@@ -329,7 +329,7 @@ export default function SetupJenisDokumenPage() {
                       </span>
                     </td>
                     <td className={SETUP_PAGE_TABLE_CELL_CLASS}>
-                      <div className="flex items-center justify-center gap-3">
+                      <div className="flex items-center gap-3">
                         <span className="text-sm font-semibold text-gray-900">
                           {j.nama}
                         </span>

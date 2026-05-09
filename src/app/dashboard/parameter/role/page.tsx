@@ -312,11 +312,11 @@ export default function SetupRolePage() {
           <h2 className="text-sm font-semibold text-gray-900">Role Utama</h2>
         </div>
         <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed`}>
+          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed w-full`}>
             <colgroup>
               <col className="w-16" />
               <col />
-              <col className="w-32" />
+              <col className="w-36" />
             </colgroup>
             <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
               <tr>
@@ -326,7 +326,7 @@ export default function SetupRolePage() {
                 <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
                   Nama Role
                 </th>
-                <th className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-32`}>
+                <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
                   Status
                 </th>
               </tr>
@@ -384,11 +384,11 @@ export default function SetupRolePage() {
           <h2 className="text-sm font-semibold text-gray-900">Role Tambahan</h2>
         </div>
         <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed`}>
+          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed w-full`}>
             <colgroup>
               <col className="w-16" />
               <col />
-              <col className="w-24" />
+              <col className="w-28" />
             </colgroup>
             <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
               <tr>

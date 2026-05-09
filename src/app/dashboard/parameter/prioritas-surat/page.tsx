@@ -236,11 +236,11 @@ export default function SetupPrioritasSuratPage() {
 
       <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} ${SETUP_PAGE_WIDTH_SM_CLASS}`}>
         <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed`}>
+          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed w-full`}>
             <colgroup>
               <col className="w-16" />
               <col />
-              <col className="w-24" />
+              <col className="w-28" />
             </colgroup>
             <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
               <tr>
