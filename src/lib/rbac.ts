@@ -1,29 +1,10 @@
 import type { DashboardMenuNode, RoleMenuPermission } from "@/types/rbac.types";
 
 export const RBAC_DENIED_MESSAGE = "Maaf, Anda tidak bisa mengakses fitur ini.";
-export const FEATURE_BLOCKED_MESSAGE =
-  "Maaf fitur ini masih dalam tahap pengembangan";
 
-export const ROLES = {
-  ADMIN: "Admin",
-  STAF: "Staf",
-  SUPERVISOR: "Supervisor",
-  MANAGER: "Manager",
-  IT: "IT",
-} as const;
-
-export type CanonicalRole = (typeof ROLES)[keyof typeof ROLES];
 export type Role = string;
 export type PermissionCapability = "read" | "create" | "update" | "delete";
 export type DataAccessLevel = "RESTRICT" | "NON_RESTRICT";
-
-export const ROLE_LABELS: Record<CanonicalRole, string> = {
-  [ROLES.ADMIN]: ROLES.ADMIN,
-  [ROLES.STAF]: ROLES.STAF,
-  [ROLES.SUPERVISOR]: ROLES.SUPERVISOR,
-  [ROLES.MANAGER]: ROLES.MANAGER,
-  [ROLES.IT]: ROLES.IT,
-};
 
 type FlattenedMenuNode = DashboardMenuNode & {
   depth: number;
@@ -36,19 +17,12 @@ type RuntimeRbacState = {
   readableRolesByMenuId: Map<string, Set<Role>>;
 };
 
-type BlockedFeatureRule = {
-  prefix: string;
-  label: string;
-  message: string;
-};
-
 export interface RouteAccessDecision {
   allowed: boolean;
   reason:
     | "ALLOWED"
     | "AUTH_REQUIRED"
     | "ROLE_REQUIRED"
-    | "FEATURE_BLOCKED"
     | "UNKNOWN_ROUTE_DENIED";
   label?: string;
   message?: string;
@@ -69,15 +43,6 @@ function matchesPath(pathname: string, prefix: string) {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
-function normalizeRoleKey(value: string): string {
-  return value.trim().toLowerCase().replace(/[\s_-]+/g, "");
-}
-
-function hasRole(role: Role, roles: readonly CanonicalRole[]) {
-  const appRole = mapRoleLikeToAppRole(role);
-  return appRole ? roles.includes(appRole) : false;
-}
-
 export function normalizePath(pathname: string): string {
   const [withoutHash] = pathname.split("#");
   const [withoutQuery] = withoutHash.split("?");
@@ -85,13 +50,8 @@ export function normalizePath(pathname: string): string {
   return withoutQuery.endsWith("/") ? withoutQuery.slice(0, -1) : withoutQuery;
 }
 
-export const ADMINISTRATOR_SECTION_ROOT_NAMES = new Set(["Parameter"]);
-
 export function getRoleLabel(role: Role | null | undefined): string {
   if (!role) return "-";
-
-  const appRole = mapRoleLikeToAppRole(role);
-  if (appRole) return ROLE_LABELS[appRole];
 
   const trimmed = role.trim();
   return trimmed.length > 0 ? trimmed : "-";
@@ -165,6 +125,33 @@ export function isNodeOrDescendantPathActive(
   );
 }
 
+export function getMenuTitleForPath(
+  menus: DashboardMenuNode[],
+  pathname: string,
+): string | null {
+  const normalizedPath = normalizePath(pathname);
+  let bestTitle: string | null = null;
+  let bestLength = -1;
+
+  function visit(nodes: DashboardMenuNode[]) {
+    for (const node of nodes) {
+      const url = normalizePath(node.url);
+      if (url && url !== "/" && matchesPath(normalizedPath, url)) {
+        const length = url.length;
+        if (length > bestLength) {
+          bestTitle = node.name;
+          bestLength = length;
+        }
+      }
+
+      if (node.children.length > 0) visit(node.children);
+    }
+  }
+
+  visit(menus);
+  return bestTitle;
+}
+
 function flattenMenuTree(
   menus: DashboardMenuNode[],
   depth = 0,
@@ -181,6 +168,53 @@ function flattenMenuTree(
       node,
       ...flattenMenuTree(menu.children, depth + 1, [...ancestryIds, menu.id]),
     ];
+  });
+}
+
+function buildMenuNodeFromPermission(
+  permission: RoleMenuPermission,
+): FlattenedMenuNode | null {
+  const url = normalizePath(permission.menu_url ?? "");
+  if (!permission.menu_id || !url || url === "/") return null;
+
+  return {
+    id: permission.menu_id,
+    name: permission.menu_name ?? url,
+    parent_id: null,
+    parent: null,
+    url,
+    order: 0,
+    menu_type: "NAVIGATION",
+    placement: "SIDEBAR",
+    render_in_sidebar: true,
+    children: [],
+    depth: 0,
+    ancestryIds: [],
+  };
+}
+
+function flattenRuntimeMenus(
+  menus: DashboardMenuNode[],
+  roleMenus: RoleMenuPermission[],
+): FlattenedMenuNode[] {
+  const byId = new Map<string, FlattenedMenuNode>();
+
+  for (const menu of flattenMenuTree(menus)) {
+    byId.set(menu.id, menu);
+  }
+
+  for (const permission of roleMenus) {
+    if (byId.has(permission.menu_id)) continue;
+    const menu = buildMenuNodeFromPermission(permission);
+    if (menu) byId.set(menu.id, menu);
+  }
+
+  return Array.from(byId.values()).sort((left, right) => {
+    const rightLength = normalizePath(right.url).length;
+    const leftLength = normalizePath(left.url).length;
+
+    if (rightLength !== leftLength) return rightLength - leftLength;
+    return left.depth - right.depth;
   });
 }
 
@@ -231,14 +265,19 @@ function getBestMatchingMenus(pathname: string): FlattenedMenuNode[] {
     return url && url !== "/" && matchesPath(normalizedPath, url);
   });
 
-  if (matchingMenus.length === 0) return [];
+  const candidates =
+    normalizedPath === "/dashboard"
+      ? matchingMenus
+      : matchingMenus.filter((menu) => normalizePath(menu.url) !== "/dashboard");
 
-  const maxUrlLength = matchingMenus.reduce(
+  if (candidates.length === 0) return [];
+
+  const maxUrlLength = candidates.reduce(
     (max, menu) => Math.max(max, normalizePath(menu.url).length),
     0,
   );
 
-  return matchingMenus.filter(
+  return candidates.filter(
     (menu) => normalizePath(menu.url).length === maxUrlLength,
   );
 }
@@ -328,40 +367,21 @@ function getRuntimeRouteDecision(
   };
 }
 
-export function isCanonicalRole(value: unknown): value is CanonicalRole {
-  return (
-    typeof value === "string" &&
-    (Object.values(ROLES) as readonly string[]).includes(value)
-  );
-}
-
-const ROLE_BY_NORMALIZED: Record<string, CanonicalRole> = {
-  admin: ROLES.ADMIN,
-  administrator: ROLES.ADMIN,
-  staf: ROLES.STAF,
-  staff: ROLES.STAF,
-  supervisor: ROLES.SUPERVISOR,
-  manager: ROLES.MANAGER,
-  manajer: ROLES.MANAGER,
-  it: ROLES.IT,
-};
-
-export function mapRoleLikeToAppRole(value: unknown): CanonicalRole | null {
-  if (isCanonicalRole(value)) return value;
-
+export function getRoleNameFromUnknown(value: unknown): Role | null {
   if (typeof value === "string") {
-    return ROLE_BY_NORMALIZED[normalizeRoleKey(value)] ?? null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
   }
 
   if (typeof value === "object" && value !== null) {
     const record = value as Record<string, unknown>;
     return (
-      mapRoleLikeToAppRole(record.role) ??
-      mapRoleLikeToAppRole(record.role_name) ??
-      mapRoleLikeToAppRole(record.roleName) ??
-      mapRoleLikeToAppRole(record.name) ??
-      mapRoleLikeToAppRole(record.label) ??
-      mapRoleLikeToAppRole(record.code)
+      getRoleNameFromUnknown(record.role) ??
+      getRoleNameFromUnknown(record.role_name) ??
+      getRoleNameFromUnknown(record.roleName) ??
+      getRoleNameFromUnknown(record.name) ??
+      getRoleNameFromUnknown(record.label) ??
+      getRoleNameFromUnknown(record.code)
     );
   }
 
@@ -372,13 +392,7 @@ export function setRuntimeRbacData(payload: {
   menus: DashboardMenuNode[];
   roleMenus: RoleMenuPermission[];
 }) {
-  const flatMenus = flattenMenuTree(payload.menus).sort((left, right) => {
-    const rightLength = normalizePath(right.url).length;
-    const leftLength = normalizePath(left.url).length;
-
-    if (rightLength !== leftLength) return rightLength - leftLength;
-    return left.depth - right.depth;
-  });
+  const flatMenus = flattenRuntimeMenus(payload.menus, payload.roleMenus);
 
   const permissionsByRoleId = new Map<
     string,
@@ -418,30 +432,6 @@ export function setRuntimeRbacData(payload: {
 
 export function clearRuntimeRbacData() {
   runtimeRbacState = null;
-}
-
-export function filterDigitalDocuments<
-  T extends { levelAkses: DataAccessLevel },
->(isRestrict: boolean, documents: T[]): T[] {
-  return documents.filter(
-    (document) => document.levelAkses === "NON_RESTRICT" || isRestrict,
-  );
-}
-
-export function canManageDisposisi(role: Role): boolean {
-  return hasRole(role, [ROLES.ADMIN, ROLES.SUPERVISOR, ROLES.MANAGER, ROLES.IT]);
-}
-
-export function getBlockedFeatureRule(
-  _pathname: string,
-): BlockedFeatureRule | null {
-  void _pathname;
-  return null;
-}
-
-export function isDashboardFeatureBlocked(_pathname: string): boolean {
-  void _pathname;
-  return false;
 }
 
 export function getDashboardRouteDecision(

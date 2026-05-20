@@ -1,37 +1,73 @@
 "use client";
 
 import { X } from "lucide-react";
+import type { ReactNode } from "react";
 
 interface DetailSectionProps {
   title: string;
-  children: React.ReactNode;
+  description?: string;
+  children: ReactNode;
+  layout?: "grid" | "stack" | "list";
 }
 
-function DetailSection({ title, children }: DetailSectionProps) {
+function DetailSection({
+  title,
+  description,
+  children,
+  layout = "grid",
+}: DetailSectionProps) {
   return (
-    <div className="space-y-3">
-      <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-        {title}
-      </h4>
-      <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+    <section className="space-y-4">
+      <div>
+        <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-700">
+          {title}
+        </h4>
+        {description ? (
+          <p className="mt-1 text-sm leading-6 text-slate-500">
+            {description}
+          </p>
+        ) : null}
+      </div>
+      <div
+        className={
+          layout === "grid"
+            ? "grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
+            : layout === "list"
+              ? "space-y-3"
+            : "rounded-lg border border-gray-200 bg-gray-50 p-4"
+        }
+      >
         {children}
       </div>
-    </div>
+    </section>
   );
 }
 
 interface DetailRowProps {
   label: string;
-  value: React.ReactNode;
+  value: ReactNode;
+  className?: string;
+  contentClassName?: string;
 }
 
-function DetailRow({ label, value }: DetailRowProps) {
+function DetailRow({
+  label,
+  value,
+  className = "",
+  contentClassName = "",
+}: DetailRowProps) {
   return (
-    <div className="flex justify-between gap-4 py-2 border-b border-gray-100 last:border-0 last:pb-0 first:pt-0">
-      <span className="text-sm text-gray-500 shrink-0">{label}</span>
-      <span className="text-sm font-medium text-gray-900 text-right">
+    <div
+      className={`min-h-[48px] rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 ${className}`.trim()}
+    >
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+      <div
+        className={`mt-2 break-words text-sm font-semibold leading-6 text-gray-900 ${contentClassName}`.trim()}
+      >
         {value}
-      </span>
+      </div>
     </div>
   );
 }
@@ -40,13 +76,15 @@ interface DetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  children: React.ReactNode;
+  description?: string;
+  children: ReactNode;
 }
 
 export default function DetailModal({
   isOpen,
   onClose,
   title,
+  description,
   children,
 }: DetailModalProps) {
   if (!isOpen) return null;
@@ -54,23 +92,28 @@ export default function DetailModal({
   return (
     <div
       data-dashboard-overlay="true"
-      className="fixed inset-0 z-60 flex items-center justify-center animate-fade-in"
+      className="fixed inset-0 z-[1400] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm animate-fade-in"
+      onClick={onClose}
     >
       <div
-        className="absolute inset-0 bg-black/50 transition-opacity"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div
-        className="relative mx-4 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl animate-scale-in"
+        role="dialog"
+        aria-modal="true"
+        className="flex max-h-[85vh] w-[94vw] max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-sm"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
-          <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 bg-gray-50/50 px-5 py-4">
+          <div className="min-w-0">
+            <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+            {description ? (
+              <p className="mt-1 text-sm leading-6 text-gray-500">
+                {description}
+              </p>
+            ) : null}
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+            className="rounded-md p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-[rgba(21,126,195,0.16)] focus:ring-offset-2"
             title="Tutup"
             aria-label="Tutup"
           >
@@ -78,6 +121,15 @@ export default function DetailModal({
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-6">{children}</div>
+        <div className="flex justify-end border-t border-gray-100 bg-gray-50 p-5">
+          <button
+            type="button"
+            onClick={onClose}
+            className="uiverse-modal-button uiverse-modal-button--neutral"
+          >
+            Tutup
+          </button>
+        </div>
       </div>
     </div>
   );

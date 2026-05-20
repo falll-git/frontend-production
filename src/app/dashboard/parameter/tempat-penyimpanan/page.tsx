@@ -1,45 +1,53 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  SetupDataTable,
+  SetupDataTableHead,
+  SetupDataTableBody,
+  SetupDataTableRow,
+  SetupDataTableHeaderCell,
+  SetupDataTableCell,
+  SetupDataTableColGroup,
+  SetupDataTableCol
+} from "@/components/ui/SetupDataTable";
+import { useEffect, useMemo, useState } from "react";
 import {
   Edit2,
-  Plus,
   Save,
-  Search,
   Trash2,
-  X,
   Warehouse,
   ToggleLeft,
   ToggleRight,
 } from "lucide-react";
 
 import { useAppToast } from "@/components/ui/AppToastProvider";
+import DashboardModal from "@/components/ui/DashboardModal";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 import FeatureHeader from "@/components/ui/FeatureHeader";
+import Pagination from "@/components/ui/Pagination";
+import SetupAddButton from "@/components/ui/SetupAddButton";
+import SetupActionMenu from "@/components/ui/SetupActionMenu";
+import SetupSearchInput from "@/components/ui/SetupSearchInput";
+import SetupSelect from "@/components/ui/SetupSelect";
+import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
+import SetupTextInput from "@/components/ui/SetupTextInput";
 import { useArsipDigitalMasterData } from "@/components/arsip-digital/ArsipDigitalMasterDataProvider";
+import { useClientPagination } from "@/hooks/useClientPagination";
+import { SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import {
   getSetupPageEmptyStateCopy,
-  SETUP_PAGE_ADD_BUTTON_CLASS,
-  SETUP_PAGE_ACTION_CELL_CLASS,
-  SETUP_PAGE_ACTION_HEADER_CELL_CLASS,
-  SETUP_PAGE_EMPTY_STATE_CELL_CLASS,
-  SETUP_PAGE_NUMBER_CELL_CLASS,
-  SETUP_PAGE_NUMBER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
+  SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_TABLE_CLASS,
+  SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
+  SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_SEARCH_ICON_CLASS,
-  SETUP_PAGE_SEARCH_INPUT_CLASS,
-  SETUP_PAGE_SEARCH_LABEL_CLASS,
-  SETUP_PAGE_SEARCH_WRAPPER_CLASS,
-  SETUP_PAGE_STATUS_CELL_CLASS,
-  SETUP_PAGE_STATUS_HEADER_CELL_CLASS,
-  SETUP_PAGE_TABLE_BODY_CLASS,
   SETUP_PAGE_TABLE_CARD_CLASS,
-  SETUP_PAGE_TABLE_CLASS,
-  SETUP_PAGE_TABLE_CELL_CLASS,
-  SETUP_PAGE_TABLE_HEADER_CELL_CLASS,
-  SETUP_PAGE_TABLE_HEAD_CLASS,
-  SETUP_PAGE_TABLE_ROW_CLASS,
-  SETUP_PAGE_TABLE_SCROLL_CLASS,
   SETUP_PAGE_WIDTH_XL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { storageService } from "@/services/storage.service";
@@ -61,17 +69,6 @@ const EMPTY_FORM: FormState = {
   kapasitas: "",
   status: "Aktif",
 };
-
-const ACTION_ICON_BUTTON_CLASS =
-  "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent transition-colors";
-const STATUS_BADGE_BASE_CLASS =
-  "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold";
-
-function getStatusBadgeClass(status: "Aktif" | "Nonaktif") {
-  return status === "Aktif"
-    ? `${STATUS_BADGE_BASE_CLASS} border-emerald-200 bg-emerald-50 text-emerald-700`
-    : `${STATUS_BADGE_BASE_CLASS} border-gray-200 bg-gray-100 text-gray-700`;
-}
 
 export default function SetupTempatPenyimpananPage() {
   const { showToast } = useAppToast();
@@ -106,6 +103,16 @@ export default function SetupTempatPenyimpananPage() {
         .includes(q),
     );
   }, [query, tempatPenyimpanan]);
+  const {
+    paginatedItems: paginatedTempatPenyimpanan,
+    meta: paginationMeta,
+    setPage,
+    resetPage,
+  } = useClientPagination(filtered, SETUP_TABLE_PAGE_SIZE);
+
+  useEffect(() => {
+    resetPage();
+  }, [query, resetPage]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -230,7 +237,7 @@ export default function SetupTempatPenyimpananPage() {
     }
 
     if (!Number.isFinite(kapasitasNum) || kapasitasNum <= 0) {
-      showToast("Kapasitas harus berupa angka > 0", "warning");
+      showToast("Kapasitas harus berupa angka lebih dari 0.", "warning");
       return;
     }
 
@@ -300,331 +307,314 @@ export default function SetupTempatPenyimpananPage() {
         subtitle="Kelola master lokasi penyimpanan dokumen fisik."
         icon={<Warehouse />}
         actions={
-          <button onClick={openCreate} className={SETUP_PAGE_ADD_BUTTON_CLASS}>
-            <Plus className="w-4 h-4" aria-hidden="true" />
-            Tambah Tempat
-          </button>
+          <SetupAddButton label="Tambah Tempat" onClick={openCreate} />
         }
       />
 
       <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_XL_CLASS}`}>
-        <p className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Cari Data</p>
-        <div className={SETUP_PAGE_SEARCH_WRAPPER_CLASS}>
-          <Search
-            className={SETUP_PAGE_SEARCH_ICON_CLASS}
-            aria-hidden="true"
-          />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari kantor, lemari, rak, kapasitas, atau status..."
-            className={SETUP_PAGE_SEARCH_INPUT_CLASS}
-          />
-        </div>
+        <SetupSearchInput
+          label="Cari Data"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Cari kantor, lemari, rak, kapasitas, atau status..."
+        />
       </div>
 
-      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} ${SETUP_PAGE_WIDTH_XL_CLASS}`}>
-        <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed w-full`}>
-              <colgroup>
-                <col className="w-16" />
-                <col className="w-28" />
-                <col />
-                <col className="w-28" />
-                <col className="w-20" />
-                <col className="w-24" />
-                <col className="w-28" />
-                <col className="w-28" />
-              </colgroup>
-              <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
-                <tr>
-                  <th className={SETUP_PAGE_NUMBER_HEADER_CELL_CLASS}>
+      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} mx-auto max-w-[1280px]`}>
+        <div className="overflow-x-auto">
+          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS} min-w-[1080px]`}>
+              <SetupDataTableColGroup>
+                <SetupDataTableCol className="w-[56px]" />
+                <SetupDataTableCol className="w-[112px]" />
+                <SetupDataTableCol />
+                <SetupDataTableCol className="w-[132px]" />
+                <SetupDataTableCol className="w-[96px]" />
+                <SetupDataTableCol className="w-[112px]" />
+                <SetupDataTableCol className="w-[120px]" />
+                <SetupDataTableCol className="w-[88px]" />
+              </SetupDataTableColGroup>
+              <SetupDataTableHead className="ltr:text-left rtl:text-right">
+                <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
                     No
-                  </th>
-                  <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                     Kode Kantor
-                  </th>
-                  <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                     Nama Kantor
-                  </th>
-                  <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                     Kode Lemari
-                  </th>
-                  <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                     Rak
-                  </th>
-                  <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                     Kapasitas
-                  </th>
-                  <th className={SETUP_PAGE_STATUS_HEADER_CELL_CLASS}>
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                     Status
-                  </th>
-                  <th className={SETUP_PAGE_ACTION_HEADER_CELL_CLASS}>
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                     Aksi
-                  </th>
-                </tr>
-              </thead>
-              <tbody className={SETUP_PAGE_TABLE_BODY_CLASS}>
-                {filtered.map((t, idx) => (
-                  <tr
+                  </SetupDataTableHeaderCell>
+                </SetupDataTableRow>
+              </SetupDataTableHead>
+              <SetupDataTableBody className="divide-y divide-gray-200">
+                {paginatedTempatPenyimpanan.map((t, idx) => (
+                  <SetupDataTableRow
                     key={t.id}
-                    className={SETUP_PAGE_TABLE_ROW_CLASS}
+                    className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
                   >
-                    <td className={SETUP_PAGE_NUMBER_CELL_CLASS}>
-                      {idx + 1}
-                    </td>
-                    <td className={SETUP_PAGE_TABLE_CELL_CLASS}>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                      {(paginationMeta.page - 1) * paginationMeta.limit + idx + 1}
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
                       <span className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
                         {t.kodeKantor}
                       </span>
-                    </td>
-                    <td
-                      className={`${SETUP_PAGE_TABLE_CELL_CLASS} text-sm font-semibold text-gray-900`}
+                    </SetupDataTableCell>
+                    <SetupDataTableCell
+                      className={`${SETUP_PAGE_MODERN_CELL_CLASS} truncate font-semibold text-gray-900`}
+                      title={t.namaKantor}
                     >
                       {t.namaKantor}
-                    </td>
-                    <td
-                      className={`${SETUP_PAGE_TABLE_CELL_CLASS} text-sm text-gray-600 tabular-nums`}
+                    </SetupDataTableCell>
+                    <SetupDataTableCell
+                      className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600 tabular-nums`}
                     >
                       {t.kodeLemari}
-                    </td>
-                    <td
-                      className={`${SETUP_PAGE_TABLE_CELL_CLASS} text-sm text-gray-600 tabular-nums`}
+                    </SetupDataTableCell>
+                    <SetupDataTableCell
+                      className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600 tabular-nums`}
                     >
                       {t.rak}
-                    </td>
-                    <td
-                      className={`${SETUP_PAGE_TABLE_CELL_CLASS} text-sm text-gray-600 tabular-nums`}
+                    </SetupDataTableCell>
+                    <SetupDataTableCell
+                      className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600 tabular-nums`}
                     >
                       {t.kapasitas}
-                    </td>
-                    <td className={SETUP_PAGE_STATUS_CELL_CLASS}>
-                      <span className={getStatusBadgeClass(t.status)}>
-                        {t.status}
-                      </span>
-                    </td>
-                    <td className={SETUP_PAGE_ACTION_CELL_CLASS}>
-                      <div className="inline-flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => openEdit(t.id)}
-                          className={`${ACTION_ICON_BUTTON_CLASS} text-blue-600 hover:bg-blue-50 hover:text-blue-700`}
-                          title="Edit"
-                        >
-                          <Edit2 className="w-4 h-4" aria-hidden="true" />
-                        </button>
-                        <button
-                          onClick={() => toggleStatus(t.id)}
-                          className={`${ACTION_ICON_BUTTON_CLASS} ${
-                            t.status === "Aktif"
-                              ? "text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                              : "text-red-600 hover:bg-red-50 hover:text-red-700"
-                          }`}
-                          title={
-                            t.status === "Aktif" ? "Nonaktifkan" : "Aktifkan"
-                          }
-                        >
-                          {t.status === "Aktif" ? (
-                            <ToggleRight className="w-4 h-4" aria-hidden="true" />
-                          ) : (
-                            <ToggleLeft className="w-4 h-4" aria-hidden="true" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(t.id)}
-                          className={`${ACTION_ICON_BUTTON_CLASS} text-red-600 hover:bg-red-50 hover:text-red-700`}
-                          title="Hapus"
-                        >
-                          <Trash2 className="w-4 h-4" aria-hidden="true" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      <SetupStatusBadge status={t.status} />
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      <SetupActionMenu
+                        label="Buka aksi tempat penyimpanan"
+                        menuLabel={`Aksi untuk ${t.kodeLemari} ${t.rak}`}
+                        items={[
+                          {
+                            key: "edit",
+                            label: "Edit",
+                            icon: Edit2,
+                            tone: "blue",
+                            onClick: () => openEdit(t.id),
+                          },
+                          {
+                            key: "toggle-status",
+                            label:
+                              t.status === "Aktif" ? "Nonaktifkan" : "Aktifkan",
+                            icon: t.status === "Aktif" ? ToggleRight : ToggleLeft,
+                            tone: t.status === "Aktif" ? "red" : "emerald",
+                            onClick: () => void toggleStatus(t.id),
+                          },
+                          {
+                            key: "delete",
+                            label: "Hapus",
+                            icon: Trash2,
+                            tone: "red",
+                            onClick: () => handleDelete(t.id),
+                          },
+                        ]}
+                      />
+                    </SetupDataTableCell>
+                  </SetupDataTableRow>
                 ))}
 
                 {isLoading && (
-                  <tr>
-                    <td
+                  <SetupDataTableRow>
+                    <SetupDataTableCell
                       colSpan={8}
-                      className={SETUP_PAGE_EMPTY_STATE_CELL_CLASS}
+                      className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
                     >
                       Memuat data tempat penyimpanan...
-                    </td>
-                  </tr>
+                    </SetupDataTableCell>
+                  </SetupDataTableRow>
                 )}
 
                 {!isLoading && filtered.length === 0 && (
-                  <tr>
-                    <td
+                  <SetupDataTableRow>
+                    <SetupDataTableCell
                       colSpan={8}
-                      className={SETUP_PAGE_EMPTY_STATE_CELL_CLASS}
+                      className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
                     >
                       {getSetupPageEmptyStateCopy("tempat penyimpanan")}
-                    </td>
-                  </tr>
+                    </SetupDataTableCell>
+                  </SetupDataTableRow>
                 )}
-              </tbody>
-          </table>
+              </SetupDataTableBody>
+          </SetupDataTable>
         </div>
+        <Pagination
+          page={paginationMeta.page}
+          lastPage={paginationMeta.lastPage}
+          total={paginationMeta.total}
+          limit={paginationMeta.limit}
+          isLoading={isLoading}
+          onPageChange={setPage}
+        />
       </div>
 
-      {isModalOpen && (
-        <div
-          data-dashboard-overlay="true"
-          className="fixed inset-0 p-4"
-          style={{
-            background: "rgba(0, 0, 0, 0.55)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          onClick={closeModal}
-        >
-          <div
-            className="bg-white rounded-lg shadow-sm w-full max-w-2xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {editingId
-                    ? "Edit Tempat Penyimpanan"
-                    : "Tambah Tempat Penyimpanan"}
-                </h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  Isi data lokasi penyimpanan dokumen.
-                </p>
-              </div>
-              <button
-                onClick={closeModal}
-                className="btn btn-ghost btn-sm"
-                title="Tutup"
-              >
-                <X className="w-4 h-4" aria-hidden="true" />
-              </button>
-            </div>
-
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Kode Kantor <span className="text-red-500">*</span>
-                </label>
-                <input
-                  value={form.kodeKantor}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, kodeKantor: e.target.value }))
-                  }
-                  placeholder="KP / KST"
-                  className="input"
-                />
-                <p className="mt-2 text-xs text-slate-500">
-                  Pakai kode kantor yang jelas.
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nama Kantor <span className="text-red-500">*</span>
-                </label>
-                <input
-                  value={form.namaKantor}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, namaKantor: e.target.value }))
-                  }
-                  placeholder="Kantor Pusat"
-                  className="input"
-                />
-                <p className="mt-2 text-xs text-slate-500">
-                  Isi nama kantor sesuai data aslinya.
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Kode Lemari <span className="text-red-500">*</span>
-                </label>
-                <input
-                  value={form.kodeLemari}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, kodeLemari: e.target.value }))
-                  }
-                  placeholder="L-020"
-                  className="input"
-                />
-                <p className="mt-2 text-xs text-slate-500">
-                  Pakai kode lemari yang jelas.
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Rak <span className="text-red-500">*</span>
-                </label>
-                <input
-                  value={form.rak}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, rak: e.target.value }))
-                  }
-                  placeholder="Rak 4"
-                  className="input"
-                />
-                <p className="mt-2 text-xs text-slate-500">
-                  Rak ini tidak boleh dobel dalam lemari yang sama.
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Kapasitas <span className="text-red-500">*</span>
-                </label>
-                <input
-                  value={form.kapasitas}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, kapasitas: e.target.value }))
-                  }
-                  placeholder="150"
-                  inputMode="numeric"
-                  className="input"
-                />
-                <p className="mt-2 text-xs text-slate-500">
-                  Isi dengan angka lebih dari 0.
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status
-                </label>
-                <select
-                  value={form.status}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      status: e.target.value === "Aktif" ? "Aktif" : "Nonaktif",
-                    }))
-                  }
-                  className="select"
-                >
-                  <option value="Aktif">Aktif</option>
-                  <option value="Nonaktif">Nonaktif</option>
-                </select>
-                <p className="mt-2 text-xs text-slate-500">
-                  Kalau nonaktif, lokasi ini tidak dipakai untuk input baru.
-                </p>
-              </div>
-            </div>
-
-            <div className="p-6 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row justify-end gap-3">
-              <button onClick={closeModal} className="btn btn-outline">
-                Batal
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className={editingId ? "btn btn-primary" : "btn btn-upload"}
-              >
-                <Save className="w-4 h-4" aria-hidden="true" />
-                {isSaving ? "Menyimpan..." : "Simpan"}
-              </button>
-            </div>
-          </div>
+      <DashboardModal
+        isOpen={isModalOpen}
+        title={
+          editingId ? "Edit Tempat Penyimpanan" : "Tambah Tempat Penyimpanan"
+        }
+        description={
+          editingId
+            ? "Perbarui lokasi fisik yang dipakai untuk penyimpanan dokumen."
+            : "Tambahkan lokasi fisik untuk penyimpanan dokumen."
+        }
+        onClose={closeModal}
+        maxWidth="2xl"
+        bodyClassName="grid grid-cols-1 gap-4 p-6 md:grid-cols-2"
+        footer={
+          <>
+            <button
+              onClick={closeModal}
+              className="uiverse-modal-button uiverse-modal-button--neutral"
+              type="button"
+            >
+              Batal
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="uiverse-modal-button uiverse-modal-button--primary"
+              type="button"
+            >
+              {isSaving ? (
+                <>
+                  <div
+                    className="button-spinner uiverse-modal-button__spinner"
+                    style={
+                      {
+                        ["--spinner-size"]: "18px",
+                        ["--spinner-border"]: "2px",
+                      } as React.CSSProperties
+                    }
+                    aria-hidden="true"
+                  />
+                  <span>Menyimpan...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" aria-hidden="true" />
+                  <span>Simpan</span>
+                </>
+              )}
+            </button>
+          </>
+        }
+      >
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Kode Kantor <span className="text-red-500">*</span>
+          </label>
+          <SetupTextInput
+            value={form.kodeKantor}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, kodeKantor: e.target.value }))
+            }
+            placeholder="Masukkan kode kantor"
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            Gunakan kode kantor sesuai penamaan internal.
+          </p>
         </div>
-      )}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Nama Kantor <span className="text-red-500">*</span>
+          </label>
+          <SetupTextInput
+            value={form.namaKantor}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, namaKantor: e.target.value }))
+            }
+            placeholder="Masukkan nama kantor"
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            Isi nama kantor sesuai lokasi fisiknya.
+          </p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Kode Lemari <span className="text-red-500">*</span>
+          </label>
+          <SetupTextInput
+            value={form.kodeLemari}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, kodeLemari: e.target.value }))
+            }
+            placeholder="Masukkan kode lemari"
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            Gunakan kode lemari sesuai label fisiknya.
+          </p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Rak <span className="text-red-500">*</span>
+          </label>
+          <SetupTextInput
+            value={form.rak}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, rak: e.target.value }))
+            }
+            placeholder="Masukkan nama rak"
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            Kombinasi kantor, lemari, dan rak harus unik.
+          </p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Kapasitas <span className="text-red-500">*</span>
+          </label>
+          <SetupTextInput
+            value={form.kapasitas}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, kapasitas: e.target.value }))
+            }
+            placeholder="Masukkan kapasitas"
+            inputMode="numeric"
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            Isi jumlah dokumen yang bisa disimpan di rak ini.
+          </p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Status
+          </label>
+          <SetupSelect
+            value={form.status}
+            onChange={(e) =>
+              setForm((p) => ({
+                ...p,
+                status: e.target.value === "Aktif" ? "Aktif" : "Nonaktif",
+              }))
+            }
+          >
+            <option value="Aktif">Aktif</option>
+            <option value="Nonaktif">Nonaktif</option>
+          </SetupSelect>
+          <p className="mt-2 text-xs text-slate-500">
+            Lokasi nonaktif tidak muncul saat input dokumen baru.
+          </p>
+        </div>
+      </DashboardModal>
 
       <DeleteConfirmModal
         isOpen={deleteItem !== null}

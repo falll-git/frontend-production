@@ -1,6 +1,9 @@
+import type { PaginationMeta } from "@/types/api.types";
+import { DEFAULT_PAGINATION_META } from "@/lib/pagination";
+
 type AnyRecord = Record<string, unknown>;
 
-function isRecord(value: unknown): value is AnyRecord {
+export function isRecord(value: unknown): value is AnyRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -42,16 +45,54 @@ export function extractRecord(payload: unknown): AnyRecord | null {
 }
 
 export function extractLastPage(payload: unknown): number {
-  if (!isRecord(payload)) return 1;
+  return extractPaginationMeta(payload).lastPage;
+}
+
+export function extractPaginationMeta(
+  payload: unknown,
+  fallback: Partial<PaginationMeta> = {},
+): PaginationMeta {
+  if (!isRecord(payload)) {
+    return {
+      ...DEFAULT_PAGINATION_META,
+      ...fallback,
+      page: Math.max(1, fallback.page ?? DEFAULT_PAGINATION_META.page),
+      limit: Math.max(1, fallback.limit ?? DEFAULT_PAGINATION_META.limit),
+      lastPage: Math.max(1, fallback.lastPage ?? DEFAULT_PAGINATION_META.lastPage),
+    };
+  }
 
   const meta = isRecord(payload.meta) ? payload.meta : null;
-  const rawLastPage =
+  const total =
+    readNumber(payload, "total", "count") ??
+    (meta ? readNumber(meta, "total", "count") : null) ??
+    fallback.total ??
+    DEFAULT_PAGINATION_META.total;
+  const page =
+    readNumber(payload, "page", "currentPage", "current_page") ??
+    (meta ? readNumber(meta, "page", "currentPage", "current_page") : null) ??
+    fallback.page ??
+    DEFAULT_PAGINATION_META.page;
+  const limit =
+    readNumber(payload, "limit", "perPage", "per_page") ??
+    (meta ? readNumber(meta, "limit", "perPage", "per_page") : null) ??
+    fallback.limit ??
+    DEFAULT_PAGINATION_META.limit;
+  const computedLastPage = Math.max(1, Math.ceil(total / Math.max(1, limit)));
+  const lastPage =
     readNumber(payload, "lastPage", "last_page", "totalPages", "total_pages") ??
     (meta
       ? readNumber(meta, "lastPage", "last_page", "totalPages", "total_pages")
-      : null);
+      : null) ??
+    fallback.lastPage ??
+    computedLastPage;
 
-  return Math.max(1, rawLastPage ?? 1);
+  return {
+    total: Math.max(0, total),
+    page: Math.max(1, page),
+    limit: Math.max(1, limit),
+    lastPage: Math.max(1, lastPage),
+  };
 }
 
 export function readString(record: AnyRecord, ...keys: string[]): string | null {

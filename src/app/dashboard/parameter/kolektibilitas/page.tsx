@@ -1,5 +1,8 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+"use client";
+
+import ParameterMasterPage from "@/components/parameter/ParameterMasterPage";
+import { collectibilityParameterConfig } from "@/components/parameter/parameterMasterConfigs";
 
 export default function SetupKolektibilitasPage() {
-  return <ModuleSkeletonPage title="Setup Kolektibilitas" />;
+  return <ParameterMasterPage config={collectibilityParameterConfig} />;
 }

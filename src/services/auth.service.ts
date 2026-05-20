@@ -1,5 +1,5 @@
 import axios from "axios";
-import api, { getAccessToken } from "@/lib/axios";
+import api from "@/lib/axios";
 import type {
   ForgotPasswordResponse,
   LoginResponse,
@@ -24,12 +24,19 @@ export const authService = {
   login: async (
     username: string,
     password: string,
+    options?: { remember?: boolean },
   ): Promise<LoginResponse> => {
-    const res = await api.post("/auth/login", { username, password });
+    const res = await api.post("/auth/login", {
+      username,
+      password,
+      remember: Boolean(options?.remember),
+    });
     return res.data;
   },
-  refresh: async (refreshToken: string): Promise<RefreshResponse> => {
-    const res = await api.post("/auth/refresh", { refreshToken });
+  refresh: async (options?: { remember?: boolean }): Promise<RefreshResponse> => {
+    const res = await api.post("/auth/refresh", {
+      remember: Boolean(options?.remember),
+    });
     return res.data;
   },
   forgotPassword: async (email: string): Promise<ForgotPasswordResponse> => {
@@ -64,13 +71,11 @@ export const authService = {
     await api.post("/auth/change-password", payload);
   },
   logout: async () => {
-    const token = getAccessToken();
-
     await axios.post(
       `${process.env.NEXT_PUBLIC_API_URL}/auth/logout`,
       undefined,
       {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        withCredentials: true,
         validateStatus: (status) =>
           (status >= 200 && status < 300) || status === 401 || status === 403,
       },

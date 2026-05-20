@@ -1,0 +1,113 @@
+.doc-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.doc-preview-overlay.closing {
+  animation: fadeOut 0.2s ease-out forwards;
+}
+
+.doc-preview-container {
+  background: white;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 1000px;
+  height: 90vh;
+  max-height: 900px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.doc-preview-container.closing {
+  animation: scaleOut 0.2s ease-out forwards;
+}
+
+.doc-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  background: linear-gradient(to right, #f8fafc, #ffffff);
+  flex-shrink: 0;
+}
+
+.doc-preview-content {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.doc-preview-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.doc-preview-image-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: auto;
+}
+
+.doc-preview-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
+}
+
+.doc-preview-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  z-index: 10;
+}
+
+@media (max-width: 768px) {
+  .doc-preview-overlay {
+    padding: 10px;
+  }
+
+  .doc-preview-container {
+    height: 95vh;
+    border-radius: 16px;
+  }
+
+  .doc-preview-header {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .doc-preview-header > div:first-child {
+    width: 100%;
+  }
+
+  .doc-preview-header > div:last-child {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

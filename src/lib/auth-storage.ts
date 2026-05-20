@@ -19,3 +19,8 @@ export function clearAuthBrowserStorage(): void {
   window.sessionStorage.removeItem(AUTH_STORAGE_KEYS.sessionRefreshToken);
   window.localStorage.removeItem(AUTH_STORAGE_KEYS.persistedRefreshToken);
 }
+
+export function hasPersistedAuthSession(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(AUTH_STORAGE_KEYS.persistedUser) !== null;
+}

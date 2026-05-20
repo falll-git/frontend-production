@@ -1,5 +1,8 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+"use client";
+
+import ParameterMasterPage from "@/components/parameter/ParameterMasterPage";
+import { insuranceParameterConfig } from "@/components/parameter/parameterMasterConfigs";
 
 export default function SetupPerusahaanAsuransiPage() {
-  return <ModuleSkeletonPage title="Setup Perusahaan Asuransi" />;
+  return <ParameterMasterPage config={insuranceParameterConfig} />;
 }

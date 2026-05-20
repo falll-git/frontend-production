@@ -1,43 +1,53 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  SetupDataTable,
+  SetupDataTableHead,
+  SetupDataTableBody,
+  SetupDataTableRow,
+  SetupDataTableHeaderCell,
+  SetupDataTableCell,
+  SetupDataTableColGroup,
+  SetupDataTableCol
+} from "@/components/ui/SetupDataTable";
+import { useEffect, useMemo, useState } from "react";
 import {
   Edit2,
-  Plus,
   Save,
-  Search,
   Shield,
   Trash2,
   ToggleLeft,
   ToggleRight,
-  X,
 } from "lucide-react";
 
 import { useAppToast } from "@/components/ui/AppToastProvider";
+import DashboardModal from "@/components/ui/DashboardModal";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 import FeatureHeader from "@/components/ui/FeatureHeader";
+import Pagination from "@/components/ui/Pagination";
+import SetupAddButton from "@/components/ui/SetupAddButton";
+import SetupActionMenu from "@/components/ui/SetupActionMenu";
+import SetupSearchInput from "@/components/ui/SetupSearchInput";
+import SetupSelect from "@/components/ui/SetupSelect";
+import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
+import SetupTextInput from "@/components/ui/SetupTextInput";
 import { useArsipDigitalMasterData } from "@/components/arsip-digital/ArsipDigitalMasterDataProvider";
+import { useClientPagination } from "@/hooks/useClientPagination";
+import { SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import {
   getSetupPageEmptyStateCopy,
-  SETUP_PAGE_ADD_BUTTON_CLASS,
-  SETUP_PAGE_ACTION_CELL_CLASS,
-  SETUP_PAGE_ACTION_HEADER_CELL_CLASS,
-  SETUP_PAGE_EMPTY_STATE_CELL_CLASS,
-  SETUP_PAGE_NUMBER_CELL_CLASS,
-  SETUP_PAGE_NUMBER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
+  SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_TABLE_CLASS,
+  SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
+  SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_SEARCH_ICON_CLASS,
-  SETUP_PAGE_SEARCH_INPUT_CLASS,
-  SETUP_PAGE_SEARCH_LABEL_CLASS,
-  SETUP_PAGE_SEARCH_WRAPPER_CLASS,
-  SETUP_PAGE_TABLE_BODY_CLASS,
   SETUP_PAGE_TABLE_CARD_CLASS,
-  SETUP_PAGE_TABLE_CLASS,
-  SETUP_PAGE_TABLE_CELL_CLASS,
-  SETUP_PAGE_TABLE_HEADER_CELL_CLASS,
-  SETUP_PAGE_TABLE_HEAD_CLASS,
-  SETUP_PAGE_TABLE_ROW_CLASS,
-  SETUP_PAGE_TABLE_SCROLL_CLASS,
   SETUP_PAGE_WIDTH_LG_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { documentTypeService } from "@/services/document-type.service";
@@ -55,17 +65,6 @@ const EMPTY_FORM: FormState = {
   keterangan: "",
   status: "Aktif",
 };
-
-const ACTION_ICON_BUTTON_CLASS =
-  "inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent transition-colors";
-const STATUS_BADGE_BASE_CLASS =
-  "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold";
-
-function getStatusBadgeClass(status: "Aktif" | "Nonaktif") {
-  return status === "Aktif"
-    ? `${STATUS_BADGE_BASE_CLASS} border-emerald-200 bg-emerald-50 text-emerald-700`
-    : `${STATUS_BADGE_BASE_CLASS} border-gray-200 bg-gray-100 text-gray-700`;
-}
 
 export default function SetupJenisDokumenPage() {
   const { showToast } = useAppToast();
@@ -93,6 +92,16 @@ export default function SetupJenisDokumenPage() {
         .includes(keyword),
     );
   }, [jenisDokumen, query]);
+  const {
+    paginatedItems: paginatedJenisDokumen,
+    meta: paginationMeta,
+    setPage,
+    resetPage,
+  } = useClientPagination(filtered, SETUP_TABLE_PAGE_SIZE);
+
+  useEffect(() => {
+    resetPage();
+  }, [query, resetPage]);
 
   const openCreate = () => {
     setEditingId(null);
@@ -262,272 +271,262 @@ export default function SetupJenisDokumenPage() {
         subtitle="Kelola master jenis dokumen."
         icon={<Shield />}
         actions={
-          <button onClick={openCreate} className={SETUP_PAGE_ADD_BUTTON_CLASS}>
-            <Plus className="w-4 h-4" aria-hidden="true" />
-            Tambah Jenis
-          </button>
+          <SetupAddButton label="Tambah Jenis" onClick={openCreate} />
         }
       />
 
       <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_LG_CLASS}`}>
-        <p className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Cari Data</p>
-        <div className={SETUP_PAGE_SEARCH_WRAPPER_CLASS}>
-          <Search
-            className={SETUP_PAGE_SEARCH_ICON_CLASS}
-            aria-hidden="true"
-          />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Cari kode, nama jenis dokumen, atau keterangan..."
-            className={SETUP_PAGE_SEARCH_INPUT_CLASS}
-          />
-        </div>
+        <SetupSearchInput
+          label="Cari Data"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Cari kode, nama jenis dokumen, atau keterangan..."
+        />
       </div>
 
-      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} ${SETUP_PAGE_WIDTH_LG_CLASS}`}>
-        <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-          <table className={`${SETUP_PAGE_TABLE_CLASS} table-fixed w-full`}>
-              <colgroup>
-                <col className="w-16" />
-                <col className="w-28" />
-                <col />
-                <col />
-                <col className="w-28" />
-              </colgroup>
-              <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
-                <tr>
-                  <th className={SETUP_PAGE_NUMBER_HEADER_CELL_CLASS}>
+      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} mx-auto max-w-[1120px]`}>
+        <div className="overflow-x-auto">
+          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS} min-w-[820px]`}>
+              <SetupDataTableColGroup>
+                <SetupDataTableCol className="w-[56px]" />
+                <SetupDataTableCol className="w-[112px]" />
+                <SetupDataTableCol className="w-[260px]" />
+                <SetupDataTableCol />
+                <SetupDataTableCol className="w-[88px]" />
+              </SetupDataTableColGroup>
+              <SetupDataTableHead className="ltr:text-left rtl:text-right">
+                <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
                     No
-                  </th>
-                  <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                     Kode
-                  </th>
-                  <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                     Nama Jenis Dokumen
-                  </th>
-                  <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                     Keterangan
-                  </th>
-                  <th className={SETUP_PAGE_ACTION_HEADER_CELL_CLASS}>
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                     Aksi
-                  </th>
-                </tr>
-              </thead>
-              <tbody className={SETUP_PAGE_TABLE_BODY_CLASS}>
-                {filtered.map((j, idx) => (
-                  <tr
+                  </SetupDataTableHeaderCell>
+                </SetupDataTableRow>
+              </SetupDataTableHead>
+              <SetupDataTableBody className="divide-y divide-gray-200">
+                {paginatedJenisDokumen.map((j, idx) => (
+                  <SetupDataTableRow
                     key={j.id}
-                    className={SETUP_PAGE_TABLE_ROW_CLASS}
+                    className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
                   >
-                    <td className={SETUP_PAGE_NUMBER_CELL_CLASS}>
-                      {idx + 1}
-                    </td>
-                    <td className={SETUP_PAGE_TABLE_CELL_CLASS}>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                      {(paginationMeta.page - 1) * paginationMeta.limit + idx + 1}
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
                       <span className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
                         {j.kode}
                       </span>
-                    </td>
-                    <td className={SETUP_PAGE_TABLE_CELL_CLASS}>
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-semibold text-gray-900">
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span
+                          className="truncate text-sm font-semibold text-gray-900"
+                          title={j.nama}
+                        >
                           {j.nama}
                         </span>
-                        <span className={getStatusBadgeClass(j.status)}>
-                          {j.status}
-                        </span>
+                        <SetupStatusBadge status={j.status} />
                       </div>
-                    </td>
-                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} text-sm text-gray-700`}>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell
+                      className={`${SETUP_PAGE_MODERN_CELL_CLASS} truncate text-gray-700`}
+                      title={j.keterangan || "-"}
+                    >
                       {j.keterangan || "-"}
-                    </td>
-                    <td className={SETUP_PAGE_ACTION_CELL_CLASS}>
-                      <div className="inline-flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => openEdit(j.id)}
-                          className={`${ACTION_ICON_BUTTON_CLASS} text-blue-600 hover:bg-blue-50 hover:text-blue-700`}
-                          title="Edit"
-                        >
-                          <Edit2 className="w-4 h-4" aria-hidden="true" />
-                        </button>
-                        <button
-                          onClick={() => toggleStatus(j.id)}
-                          className={`${ACTION_ICON_BUTTON_CLASS} ${
-                            j.status === "Aktif"
-                              ? "text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                              : "text-red-600 hover:bg-red-50 hover:text-red-700"
-                          }`}
-                          title={
-                            j.status === "Aktif" ? "Nonaktifkan" : "Aktifkan"
-                          }
-                        >
-                          {j.status === "Aktif" ? (
-                            <ToggleRight className="w-4 h-4" aria-hidden="true" />
-                          ) : (
-                            <ToggleLeft className="w-4 h-4" aria-hidden="true" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(j.id)}
-                          className={`${ACTION_ICON_BUTTON_CLASS} text-red-600 hover:bg-red-50 hover:text-red-700`}
-                          title="Hapus"
-                        >
-                          <Trash2 className="w-4 h-4" aria-hidden="true" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      <SetupActionMenu
+                        label="Buka aksi jenis dokumen"
+                        menuLabel={`Aksi untuk ${j.nama}`}
+                        items={[
+                          {
+                            key: "edit",
+                            label: "Edit",
+                            icon: Edit2,
+                            tone: "blue",
+                            onClick: () => openEdit(j.id),
+                          },
+                          {
+                            key: "toggle-status",
+                            label:
+                              j.status === "Aktif" ? "Nonaktifkan" : "Aktifkan",
+                            icon: j.status === "Aktif" ? ToggleRight : ToggleLeft,
+                            tone: j.status === "Aktif" ? "red" : "emerald",
+                            onClick: () => void toggleStatus(j.id),
+                          },
+                          {
+                            key: "delete",
+                            label: "Hapus",
+                            icon: Trash2,
+                            tone: "red",
+                            onClick: () => handleDelete(j.id),
+                          },
+                        ]}
+                      />
+                    </SetupDataTableCell>
+                  </SetupDataTableRow>
                 ))}
 
                 {isLoading && (
-                  <tr>
-                    <td
+                  <SetupDataTableRow>
+                    <SetupDataTableCell
                       colSpan={5}
-                      className={SETUP_PAGE_EMPTY_STATE_CELL_CLASS}
+                      className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
                     >
                       Memuat data jenis dokumen...
-                    </td>
-                  </tr>
+                    </SetupDataTableCell>
+                  </SetupDataTableRow>
                 )}
 
                 {!isLoading && filtered.length === 0 && (
-                  <tr>
-                    <td
+                  <SetupDataTableRow>
+                    <SetupDataTableCell
                       colSpan={5}
-                      className={SETUP_PAGE_EMPTY_STATE_CELL_CLASS}
+                      className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
                     >
                       {getSetupPageEmptyStateCopy("jenis dokumen")}
-                    </td>
-                  </tr>
+                    </SetupDataTableCell>
+                  </SetupDataTableRow>
                 )}
-              </tbody>
-          </table>
+              </SetupDataTableBody>
+          </SetupDataTable>
         </div>
+        <Pagination
+          page={paginationMeta.page}
+          lastPage={paginationMeta.lastPage}
+          total={paginationMeta.total}
+          limit={paginationMeta.limit}
+          isLoading={isLoading}
+          onPageChange={setPage}
+        />
       </div>
 
-      {isModalOpen && (
-        <div
-          data-dashboard-overlay="true"
-          className="fixed inset-0 p-4"
-          style={{
-            background: "rgba(0, 0, 0, 0.55)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          onClick={closeModal}
-        >
-          <div
-            className="bg-white rounded-lg shadow-sm w-full max-w-2xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {editingId ? "Edit Jenis Dokumen" : "Tambah Jenis Dokumen"}
-                </h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  Tentukan kode, nama, dan keterangan dokumen.
-                </p>
-              </div>
-              <button
-                onClick={closeModal}
-                className="btn btn-ghost btn-sm"
-                title="Tutup"
-              >
-                <X className="w-4 h-4" aria-hidden="true" />
-              </button>
-            </div>
-
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Kode <span className="text-red-500">*</span>
-                </label>
-                <input
-                  value={form.kode}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, kode: e.target.value }))
-                  }
-                  placeholder="PRH / PMB"
-                  className="input"
-                />
-                <p className="mt-2 text-xs text-slate-500">
-                  Kode harus beda.
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nama <span className="text-red-500">*</span>
-                </label>
-                <input
-                  value={form.nama}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, nama: e.target.value }))
-                  }
-                  placeholder="Pembiayaan"
-                  className="input"
-                />
-                <p className="mt-2 text-xs text-slate-500">
-                  Nama jenis dokumen harus beda.
-                </p>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Keterangan <span className="text-red-500">*</span>
-                </label>
-                <input
-                  value={form.keterangan}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, keterangan: e.target.value }))
-                  }
-                  placeholder="Dokumen perusahaan"
-                  className="input"
-                />
-                <p className="mt-2 text-xs text-slate-500">
-                  Isi keterangan singkatnya.
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Status
-                </label>
-                <select
-                  value={form.status}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      status: e.target.value === "Aktif" ? "Aktif" : "Nonaktif",
-                    }))
-                  }
-                  className="select"
-                >
-                  <option value="Aktif">Aktif</option>
-                  <option value="Nonaktif">Nonaktif</option>
-                </select>
-                <p className="mt-2 text-xs text-slate-500">
-                  Kalau nonaktif, jenis ini tidak muncul saat input baru.
-                </p>
-              </div>
-            </div>
-
-            <div className="p-6 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row justify-end gap-3">
-              <button onClick={closeModal} className="btn btn-outline">
-                Batal
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className={editingId ? "btn btn-primary" : "btn btn-upload"}
-              >
-                <Save className="w-4 h-4" aria-hidden="true" />
-                {isSaving ? "Menyimpan..." : "Simpan"}
-              </button>
-            </div>
-          </div>
+      <DashboardModal
+        isOpen={isModalOpen}
+        title={editingId ? "Edit Jenis Dokumen" : "Tambah Jenis Dokumen"}
+        description={
+          editingId
+            ? "Perbarui jenis dokumen yang dipakai pada arsip digital."
+            : "Tambahkan jenis dokumen yang akan dipakai pada arsip digital."
+        }
+        onClose={closeModal}
+        maxWidth="2xl"
+        bodyClassName="grid grid-cols-1 gap-4 p-6 md:grid-cols-2"
+        footer={
+          <>
+            <button
+              onClick={closeModal}
+              className="uiverse-modal-button uiverse-modal-button--neutral"
+              type="button"
+            >
+              Batal
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className="uiverse-modal-button uiverse-modal-button--primary"
+              type="button"
+            >
+              {isSaving ? (
+                <>
+                  <div
+                    className="button-spinner uiverse-modal-button__spinner"
+                    style={
+                      {
+                        ["--spinner-size"]: "18px",
+                        ["--spinner-border"]: "2px",
+                      } as React.CSSProperties
+                    }
+                    aria-hidden="true"
+                  />
+                  <span>Menyimpan...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" aria-hidden="true" />
+                  <span>Simpan</span>
+                </>
+              )}
+            </button>
+          </>
+        }
+      >
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Kode <span className="text-red-500">*</span>
+          </label>
+          <SetupTextInput
+            value={form.kode}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, kode: e.target.value }))
+            }
+            placeholder="Masukkan kode jenis dokumen"
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            Gunakan kode jenis dokumen yang unik.
+          </p>
         </div>
-      )}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Nama Jenis Dokumen <span className="text-red-500">*</span>
+          </label>
+          <SetupTextInput
+            value={form.nama}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, nama: e.target.value }))
+            }
+            placeholder="Masukkan nama jenis dokumen"
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            Gunakan nama jenis dokumen yang belum pernah dipakai.
+          </p>
+        </div>
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Keterangan <span className="text-red-500">*</span>
+          </label>
+          <SetupTextInput
+            value={form.keterangan}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, keterangan: e.target.value }))
+            }
+            placeholder="Masukkan deskripsi jenis dokumen"
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            Jelaskan fungsi atau kelompok dokumen secara singkat.
+          </p>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Status
+          </label>
+          <SetupSelect
+            value={form.status}
+            onChange={(e) =>
+              setForm((prev) => ({
+                ...prev,
+                status: e.target.value === "Aktif" ? "Aktif" : "Nonaktif",
+              }))
+            }
+          >
+            <option value="Aktif">Aktif</option>
+            <option value="Nonaktif">Nonaktif</option>
+          </SetupSelect>
+          <p className="mt-2 text-xs text-slate-500">
+            Jenis nonaktif tidak muncul saat input dokumen baru.
+          </p>
+        </div>
+      </DashboardModal>
 
       <DeleteConfirmModal
         isOpen={deleteItem !== null}

@@ -1,10 +1,14 @@
 import api from "@/lib/axios";
 import {
+  extractList,
   extractLastPage,
+  extractPaginationMeta,
   extractRecord,
   readString,
   toApiDateTime,
 } from "@/services/api.utils";
+import { OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import type { PaginatedResult } from "@/types/api.types";
 import { getAllPaginatedRecords, mapDigitalDocument } from "@/services/arsip.service";
 import type { Disposisi } from "@/types/arsip.types";
 
@@ -95,6 +99,9 @@ function mapDisposisi(record: AnyRecord): Disposisi | null {
 }
 
 type GetAllDisposisiParams = {
+  page?: number;
+  limit?: number;
+  search?: string;
   scope?: "requested" | "owned";
   status?: "PENDING" | "APPROVED" | "REJECTED";
   report?: "history";
@@ -106,6 +113,7 @@ type GetAllDisposisiParams = {
 type CreateDisposisiPayload = {
   document_ids: string[];
   request_reason: string;
+  expires_at: string;
 };
 
 export const disposisiArsipService = {
@@ -115,13 +123,41 @@ export const disposisiArsipService = {
       .map((record) => mapDisposisi(record))
       .filter((item): item is Disposisi => item !== null);
   },
+  getPage: async ({
+    page = 1,
+    limit = OPERATIONAL_TABLE_PAGE_SIZE,
+    ...params
+  }: GetAllDisposisiParams = {}): Promise<PaginatedResult<Disposisi>> => {
+    const res = await api.get("/digital-document-access-requests", {
+      params: {
+        ...params,
+        page,
+        limit,
+      },
+    });
+    const items = extractList(res.data)
+      .map((record) => mapDisposisi(record))
+      .filter((item): item is Disposisi => item !== null);
+
+    return {
+      items,
+      meta: extractPaginationMeta(res.data, {
+        page,
+        limit,
+        total: items.length,
+      }),
+    };
+  },
   getById: async (id: string): Promise<Disposisi | null> => {
     const res = await api.get(`/digital-document-access-requests/${id}`);
     const record = extractRecord(res.data);
     return record ? mapDisposisi(record) : null;
   },
   create: async (payload: CreateDisposisiPayload): Promise<Disposisi[]> => {
-    const res = await api.post("/digital-document-access-requests", payload);
+    const res = await api.post("/digital-document-access-requests", {
+      ...payload,
+      expires_at: toApiDateTime(payload.expires_at),
+    });
     const record = extractRecord(res.data);
     const items = Array.isArray(record?.items)
       ? record.items.filter(isRecord).map((item) => mapDisposisi(item)).filter((item): item is Disposisi => item !== null)
@@ -159,10 +195,13 @@ export const disposisiArsipService = {
 
     return mapped;
   },
-  getHistory: async (): Promise<Disposisi[]> => {
-    const records = await getAllPaginatedRecords("/digital-document-access-requests", {
-      report: "history",
-    });
+  getHistory: async (
+    params: Pick<GetAllDisposisiParams, "office_id" | "cabinet_id" | "search" | "scope"> = {},
+  ): Promise<Disposisi[]> => {
+    const records = await getAllPaginatedRecords(
+      "/digital-archives/histories/access-requests",
+      params,
+    );
     return records
       .map((record) => mapDisposisi(record))
       .filter((item): item is Disposisi => item !== null);

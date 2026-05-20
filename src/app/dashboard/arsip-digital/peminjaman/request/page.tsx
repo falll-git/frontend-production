@@ -1,17 +1,59 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AlertCircle, BookOpen, Search, Send, X, FileText } from "lucide-react";
-import DatePickerInput from "@/components/ui/DatePickerInput";
+import {
+  SetupDataTable,
+  SetupDataTableHead,
+  SetupDataTableBody,
+  SetupDataTableRow,
+  SetupDataTableHeaderCell,
+  SetupDataTableCell,
+  SetupDataTableColGroup,
+  SetupDataTableCol
+} from "@/components/ui/SetupDataTable";
+import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, BookOpen, FileText, Send } from "lucide-react";
+import BasicDateInput from "@/components/ui/BasicDateInput";
 import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
 import { useAppToast } from "@/components/ui/AppToastProvider";
+import DashboardModal from "@/components/ui/DashboardModal";
+import DashboardNotice from "@/components/ui/DashboardNotice";
 import FeatureHeader from "@/components/ui/FeatureHeader";
+import Pagination from "@/components/ui/Pagination";
+import SetupPrimaryButton from "@/components/ui/SetupPrimaryButton";
+import SetupSearchInput from "@/components/ui/SetupSearchInput";
+import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
+import SetupTextarea from "@/components/ui/SetupTextarea";
 import { useArsipDigitalMasterData } from "@/components/arsip-digital/ArsipDigitalMasterDataProvider";
 import { useArsipDigitalWorkflow } from "@/components/arsip-digital/ArsipDigitalWorkflowProvider";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
+import { useClientPagination } from "@/hooks/useClientPagination";
+import { OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import {
+  SETUP_PAGE_MODERN_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
+  SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_TABLE_CLASS,
+  SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
+  SETUP_PAGE_SEARCH_CARD_CLASS,
+  SETUP_PAGE_TABLE_CARD_CLASS,
+} from "@/components/ui/setupPageStyles";
 
 const REQUEST_PEMINJAMAN_MENU_URL =
   "/dashboard/arsip-digital/peminjaman/request";
+
+const REQUEST_PEMINJAMAN_TABLE_COLUMN_WIDTHS = [
+  "52px",
+  "160px",
+  "124px",
+  null,
+  null,
+  "212px",
+  "132px",
+] as const;
 
 export default function RequestPeminjamanPage() {
   const { showToast } = useAppToast();
@@ -60,6 +102,16 @@ export default function RequestPeminjamanPage() {
       doc.namaDokumen.toLowerCase().includes(searchTerm.toLowerCase()) ||
       doc.kode.toLowerCase().includes(searchTerm.toLowerCase()),
   );
+  const {
+    paginatedItems: paginatedDokumen,
+    meta: paginationMeta,
+    setPage,
+    resetPage,
+  } = useClientPagination(filteredDokumen, OPERATIONAL_TABLE_PAGE_SIZE);
+
+  useEffect(() => {
+    resetPage();
+  }, [resetPage, searchTerm]);
 
   const handleCheckbox = (id: string) => {
     if (!canCreatePeminjaman) return;
@@ -166,67 +218,68 @@ export default function RequestPeminjamanPage() {
       />
 
       {showCreateBlockedNotice && (
-        <div className="mb-6 flex max-w-2xl gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-          <div>
-            <p className="font-semibold">Akses request belum aktif</p>
-            <p className="mt-1">
-              Role Anda dapat membuka menu ini, tetapi belum memiliki izin
-              membuat permohonan peminjaman.
-            </p>
-          </div>
-        </div>
+        <DashboardNotice
+          title="Akses request belum aktif"
+          tone="amber"
+          icon={<AlertCircle className="h-5 w-5" />}
+          className="mb-6 w-full"
+        >
+          <p className="text-sm leading-6 text-amber-800">
+            Role Anda dapat membuka menu ini, tetapi belum memiliki izin
+            membuat permohonan peminjaman.
+          </p>
+        </DashboardNotice>
       )}
 
-      <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 max-w-2xl mb-8">
-        <h3 className="text-blue-800 font-semibold mb-2 flex items-center gap-2">
-          Prosedur Peminjaman:
-        </h3>
-        <ol className="list-decimal pl-5 space-y-1 text-sm text-blue-700">
+      <DashboardNotice
+        title="Prosedur Peminjaman:"
+        className="mb-8 w-full"
+      >
+        <ol className="list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-700 marker:text-slate-500">
           <li>Pilih dokumen dengan status tersedia.</li>
-          <li>Klik tombol <span className="font-bold">&quot;Ajukan Pinjam&quot;</span>.</li>
+          <li>
+            Klik tombol <span className="font-bold">&quot;Ajukan Pinjam&quot;</span>.
+          </li>
           <li>Isi tanggal pinjam, tanggal kembali, dan alasan.</li>
           <li>Tunggu persetujuan sebelum dokumen diserahkan.</li>
         </ol>
-      </div>
+      </DashboardNotice>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6 p-5">
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} mb-6`}>
         <div className="flex flex-col md:flex-row gap-4 items-end justify-between">
           <div className="flex-1 w-full">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              Cari Dokumen
-            </label>
-            <div className="relative">
-              <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Cari berdasarkan nama atau kode..."
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="input input-with-icon"
-              />
-            </div>
+            <SetupSearchInput
+              label="Cari Dokumen"
+              placeholder="Cari berdasarkan nama atau kode..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
           </div>
-          <button
+          <SetupPrimaryButton
             onClick={() => setShowModal(true)}
             disabled={!canCreatePeminjaman || selectedDocs.length === 0}
-            className="btn btn-primary px-6 py-2.5 transition-all"
+            icon={<Send className="h-4 w-4" aria-hidden="true" />}
+            count={selectedDocs.length}
           >
-            <Send className="w-4 h-4 mr-2" />
             Ajukan Pinjam
-            <span className="ml-1 bg-white/20 px-2 py-0.5 rounded text-xs">
-              {selectedDocs.length}
-            </span>
-          </button>
+          </SetupPrimaryButton>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+      <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="w-16 px-6 py-3 text-center">
+          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+            <SetupDataTableColGroup>
+              {REQUEST_PEMINJAMAN_TABLE_COLUMN_WIDTHS.map((width, index) => (
+                <SetupDataTableCol
+                  key={`${index}-${width ?? "flex"}`}
+                  style={width ? { width } : undefined}
+                />
+              ))}
+            </SetupDataTableColGroup>
+            <SetupDataTableHead className="ltr:text-left rtl:text-right">
+              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
                   <div className="flex justify-center">
                     <UiverseCheckbox
                       checked={
@@ -240,38 +293,38 @@ export default function RequestPeminjamanPage() {
                       size={20}
                     />
                   </div>
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Kode
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Jenis Dokumen
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-1/3">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Nama Dokumen
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-1/4">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Keterangan
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Lokasi
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   Status
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredDokumen.map((doc) => (
-                <tr
+                </SetupDataTableHeaderCell>
+              </SetupDataTableRow>
+            </SetupDataTableHead>
+            <SetupDataTableBody className="divide-y divide-gray-100">
+              {paginatedDokumen.map((doc) => (
+                <SetupDataTableRow
                   key={doc.id}
                   className={`group transition-colors cursor-pointer hover:bg-blue-50/40 ${
                     selectedDocs.includes(doc.id) ? "bg-blue-50/60" : ""
                   } ${doc.statusKey !== "AVAILABLE" ? "bg-gray-50/50" : ""}`}
                   onClick={() => handleCheckbox(doc.id)}
                 >
-                  <td
-                    className="px-6 py-3 text-center"
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}
                     onClick={(event) => event.stopPropagation()}
                   >
                     <div className="flex justify-center">
@@ -286,152 +339,80 @@ export default function RequestPeminjamanPage() {
                         size={20}
                       />
                     </div>
-                  </td>
-                  <td className="px-6 py-3">
-                    <span className="text-primary-600 bg-primary-50 px-2 py-1 rounded border border-primary-100 text-xs font-medium tabular-nums">
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                    <span
+                      className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 tabular-nums"
+                      title={doc.kode}
+                    >
                       {doc.kode}
                     </span>
-                  </td>
-                  <td className="px-6 py-3 text-sm font-semibold text-gray-800">
-                    {doc.jenisDokumen}
-                  </td>
-                  <td className="px-6 py-3 text-sm font-semibold text-gray-800">
-                    {doc.namaDokumen}
-                  </td>
-                  <td className="px-6 py-3 text-sm text-gray-600 max-w-xs truncate" title={doc.detail}>
-                    {doc.detail}
-                  </td>
-                  <td className="px-6 py-3 text-sm text-gray-500">
-                    {doc.lokasi}
-                  </td>
-                  <td className="px-6 py-3 text-center">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                        doc.statusKey === "AVAILABLE"
-                          ? "bg-green-50 text-green-700 border-green-200"
-                          : "bg-amber-50 text-amber-700 border-amber-200"
-                      }`}
-                    >
-                      {doc.status}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-800`}>
+                    <span className="block truncate" title={doc.jenisDokumen}>
+                      {doc.jenisDokumen}
                     </span>
-                  </td>
-                </tr>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-800`}>
+                    <span className="block truncate" title={doc.namaDokumen}>
+                      {doc.namaDokumen}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                    <span className="block truncate" title={doc.detail}>
+                      {doc.detail}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-500`}>
+                    <span className="block truncate" title={doc.lokasi}>
+                      {doc.lokasi}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                    <SetupStatusBadge
+                      status={doc.statusKey === "AVAILABLE" ? "Tersedia" : doc.status}
+                    />
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
               ))}
-            </tbody>
-          </table>
+              {filteredDokumen.length === 0 ? (
+                <SetupDataTableRow>
+                  <SetupDataTableCell colSpan={7} className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}>
+                    Belum ada dokumen yang bisa diajukan.
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
+              ) : null}
+            </SetupDataTableBody>
+          </SetupDataTable>
         </div>
+        <Pagination
+          page={paginationMeta.page}
+          lastPage={paginationMeta.lastPage}
+          total={paginationMeta.total}
+          limit={paginationMeta.limit}
+          onPageChange={setPage}
+        />
       </div>
 
-      {showModal && (
-        <div
-          data-dashboard-overlay="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in"
-          onClick={() => setShowModal(false)}
-        >
-          <div
-            className="bg-white rounded-lg shadow-sm w-full max-w-lg overflow-hidden"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
-                  <Send className="w-5 h-5" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-800">
-                  Form Permohonan
-                </h2>
-              </div>
+      {showModal ? (
+        <DashboardModal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          title="Ajukan Peminjaman"
+          description={`${selectedDocuments.length} dokumen dipilih`}
+          maxWidth="3xl"
+          bodyClassName="space-y-6 p-6"
+          footerClassName="flex flex-col justify-end gap-3 border-t border-gray-100 bg-gray-50 p-6 sm:flex-row"
+          footer={
+            <>
               <button
+                type="button"
                 onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-6">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                  Dokumen yang Akan Dipinjam ({selectedDocuments.length})
-                </label>
-                <div className="bg-gray-50 rounded-lg border border-gray-100 max-h-32 overflow-y-auto divide-y divide-gray-100">
-                  {selectedDocuments.map((doc) => (
-                    <div key={doc.id} className="p-3 flex items-start gap-3">
-                      <FileText className="w-5 h-5 text-gray-400 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="text-sm font-medium text-gray-800 truncate">
-                            {doc.namaDokumen}
-                          </p>
-                          <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded tabular-nums">
-                            {doc.kode}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-500 truncate">{doc.lokasi}</p>
-                        <p className="text-xs text-gray-500 truncate">
-                          Keterangan: {doc.detail}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Tanggal Peminjaman <span className="text-red-500">*</span>
-                  </label>
-                  <DatePickerInput
-                    value={formData.tanggalPeminjaman}
-                    onChange={(nextValue) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        tanggalPeminjaman: nextValue,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Tanggal Pengembalian <span className="text-red-500">*</span>
-                  </label>
-                  <DatePickerInput
-                    value={formData.tanggalPengembalian}
-                    onChange={(nextValue) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        tanggalPengembalian: nextValue,
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Alasan Peminjaman <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={formData.alasan}
-                  onChange={(event) =>
-                    setFormData((prev) => ({ ...prev, alasan: event.target.value }))
-                  }
-                  placeholder="Jelaskan kebutuhan peminjaman dokumen..."
-                  className="textarea resize-none"
-                  rows={3}
-                />
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-end gap-3">
-              <button
-                onClick={() => setShowModal(false)}
-                className="btn btn-outline"
+                className="uiverse-modal-button uiverse-modal-button--neutral"
               >
                 Batal
               </button>
-              <button
+              <SetupPrimaryButton
                 onClick={() => void handleSubmit()}
                 disabled={
                   !formData.tanggalPeminjaman ||
@@ -440,24 +421,95 @@ export default function RequestPeminjamanPage() {
                   !canCreatePeminjaman ||
                   isLoading
                 }
-                className="btn btn-primary"
+                icon={
+                  isLoading ? (
+                    <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" aria-hidden="true" />
+                  )
+                }
               >
-                {isLoading ? (
-                  <span className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Mengirim...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <Send className="w-4 h-4" />
-                    Ajukan Permohonan
-                  </span>
-                )}
-              </button>
+                {isLoading ? "Mengirim..." : "Ajukan Permohonan"}
+              </SetupPrimaryButton>
+            </>
+          }
+        >
+          <section className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+              Dokumen yang Akan Dipinjam ({selectedDocuments.length})
+            </p>
+            <div className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+              {selectedDocuments.map((doc) => (
+                <div key={doc.id} className="flex items-start gap-3 px-4 py-3">
+                  <FileText className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="truncate text-sm font-semibold text-gray-900">
+                        {doc.namaDokumen}
+                      </p>
+                      <span className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
+                        {doc.kode}
+                      </span>
+                    </div>
+                    <p className="truncate text-sm text-gray-500" title={doc.lokasi}>
+                      {doc.lokasi}
+                    </p>
+                    <p className="truncate text-sm text-gray-500" title={doc.detail}>
+                      Keterangan: {doc.detail}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Tanggal Peminjaman <span className="text-red-500">*</span>
+              </label>
+              <BasicDateInput
+                value={formData.tanggalPeminjaman}
+                onChange={(nextValue) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    tanggalPeminjaman: nextValue,
+                  }))
+                }
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Tanggal Pengembalian <span className="text-red-500">*</span>
+              </label>
+              <BasicDateInput
+                value={formData.tanggalPengembalian}
+                onChange={(nextValue) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    tanggalPengembalian: nextValue,
+                  }))
+                }
+              />
             </div>
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">
+              Alasan Peminjaman <span className="text-red-500">*</span>
+            </label>
+            <SetupTextarea
+              value={formData.alasan}
+              onChange={(event) =>
+                setFormData((prev) => ({ ...prev, alasan: event.target.value }))
+              }
+              placeholder="Jelaskan kebutuhan peminjaman dokumen..."
+              className="resize-none"
+              rows={4}
+            />
+          </div>
+        </DashboardModal>
+      ) : null}
     </div>
   );
 }

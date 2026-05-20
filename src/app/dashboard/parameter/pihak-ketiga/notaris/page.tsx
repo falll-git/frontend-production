@@ -1,5 +1,8 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+"use client";
+
+import ParameterMasterPage from "@/components/parameter/ParameterMasterPage";
+import { notaryParameterConfig } from "@/components/parameter/parameterMasterConfigs";
 
 export default function SetupNotarisPage() {
-  return <ModuleSkeletonPage title="Setup Notaris" />;
+  return <ParameterMasterPage config={notaryParameterConfig} />;
 }

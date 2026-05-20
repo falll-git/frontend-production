@@ -154,6 +154,15 @@ function mapPrintableRecord(
       status_label: readString(record, "status_label", "statusLabel"),
       file_name: readString(record, "file_name", "fileName"),
       file_url: readNullableString(record, "file_url", "fileUrl"),
+      storage_id:
+        readNullableString(record, "storage_id", "storageId") ??
+        mapped.storageId,
+      physical_storage_label:
+        readNullableString(
+          record,
+          "physical_storage_label",
+          "physicalStorageLabel",
+        ) ?? mapped.physicalStorageLabel,
       record: mapped,
     };
   }
@@ -174,6 +183,15 @@ function mapPrintableRecord(
       status_label: readString(record, "status_label", "statusLabel"),
       file_name: readString(record, "file_name", "fileName"),
       file_url: readNullableString(record, "file_url", "fileUrl"),
+      storage_id:
+        readNullableString(record, "storage_id", "storageId") ??
+        mapped.storageId,
+      physical_storage_label:
+        readNullableString(
+          record,
+          "physical_storage_label",
+          "physicalStorageLabel",
+        ) ?? mapped.physicalStorageLabel,
       record: mapped,
     };
   }
@@ -194,6 +212,15 @@ function mapPrintableRecord(
       status_label: readString(record, "status_label", "statusLabel"),
       file_name: readString(record, "file_name", "fileName"),
       file_url: readNullableString(record, "file_url", "fileUrl"),
+      storage_id:
+        readNullableString(record, "storage_id", "storageId") ??
+        mapped.storageId,
+      physical_storage_label:
+        readNullableString(
+          record,
+          "physical_storage_label",
+          "physicalStorageLabel",
+        ) ?? mapped.physicalStorageLabel,
       record: mapped,
     };
   }

@@ -40,12 +40,15 @@ const MASTER_DATA_SCOPED_PATHS = [
 
 const STORAGE_READ_PATHS = [
   "/dashboard/arsip-digital/input-dokumen",
+  "/dashboard/arsip-digital/peminjaman/request",
   "/dashboard/parameter/tempat-penyimpanan",
   "/dashboard/arsip-digital/ruang-arsip/tempat-penyimpanan",
+  "/dashboard/arsip-digital/ruang-arsip/list-dokumen",
 ];
 
 const DOCUMENT_TYPE_READ_PATHS = [
   "/dashboard/arsip-digital/input-dokumen",
+  "/dashboard/arsip-digital/ruang-arsip/list-dokumen",
   "/dashboard/parameter/jenis-dokumen",
 ];
 

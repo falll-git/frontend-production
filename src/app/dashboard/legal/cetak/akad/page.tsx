@@ -1,5 +1,5 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+import { LegalPrintClient } from "@/components/legal/LegalModuleClients";
 
 export default function CetakAkadPage() {
-  return <ModuleSkeletonPage title="Dokumen Akad" />;
+  return <LegalPrintClient documentType="AKAD" title="Dokumen Akad" />;
 }

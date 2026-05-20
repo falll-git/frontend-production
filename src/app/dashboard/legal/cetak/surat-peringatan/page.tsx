@@ -1,5 +1,5 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+import { LegalPrintClient } from "@/components/legal/LegalModuleClients";
 
 export default function SuratPeringatanPage() {
-  return <ModuleSkeletonPage title="Surat Peringatan" />;
+  return <LegalPrintClient documentType="SURAT_PERINGATAN" title="Surat Peringatan" />;
 }

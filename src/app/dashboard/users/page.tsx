@@ -3,51 +3,66 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
+  CheckCircle2,
   Copy,
+  Clock3,
   Mail,
   Pencil,
-  Plus,
   Save,
-  Search,
   ShieldCheck,
   ShieldOff,
   Trash2,
   Users,
-  X,
 } from "lucide-react";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useAppToast } from "@/components/ui/AppToastProvider";
-import FeatureHeader from "@/components/ui/FeatureHeader";
+import DashboardModal from "@/components/ui/DashboardModal";
+import DashboardNotice from "@/components/ui/DashboardNotice";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
+import FeatureHeader from "@/components/ui/FeatureHeader";
+import Pagination from "@/components/ui/Pagination";
+import {
+  SetupDataTable,
+  SetupDataTableBody,
+  SetupDataTableCell,
+  SetupDataTableCol,
+  SetupDataTableColGroup,
+  SetupDataTableEmptyRow,
+  SetupDataTableHead,
+  SetupDataTableHeaderCell,
+  SetupDataTableRow,
+} from "@/components/ui/SetupDataTable";
+import SetupActionMenu, {
+  type SetupActionMenuItem,
+} from "@/components/ui/SetupActionMenu";
+import SetupAddButton from "@/components/ui/SetupAddButton";
+import SetupSearchInput from "@/components/ui/SetupSearchInput";
+import SetupSelect from "@/components/ui/SetupSelect";
+import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
+import SetupTextInput from "@/components/ui/SetupTextInput";
+import SetupTextarea from "@/components/ui/SetupTextarea";
 import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
+import { SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import {
   RBAC_DENIED_MESSAGE,
   getDashboardRouteDecision,
-  ROLES,
-  mapRoleLikeToAppRole,
 } from "@/lib/rbac";
 import {
-  SETUP_PAGE_ADD_BUTTON_CLASS,
-  SETUP_PAGE_ACTION_CELL_CLASS,
-  SETUP_PAGE_ACTION_HEADER_CELL_CLASS,
-  SETUP_PAGE_EMPTY_STATE_CELL_CLASS,
-  SETUP_PAGE_NUMBER_CELL_CLASS,
-  SETUP_PAGE_NUMBER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_CELL_CLASS,
+  SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
+  SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_SEARCH_ICON_CLASS,
-  SETUP_PAGE_SEARCH_INPUT_CLASS,
   SETUP_PAGE_SEARCH_LABEL_CLASS,
-  SETUP_PAGE_SEARCH_WRAPPER_CLASS,
-  SETUP_PAGE_TABLE_BODY_CLASS,
   SETUP_PAGE_TABLE_CARD_CLASS,
-  SETUP_PAGE_TABLE_CLASS,
-  SETUP_PAGE_TABLE_CELL_CLASS,
-  SETUP_PAGE_TABLE_HEADER_CELL_CLASS,
-  SETUP_PAGE_TABLE_HEAD_CLASS,
-  SETUP_PAGE_TABLE_ROW_CLASS,
-  SETUP_PAGE_TABLE_SCROLL_CLASS,
   SETUP_PAGE_WIDTH_2XL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { divisionService } from "@/services/division.service";
@@ -67,8 +82,7 @@ type UserFormState = {
   phone: string;
   division_id: string;
   role_id: string;
-  is_restrict: boolean;
-  password: string;
+  can_access_restricted_documents: boolean;
 };
 
 const EMPTY_FORM: UserFormState = {
@@ -78,14 +92,8 @@ const EMPTY_FORM: UserFormState = {
   phone: "",
   division_id: "",
   role_id: "",
-  is_restrict: false,
-  password: "",
+  can_access_restricted_documents: false,
 };
-const PILL_BASE_CLASS =
-  "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold";
-const ACTION_ICON_BUTTON_CLASS =
-  "inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg transition-colors";
-const MIN_USER_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type ManualInvitationState = {
@@ -107,24 +115,18 @@ function isValidEmail(value: string) {
   return EMAIL_PATTERN.test(value);
 }
 
-function getBooleanPillClass(isEnabled: boolean) {
-  return isEnabled
-    ? `${PILL_BASE_CLASS} border-emerald-200 bg-emerald-50 text-emerald-700`
-    : `${PILL_BASE_CLASS} border-gray-200 bg-gray-100 text-gray-700`;
-}
-
-function getOnboardingPillClass(status: UserRecord["onboarding_status"]) {
+function getOnboardingBadgeMeta(status: UserRecord["onboarding_status"]) {
   if (status === "PENDING_ACTIVATION") {
-    return `${PILL_BASE_CLASS} border-amber-200 bg-amber-50 text-amber-700`;
+    return { tone: "amber" as const, icon: Clock3 };
   }
 
   if (status === "NOT_ACTIVATED") {
-    return `${PILL_BASE_CLASS} border-gray-200 bg-gray-100 text-gray-700`;
+    return { tone: "gray" as const, icon: AlertTriangle };
   }
 
   return status === "ACTIVE"
-    ? `${PILL_BASE_CLASS} border-emerald-200 bg-emerald-50 text-emerald-700`
-    : `${PILL_BASE_CLASS} border-gray-200 bg-gray-100 text-gray-700`;
+    ? { tone: "emerald" as const, icon: CheckCircle2 }
+    : { tone: "gray" as const, icon: AlertTriangle };
 }
 
 function getOnboardingLabel(user: UserRecord) {
@@ -161,7 +163,7 @@ function getInvitationToastFeedback(
       type: "success" as const,
       message:
         action === "create"
-          ? "User berhasil ditambahkan."
+          ? "Pengguna berhasil ditambahkan."
           : "Undangan berhasil diperbarui.",
       manualInvitation: null as ManualInvitationState | null,
     };
@@ -175,7 +177,7 @@ function getInvitationToastFeedback(
       type: "success" as const,
       message:
         action === "create"
-          ? `User berhasil ditambahkan dan undangan telah dikirim ke email ${userName}.`
+          ? `Pengguna berhasil ditambahkan dan undangan telah dikirim ke email ${userName}.`
           : `Undangan aktivasi berhasil dikirim ulang ke email ${userName}.`,
       manualInvitation: null as ManualInvitationState | null,
     };
@@ -186,7 +188,7 @@ function getInvitationToastFeedback(
       type: "warning" as const,
       message:
         action === "create"
-          ? "User berhasil ditambahkan, tetapi email undangan belum dikirim karena SMTP belum dikonfigurasi."
+          ? "Pengguna berhasil ditambahkan, tetapi email undangan belum dikirim karena SMTP belum dikonfigurasi."
           : "Undangan berhasil dibuat ulang, tetapi email belum dikirim karena SMTP belum dikonfigurasi.",
       manualInvitation: {
         userName,
@@ -201,7 +203,7 @@ function getInvitationToastFeedback(
       type: "warning" as const,
       message:
         action === "create"
-          ? "User berhasil ditambahkan, tetapi link aktivasi belum siap karena FRONTEND_URL belum dikonfigurasi."
+          ? "Pengguna berhasil ditambahkan, tetapi link aktivasi belum siap karena FRONTEND_URL belum dikonfigurasi."
           : "Undangan berhasil dibuat ulang, tetapi link aktivasi belum siap karena FRONTEND_URL belum dikonfigurasi.",
       manualInvitation: {
         userName,
@@ -215,7 +217,7 @@ function getInvitationToastFeedback(
     type: "warning" as const,
     message:
       action === "create"
-        ? "User berhasil ditambahkan, tetapi email undangan belum berhasil dikirim."
+        ? "Pengguna berhasil ditambahkan, tetapi email undangan belum berhasil dikirim."
         : "Undangan berhasil dibuat ulang, tetapi email belum berhasil dikirim.",
     manualInvitation: {
       userName,
@@ -278,11 +280,6 @@ export default function ManajemenUserPage() {
       user.division_name ?? divisionNameById.get(user.division_id) ?? user.division_id,
     [divisionNameById],
   );
-  const getResolvedAppRole = useCallback(
-    (user: UserRecord) => mapRoleLikeToAppRole(getResolvedRoleName(user)),
-    [getResolvedRoleName],
-  );
-
   const loadData = useCallback(async () => {
     setIsFetching(true);
 
@@ -298,7 +295,7 @@ export default function ManajemenUserPage() {
       setRoles(roleList);
     } catch (error) {
       showToast(
-        error instanceof Error ? error.message : "Gagal memuat data user",
+        error instanceof Error ? error.message : "Gagal memuat data pengguna",
         "error",
       );
     } finally {
@@ -316,15 +313,6 @@ export default function ManajemenUserPage() {
     showToast(RBAC_DENIED_MESSAGE, "warning");
     router.replace("/dashboard");
   }, [loadData, role, router, showToast, usersRouteDecision.allowed]);
-
-  const activeItCount = useMemo(
-    () =>
-      users.filter(
-        (user) => user.is_active && getResolvedAppRole(user) === ROLES.IT,
-      )
-        .length,
-    [getResolvedAppRole, users],
-  );
 
   const filteredUsers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -344,6 +332,16 @@ export default function ManajemenUserPage() {
       );
     });
   }, [getResolvedDivisionName, getResolvedRoleName, searchTerm, users]);
+  const {
+    paginatedItems: paginatedUsers,
+    meta: paginationMeta,
+    setPage,
+    resetPage,
+  } = useClientPagination(filteredUsers, SETUP_TABLE_PAGE_SIZE);
+
+  useEffect(() => {
+    resetPage();
+  }, [resetPage, searchTerm]);
 
   const requireCreateUserAction = () =>
     ensureCapability("/dashboard/users", "create", {
@@ -380,23 +378,14 @@ export default function ManajemenUserPage() {
       phone: user.phone ?? user.phone_number ?? "",
       division_id: user.division_id,
       role_id: user.role_id,
-      is_restrict: user.is_restrict,
-      password: "",
+      can_access_restricted_documents:
+        user.can_access_restricted_documents ?? user.is_restrict,
     });
     setShowModal(true);
   };
 
   const handleDelete = (user: UserRecord) => {
     if (!requireDeleteUserAction()) return;
-
-    if (
-      getResolvedAppRole(user) === ROLES.IT &&
-      user.is_active &&
-      activeItCount <= 1
-    ) {
-      showToast("Tidak bisa menghapus akun IT aktif terakhir.", "warning");
-      return;
-    }
 
     setDeleteUser(user);
     setShowDelete(true);
@@ -407,15 +396,6 @@ export default function ManajemenUserPage() {
 
     if (user.is_active && user.id === authUser?.id) {
       showToast("Anda tidak dapat menutup akses akun sendiri.", "warning");
-      return;
-    }
-
-    if (
-      user.is_active &&
-      getResolvedAppRole(user) === ROLES.IT &&
-      activeItCount <= 1
-    ) {
-      showToast("Tidak bisa menutup akses akun IT aktif terakhir.", "warning");
       return;
     }
 
@@ -482,12 +462,12 @@ export default function ManajemenUserPage() {
     try {
       await userService.remove(deleteUser.id);
       setUsers((prev) => prev.filter((user) => user.id !== deleteUser.id));
-      showToast("User berhasil dihapus!", "success");
+      showToast("Pengguna berhasil dihapus.", "success");
       setShowDelete(false);
       setDeleteUser(null);
     } catch (error) {
       showToast(
-        error instanceof Error ? error.message : "Gagal menghapus user",
+        error instanceof Error ? error.message : "Gagal menghapus pengguna",
         "error",
       );
     }
@@ -496,7 +476,7 @@ export default function ManajemenUserPage() {
   const handleResendInvite = async (user: UserRecord) => {
     if (!requireUpdateUserAction()) return;
     if (!canResendInvitation(user)) {
-      showToast("User ini sudah aktif dan tidak memerlukan undangan baru.", "warning");
+      showToast("Pengguna ini sudah aktif dan tidak memerlukan undangan baru.", "warning");
       return;
     }
 
@@ -561,7 +541,6 @@ export default function ManajemenUserPage() {
 
     const normalizedUsername = formData.username.trim().toLowerCase();
     const normalizedEmail = formData.email.trim().toLowerCase();
-    const hasPasswordInput = formData.password.length > 0;
 
     if (/\s/.test(normalizedUsername)) {
       showToast("Username tidak boleh mengandung spasi.", "warning");
@@ -595,34 +574,6 @@ export default function ManajemenUserPage() {
       return;
     }
 
-    if (hasPasswordInput && !/\S/.test(formData.password)) {
-      showToast("Password tidak boleh hanya berisi spasi.", "warning");
-      return;
-    }
-
-    if (
-      hasPasswordInput &&
-      formData.password.length < MIN_USER_PASSWORD_LENGTH
-    ) {
-      showToast(
-        `Password minimal ${MIN_USER_PASSWORD_LENGTH} karakter.`,
-        "warning",
-      );
-      return;
-    }
-
-    const nextAppRole = mapRoleLikeToAppRole(roleNameById.get(formData.role_id));
-    if (
-      editUser &&
-      getResolvedAppRole(editUser) === ROLES.IT &&
-      editUser.is_active &&
-      nextAppRole !== ROLES.IT &&
-      activeItCount <= 1
-    ) {
-      showToast("Tidak bisa mengubah role akun IT aktif terakhir.", "warning");
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
@@ -631,10 +582,10 @@ export default function ManajemenUserPage() {
         username: normalizedUsername,
         email: normalizedEmail,
         phone: formData.phone.trim() || undefined,
-        is_restrict: formData.is_restrict,
+        can_access_restricted_documents:
+          formData.can_access_restricted_documents,
         role_id: formData.role_id,
         division_id: formData.division_id,
-        ...(editUser && hasPasswordInput ? { password: formData.password } : {}),
       };
 
       const mutationResult = editUser
@@ -657,7 +608,7 @@ export default function ManajemenUserPage() {
       });
 
       if (editUser) {
-        showToast("User berhasil diupdate!", "success");
+        showToast("Pengguna berhasil diperbarui.", "success");
       } else {
         const feedback = getInvitationToastFeedback(
           mutationResult.invitation,
@@ -675,12 +626,65 @@ export default function ManajemenUserPage() {
       resetForm();
     } catch (error) {
       showToast(
-        error instanceof Error ? error.message : "Gagal menyimpan user",
+        error instanceof Error ? error.message : "Gagal menyimpan pengguna",
         "error",
       );
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const getUserActionItems = (user: UserRecord): SetupActionMenuItem[] => {
+    const items: SetupActionMenuItem[] = [];
+
+    if (canUpdateUsers && canResendInvitation(user)) {
+      items.push({
+        key: "invite",
+        label: "Kirim Ulang Undangan",
+        icon: Mail,
+        tone: "amber",
+        disabled: inviteLoadingId === user.id,
+        onClick: () => {
+          void handleResendInvite(user);
+        },
+      });
+    }
+
+    if (canUpdateUsers) {
+      items.push({
+        key: user.is_active ? "close-access" : "reactivate-access",
+        label: user.is_active ? "Tutup Akses" : "Aktifkan Kembali",
+        icon: user.is_active ? ShieldOff : ShieldCheck,
+        tone: user.is_active ? "red" : "emerald",
+        onClick: () => {
+          handleOpenAccessAction(user);
+        },
+      });
+
+      items.push({
+        key: "edit",
+        label: "Edit",
+        icon: Pencil,
+        tone: "blue",
+        onClick: () => {
+          handleEdit(user);
+        },
+      });
+    }
+
+    if (canDeleteUsers) {
+      items.push({
+        key: "delete",
+        label: "Hapus",
+        icon: Trash2,
+        tone: "red",
+        onClick: () => {
+          handleDelete(user);
+        },
+      });
+    }
+
+    return items;
   };
 
   if (!canReadUsers) return null;
@@ -692,287 +696,258 @@ export default function ManajemenUserPage() {
         subtitle="Kelola pengguna, role, dan akses sistem"
         icon={<Users />}
         actions={
-          <button
+          <SetupAddButton
+            label="Tambah User"
             onClick={handleAdd}
-            className={`${SETUP_PAGE_ADD_BUTTON_CLASS} w-full lg:w-auto`}
             disabled={isFetching || roles.length === 0 || !canCreateUsers}
-          >
-            <Plus className="w-4 h-4" aria-hidden="true" />
-            <span>Tambah User</span>
-          </button>
+          />
         }
       />
 
       <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_2XL_CLASS}`}>
-        <p className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Cari Data</p>
-        <div className={SETUP_PAGE_SEARCH_WRAPPER_CLASS}>
-          <Search
-            className={SETUP_PAGE_SEARCH_ICON_CLASS}
-            aria-hidden="true"
-          />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Cari berdasarkan nama, username, email, no. handphone, divisi, atau role..."
-            className={SETUP_PAGE_SEARCH_INPUT_CLASS}
-          />
-        </div>
+        <SetupSearchInput
+          label="Cari Data"
+          labelClassName={SETUP_PAGE_SEARCH_LABEL_CLASS}
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder="Cari berdasarkan nama, username, email, no. handphone, divisi, atau role..."
+        />
       </div>
 
-      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} ${SETUP_PAGE_WIDTH_2XL_CLASS}`}>
-        <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-          <table className={`${SETUP_PAGE_TABLE_CLASS} min-w-[1280px]`}>
-            <colgroup>
-              <col className="w-[56px]" />
-              <col className="w-[130px]" />
-              <col className="w-[110px]" />
-              <col className="w-[260px]" />
-              <col className="w-[120px]" />
-              <col className="w-[80px]" />
-              <col className="w-[80px]" />
-              <col className="w-[120px]" />
-              <col className="w-[96px]" />
-              <col className="w-[120px]" />
-              <col className="w-[108px]" />
-            </colgroup>
-            <thead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
-              <tr>
-                <th className={SETUP_PAGE_NUMBER_HEADER_CELL_CLASS}>
+      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} mx-auto max-w-[1240px]`}>
+        <div className="overflow-x-auto">
+          <SetupDataTable className="min-w-[1200px] table-fixed">
+            <SetupDataTableColGroup>
+              <SetupDataTableCol className="w-[48px]" />
+              <SetupDataTableCol className="w-[146px]" />
+              <SetupDataTableCol className="w-[110px]" />
+              <SetupDataTableCol className="w-[200px]" />
+              <SetupDataTableCol className="w-[136px]" />
+              <SetupDataTableCol className="w-[76px]" />
+              <SetupDataTableCol className="w-[92px]" />
+              <SetupDataTableCol className="w-[112px]" />
+              <SetupDataTableCol className="w-[96px]" />
+              <SetupDataTableCol className="w-[116px]" />
+              <SetupDataTableCol className="w-[48px]" />
+            </SetupDataTableColGroup>
+            <SetupDataTableHead>
+              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
                   No
-                </th>
-                <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Nama
-                </th>
-                <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Username
-                </th>
-                <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Email
-                </th>
-                <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   No. Handphone
-                </th>
-                <th className={SETUP_PAGE_TABLE_HEADER_CELL_CLASS}>
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   Divisi
-                </th>
-                <th
-                  className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-36 !text-center`}
-                >
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   Role
-                </th>
-                <th
-                  className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-36 !text-center`}
-                >
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   Akses Restrict
-                </th>
-                <th
-                  className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-32 !text-center`}
-                >
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   Status
-                </th>
-                <th
-                  className={`${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-40 !text-center`}
-                >
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   Aktivasi Akun
-                </th>
-                <th className={SETUP_PAGE_ACTION_HEADER_CELL_CLASS}>
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   Aksi
-                </th>
-              </tr>
-            </thead>
-            <tbody className={SETUP_PAGE_TABLE_BODY_CLASS}>
-              {filteredUsers.map((user, index) => {
+                </SetupDataTableHeaderCell>
+              </SetupDataTableRow>
+            </SetupDataTableHead>
+            <SetupDataTableBody>
+              {paginatedUsers.map((user, index) => {
                 const resolvedRoleName = getResolvedRoleName(user);
                 const resolvedDivisionName = getResolvedDivisionName(user);
+                const rowNumber =
+                  (paginationMeta.page - 1) * paginationMeta.limit + index + 1;
+                const canAccessRestrictedDocuments =
+                  user.can_access_restricted_documents ?? user.is_restrict;
+                const onboardingBadge = getOnboardingBadgeMeta(
+                  user.onboarding_status,
+                );
 
                 return (
-                  <tr key={user.id} className={SETUP_PAGE_TABLE_ROW_CLASS}>
-                    <td className={SETUP_PAGE_NUMBER_CELL_CLASS}>
-                      {index + 1}
-                    </td>
-                    <td
-                      className={`${SETUP_PAGE_TABLE_CELL_CLASS} whitespace-nowrap text-sm font-semibold text-gray-900`}
+                  <SetupDataTableRow
+                    key={user.id}
+                    className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
+                  >
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                      {rowNumber}
+                    </SetupDataTableCell>
+                    <SetupDataTableCell
+                      className={`${SETUP_PAGE_MODERN_CELL_CLASS} truncate font-semibold text-gray-900`}
+                      title={user.name}
                     >
                       {user.name}
-                    </td>
-                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} whitespace-nowrap text-sm text-gray-900`}>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell
+                      className={`${SETUP_PAGE_MODERN_CELL_CLASS} truncate text-gray-900`}
+                      title={user.username}
+                    >
                       {user.username}
-                    </td>
-                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} whitespace-nowrap text-sm text-gray-700`}>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell
+                      className={`${SETUP_PAGE_MODERN_CELL_CLASS} truncate text-gray-700`}
+                      title={user.email}
+                    >
                       {user.email}
-                    </td>
-                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} whitespace-nowrap text-sm text-gray-700`}>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell
+                      className={`${SETUP_PAGE_MODERN_CENTER_CELL_CLASS} truncate text-gray-700`}
+                      title={user.phone ?? user.phone_number ?? "-"}
+                    >
                       {user.phone ?? user.phone_number ?? "-"}
-                    </td>
-                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} whitespace-nowrap text-sm text-gray-700`}>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell
+                      className={`${SETUP_PAGE_MODERN_CENTER_CELL_CLASS} truncate text-gray-700`}
+                      title={resolvedDivisionName}
+                    >
                       {resolvedDivisionName}
-                    </td>
-                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} whitespace-nowrap !text-center`}>
-                      <span className="text-sm text-gray-700">
-                        {resolvedRoleName}
-                      </span>
-                    </td>
-                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} !text-center`}>
-                      <span className={getBooleanPillClass(user.is_restrict)}>
-                        {user.is_restrict ? "Ya" : "Tidak"}
-                      </span>
-                    </td>
-                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} !text-center`}>
-                      <span className={getBooleanPillClass(user.is_active)}>
-                        {user.is_active ? "Aktif" : "Nonaktif"}
-                      </span>
-                    </td>
-                    <td className={`${SETUP_PAGE_TABLE_CELL_CLASS} !text-center`}>
-                      <span className={getOnboardingPillClass(user.onboarding_status)}>
-                        {getOnboardingLabel(user)}
-                      </span>
-                    </td>
-                    <td className={SETUP_PAGE_ACTION_CELL_CLASS}>
-                      <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                        {canUpdateUsers && canResendInvitation(user) ? (
-                          <button
-                            onClick={() => void handleResendInvite(user)}
-                            className={`${ACTION_ICON_BUTTON_CLASS} text-amber-600 hover:bg-amber-50 hover:text-amber-700 disabled:cursor-not-allowed disabled:opacity-70`}
-                            title="Kirim Ulang Undangan"
-                            disabled={inviteLoadingId === user.id}
-                          >
-                            {inviteLoadingId === user.id ? (
-                              <span
-                                className="button-spinner"
-                                aria-hidden="true"
-                                style={
-                                  {
-                                    ["--spinner-size"]: "16px",
-                                    ["--spinner-border"]: "2px",
-                                    ["--spinner-track"]: "rgba(217, 119, 6, 0.2)",
-                                    ["--spinner-head"]: "#d97706",
-                                  } as React.CSSProperties
-                                }
-                              />
-                            ) : (
-                              <Mail className="w-4 h-4" aria-hidden="true" />
-                            )}
-                          </button>
-                        ) : null}
-                        {canUpdateUsers ? (
-                          <button
-                            onClick={() => handleOpenAccessAction(user)}
-                            className={`${ACTION_ICON_BUTTON_CLASS} ${
-                              user.is_active
-                                ? "text-red-600 hover:bg-red-50 hover:text-red-700"
-                                : "text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                            }`}
-                            title={
-                              user.is_active
-                                ? "Tutup Akses"
-                                : "Aktifkan Kembali"
-                            }
-                          >
-                            {user.is_active ? (
-                              <ShieldOff className="w-4 h-4" aria-hidden="true" />
-                            ) : (
-                              <ShieldCheck className="w-4 h-4" aria-hidden="true" />
-                            )}
-                          </button>
-                        ) : null}
-                        {canUpdateUsers ? (
-                          <button
-                            onClick={() => handleEdit(user)}
-                            className={`${ACTION_ICON_BUTTON_CLASS} text-blue-600 hover:bg-blue-50 hover:text-blue-700`}
-                            title="Edit"
-                          >
-                            <Pencil className="w-4 h-4" aria-hidden="true" />
-                          </button>
-                        ) : null}
-                        {canDeleteUsers ? (
-                          <button
-                            onClick={() => handleDelete(user)}
-                            className={`${ACTION_ICON_BUTTON_CLASS} text-red-600 hover:bg-red-50 hover:text-red-700`}
-                            title="Hapus"
-                          >
-                            <Trash2 className="w-4 h-4" aria-hidden="true" />
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell
+                      className={`${SETUP_PAGE_MODERN_CENTER_CELL_CLASS} truncate text-gray-700`}
+                      title={resolvedRoleName}
+                    >
+                      {resolvedRoleName}
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      <SetupStatusBadge
+                        status={canAccessRestrictedDocuments ? "Ya" : "Tidak"}
+                        label={canAccessRestrictedDocuments ? "Ya" : "Tidak"}
+                        tone={canAccessRestrictedDocuments ? "emerald" : "gray"}
+                        icon={
+                          canAccessRestrictedDocuments
+                            ? ShieldCheck
+                            : ShieldOff
+                        }
+                      />
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      <SetupStatusBadge status={user.is_active ? "Aktif" : "Nonaktif"} />
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      <SetupStatusBadge
+                        status={getOnboardingLabel(user)}
+                        label={getOnboardingLabel(user)}
+                        tone={onboardingBadge.tone}
+                        icon={onboardingBadge.icon}
+                      />
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      <SetupActionMenu
+                        label="Buka aksi user"
+                        menuLabel={`Aksi untuk ${user.name}`}
+                        items={getUserActionItems(user)}
+                      />
+                    </SetupDataTableCell>
+                  </SetupDataTableRow>
                 );
               })}
               {!isFetching && filteredUsers.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={11}
-                    className={SETUP_PAGE_EMPTY_STATE_CELL_CLASS}
-                  >
-                    Tidak ada user yang cocok.
-                  </td>
-                </tr>
+                <SetupDataTableEmptyRow colSpan={11}>
+                  Tidak ada user yang cocok.
+                </SetupDataTableEmptyRow>
               )}
               {isFetching && (
-                <tr>
-                  <td
-                    colSpan={11}
-                    className={SETUP_PAGE_EMPTY_STATE_CELL_CLASS}
-                  >
-                    Memuat data user...
-                  </td>
-                </tr>
+                <SetupDataTableEmptyRow colSpan={11}>
+                  Memuat data user...
+                </SetupDataTableEmptyRow>
               )}
-            </tbody>
-          </table>
+            </SetupDataTableBody>
+          </SetupDataTable>
         </div>
+        <Pagination
+          page={paginationMeta.page}
+          lastPage={paginationMeta.lastPage}
+          total={paginationMeta.total}
+          limit={paginationMeta.limit}
+          isLoading={isFetching}
+          onPageChange={setPage}
+        />
       </div>
 
-      {showModal && (
-        <div
-          data-dashboard-overlay="true"
-          className="fixed inset-0 p-4"
-          style={{
-            background: "rgba(0, 0, 0, 0.55)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          onClick={() => setShowModal(false)}
-        >
-          <div
-            className="bg-white rounded-lg shadow-sm w-full max-w-2xl overflow-hidden"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {editUser ? "Edit User" : "Tambah User"}
-                </h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  {editUser
-                    ? "Perbarui data akun pengguna sistem."
-                    : "Isi data akun. Aktivasi password nanti dikirim lewat email."}
-                </p>
-              </div>
-              <button
-                onClick={() => setShowModal(false)}
-                className="btn btn-ghost btn-sm"
-                title="Tutup"
-              >
-                <X className="w-4 h-4" aria-hidden="true" />
-              </button>
-            </div>
-
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <DashboardModal
+        isOpen={showModal}
+        title={editUser ? "Edit Pengguna" : "Tambah Pengguna"}
+        description={
+          editUser
+            ? "Perbarui data akun, divisi, role, dan akses dokumen pengguna."
+            : "Buat akun pengguna baru dan kirim link aktivasi lewat email."
+        }
+        onClose={() => setShowModal(false)}
+        maxWidth="2xl"
+        bodyClassName="grid grid-cols-1 gap-4 p-6 md:grid-cols-2"
+        footer={
+          <>
+            <button
+              onClick={() => setShowModal(false)}
+              className="uiverse-modal-button uiverse-modal-button--neutral"
+              type="button"
+            >
+              Batal
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={
+                !formData.name.trim() ||
+                !formData.username.trim() ||
+                !formData.email.trim() ||
+                !formData.division_id ||
+                !formData.role_id ||
+                isSubmitting
+              }
+              className="uiverse-modal-button uiverse-modal-button--primary"
+              type="button"
+            >
+              {isSubmitting ? (
+                <>
+                  <div
+                    className="button-spinner uiverse-modal-button__spinner"
+                    style={
+                      {
+                        ["--spinner-size"]: "18px",
+                        ["--spinner-border"]: "2px",
+                      } as React.CSSProperties
+                    }
+                    aria-hidden="true"
+                  />
+                  <span>Menyimpan...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" aria-hidden="true" />
+                  <span>
+                    {editUser ? "Simpan" : "Simpan & Kirim Undangan"}
+                  </span>
+                </>
+              )}
+            </button>
+          </>
+        }
+      >
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Nama Lengkap <span className="text-red-500">*</span>
                 </label>
-                <input
+                <SetupTextInput
                   value={formData.name}
                   onChange={(event) =>
                     setFormData((prev) => ({ ...prev, name: event.target.value }))
                   }
-                  className="input"
-                  placeholder="Masukkan nama lengkap"
+                  placeholder="Masukkan nama pengguna"
                 />
                 <p className="mt-2 text-xs text-slate-500">
                   Nama ini akan tampil di sistem.
@@ -983,7 +958,7 @@ export default function ManajemenUserPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Username <span className="text-red-500">*</span>
                 </label>
-                <input
+                <SetupTextInput
                   value={formData.username}
                   onChange={(event) =>
                     setFormData((prev) => ({
@@ -991,11 +966,10 @@ export default function ManajemenUserPage() {
                       username: event.target.value,
                     }))
                   }
-                  className="input"
                   placeholder="Masukkan username"
                 />
                 <p className="mt-2 text-xs text-slate-500">
-                  Username harus beda dan tanpa spasi.
+                  Gunakan username yang unik dan tanpa spasi.
                 </p>
               </div>
 
@@ -1003,14 +977,13 @@ export default function ManajemenUserPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Email <span className="text-red-500">*</span>
                 </label>
-                <input
+                <SetupTextInput
                   type="email"
                   value={formData.email}
                   onChange={(event) =>
                     setFormData((prev) => ({ ...prev, email: event.target.value }))
                   }
-                  className="input"
-                  placeholder="Masukkan email"
+                  placeholder="Masukkan email pengguna"
                 />
                 <p className="mt-2 text-xs text-slate-500">
                   Email ini dipakai untuk undangan dan reset password.
@@ -1021,7 +994,7 @@ export default function ManajemenUserPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   No. Handphone
                 </label>
-                <input
+                <SetupTextInput
                   type="tel"
                   value={formData.phone}
                   onChange={(event) =>
@@ -1030,8 +1003,7 @@ export default function ManajemenUserPage() {
                       phone: event.target.value,
                     }))
                   }
-                  className="input"
-                  placeholder="Contoh: 0896786875"
+                  placeholder="Masukkan nomor telepon"
                 />
                 <p className="mt-2 text-xs text-slate-500">
                   Boleh dikosongkan.
@@ -1042,7 +1014,7 @@ export default function ManajemenUserPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Divisi <span className="text-red-500">*</span>
                 </label>
-                <select
+                <SetupSelect
                   value={formData.division_id}
                   onChange={(event) =>
                     setFormData((prev) => ({
@@ -1050,7 +1022,6 @@ export default function ManajemenUserPage() {
                       division_id: event.target.value,
                     }))
                   }
-                  className="select"
                 >
                   <option value="">Pilih divisi</option>
                   {divisions.map((division) => (
@@ -1058,9 +1029,9 @@ export default function ManajemenUserPage() {
                       {division.name}
                     </option>
                   ))}
-                </select>
+                </SetupSelect>
                 <p className="mt-2 text-xs text-slate-500">
-                  Pilih divisi user ini.
+                  Pilih divisi tempat pengguna bertugas.
                 </p>
               </div>
 
@@ -1068,7 +1039,7 @@ export default function ManajemenUserPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Role <span className="text-red-500">*</span>
                 </label>
-                <select
+                <SetupSelect
                   value={formData.role_id}
                   onChange={(event) =>
                     setFormData((prev) => ({
@@ -1076,7 +1047,6 @@ export default function ManajemenUserPage() {
                       role_id: event.target.value,
                     }))
                   }
-                  className="select"
                 >
                   <option value="">Pilih role</option>
                   {roles.map((roleOption) => (
@@ -1084,349 +1054,218 @@ export default function ManajemenUserPage() {
                       {roleOption.name}
                     </option>
                   ))}
-                </select>
+                </SetupSelect>
                 <p className="mt-2 text-xs text-slate-500">
-                  Role menentukan akses user.
+                  Role menentukan menu dan aksi yang bisa diakses.
                 </p>
               </div>
 
-              <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-4">
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm font-medium text-slate-800">
-                      Akses Restrict
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Nyalakan kalau akses user memang dibatasi.
-                    </p>
-                  </div>
+              <DashboardNotice
+                title="Akses Dokumen Restrict"
+                description="Aktifkan kalau pengguna boleh melihat dokumen restrict."
+              >
+                <div className="pt-1">
                   <UiverseCheckbox
-                    checked={formData.is_restrict}
+                    checked={formData.can_access_restricted_documents}
                     onCheckedChange={(checked) =>
-                      setFormData((prev) => ({ ...prev, is_restrict: checked }))
-                    }
-                    label={formData.is_restrict ? "Ya" : "Tidak"}
-                  />
-                </div>
-              </div>
-
-	              {!editUser ? (
-	                <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-4 md:col-span-2">
-	                  <div className="flex items-start gap-3">
-	                    <div className="mt-0.5 flex h-10 w-10 items-center justify-center text-[#157ec3]">
-	                      <Mail className="h-5 w-5" aria-hidden="true" />
-	                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">
-                        Undangan aktivasi otomatis
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-slate-600">
-                        Akun baru akan langsung dikirim lewat email undangan. Setelah itu user bikin password sendiri dari link yang diterima.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {editUser ? (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Password{" "}
-                    {editUser ? (
-                      <span className="text-gray-400">(Opsional)</span>
-                    ) : (
-                      <span className="text-red-500">*</span>
-                    )}
-                  </label>
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(event) =>
                       setFormData((prev) => ({
                         ...prev,
-                        password: event.target.value,
+                        can_access_restricted_documents: checked,
                       }))
                     }
-                    className="input"
-                    placeholder={
-                      editUser
-                        ? "Kosongkan jika tidak diubah"
-                        : "Masukkan password"
+                    label={
+                      formData.can_access_restricted_documents ? "Ya" : "Tidak"
                     }
                   />
-                  <p className="mt-2 text-xs text-slate-500">
-                    {editUser
-                      ? "Isi kalau passwordnya mau diganti."
-                      : `Minimal ${MIN_USER_PASSWORD_LENGTH} karakter.`}
-                  </p>
                 </div>
-              ) : null}
-            </div>
+              </DashboardNotice>
 
-            <div className="p-6 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row justify-end gap-3">
-              <button
-                onClick={() => setShowModal(false)}
-                className="btn btn-outline"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={
-                  !formData.name.trim() ||
-                  !formData.username.trim() ||
-                  !formData.email.trim() ||
-                  !formData.division_id ||
-                  !formData.role_id ||
-                  isSubmitting
-                }
-                className={editUser ? "btn btn-primary" : "btn btn-upload"}
-              >
-                {isSubmitting ? (
-                  <>
-                    <div
-                      className="button-spinner"
-                      style={
-                        {
-                          ["--spinner-size"]: "18px",
-                          ["--spinner-border"]: "2px",
-                        } as React.CSSProperties
-                      }
-                      aria-hidden="true"
-                    />
-                    <span>Menyimpan...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" aria-hidden="true" />
-                    <span>
-                      {editUser ? "Simpan" : "Simpan & Kirim Undangan"}
-                    </span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {manualInvitation ? (
-        <div
-          data-dashboard-overlay="true"
-          className="fixed inset-0 p-4"
-          style={{
-            background: "rgba(0, 0, 0, 0.55)",
-            zIndex: 10000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          onClick={() => setManualInvitation(null)}
-        >
-          <div
-            className="bg-white rounded-lg shadow-sm w-full max-w-xl overflow-hidden"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Undangan Siap Dibagikan
-                </h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  Email undangan belum terkirim otomatis, tetapi link aktivasi siap dibagikan ke user.
-                </p>
-              </div>
-              <button
-                onClick={() => setManualInvitation(null)}
-                className="btn btn-ghost btn-sm"
-                title="Tutup"
-              >
-                <X className="w-4 h-4" aria-hidden="true" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
-                <p className="text-sm font-semibold text-slate-800">
-                  {manualInvitation.userName}
-                </p>
-                <p className="mt-1 text-sm text-slate-600">
-                  Bagikan link berikut ke user agar mereka bisa menyetel password pertama.
-                </p>
-              </div>
-
-              {manualInvitation.url ? (
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Link Aktivasi
-                  </label>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                    <p className="break-all text-sm text-slate-700">
-                      {manualInvitation.url}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4">
-                  <p className="text-sm font-semibold text-amber-900">
-                    Link belum tersedia
-                  </p>
-                  <p className="mt-1 text-sm leading-6 text-amber-800">
-                    Pastikan konfigurasi frontend sudah benar agar backend bisa membentuk link aktivasi.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="p-6 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row justify-end gap-3">
-              {manualInvitation.url ? (
-                <button
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(manualInvitation.url ?? "");
-                      showToast("Link aktivasi berhasil disalin.", "success");
-                    } catch {
-                      showToast("Gagal menyalin link aktivasi.", "error");
-                    }
-                  }}
-                  className="btn btn-upload"
-                >
-                  <Copy className="w-4 h-4" aria-hidden="true" />
-                  <span>Salin Link</span>
-                </button>
-              ) : null}
-              <button
-                onClick={() => setManualInvitation(null)}
-                className="btn btn-outline"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {accessAction ? (
-        <div
-          data-dashboard-overlay="true"
-          className="fixed inset-0 p-4"
-          style={{
-            background: "rgba(0, 0, 0, 0.55)",
-            zIndex: 10000,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          onClick={() => {
-            if (!isAccessSubmitting) setAccessAction(null);
-          }}
-        >
-          <div
-            className="bg-white rounded-lg shadow-sm w-full max-w-lg overflow-hidden"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {accessAction.action === "close"
-                    ? "Tutup Akses Pengguna"
-                    : "Aktifkan Kembali Pengguna"}
-                </h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  {accessAction.user.name} - {accessAction.user.email}
-                </p>
-              </div>
-              <button
-                onClick={() => setAccessAction(null)}
-                className="btn btn-ghost btn-sm"
-                title="Tutup"
-                disabled={isAccessSubmitting}
-              >
-                <X className="w-4 h-4" aria-hidden="true" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
-                <p className="text-sm font-semibold text-slate-800">
-                  {accessAction.action === "close"
-                    ? "Akun ini tidak bisa login setelah akses ditutup."
-                    : "Akun ini bisa login kembali setelah diaktifkan."}
-                </p>
-                <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Riwayat data pengguna tetap tersimpan untuk audit dan laporan.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Alasan <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={accessReason}
-                  onChange={(event) => setAccessReason(event.target.value)}
-                  className="input min-h-28 resize-none"
-                  placeholder={
-                    accessAction.action === "close"
-                      ? "Contoh: Pengguna sudah tidak bertugas di unit ini."
-                      : "Contoh: Pengguna kembali bertugas dan akses perlu dibuka."
-                  }
-                  disabled={isAccessSubmitting}
+              {!editUser ? (
+                <DashboardNotice
+                  title="Undangan aktivasi otomatis"
+                  description="Link aktivasi akan dikirim ke email pengguna. Pengguna membuat password dari link tersebut."
+                  icon={<Mail className="h-5 w-5" />}
+                  className="md:col-span-2"
                 />
-                <p className="mt-2 text-xs text-slate-500">
-                  Minimal 5 karakter. Alasan ini disimpan sebagai catatan perubahan akses.
-                </p>
-              </div>
+              ) : null}
+
+      </DashboardModal>
+
+      <DashboardModal
+        isOpen={manualInvitation !== null}
+        title="Undangan Siap Dibagikan"
+        description="Email undangan belum terkirim otomatis, tetapi link aktivasi sudah siap dibagikan."
+        onClose={() => setManualInvitation(null)}
+        maxWidth="xl"
+        bodyClassName="space-y-4 p-6"
+        footer={
+          <>
+            {manualInvitation?.url ? (
+              <button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(manualInvitation.url ?? "");
+                    showToast("Link aktivasi berhasil disalin.", "success");
+                  } catch {
+                    showToast("Gagal menyalin link aktivasi.", "error");
+                  }
+                }}
+                className="uiverse-modal-button uiverse-modal-button--primary"
+                type="button"
+              >
+                <Copy className="w-4 h-4" aria-hidden="true" />
+                <span>Salin Link</span>
+              </button>
+            ) : null}
+            <button
+              onClick={() => setManualInvitation(null)}
+              className="uiverse-modal-button uiverse-modal-button--neutral"
+              type="button"
+            >
+              Tutup
+            </button>
+          </>
+        }
+      >
+        {manualInvitation ? (
+          <>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
+              <p className="text-sm font-semibold text-slate-800">
+                {manualInvitation.userName}
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                Bagikan link berikut agar pengguna bisa membuat password pertama.
+              </p>
             </div>
 
-            <div className="p-6 bg-gray-50 border-t border-gray-100 flex flex-col sm:flex-row justify-end gap-3">
-              <button
-                onClick={() => setAccessAction(null)}
-                className="btn btn-outline"
-                disabled={isAccessSubmitting}
-              >
-                Batal
-              </button>
-              <button
-                onClick={() => void handleConfirmAccessAction()}
-                disabled={isAccessSubmitting || normalizeTextInput(accessReason).length < 5}
-                className={
-                  accessAction.action === "close"
-                    ? "btn border-red-600 bg-red-600 text-white hover:bg-red-700"
-                    : "btn border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
-                }
-              >
-                {isAccessSubmitting ? (
-                  <>
-                    <span
-                      className="button-spinner"
-                      style={
-                        {
-                          ["--spinner-size"]: "18px",
-                          ["--spinner-border"]: "2px",
-                        } as React.CSSProperties
-                      }
-                      aria-hidden="true"
-                    />
-                    <span>Menyimpan...</span>
-                  </>
-                ) : (
-                  <span>
-                    {accessAction.action === "close"
-                      ? "Tutup Akses"
-                      : "Aktifkan Kembali"}
-                  </span>
-                )}
-              </button>
+            {manualInvitation.url ? (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Link Aktivasi
+                </label>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="break-all text-sm text-slate-700">
+                    {manualInvitation.url}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4">
+                <p className="text-sm font-semibold text-amber-900">
+                  Link aktivasi belum tersedia
+                </p>
+                <p className="mt-1 text-sm leading-6 text-amber-800">
+                  Periksa konfigurasi URL frontend agar link aktivasi bisa dibuat.
+                </p>
+              </div>
+            )}
+          </>
+        ) : null}
+      </DashboardModal>
+
+      <DashboardModal
+        isOpen={accessAction !== null}
+        title={
+          accessAction?.action === "close"
+            ? "Tutup Akses Pengguna"
+            : "Aktifkan Kembali Pengguna"
+        }
+        description={
+          accessAction
+            ? `${accessAction.user.name} - ${accessAction.user.email}`
+            : undefined
+        }
+        onClose={() => setAccessAction(null)}
+        closeDisabled={isAccessSubmitting}
+        maxWidth="lg"
+        bodyClassName="space-y-4 p-6"
+        footer={
+          <>
+            <button
+              onClick={() => setAccessAction(null)}
+              className="uiverse-modal-button uiverse-modal-button--neutral"
+              disabled={isAccessSubmitting}
+              type="button"
+            >
+              Batal
+            </button>
+            <button
+              onClick={() => void handleConfirmAccessAction()}
+              disabled={
+                isAccessSubmitting || normalizeTextInput(accessReason).length < 5
+              }
+              className={
+                accessAction?.action === "close"
+                  ? "uiverse-modal-button uiverse-modal-button--danger"
+                  : "uiverse-modal-button uiverse-modal-button--success"
+              }
+              type="button"
+            >
+              {isAccessSubmitting ? (
+                <>
+                  <span
+                    className="button-spinner"
+                    style={
+                      {
+                        ["--spinner-size"]: "18px",
+                        ["--spinner-border"]: "2px",
+                      } as React.CSSProperties
+                    }
+                    aria-hidden="true"
+                  />
+                  <span>Menyimpan...</span>
+                </>
+              ) : (
+                <span>
+                  {accessAction?.action === "close"
+                    ? "Tutup Akses"
+                    : "Aktifkan Kembali"}
+                </span>
+              )}
+            </button>
+          </>
+        }
+      >
+        {accessAction ? (
+          <>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
+              <p className="text-sm font-semibold text-slate-800">
+                {accessAction.action === "close"
+                  ? "Pengguna tidak bisa login setelah akses ditutup."
+                  : "Pengguna bisa login kembali setelah akses diaktifkan."}
+              </p>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                Riwayat pengguna tetap tersimpan untuk audit dan laporan.
+              </p>
             </div>
-          </div>
-        </div>
-      ) : null}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Alasan <span className="text-red-500">*</span>
+              </label>
+              <SetupTextarea
+                value={accessReason}
+                onChange={(event) => setAccessReason(event.target.value)}
+                className="min-h-28 resize-none"
+                placeholder={
+                  accessAction.action === "close"
+                    ? "Tuliskan alasan penutupan akses."
+                    : "Tuliskan alasan pembukaan akses."
+                }
+                disabled={isAccessSubmitting}
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                Minimal 5 karakter. Alasan disimpan sebagai catatan perubahan akses.
+              </p>
+            </div>
+          </>
+        ) : null}
+      </DashboardModal>
 
       <DeleteConfirmModal
         isOpen={showDelete && deleteUser !== null}
-        title="Hapus User?"
-        entityLabel="user"
+        title="Hapus Pengguna?"
+        entityLabel="pengguna"
         itemName={deleteUser?.name ?? ""}
         onClose={() => setShowDelete(false)}
         onConfirm={() => void confirmDelete()}

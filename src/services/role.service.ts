@@ -1,13 +1,13 @@
 import api from "@/lib/axios";
 import {
   extractList,
+  extractPaginationMeta,
   extractRecord,
-  readNumber,
   readString,
 } from "@/services/api.utils";
+import { MAX_TABLE_PAGE_SIZE, SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import type { PageQuery, PaginatedResult } from "@/types/api.types";
 import type { RolePayload, RoleRecord } from "@/types/master.types";
-
-type UnknownRecord = Record<string, unknown>;
 
 function mapRole(record: Record<string, unknown>): RoleRecord | null {
   const id = readString(record, "id");
@@ -15,34 +15,46 @@ function mapRole(record: Record<string, unknown>): RoleRecord | null {
 
   if (!id || !name) return null;
 
-  return { id, name };
+  return {
+    id,
+    name,
+  };
 }
 
-async function getRolesPage(page: number): Promise<{
-  items: RoleRecord[];
-  lastPage: number;
-}> {
-  const res = await api.get("/roles", { params: { page } });
-  const payload =
-    typeof res.data === "object" && res.data !== null
-      ? (res.data as UnknownRecord)
-      : {};
+async function getRolesPage({
+  page = 1,
+  limit = SETUP_TABLE_PAGE_SIZE,
+  search,
+}: PageQuery = {}): Promise<PaginatedResult<RoleRecord>> {
+  const res = await api.get("/roles", {
+    params: {
+      page,
+      limit,
+      ...(search ? { search } : {}),
+    },
+  });
+  const items = extractList(res.data)
+    .map((record) => mapRole(record))
+    .filter((item): item is RoleRecord => item !== null);
 
   return {
-    items: extractList(res.data)
-      .map((record) => mapRole(record))
-      .filter((item): item is RoleRecord => item !== null),
-    lastPage: Math.max(1, readNumber(payload, "lastPage", "last_page") ?? 1),
+    items,
+    meta: extractPaginationMeta(res.data, {
+      page,
+      limit,
+      total: items.length,
+    }),
   };
 }
 
 export const roleService = {
+  getPage: getRolesPage,
   getAll: async (): Promise<RoleRecord[]> => {
-    const first = await getRolesPage(1);
+    const first = await getRolesPage({ page: 1, limit: MAX_TABLE_PAGE_SIZE });
     const all = [...first.items];
 
-    for (let page = 2; page <= first.lastPage; page += 1) {
-      const next = await getRolesPage(page);
+    for (let page = 2; page <= first.meta.lastPage; page += 1) {
+      const next = await getRolesPage({ page, limit: MAX_TABLE_PAGE_SIZE });
       all.push(...next.items);
     }
 

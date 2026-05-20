@@ -1,5 +1,8 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+"use client";
+
+import ParameterMasterPage from "@/components/parameter/ParameterMasterPage";
+import { financingProductParameterConfig } from "@/components/parameter/parameterMasterConfigs";
 
 export default function SetupProdukPembiayaanPage() {
-  return <ModuleSkeletonPage title="Setup Produk Pembiayaan" />;
+  return <ParameterMasterPage config={financingProductParameterConfig} />;
 }

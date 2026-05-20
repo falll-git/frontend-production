@@ -1,14 +1,66 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  SetupDataTable,
+  SetupDataTableHead,
+  SetupDataTableBody,
+  SetupDataTableRow,
+  SetupDataTableHeaderCell,
+  SetupDataTableCell,
+  SetupDataTableColGroup,
+  SetupDataTableCol
+} from "@/components/ui/SetupDataTable";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, FileSpreadsheet, History, Search } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  Clock3,
+  History,
+} from "lucide-react";
 
-import { exportToExcel } from "@/lib/utils/exportExcel";
 import FeatureHeader from "@/components/ui/FeatureHeader";
-import { formatDateDisplay, parseDateString } from "@/lib/utils/date";
-import { useArsipDigitalWorkflow } from "@/components/arsip-digital/ArsipDigitalWorkflowProvider";
+import Pagination from "@/components/ui/Pagination";
+import SetupExcelButton from "@/components/ui/SetupExcelButton";
+import SetupSearchInput from "@/components/ui/SetupSearchInput";
+import SetupSelect from "@/components/ui/SetupSelect";
+import {
+  SETUP_PAGE_MODERN_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
+  SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_TABLE_CLASS,
+  SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
+  SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+  SETUP_PAGE_BACK_BUTTON_CLASS,
+  SETUP_PAGE_SEARCH_CARD_CLASS,
+  SETUP_PAGE_SEARCH_LABEL_CLASS,
+  SETUP_PAGE_TABLE_CARD_CLASS,
+} from "@/components/ui/setupPageStyles";
+import { useClientPagination } from "@/hooks/useClientPagination";
+import { OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import { exportToExcel } from "@/lib/utils/exportExcel";
+import { formatDateOnly, parseDateString } from "@/lib/utils/date";
+import { useAppToast } from "@/components/ui/AppToastProvider";
+import { peminjamanService } from "@/services/peminjaman.service";
+import type { Peminjaman } from "@/types/arsip.types";
+
+const HISTORIS_PEMINJAMAN_TABLE_COLUMN_WIDTHS = [
+  "52px",
+  "160px",
+  null,
+  "112px",
+  "112px",
+  "112px",
+  "120px",
+  "120px",
+  "96px",
+  "128px",
+] as const;
 
 function formatPersonName(value: string) {
   const trimmed = value.trim();
@@ -22,36 +74,71 @@ function formatPersonName(value: string) {
     .join(" ");
 }
 
-function getDurationText(startValue: string, endValue: string | null) {
+function getDurationDays(startValue: string, endValue: string | null) {
   const startDate = parseDateString(startValue);
   const endDate = endValue ? parseDateString(endValue) : null;
-  if (!startDate || !endDate) return "0 hari";
+  if (!startDate || !endDate) return 0;
 
   const oneDay = 24 * 60 * 60 * 1000;
   const diff = Math.round(
     (endDate.setHours(0, 0, 0, 0) - startDate.setHours(0, 0, 0, 0)) / oneDay,
   );
-  const days = Number.isFinite(diff) ? Math.max(diff, 0) : 0;
-  return `${days} hari`;
+
+  return Number.isFinite(diff) ? Math.max(diff, 0) : 0;
+}
+
+function getDurationText(startValue: string, endValue: string | null) {
+  return `${getDurationDays(startValue, endValue)} hari`;
 }
 
 export default function HistorisPeminjamanPage() {
-  const { peminjaman } = useArsipDigitalWorkflow();
+  const { showToast } = useAppToast();
   const searchParams = useSearchParams();
   const filterLemariId = searchParams.get("lemariId");
   const filterKantorId = searchParams.get("kantorId");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterPeminjam, setFilterPeminjam] = useState("Semua");
+  const [peminjaman, setPeminjaman] = useState<Peminjaman[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadHistory() {
+      setIsLoadingHistory(true);
+      try {
+        const result = await peminjamanService.getHistory({
+          office_id: filterKantorId || undefined,
+          cabinet_id: filterLemariId || undefined,
+        });
+        if (!ignore) setPeminjaman(result);
+      } catch (error) {
+        if (!ignore) {
+          setPeminjaman([]);
+          showToast(
+            error instanceof Error
+              ? error.message
+              : "Gagal memuat riwayat peminjaman.",
+            "error",
+          );
+        }
+      } finally {
+        if (!ignore) setIsLoadingHistory(false);
+      }
+    }
+
+    void loadHistory();
+
+    return () => {
+      ignore = true;
+    };
+  }, [filterKantorId, filterLemariId, showToast]);
 
   const historisPeminjaman = useMemo(() => {
     return peminjaman
       .filter((item) => item.statusKey === "RETURNED")
       .map((item) => {
-        const officeCode = item.document?.storage?.officeCode ?? null;
-        const cabinetCode = item.document?.storage?.cabinetCode ?? null;
-        const lemariId =
-          officeCode && cabinetCode ? `${officeCode}::${cabinetCode}` : null;
-        const tglDikembalikan =
+        const tanggalPengembalian =
           item.tanggalDikembalikan ?? item.tglPengembalian ?? item.tglKembali;
 
         return {
@@ -62,34 +149,19 @@ export default function HistorisPeminjamanPage() {
           tanggalPinjam: item.tglPinjam,
           tanggalPenyerahan: item.tglPenyerahan,
           tanggalEstimasiPengembalian: item.tglKembali,
-          tanggalPengembalian: tglDikembalikan,
-          durasi: getDurationText(item.tglPinjam, tglDikembalikan),
+          tanggalPengembalian,
+          durasiHari: getDurationDays(item.tglPinjam, tanggalPengembalian),
+          durasi: getDurationText(item.tglPinjam, tanggalPengembalian),
           approvedBy:
             item.approverUser?.username ??
             item.approverUser?.name ??
             item.approver ??
             "-",
-          lemariId,
-          kantorId: officeCode,
         };
       });
   }, [peminjaman]);
 
-  const historisByLokasi = useMemo(() => {
-    if (filterKantorId) {
-      return historisPeminjaman.filter(
-        (item) => item.kantorId === filterKantorId,
-      );
-    }
-
-    if (filterLemariId) {
-      return historisPeminjaman.filter(
-        (item) => item.lemariId === filterLemariId,
-      );
-    }
-
-    return historisPeminjaman;
-  }, [filterKantorId, filterLemariId, historisPeminjaman]);
+  const historisByLokasi = historisPeminjaman;
 
   const peminjamList = useMemo(
     () => [
@@ -106,24 +178,35 @@ export default function HistorisPeminjamanPage() {
       const matchSearch =
         keyword.length === 0 ||
         item.namaDokumen.toLowerCase().includes(keyword) ||
-        item.kode.toLowerCase().includes(keyword);
+        item.kode.toLowerCase().includes(keyword) ||
+        item.peminjam.toLowerCase().includes(keyword);
       const matchPeminjam =
         filterPeminjam === "Semua" || item.peminjam === filterPeminjam;
+
       return matchSearch && matchPeminjam;
     });
   }, [filterPeminjam, historisByLokasi, searchTerm]);
 
   const totalPeminjaman = historisByLokasi.length;
-  const uniquePeminjam = new Set(historisByLokasi.map((item) => item.peminjam))
+  const totalPeminjam = new Set(historisByLokasi.map((item) => item.peminjam))
     .size;
   const avgDurasi = Math.round(
     historisByLokasi.length === 0
       ? 0
-      : historisByLokasi.reduce(
-          (acc, item) => acc + parseInt(item.durasi, 10),
-          0,
-        ) / historisByLokasi.length,
+      : historisByLokasi.reduce((acc, item) => acc + item.durasiHari, 0) /
+          historisByLokasi.length,
   );
+
+  const {
+    paginatedItems: paginatedData,
+    meta: paginationMeta,
+    setPage,
+    resetPage,
+  } = useClientPagination(filteredData, OPERATIONAL_TABLE_PAGE_SIZE);
+
+  useEffect(() => {
+    resetPage();
+  }, [filterKantorId, filterLemariId, filterPeminjam, resetPage, searchTerm]);
 
   const handleExport = async () => {
     await exportToExcel({
@@ -132,37 +215,29 @@ export default function HistorisPeminjamanPage() {
       title: "Historis Peminjaman Dokumen",
       columns: [
         { header: "No", key: "no", width: 6 },
-        { header: "Kode", key: "kode", width: 15 },
-        { header: "Nama Dokumen", key: "namaDokumen", width: 30 },
-        { header: "Peminjam", key: "peminjam", width: 20 },
-        { header: "Tanggal Pinjam", key: "tanggalPinjam", width: 18 },
-        { header: "Tanggal Penyerahan", key: "tanggalPenyerahan", width: 20 },
-        {
-          header: "Tanggal Estimasi Pengembalian",
-          key: "tanggalEstimasiPengembalian",
-          width: 28,
-        },
-        {
-          header: "Tanggal Pengembalian",
-          key: "tanggalPengembalian",
-          width: 22,
-        },
+        { header: "Kode", key: "kode", width: 18 },
+        { header: "Nama Dokumen", key: "namaDokumen", width: 28 },
+        { header: "Peminjam", key: "peminjam", width: 18 },
+        { header: "Tgl Pinjam", key: "tanggalPinjam", width: 16 },
+        { header: "Tgl Serah", key: "tanggalPenyerahan", width: 16 },
+        { header: "Est. Kembali", key: "tanggalEstimasiPengembalian", width: 18 },
+        { header: "Tgl Kembali", key: "tanggalPengembalian", width: 18 },
         { header: "Durasi", key: "durasi", width: 12 },
-        { header: "Disetujui Oleh", key: "approvedBy", width: 20 },
+        { header: "Penyetuju", key: "approvedBy", width: 18 },
       ],
       data: filteredData.map((item, idx) => ({
         no: idx + 1,
         kode: item.kode,
         namaDokumen: item.namaDokumen,
-        peminjam: item.peminjam,
-        tanggalPinjam: formatDateDisplay(item.tanggalPinjam),
-        tanggalPenyerahan: formatDateDisplay(item.tanggalPenyerahan),
-        tanggalEstimasiPengembalian: formatDateDisplay(
+        peminjam: formatPersonName(item.peminjam),
+        tanggalPinjam: formatDateOnly(item.tanggalPinjam),
+        tanggalPenyerahan: formatDateOnly(item.tanggalPenyerahan),
+        tanggalEstimasiPengembalian: formatDateOnly(
           item.tanggalEstimasiPengembalian,
         ),
-        tanggalPengembalian: formatDateDisplay(item.tanggalPengembalian),
+        tanggalPengembalian: formatDateOnly(item.tanggalPengembalian),
         durasi: item.durasi,
-        approvedBy: item.approvedBy,
+        approvedBy: formatPersonName(item.approvedBy),
       })),
     });
   };
@@ -173,7 +248,7 @@ export default function HistorisPeminjamanPage() {
         <div className="mb-4">
           <Link
             href="/dashboard/arsip-digital/ruang-arsip/tempat-penyimpanan"
-            className="btn btn-outline btn-sm"
+            className={SETUP_PAGE_BACK_BUTTON_CLASS}
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Kembali ke Ruang Arsip Digital
@@ -186,193 +261,204 @@ export default function HistorisPeminjamanPage() {
         subtitle="Riwayat peminjaman dokumen yang sudah dikembalikan."
         icon={<History />}
         actions={
-          <button
-            onClick={handleExport}
-            className="btn btn-export-excel"
-            title="Export Excel"
-          >
-            <FileSpreadsheet className="w-4 h-4" aria-hidden="true" />
-            <span>Export Excel</span>
-          </button>
+          <SetupExcelButton onClick={handleExport} />
         }
       />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
+      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-white p-6 shadow-sm">
           <div>
-            <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Total Riwayat
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-1">
+            <p className="mt-1 text-2xl font-semibold text-gray-900">
               {totalPeminjaman}
             </p>
           </div>
-          <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
-            <History className="w-6 h-6" aria-hidden="true" />
-          </div>
+          <History className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-white p-6 shadow-sm">
           <div>
-            <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Jumlah Peminjam
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-1">
-              {uniquePeminjam}
+            <p className="mt-1 text-2xl font-semibold text-gray-900">
+              {totalPeminjam}
             </p>
           </div>
-          <div className="w-9 h-9 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600">
-            <History className="w-6 h-6" aria-hidden="true" />
-          </div>
+          <BookOpen className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-white p-6 shadow-sm">
           <div>
-            <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Rata-rata Durasi
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-1">
+            <p className="mt-1 text-2xl font-semibold text-gray-900">
               {avgDurasi} hari
             </p>
           </div>
-          <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center text-amber-600">
-            <History className="w-6 h-6" aria-hidden="true" />
-          </div>
+          <Clock3 className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6 p-5">
-        <div className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              Cari Dokumen
-            </label>
-            <div className="relative">
-              <Search
-                className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                aria-hidden="true"
-              />
-              <input
-                type="text"
-                placeholder="Cari berdasarkan nama atau kode..."
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="input input-with-icon"
-              />
-            </div>
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} mb-6`}>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_320px] md:items-end">
+          <div>
+            <SetupSearchInput
+              label="Cari Dokumen"
+              placeholder="Cari berdasarkan nama atau kode..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
           </div>
-          <div className="w-full md:w-64">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+          <div>
+            <label className={SETUP_PAGE_SEARCH_LABEL_CLASS}>
               Filter Peminjam
             </label>
-            <select
+            <SetupSelect
               value={filterPeminjam}
               onChange={(event) => setFilterPeminjam(event.target.value)}
-              className="select"
             >
               {peminjamList.map((peminjam) => (
                 <option key={peminjam} value={peminjam}>
                   {peminjam}
                 </option>
               ))}
-            </select>
+            </SetupSelect>
           </div>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="border-b border-gray-100 p-4">
-          <p className="text-sm text-gray-600">
+      <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
+        <div className="border-b border-gray-100 bg-gray-50/50 p-4">
+          <p className="text-sm font-medium text-gray-600">
             Menampilkan{" "}
-            <span className="font-semibold">{filteredData.length}</span> dari{" "}
-            {historisByLokasi.length} riwayat
+            <span className="font-bold text-gray-900">{filteredData.length}</span>{" "}
+            dari {historisByLokasi.length} riwayat
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50">
-              <tr>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  No
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Kode
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
+          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+            <SetupDataTableColGroup>
+              {HISTORIS_PEMINJAMAN_TABLE_COLUMN_WIDTHS.map((width, index) => (
+                <SetupDataTableCol
+                  key={`${index}-${width ?? "flex"}`}
+                  style={width ? { width } : undefined}
+                />
+              ))}
+            </SetupDataTableColGroup>
+            <SetupDataTableHead className="ltr:text-left rtl:text-right">
+              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Kode</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Nama Dokumen
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Peminjam
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Tanggal Pinjam
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Tanggal Penyerahan
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Estimasi Pengembalian
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Tanggal Pengembalian
-                </th>
-                <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Peminjam</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Tgl Pinjam</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Tgl Serah</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
+                  Est. Kembali
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
+                  Tgl Kembali
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   Durasi
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Disetujui Oleh
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredData.map((item, idx) => (
-                <tr
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
+                  Penyetuju
+                </SetupDataTableHeaderCell>
+              </SetupDataTableRow>
+            </SetupDataTableHead>
+            <SetupDataTableBody className="divide-y divide-gray-100">
+              {paginatedData.map((item, idx) => (
+                <SetupDataTableRow
                   key={item.id}
-                  className="transition-colors hover:bg-gray-50"
+                  className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} hover:bg-gray-50/50`}
                 >
-                  <td className="px-6 py-4 text-sm text-gray-500">{idx + 1}</td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex items-center rounded-lg border-2 border-gray-800 bg-white px-3 py-1 text-xs font-semibold text-gray-900 tabular-nums">
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                    {(paginationMeta.page - 1) * paginationMeta.limit + idx + 1}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                    <span
+                      className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 tabular-nums"
+                      title={item.kode}
+                    >
                       {item.kode}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-800">
-                    {item.namaDokumen}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-semibold text-gray-800">
-                    {formatPersonName(item.peminjam)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatDateDisplay(item.tanggalPinjam)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatDateDisplay(item.tanggalPenyerahan)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatDateDisplay(item.tanggalEstimasiPengembalian)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatDateDisplay(item.tanggalPengembalian)}
-                  </td>
-                  <td className="px-6 py-4 text-center text-sm font-semibold text-gray-800">
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}>
+                    <span className="block truncate" title={item.namaDokumen}>
+                      {item.namaDokumen}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}>
+                    <span className="block truncate" title={formatPersonName(item.peminjam)}>
+                      {formatPersonName(item.peminjam)}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                    <span
+                      className="block truncate tabular-nums"
+                      title={formatDateOnly(item.tanggalPinjam)}
+                    >
+                      {formatDateOnly(item.tanggalPinjam)}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                    <span
+                      className="block truncate tabular-nums"
+                      title={formatDateOnly(item.tanggalPenyerahan)}
+                    >
+                      {formatDateOnly(item.tanggalPenyerahan)}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                    <span
+                      className="block truncate tabular-nums"
+                      title={formatDateOnly(item.tanggalEstimasiPengembalian)}
+                    >
+                      {formatDateOnly(item.tanggalEstimasiPengembalian)}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                    <span
+                      className="block truncate tabular-nums"
+                      title={formatDateOnly(item.tanggalPengembalian)}
+                    >
+                      {formatDateOnly(item.tanggalPengembalian)}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CENTER_CELL_CLASS} font-semibold text-gray-900`}>
                     {item.durasi}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-semibold text-gray-800">
-                    {formatPersonName(item.approvedBy)}
-                  </td>
-                </tr>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}>
+                    <span className="block truncate" title={formatPersonName(item.approvedBy)}>
+                      {formatPersonName(item.approvedBy)}
+                    </span>
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
               ))}
               {filteredData.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={10}
-                    className="px-6 py-12 text-center text-sm text-gray-500"
-                  >
-                    Belum ada riwayat peminjaman yang sesuai.
-                  </td>
-                </tr>
+                <SetupDataTableRow>
+                  <SetupDataTableCell colSpan={10} className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}>
+                    {isLoadingHistory
+                      ? "Memuat riwayat peminjaman..."
+                      : "Belum ada riwayat peminjaman yang sesuai."}
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
               ) : null}
-            </tbody>
-          </table>
+            </SetupDataTableBody>
+          </SetupDataTable>
         </div>
+        <Pagination
+          page={paginationMeta.page}
+          lastPage={paginationMeta.lastPage}
+          total={paginationMeta.total}
+          limit={paginationMeta.limit}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   );

@@ -1,0 +1,312 @@
+import {
+  Banknote,
+  BookOpenCheck,
+  Building2,
+  ClipboardCheck,
+  FileCheck2,
+  FileSignature,
+  ListChecks,
+  ReceiptText,
+  ShieldCheck,
+  Tags,
+} from "lucide-react";
+
+import type { ParameterMasterPageConfig } from "@/components/parameter/ParameterMasterPage";
+
+const STATUS_FIELD = {
+  key: "is_active",
+  label: "Status",
+  type: "status",
+  defaultValue: true,
+} satisfies ParameterMasterPageConfig["fields"][number];
+
+const DESCRIPTION_FIELD = {
+  key: "description",
+  label: "Keterangan",
+  type: "textarea",
+  placeholder: "Masukkan keterangan",
+  colSpan: "full",
+} satisfies ParameterMasterPageConfig["fields"][number];
+
+const CODE_NAME_COLUMNS = [
+  {
+    key: "code",
+    label: "Kode",
+    type: "code",
+    widthClassName: "w-[132px]",
+  },
+  {
+    key: "name",
+    label: "Nama",
+    className: "min-w-[220px] font-semibold text-gray-900",
+  },
+] satisfies ParameterMasterPageConfig["columns"];
+
+const resetPeriodOptions = [
+  { label: "Harian", value: "DAILY" },
+  { label: "Bulanan", value: "MONTHLY" },
+  { label: "Tahunan", value: "YEARLY" },
+  { label: "Tidak Reset", value: "NEVER" },
+];
+
+function simpleCodeNameConfig(
+  overrides: Pick<
+    ParameterMasterPageConfig,
+    "title" | "subtitle" | "entityLabel" | "endpoint" | "icon" | "addLabel" | "searchPlaceholder"
+  > & Partial<Pick<ParameterMasterPageConfig, "fields" | "columns" | "tableMinWidthClassName">>,
+): ParameterMasterPageConfig {
+  return {
+    ...overrides,
+    fields:
+      overrides.fields ??
+      [
+        {
+          key: "code",
+          label: "Kode",
+          required: true,
+          placeholder: "Masukkan kode",
+        },
+        {
+          key: "name",
+          label: "Nama",
+          required: true,
+          placeholder: "Masukkan nama",
+        },
+        DESCRIPTION_FIELD,
+        STATUS_FIELD,
+      ],
+    columns:
+      overrides.columns ??
+      [
+        ...CODE_NAME_COLUMNS,
+        {
+          key: "description",
+          label: "Keterangan",
+          className: "min-w-[240px] max-w-[320px] truncate text-gray-600",
+        },
+        {
+          key: "is_active",
+          label: "Status",
+          type: "status",
+          widthClassName: "w-[120px]",
+        },
+      ],
+  };
+}
+
+export const branchParameterConfig: ParameterMasterPageConfig = {
+  title: "Setup Cabang",
+  subtitle: "Kelola master cabang yang dipakai di modul debitur dan legal.",
+  entityLabel: "cabang",
+  endpoint: "/branches",
+  icon: Building2,
+  addLabel: "Tambah Cabang",
+  searchPlaceholder: "Cari kode, nama, alamat, atau telepon...",
+  fields: [
+    { key: "code", label: "Kode Cabang", required: true, placeholder: "Masukkan kode cabang" },
+    { key: "name", label: "Nama Cabang", required: true, placeholder: "Masukkan nama cabang" },
+    { key: "phone", label: "Telepon", placeholder: "Masukkan nomor telepon" },
+    { key: "address", label: "Alamat", type: "textarea", placeholder: "Masukkan alamat", colSpan: "full" },
+    STATUS_FIELD,
+  ],
+  columns: [
+    ...CODE_NAME_COLUMNS,
+    { key: "phone", label: "Telepon", widthClassName: "w-[160px]" },
+    { key: "address", label: "Alamat", className: "min-w-[260px] max-w-[360px] truncate text-gray-600" },
+    { key: "is_active", label: "Status", type: "status", widthClassName: "w-[120px]" },
+  ],
+  tableMinWidthClassName: "min-w-[980px]",
+};
+
+export const financingProductParameterConfig = simpleCodeNameConfig({
+  title: "Setup Produk Pembiayaan",
+  subtitle: "Kelola pilihan produk pembiayaan untuk data debitur.",
+  entityLabel: "produk pembiayaan",
+  endpoint: "/financing-products",
+  icon: Banknote,
+  addLabel: "Tambah Produk",
+  searchPlaceholder: "Cari kode, nama, atau keterangan produk...",
+});
+
+export const collectibilityParameterConfig: ParameterMasterPageConfig = {
+  title: "Setup Kolektibilitas",
+  subtitle: "Kelola master kolektibilitas dan penanda NPF.",
+  entityLabel: "kolektibilitas",
+  endpoint: "/collectibility-levels",
+  icon: ShieldCheck,
+  addLabel: "Tambah Kolektibilitas",
+  searchPlaceholder: "Cari kode, level, nama, atau keterangan...",
+  fields: [
+    { key: "code", label: "Kode", required: true, placeholder: "Masukkan kode" },
+    { key: "level", label: "Level", type: "number", required: true, placeholder: "Masukkan level" },
+    { key: "name", label: "Nama", required: true, placeholder: "Masukkan nama" },
+    { key: "is_npf", label: "Termasuk NPF", type: "boolean", defaultValue: false },
+    DESCRIPTION_FIELD,
+    STATUS_FIELD,
+  ],
+  columns: [
+    { key: "code", label: "Kode", type: "code", widthClassName: "w-[120px]" },
+    { key: "level", label: "Level", type: "number", widthClassName: "w-[88px]" },
+    { key: "name", label: "Nama", className: "min-w-[220px] font-semibold text-gray-900" },
+    { key: "is_npf", label: "NPF", type: "boolean", widthClassName: "w-[100px]" },
+    { key: "description", label: "Keterangan", className: "min-w-[240px] max-w-[320px] truncate text-gray-600" },
+    { key: "is_active", label: "Status", type: "status", widthClassName: "w-[120px]" },
+  ],
+};
+
+export const contractTypeParameterConfig = simpleCodeNameConfig({
+  title: "Setup Jenis Akad",
+  subtitle: "Kelola master jenis akad yang dipakai di kontrak debitur.",
+  entityLabel: "jenis akad",
+  endpoint: "/contract-types",
+  icon: FileSignature,
+  addLabel: "Tambah Akad",
+  searchPlaceholder: "Cari kode, nama, atau keterangan akad...",
+});
+
+export const documentChecklistParameterConfig: ParameterMasterPageConfig = {
+  title: "Setup Checklist Dokumen",
+  subtitle: "Kelola daftar dokumen wajib atau opsional untuk kebutuhan proses.",
+  entityLabel: "checklist dokumen",
+  endpoint: "/document-checklists",
+  icon: ClipboardCheck,
+  addLabel: "Tambah Checklist",
+  searchPlaceholder: "Cari kode, nama, kategori, atau jenis dokumen...",
+  fields: [
+    { key: "code", label: "Kode", required: true, placeholder: "Masukkan kode" },
+    { key: "name", label: "Nama Dokumen", required: true, placeholder: "Masukkan nama dokumen" },
+    { key: "category", label: "Kategori", placeholder: "Masukkan kategori" },
+    { key: "document_type", label: "Jenis Dokumen", placeholder: "Masukkan jenis dokumen" },
+    { key: "is_required", label: "Wajib", type: "boolean", defaultValue: false },
+    DESCRIPTION_FIELD,
+    STATUS_FIELD,
+  ],
+  columns: [
+    { key: "code", label: "Kode", type: "code", widthClassName: "w-[120px]" },
+    { key: "name", label: "Nama Dokumen", className: "min-w-[220px] font-semibold text-gray-900" },
+    { key: "category", label: "Kategori", widthClassName: "w-[160px]" },
+    { key: "document_type", label: "Jenis Dokumen", widthClassName: "w-[180px]" },
+    { key: "is_required", label: "Wajib", type: "boolean", widthClassName: "w-[100px]" },
+    { key: "is_active", label: "Status", type: "status", widthClassName: "w-[120px]" },
+  ],
+  tableMinWidthClassName: "min-w-[1040px]",
+};
+
+export const numberingTemplateParameterConfig: ParameterMasterPageConfig = {
+  title: "Setup Template Penomoran",
+  subtitle: "Kelola pola penomoran dokumen di setiap modul.",
+  entityLabel: "template penomoran",
+  endpoint: "/numbering-templates",
+  icon: ReceiptText,
+  addLabel: "Tambah Template",
+  searchPlaceholder: "Cari kode, modul, jenis dokumen, atau template...",
+  fields: [
+    { key: "code", label: "Kode", required: true, placeholder: "Masukkan kode" },
+    { key: "name", label: "Nama Template", required: true, placeholder: "Masukkan nama template" },
+    { key: "module", label: "Modul", required: true, placeholder: "Masukkan nama modul" },
+    { key: "document_type", label: "Jenis Dokumen", required: true, placeholder: "Masukkan jenis dokumen" },
+    { key: "prefix_template", label: "Prefix Template", required: true, placeholder: "Contoh: SM/{YYYY}/{MM}" },
+    { key: "sequence_padding", label: "Digit Nomor", type: "number", defaultValue: 4 },
+    { key: "reset_period", label: "Reset Periode", type: "select", defaultValue: "MONTHLY", options: resetPeriodOptions },
+    { key: "last_sequence", label: "Nomor Terakhir", type: "number" },
+    { key: "last_period_key", label: "Periode Terakhir", placeholder: "Contoh: 202605" },
+    DESCRIPTION_FIELD,
+    STATUS_FIELD,
+  ],
+  columns: [
+    { key: "code", label: "Kode", type: "code", widthClassName: "w-[120px]" },
+    { key: "name", label: "Nama", className: "min-w-[180px] font-semibold text-gray-900" },
+    { key: "module", label: "Modul", widthClassName: "w-[140px]" },
+    { key: "document_type", label: "Jenis Dokumen", widthClassName: "w-[160px]" },
+    { key: "prefix_template", label: "Prefix", className: "min-w-[220px] max-w-[280px] truncate text-gray-600" },
+    { key: "reset_period", label: "Reset", widthClassName: "w-[120px]" },
+    { key: "is_active", label: "Status", type: "status", widthClassName: "w-[120px]" },
+  ],
+  tableMinWidthClassName: "min-w-[1120px]",
+};
+
+export const depositTypeParameterConfig = simpleCodeNameConfig({
+  title: "Setup Jenis Titipan",
+  subtitle: "Kelola master jenis titipan untuk kebutuhan legal.",
+  entityLabel: "jenis titipan",
+  endpoint: "/deposit-types",
+  icon: Tags,
+  addLabel: "Tambah Titipan",
+  searchPlaceholder: "Cari kode, nama, kategori, atau keterangan titipan...",
+  fields: [
+    { key: "code", label: "Kode", required: true, placeholder: "Masukkan kode" },
+    { key: "name", label: "Nama Titipan", required: true, placeholder: "Masukkan nama titipan" },
+    { key: "category", label: "Kategori", placeholder: "Masukkan kategori" },
+    DESCRIPTION_FIELD,
+    STATUS_FIELD,
+  ],
+  columns: [
+    ...CODE_NAME_COLUMNS,
+    { key: "category", label: "Kategori", widthClassName: "w-[160px]" },
+    { key: "description", label: "Keterangan", className: "min-w-[240px] max-w-[320px] truncate text-gray-600" },
+    { key: "is_active", label: "Status", type: "status", widthClassName: "w-[120px]" },
+  ],
+});
+
+function thirdPartyConfig(
+  category: "NOTARY" | "INSURANCE" | "KJPP",
+  title: string,
+  entityLabel: string,
+  addLabel: string,
+  icon: ParameterMasterPageConfig["icon"],
+): ParameterMasterPageConfig {
+  return {
+    title,
+    subtitle: "Kelola master pihak ketiga yang dipakai di modul legal dan debitur.",
+    entityLabel,
+    endpoint: "/third-parties",
+    icon,
+    addLabel,
+    searchPlaceholder: "Cari kode, nama, kontak, telepon, atau email...",
+    filters: { category },
+    fixedPayload: { category },
+    fields: [
+      { key: "code", label: "Kode", required: true, placeholder: "Masukkan kode" },
+      { key: "name", label: "Nama", required: true, placeholder: "Masukkan nama" },
+      { key: "contact_person", label: "Kontak", placeholder: "Masukkan kontak" },
+      { key: "phone", label: "Telepon", placeholder: "Masukkan telepon" },
+      { key: "email", label: "Email", placeholder: "Masukkan email" },
+      { key: "address", label: "Alamat", type: "textarea", placeholder: "Masukkan alamat", colSpan: "full" },
+      DESCRIPTION_FIELD,
+      STATUS_FIELD,
+    ],
+    columns: [
+      { key: "code", label: "Kode", type: "code", widthClassName: "w-[120px]" },
+      { key: "name", label: "Nama", className: "min-w-[220px] font-semibold text-gray-900" },
+      { key: "contact_person", label: "Kontak", widthClassName: "w-[180px]" },
+      { key: "phone", label: "Telepon", widthClassName: "w-[160px]" },
+      { key: "email", label: "Email", className: "min-w-[220px] max-w-[280px] truncate text-gray-600" },
+      { key: "is_active", label: "Status", type: "status", widthClassName: "w-[120px]" },
+    ],
+    tableMinWidthClassName: "min-w-[1040px]",
+  };
+}
+
+export const notaryParameterConfig = thirdPartyConfig(
+  "NOTARY",
+  "Setup Notaris",
+  "notaris",
+  "Tambah Notaris",
+  BookOpenCheck,
+);
+
+export const insuranceParameterConfig = thirdPartyConfig(
+  "INSURANCE",
+  "Setup Perusahaan Asuransi",
+  "perusahaan asuransi",
+  "Tambah Asuransi",
+  FileCheck2,
+);
+
+export const kjppParameterConfig = thirdPartyConfig(
+  "KJPP",
+  "Setup KJPP",
+  "KJPP",
+  "Tambah KJPP",
+  ListChecks,
+);

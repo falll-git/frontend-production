@@ -32,6 +32,14 @@ type PasswordActionPageProps = {
 
 type PageState = "verifying" | "ready" | "invalid" | "success";
 
+const PASSWORD_REQUIREMENT_MESSAGE =
+  "Password minimal 8 karakter serta wajib mengandung huruf dan angka.";
+const PASSWORD_MAX_LENGTH_MESSAGE = "Password maksimal 128 karakter.";
+
+function isPasswordRequirementValid(value: string): boolean {
+  return value.length >= 8 && /[A-Za-z]/.test(value) && /\d/.test(value);
+}
+
 function buildUsedMessage(mode: PasswordActionMode): string {
   return mode === "set"
     ? "Link aktivasi ini sudah pernah digunakan."
@@ -69,8 +77,16 @@ function humanizeSubmitError(
     return "Konfirmasi password tidak sesuai.";
   }
 
-  if (/at least 8/i.test(message)) {
-    return "Password minimal 8 karakter.";
+  if (/maximal 128|maksimal 128|max.*128/i.test(message)) {
+    return PASSWORD_MAX_LENGTH_MESSAGE;
+  }
+
+  if (
+    /at least 8|minimal 8|huruf dan angka|letter.*number|wajib mengandung/i.test(
+      message,
+    )
+  ) {
+    return PASSWORD_REQUIREMENT_MESSAGE;
   }
 
   if (/already been completed/i.test(message)) {
@@ -167,8 +183,13 @@ export default function PasswordActionPage({
       return;
     }
 
-    if (password.length < 8) {
-      showToast("Password minimal 8 karakter.", "warning");
+    if (password.length > 128) {
+      showToast(PASSWORD_MAX_LENGTH_MESSAGE, "warning");
+      return;
+    }
+
+    if (!isPasswordRequirementValid(password)) {
+      showToast(PASSWORD_REQUIREMENT_MESSAGE, "warning");
       return;
     }
 

@@ -1,5 +1,5 @@
-import { LaporanNpfPreview } from "@/components/dashboard/AdvancedReportSections";
+import { DebtorNpfReportClient } from "@/components/informasi-debitur/DebiturModuleClients";
 
 export default function LaporanNpfPage() {
-  return <LaporanNpfPreview />;
+  return <DebtorNpfReportClient />;
 }

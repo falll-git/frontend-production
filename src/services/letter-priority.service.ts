@@ -1,10 +1,12 @@
 import api from "@/lib/axios";
 import {
-  extractLastPage,
   extractList,
+  extractPaginationMeta,
   extractRecord,
   readString,
 } from "@/services/api.utils";
+import { MAX_TABLE_PAGE_SIZE, SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import type { PageQuery, PaginatedResult } from "@/types/api.types";
 import type {
   LetterPriority,
   LetterPriorityPayload,
@@ -22,27 +24,46 @@ function mapLetterPriority(record: Record<string, unknown>): LetterPriority | nu
   };
 }
 
-async function getLetterPrioritiesPage(page: number): Promise<{
-  items: LetterPriority[];
-  lastPage: number;
-}> {
-  const res = await api.get("/letter-priorities", { params: { page } });
+async function getLetterPrioritiesPage({
+  page = 1,
+  limit = SETUP_TABLE_PAGE_SIZE,
+  search,
+}: PageQuery = {}): Promise<PaginatedResult<LetterPriority>> {
+  const res = await api.get("/letter-priorities", {
+    params: {
+      page,
+      limit,
+      ...(search ? { search } : {}),
+    },
+  });
+  const items = extractList(res.data)
+    .map((record) => mapLetterPriority(record))
+    .filter((item): item is LetterPriority => item !== null);
 
   return {
-    items: extractList(res.data)
-      .map((record) => mapLetterPriority(record))
-      .filter((item): item is LetterPriority => item !== null),
-    lastPage: extractLastPage(res.data),
+    items,
+    meta: extractPaginationMeta(res.data, {
+      page,
+      limit,
+      total: items.length,
+    }),
   };
 }
 
 export const letterPriorityService = {
+  getPage: getLetterPrioritiesPage,
   getAll: async (): Promise<LetterPriority[]> => {
-    const first = await getLetterPrioritiesPage(1);
+    const first = await getLetterPrioritiesPage({
+      page: 1,
+      limit: MAX_TABLE_PAGE_SIZE,
+    });
     const all = [...first.items];
 
-    for (let page = 2; page <= first.lastPage; page += 1) {
-      const next = await getLetterPrioritiesPage(page);
+    for (let page = 2; page <= first.meta.lastPage; page += 1) {
+      const next = await getLetterPrioritiesPage({
+        page,
+        limit: MAX_TABLE_PAGE_SIZE,
+      });
       all.push(...next.items);
     }
 

@@ -1,5 +1,8 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+"use client";
+
+import ParameterMasterPage from "@/components/parameter/ParameterMasterPage";
+import { branchParameterConfig } from "@/components/parameter/parameterMasterConfigs";
 
 export default function SetupCabangPage() {
-  return <ModuleSkeletonPage title="Setup Cabang" />;
+  return <ParameterMasterPage config={branchParameterConfig} />;
 }

@@ -1,5 +1,5 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+import { LegalPrintClient } from "@/components/legal/LegalModuleClients";
 
 export default function FormulirAsuransiPage() {
-  return <ModuleSkeletonPage title="Formulir Asuransi" />;
+  return <LegalPrintClient documentType="FORMULIR_ASURANSI" title="Formulir Asuransi" />;
 }

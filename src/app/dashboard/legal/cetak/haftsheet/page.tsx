@@ -1,5 +1,5 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+import { LegalPrintClient } from "@/components/legal/LegalModuleClients";
 
 export default function HaftsheetPage() {
-  return <ModuleSkeletonPage title="Haftsheet" />;
+  return <LegalPrintClient documentType="HAFTSHEET" title="Haftsheet" />;
 }

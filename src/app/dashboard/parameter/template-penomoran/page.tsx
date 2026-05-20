@@ -1,5 +1,8 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+"use client";
+
+import ParameterMasterPage from "@/components/parameter/ParameterMasterPage";
+import { numberingTemplateParameterConfig } from "@/components/parameter/parameterMasterConfigs";
 
 export default function SetupTemplatePenomoranPage() {
-  return <ModuleSkeletonPage title="Setup Template Penomoran" />;
+  return <ParameterMasterPage config={numberingTemplateParameterConfig} />;
 }

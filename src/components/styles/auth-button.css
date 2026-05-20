@@ -1,0 +1,49 @@
+.button {
+  --button-main: #157ec3;
+  --button-dark: #0d5a8f;
+  --button-glow: rgba(21, 126, 195, 0.34);
+  cursor: pointer;
+  width: min(100%, 260px);
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-inline: auto;
+  padding: 0;
+  color: #ffffff;
+  background: var(--button-main);
+  border: 2px solid var(--button-dark);
+  border-radius: 0.75rem;
+  box-shadow: 0 8px 0 var(--button-dark);
+  filter: drop-shadow(0 15px 20px var(--button-glow));
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 1.3px;
+  line-height: 1;
+  text-decoration: none;
+  text-transform: uppercase;
+  transform: skew(-10deg);
+  transition: all 0.1s ease;
+  user-select: none;
+}
+
+.button:active {
+  letter-spacing: 0;
+  transform: skew(-10deg) translateY(8px);
+  box-shadow: 0 0 0 var(--button-glow);
+  filter: drop-shadow(0 6px 10px var(--button-glow));
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+  filter: none;
+}
+
+.button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 8px 0 var(--button-dark),
+    0 0 0 4px rgba(21, 126, 195, 0.18);
+}

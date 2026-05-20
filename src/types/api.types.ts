@@ -8,8 +8,27 @@ export interface PaginatedResponse<T> {
   success: boolean;
   total: number;
   page: number;
+  limit: number;
   lastPage: number;
   data: T[];
+}
+
+export interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  lastPage: number;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  meta: PaginationMeta;
+}
+
+export interface PageQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
 }
 
 export function getErrorMessage(error: unknown): string {

@@ -46,40 +46,68 @@ export function parseDateString(value: string): Date | undefined {
   return undefined;
 }
 
+function parseAnyDate(value: string | null | undefined): Date | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+
+  const parsedLocalDate = parseDateString(trimmed);
+  if (parsedLocalDate) return parsedLocalDate;
+
+  const parsedDateTime = new Date(trimmed);
+  return Number.isNaN(parsedDateTime.getTime()) ? undefined : parsedDateTime;
+}
+
+function formatDateValue(
+  value: string | null | undefined,
+  options: Intl.DateTimeFormatOptions,
+  fallback = "-",
+): string {
+  const parsedDate = parseAnyDate(value);
+  if (!parsedDate) return fallback;
+  return new Intl.DateTimeFormat("id-ID", options).format(parsedDate);
+}
+
 export function formatDateDisplay(
   value: string | null | undefined,
   fallback = "-",
 ): string {
-  if (!value?.trim()) return fallback;
-  const date = parseDateString(value);
-  if (!date) return value;
+  const trimmed = value?.trim();
+  if (!trimmed) return fallback;
 
-  return date.toLocaleDateString("id-ID", {
+  const formatted = formatDateValue(trimmed, {
     day: "2-digit",
     month: "short",
+    year: "numeric",
+  }, "");
+
+  return formatted || trimmed;
+}
+
+export function formatDate(dateString: string | null | undefined): string {
+  return formatDateValue(dateString, {
+    day: "2-digit",
+    month: "long",
     year: "numeric",
   });
 }
 
-export function formatDate(dateString: string | null | undefined): string {
-  if (!dateString) return '-';
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '-';
-    return date.toLocaleDateString('id-ID', {
-      day: '2-digit', month: 'long', year: 'numeric'
-    });
-  } catch { return '-'; }
+export function formatDateTime(dateString: string | null | undefined): string {
+  return formatDateValue(dateString, {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-export function formatDateTime(dateString: string | null | undefined): string {
-  if (!dateString) return '-';
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '-';
-    return date.toLocaleDateString('id-ID', {
-      day: '2-digit', month: 'long', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
-  } catch { return '-'; }
+export function formatDateOnly(
+  value: string | null | undefined,
+  fallback = "-",
+): string {
+  return formatDateValue(value, {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }, fallback);
 }

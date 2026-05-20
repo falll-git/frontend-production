@@ -1,5 +1,5 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+import { LegalPrintClient } from "@/components/legal/LegalModuleClients";
 
 export default function KeteranganLunasPage() {
-  return <ModuleSkeletonPage title="Surat Keterangan Lunas" />;
+  return <LegalPrintClient documentType="SKL" title="Surat Keterangan Lunas" />;
 }

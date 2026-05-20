@@ -4,6 +4,7 @@ import {
   toPreviewableFileUrl,
 } from "@/lib/utils/file";
 import {
+  extractPaginationMeta,
   extractList,
   extractRecord,
   readNumber,
@@ -11,6 +12,13 @@ import {
   readString,
   toMultipartFormData,
 } from "@/services/api.utils";
+import { MAX_TABLE_PAGE_SIZE, OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import { mapWatermarkFileMeta } from "@/services/watermark.service";
+import {
+  readPhysicalStorage,
+  readPhysicalStorageLabel,
+} from "@/services/persuratan-storage.mapper";
+import type { PageQuery, PaginatedResult } from "@/types/api.types";
 import type {
   DispositionHolderSummary,
   Memorandum,
@@ -27,6 +35,47 @@ function asRecord(value: unknown): UnknownRecord | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as UnknownRecord)
     : null;
+}
+
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean);
+}
+
+function readUserIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      const record = asRecord(item);
+      return record ? readString(record, "id") : null;
+    })
+    .filter((item): item is string => Boolean(item));
+}
+
+function readTargetManagerIds(
+  record: UnknownRecord,
+  targetDivisionRecords: UnknownRecord[],
+): string[] {
+  const managerIds = [
+    ...readStringArray(record.target_manager_ids),
+    ...readUserIds(record.target_managers),
+  ];
+
+  for (const target of targetDivisionRecords) {
+    managerIds.push(
+      ...readStringArray(target.manager_ids),
+      ...readUserIds(target.managers),
+    );
+
+    const singleManagerId = readString(target, "manager_id", "managerId");
+    if (singleManagerId) managerIds.push(singleManagerId);
+  }
+
+  return [...new Set(managerIds)];
 }
 
 function readReceivers(record: UnknownRecord): string[] {
@@ -165,7 +214,7 @@ function readDispositionHistory(record: UnknownRecord): MemorandumDisposisi[] {
             "createdAt",
             "start_date",
             "startDate",
-          ) ?? new Date().toISOString(),
+          ) ?? "",
         disposed_at:
           readNullableString(normalized, "disposed_at", "created_at", "createdAt") ??
           null,
@@ -235,7 +284,7 @@ function mapAssignableUserRecord(record: UnknownRecord): SuratUser | null {
 
   return {
     id,
-    nama: roleName ? `${name} ${roleName}` : name,
+    nama: name,
     divisi: divisionName,
     username: readNullableString(record, "username"),
     email: readNullableString(record, "email") ?? null,
@@ -265,6 +314,7 @@ export function mapMemorandumRecord(
   );
   const legacyDivisionRecord = asRecord(record.division);
   const creatorRecord = asRecord(record.creator);
+  const storage = readPhysicalStorage(record);
   const fileValue = readNullableString(record, "file", "file_url", "fileUrl");
 
   if (!memoNumber || !regarding || !memoDate) return null;
@@ -297,6 +347,12 @@ export function mapMemorandumRecord(
           typeof item === "string" && item.trim().length > 0,
       )
     : [];
+  const targetDivisionRecords = Array.isArray(record.target_divisions)
+    ? record.target_divisions.filter(
+        (item): item is UnknownRecord =>
+          typeof item === "object" && item !== null && !Array.isArray(item),
+      )
+    : [];
 
   return {
     id,
@@ -323,6 +379,11 @@ export function mapMemorandumRecord(
     penerima: readReceivers(record),
     fileName: fallbackFileName,
     fileUrl: previewableFileUrl,
+    watermark: mapWatermarkFileMeta(record.watermark),
+    storageId:
+      readString(record, "storage_id", "storageId") ?? storage?.id ?? undefined,
+    storage,
+    physicalStorageLabel: readPhysicalStorageLabel(record),
     tenggatWaktu:
       readNullableString(record, "due_date", "dueDate") ??
       latestDispositionWithDueDate?.due_date ??
@@ -348,6 +409,15 @@ export function mapMemorandumRecord(
       targetDivisionIds.length > 0 ? targetDivisionIds : undefined,
     targetDivisionNames:
       targetDivisionNames.length > 0 ? targetDivisionNames : undefined,
+    targetManagerIds: readTargetManagerIds(record, targetDivisionRecords),
+    createdBy:
+      readString(record, "created_by", "createdBy") ??
+      (creatorRecord ? readString(creatorRecord, "id") : null) ??
+      undefined,
+    creatorDivisionId:
+      readString(record, "creator_division_id", "creatorDivisionId") ??
+      (creatorRecord ? readString(creatorRecord, "division_id", "divisionId") : null) ??
+      undefined,
     disposisi_history: dispositions,
     current_holders: currentHolders,
     current_holder_names:
@@ -363,12 +433,50 @@ export function mapMemorandumRecord(
   };
 }
 
+async function getMemorandumsPage({
+  page = 1,
+  limit = OPERATIONAL_TABLE_PAGE_SIZE,
+  search,
+}: PageQuery = {}): Promise<PaginatedResult<Memorandum>> {
+  const res = await api.get("/memorandums", {
+    params: {
+      page,
+      limit,
+      ...(search ? { search } : {}),
+    },
+  });
+  const items = extractList(res.data)
+    .map((record, index) => mapMemorandumRecord(record, index))
+    .filter((item): item is Memorandum => item !== null);
+
+  return {
+    items,
+    meta: extractPaginationMeta(res.data, {
+      page,
+      limit,
+      total: items.length,
+    }),
+  };
+}
+
 export const memorandumService = {
+  getPage: getMemorandumsPage,
   getAll: async (): Promise<Memorandum[]> => {
-    const res = await api.get("/memorandums");
-    return extractList(res.data)
-      .map((record, index) => mapMemorandumRecord(record, index))
-      .filter((item): item is Memorandum => item !== null);
+    const first = await getMemorandumsPage({
+      page: 1,
+      limit: MAX_TABLE_PAGE_SIZE,
+    });
+    const all = [...first.items];
+
+    for (let page = 2; page <= first.meta.lastPage; page += 1) {
+      const next = await getMemorandumsPage({
+        page,
+        limit: MAX_TABLE_PAGE_SIZE,
+      });
+      all.push(...next.items);
+    }
+
+    return all;
   },
   createWithDisposition: async (
     data: MemorandumPayload,
@@ -384,6 +492,7 @@ export const memorandumService = {
       Pick<
         MemorandumPayload,
         | "origin_division_id"
+        | "storage_id"
         | "regarding"
         | "memo_date"
         | "received_date"

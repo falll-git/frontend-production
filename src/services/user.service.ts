@@ -1,11 +1,13 @@
 import api from "@/lib/axios";
 import {
-  extractLastPage,
   extractList,
+  extractPaginationMeta,
   extractRecord,
   readBoolean,
   readString,
 } from "@/services/api.utils";
+import { MAX_TABLE_PAGE_SIZE, SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import type { PageQuery, PaginatedResult } from "@/types/api.types";
 import type {
   InvitationRecord,
   UserMutationResult,
@@ -26,7 +28,7 @@ function mapUser(record: UnknownRecord): UserRecord | null {
   const divisionRecord = asRecord(record.division);
   const id = readString(record, "id");
   const username = readString(record, "username");
-  const email = readString(record, "email");
+  const email = readString(record, "email") ?? "";
   const name =
     readString(record, "name", "full_name", "fullName") ?? username ?? null;
   const roleId =
@@ -36,7 +38,7 @@ function mapUser(record: UnknownRecord): UserRecord | null {
     readString(record, "division_id", "divisionId") ??
     (divisionRecord ? readString(divisionRecord, "id") : null);
 
-  if (!id || !username || !email || !name || !roleId || !divisionId) {
+  if (!id || !username || !name || !roleId || !divisionId) {
     return null;
   }
 
@@ -47,7 +49,20 @@ function mapUser(record: UnknownRecord): UserRecord | null {
     name,
     role_id: roleId,
     division_id: divisionId,
-    is_restrict: readBoolean(record, "is_restrict", "isRestrict"),
+    can_access_restricted_documents: readBoolean(
+      record,
+      "can_access_restricted_documents",
+      "canAccessRestrictedDocuments",
+      "is_restrict",
+      "isRestrict",
+    ),
+    is_restrict: readBoolean(
+      record,
+      "can_access_restricted_documents",
+      "canAccessRestrictedDocuments",
+      "is_restrict",
+      "isRestrict",
+    ),
     is_active:
       !("is_active" in record || "isActive" in record) ||
       readBoolean(record, "is_active", "isActive"),
@@ -187,27 +202,40 @@ function mapUserMutationResult(record: UnknownRecord | null): UserMutationResult
   };
 }
 
-async function getUsersPage(page: number): Promise<{
-  items: UserRecord[];
-  lastPage: number;
-}> {
-  const res = await api.get("/users", { params: { page } });
+async function getUsersPage({
+  page = 1,
+  limit = SETUP_TABLE_PAGE_SIZE,
+  search,
+}: PageQuery = {}): Promise<PaginatedResult<UserRecord>> {
+  const res = await api.get("/users", {
+    params: {
+      page,
+      limit,
+      ...(search ? { search } : {}),
+    },
+  });
+  const items = extractList(res.data)
+    .map((record) => mapUser(record))
+    .filter((item): item is UserRecord => item !== null);
 
   return {
-    items: extractList(res.data)
-      .map((record) => mapUser(record))
-      .filter((item): item is UserRecord => item !== null),
-    lastPage: extractLastPage(res.data),
+    items,
+    meta: extractPaginationMeta(res.data, {
+      page,
+      limit,
+      total: items.length,
+    }),
   };
 }
 
 export const userService = {
+  getPage: getUsersPage,
   getAll: async (): Promise<UserRecord[]> => {
-    const first = await getUsersPage(1);
+    const first = await getUsersPage({ page: 1, limit: MAX_TABLE_PAGE_SIZE });
     const all = [...first.items];
 
-    for (let page = 2; page <= first.lastPage; page += 1) {
-      const next = await getUsersPage(page);
+    for (let page = 2; page <= first.meta.lastPage; page += 1) {
+      const next = await getUsersPage({ page, limit: MAX_TABLE_PAGE_SIZE });
       all.push(...next.items);
     }
 

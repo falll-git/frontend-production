@@ -1,5 +1,15 @@
 "use client";
 
+import {
+  SetupDataTable,
+  SetupDataTableHead,
+  SetupDataTableBody,
+  SetupDataTableRow,
+  SetupDataTableHeaderCell,
+  SetupDataTableCell,
+  SetupDataTableColGroup,
+  SetupDataTableCol
+} from "@/components/ui/SetupDataTable";
 import { useMemo, useState } from "react";
 import {
   BookOpen,
@@ -11,19 +21,89 @@ import {
   RotateCcw,
   X,
 } from "lucide-react";
-import DatePickerInput from "@/components/ui/DatePickerInput";
+import BasicDateInput from "@/components/ui/BasicDateInput";
 import { useAppToast } from "@/components/ui/AppToastProvider";
+import DashboardModal from "@/components/ui/DashboardModal";
 import FeatureHeader from "@/components/ui/FeatureHeader";
+import Pagination from "@/components/ui/Pagination";
+import SetupPrimaryButton from "@/components/ui/SetupPrimaryButton";
+import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
+import SetupTextarea from "@/components/ui/SetupTextarea";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
-import { formatDateDisplay } from "@/lib/utils/date";
+import { useClientPagination } from "@/hooks/useClientPagination";
+import { OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import { formatDateOnly } from "@/lib/utils/date";
 import { useArsipDigitalWorkflow } from "@/components/arsip-digital/ArsipDigitalWorkflowProvider";
+import {
+  SETUP_PAGE_MODERN_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
+  SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_TABLE_CLASS,
+  SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
+  SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+  SETUP_PAGE_TABLE_CARD_CLASS,
+} from "@/components/ui/setupPageStyles";
 
 type ActionKind = "approve" | "reject" | "handover" | "return";
+
+const ACCEPT_PEMINJAMAN_TABLE_COLUMN_WIDTHS = [
+  "52px",
+  "132px",
+  "160px",
+  null,
+  "108px",
+  "112px",
+  "112px",
+  null,
+  "84px",
+] as const;
+
+const INLINE_ACTION_BUTTON_CLASS =
+  "inline-flex items-center justify-center p-1 text-gray-400 transition-colors focus:outline-none";
 
 const formatPersonName = (value: string) =>
   value
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const getTahapLabel = (
+  statusKey: "PENDING" | "APPROVED" | "HANDED_OVER" | "BORROWED",
+) => {
+  if (statusKey === "PENDING") return "Persetujuan";
+  if (statusKey === "APPROVED") return "Penyerahan";
+  return "Pengembalian";
+};
+
+type SummaryFieldProps = {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+  contentClassName?: string;
+};
+
+function SummaryField({
+  label,
+  children,
+  className = "",
+  contentClassName = "",
+}: SummaryFieldProps) {
+  return (
+    <div className={className}>
+      <label className="mb-2 block text-sm font-medium text-gray-700">
+        {label}
+      </label>
+      <div
+        className={`min-h-[48px] rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800 ${contentClassName}`.trim()}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function AcceptPeminjamanPage() {
   const { showToast } = useAppToast();
@@ -71,7 +151,7 @@ export default function AcceptPeminjamanPage() {
       )
       .map((item) => ({
         id: item.id,
-        kode: item.document?.kode ?? `DOC-${item.dokumenId}`,
+        kode: item.document?.kode ?? "-",
         namaDokumen: item.document?.namaDokumen ?? item.detail,
         pemohon: item.borrower?.username ?? item.borrower?.name ?? item.peminjam,
         tglPeminjaman: item.tglPinjam,
@@ -192,6 +272,11 @@ export default function AcceptPeminjamanPage() {
   const borrowedCount = data.filter((item) =>
     ["HANDED_OVER", "BORROWED"].includes(item.statusKey),
   ).length;
+  const {
+    paginatedItems: paginatedData,
+    meta: paginationMeta,
+    setPage,
+  } = useClientPagination(data, OPERATIONAL_TABLE_PAGE_SIZE);
 
   const requiresDate = actionType === "handover" || actionType === "return";
   const requiresNote = true;
@@ -216,126 +301,124 @@ export default function AcceptPeminjamanPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Menunggu Persetujuan
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-2">{pendingCount}</p>
+            <p className="mt-1 text-2xl font-semibold text-gray-900">{pendingCount}</p>
           </div>
-          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
-            <FileBarChart2 className="w-7 h-7" />
-          </div>
+          <FileBarChart2 className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Siap Diserahkan
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-2">{approvedCount}</p>
+            <p className="mt-1 text-2xl font-semibold text-gray-900">{approvedCount}</p>
           </div>
-          <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-amber-600">
-            <Handshake className="w-7 h-7" />
-          </div>
+          <Handshake className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Sedang Dipinjam
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-2">{borrowedCount}</p>
+            <p className="mt-1 text-2xl font-semibold text-gray-900">{borrowedCount}</p>
           </div>
-          <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600">
-            <BookOpen className="w-7 h-7" />
-          </div>
+          <BookOpen className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
       </div>
 
       {data.length > 0 ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">
+            <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+              <SetupDataTableColGroup>
+                {ACCEPT_PEMINJAMAN_TABLE_COLUMN_WIDTHS.map((width, index) => (
+                  <SetupDataTableCol
+                    key={`${index}-${width ?? "flex"}`}
+                    style={width ? { width } : undefined}
+                  />
+                ))}
+              </SetupDataTableColGroup>
+              <SetupDataTableHead className="ltr:text-left rtl:text-right">
+                <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
                     No
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                     Tahap
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                     Kode
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                     Nama Dokumen
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                     Peminjam
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                     Tgl Pinjam
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                     Tgl Kembali
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-1/4">
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                     Alasan
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                     Aksi
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {data.map((item, idx) => (
-                  <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 text-sm text-gray-500">{idx + 1}</td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                          item.statusKey === "PENDING"
-                            ? "bg-blue-50 text-blue-700 border-blue-200"
-                            : item.statusKey === "APPROVED"
-                              ? "bg-amber-50 text-amber-700 border-amber-200"
-                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        }`}
-                      >
-                        {item.statusKey === "PENDING"
-                          ? "Persetujuan"
-                          : item.statusKey === "APPROVED"
-                            ? "Penyerahan"
-                            : "Pengembalian"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-primary-600 bg-primary-50 px-2 py-1 rounded border border-primary-100 text-xs font-medium tabular-nums">
+                  </SetupDataTableHeaderCell>
+                </SetupDataTableRow>
+              </SetupDataTableHead>
+              <SetupDataTableBody className="divide-y divide-gray-100">
+                {paginatedData.map((item, idx) => (
+                  <SetupDataTableRow key={item.id} className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} hover:bg-gray-50`}>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                      {(paginationMeta.page - 1) * paginationMeta.limit + idx + 1}
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                      <SetupStatusBadge status={getTahapLabel(item.statusKey)} />
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                      <span className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
                         {item.kode}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-800">
-                      {item.namaDokumen}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-800`}>
+                      <span className="block truncate" title={item.namaDokumen}>
+                        {item.namaDokumen}
+                      </span>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}>
+                      <span className="block truncate" title={formatPersonName(item.pemohon)}>
                         {formatPersonName(item.pemohon)}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {formatDateDisplay(item.tglPeminjaman)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {formatDateDisplay(item.tglPengembalian)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 truncate max-w-xs italic">
-                      &quot;{item.alasan}&quot;
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                      <span className="block truncate tabular-nums" title={formatDateOnly(item.tglPeminjaman)}>
+                        {formatDateOnly(item.tglPeminjaman)}
+                      </span>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                      <span className="block truncate tabular-nums" title={formatDateOnly(item.tglPengembalian)}>
+                        {formatDateOnly(item.tglPengembalian)}
+                      </span>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                      <span className="block truncate" title={item.alasan}>
+                        {item.alasan}
+                      </span>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      <div className="flex items-center justify-center gap-3">
                         {item.statusKey === "PENDING" &&
                         (canApprovePeminjaman || canRejectPeminjaman) ? (
                           <>
                             {canApprovePeminjaman ? (
                               <button
                                 onClick={() => handleAction(item, "approve")}
-                                className="p-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
+                                className={`${INLINE_ACTION_BUTTON_CLASS} hover:text-emerald-600`}
                                 title="Setujui"
                               >
                                 <Check className="w-4 h-4" />
@@ -344,7 +427,7 @@ export default function AcceptPeminjamanPage() {
                             {canRejectPeminjaman ? (
                               <button
                                 onClick={() => handleAction(item, "reject")}
-                                className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                                className={`${INLINE_ACTION_BUTTON_CLASS} hover:text-rose-600`}
                                 title="Tolak"
                               >
                                 <X className="w-4 h-4" />
@@ -357,7 +440,7 @@ export default function AcceptPeminjamanPage() {
                         item.statusKey === "APPROVED" ? (
                           <button
                             onClick={() => handleAction(item, "handover")}
-                            className="p-2 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors"
+                            className={`${INLINE_ACTION_BUTTON_CLASS} hover:text-amber-600`}
                             title="Serahkan Dokumen"
                           >
                             <Handshake className="w-4 h-4" />
@@ -368,24 +451,38 @@ export default function AcceptPeminjamanPage() {
                         ["HANDED_OVER", "BORROWED"].includes(item.statusKey) ? (
                           <button
                             onClick={() => handleAction(item, "return")}
-                            className="p-2 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
+                            className={`${INLINE_ACTION_BUTTON_CLASS} hover:text-emerald-600`}
                             title="Catat Pengembalian"
                           >
                             <RotateCcw className="w-4 h-4" />
                           </button>
                         ) : null}
                       </div>
-                    </td>
-                  </tr>
+                    </SetupDataTableCell>
+                  </SetupDataTableRow>
                 ))}
-              </tbody>
-            </table>
+                {data.length === 0 ? (
+                  <SetupDataTableRow>
+                    <SetupDataTableCell colSpan={9} className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}>
+                      Tidak ada proses peminjaman yang sedang menunggu tindakan.
+                    </SetupDataTableCell>
+                  </SetupDataTableRow>
+                ) : null}
+              </SetupDataTableBody>
+            </SetupDataTable>
           </div>
+          <Pagination
+            page={paginationMeta.page}
+            lastPage={paginationMeta.lastPage}
+            total={paginationMeta.total}
+            limit={paginationMeta.limit}
+            onPageChange={setPage}
+          />
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-10 flex flex-col items-center justify-center text-center">
-          <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-            <CheckCircle2 className="w-10 h-10 text-gray-300" />
+        <div className="rounded-lg border border-gray-200 bg-white p-10 text-center shadow-sm">
+          <div className="mb-4 flex justify-center">
+            <CheckCircle2 className="h-10 w-10 text-gray-300" />
           </div>
           <h3 className="text-lg font-bold text-gray-900">Semua Beres</h3>
           <p className="text-gray-500 mt-2">
@@ -394,142 +491,118 @@ export default function AcceptPeminjamanPage() {
         </div>
       )}
 
-      {showModal && selectedItem && (
-        <div
-          data-dashboard-overlay="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in"
-          onClick={closeModal}
-        >
-          <div
-            className="bg-white rounded-lg shadow-sm w-full max-w-lg overflow-hidden"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-              <div className="flex items-start gap-4">
-                <div className="text-emerald-500">
-                  {actionType === "reject" ? (
-                    <X className="h-6 w-6 text-red-500" />
-                  ) : actionType === "handover" ? (
-                    <Handshake className="h-6 w-6 text-amber-500" />
-                  ) : actionType === "return" ? (
-                    <RotateCcw className="h-6 w-6 text-emerald-500" />
-                  ) : (
-                    <CheckCircle2 className="h-6 w-6" />
-                  )}
-                </div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  {actionType === "approve"
-                    ? "Setujui Peminjaman"
-                    : actionType === "reject"
-                      ? "Tolak Peminjaman"
-                      : actionType === "handover"
-                        ? "Serah Terima Dokumen"
-                        : "Catat Pengembalian"}
-                </h2>
-              </div>
+      {showModal && selectedItem ? (
+        <DashboardModal
+          isOpen={showModal}
+          onClose={closeModal}
+          title={
+            actionType === "approve"
+              ? "Setujui Peminjaman"
+              : actionType === "reject"
+                ? "Tolak Peminjaman"
+                : actionType === "handover"
+                  ? "Serah Terima Dokumen"
+                  : "Catat Pengembalian"
+          }
+          description="Tinjau data peminjaman dan lanjutkan prosesnya."
+          maxWidth="3xl"
+          bodyClassName="space-y-6 p-6"
+          footerClassName="flex flex-col justify-end gap-3 border-t border-gray-100 bg-gray-50 p-6 sm:flex-row"
+          footer={
+            <>
               <button
+                type="button"
                 onClick={closeModal}
-                className="p-2 hover:bg-white/60 rounded-full transition-colors text-gray-500"
+                className="uiverse-modal-button uiverse-modal-button--neutral"
               >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="bg-gray-50 rounded-lg p-5 border border-gray-100 space-y-4">
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-500 uppercase font-semibold">
-                    Kode
-                  </label>
-                  <p className="text-sm font-bold text-primary-600 tabular-nums">
-                    {selectedItem.kode}
-                  </p>
-                </div>
-                <div className="w-full h-px bg-gray-200" />
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-500 uppercase font-semibold">
-                    Dokumen
-                  </label>
-                  <p className="font-medium text-gray-800">
-                    {selectedItem.namaDokumen}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-gray-500 uppercase font-semibold">
-                    Peminjam
-                  </label>
-                  <p className="font-medium text-gray-800">
-                    {formatPersonName(selectedItem.pemohon)}
-                  </p>
-                </div>
-              </div>
-
-              {requiresDate ? (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    {actionType === "handover" ? "Tanggal Penyerahan" : "Tanggal Pengembalian"}{" "}
-                    <span className="text-red-500">*</span>
-                  </label>
-                  <DatePickerInput
-                    value={tanggalAksi}
-                    onChange={setTanggalAksi}
-                  />
-                </div>
-              ) : null}
-
-              {requiresNote ? (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Catatan <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    value={catatanAksi}
-                    onChange={(event) => setCatatanAksi(event.target.value)}
-                    placeholder="Tambahkan catatan singkat..."
-                    className="textarea resize-none"
-                    rows={3}
-                  />
-                </div>
-              ) : null}
-            </div>
-
-            <div className="p-6 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-end gap-3">
-              <button onClick={closeModal} className="btn btn-outline">
                 Batal
               </button>
-              <button
+              <SetupPrimaryButton
                 onClick={() => void handleSubmit()}
                 disabled={
                   (requiresNote && !catatanAksi.trim()) ||
                   (requiresDate && !tanggalAksi) ||
                   isLoading
                 }
-                className="btn btn-primary"
+                className={actionType === "reject" ? "uiverse-modal-button--danger" : ""}
+                icon={
+                  isLoading ? (
+                    <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  ) : actionType === "handover" ? (
+                    <Handshake className="h-4 w-4" aria-hidden="true" />
+                  ) : actionType === "return" ? (
+                    <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                  ) : actionType === "reject" ? (
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <Check className="h-4 w-4" aria-hidden="true" />
+                  )
+                }
               >
-                {isLoading ? (
-                  <span className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Memproses...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    {actionType === "handover" ? (
-                      <Handshake className="w-4 h-4" />
-                    ) : actionType === "return" ? (
-                      <RotateCcw className="w-4 h-4" />
-                    ) : actionType === "reject" ? (
-                      <X className="w-4 h-4" />
-                    ) : (
-                      <Check className="w-4 h-4" />
-                    )}
-                    {confirmLabel}
-                  </span>
-                )}
-              </button>
+                {isLoading ? "Memproses..." : confirmLabel}
+              </SetupPrimaryButton>
+            </>
+          }
+        >
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <SummaryField label="Kode Dokumen">
+              <span className="inline-flex rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
+                {selectedItem.kode}
+              </span>
+            </SummaryField>
+            <SummaryField label="Nama Dokumen" contentClassName="font-semibold text-gray-900">
+              {selectedItem.namaDokumen}
+            </SummaryField>
+            <SummaryField label="Peminjam" contentClassName="font-semibold text-gray-900">
+              {formatPersonName(selectedItem.pemohon)}
+            </SummaryField>
+            <SummaryField label="Tahap">
+              <SetupStatusBadge status={getTahapLabel(selectedItem.statusKey)} />
+            </SummaryField>
+            <SummaryField label="Tanggal Pinjam" contentClassName="font-medium text-gray-900">
+              {formatDateOnly(selectedItem.tglPeminjaman)}
+            </SummaryField>
+            <SummaryField label="Tanggal Kembali" contentClassName="font-medium text-gray-900">
+              {formatDateOnly(selectedItem.tglPengembalian)}
+            </SummaryField>
+            <SummaryField
+              label="Alasan Peminjaman"
+              className="md:col-span-2"
+              contentClassName="leading-7 text-gray-700"
+            >
+              {selectedItem.alasan}
+            </SummaryField>
+          </section>
+
+          {requiresDate ? (
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                {actionType === "handover" ? "Tanggal Penyerahan" : "Tanggal Pengembalian"}{" "}
+                <span className="text-red-500">*</span>
+              </label>
+              <BasicDateInput
+                value={tanggalAksi}
+                onChange={setTanggalAksi}
+              />
             </div>
-          </div>
-        </div>
-      )}
+          ) : null}
+
+          {requiresNote ? (
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Catatan <span className="text-red-500">*</span>
+              </label>
+              <SetupTextarea
+                value={catatanAksi}
+                onChange={(event) => setCatatanAksi(event.target.value)}
+                placeholder="Tambahkan catatan singkat..."
+                className="resize-none"
+                rows={4}
+              />
+            </div>
+          ) : null}
+        </DashboardModal>
+      ) : null}
     </div>
   );
 }

@@ -1,0 +1,32 @@
+.nav-notif-btn {
+  width: 40px;
+  height: 40px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgb(44, 44, 44);
+  border-radius: 50%;
+  cursor: pointer;
+  transition-duration: 0.3s;
+  box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.13);
+  border: none;
+}
+
+.nav-notif-bell {
+  width: 18px;
+  height: 18px;
+  color: white;
+}
+
+.nav-notif-btn:hover {
+  background-color: rgb(56, 56, 56);
+}
+
+.nav-notif-btn:hover .nav-notif-bell {
+  opacity: 0.9;
+}
+
+.nav-notif-btn:active {
+  transform: scale(0.95);
+}

@@ -1,0 +1,66 @@
+.welcome-banner {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 4px 20px rgba(21, 126, 195, 0.25);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.welcome-banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      900px circle at 18% 10%,
+      rgba(255, 255, 255, 0.18) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      1100px circle at 92% 115%,
+      rgba(255, 255, 255, 0.1) 0%,
+      transparent 60%
+    );
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.welcome-banner::before {
+  content: "";
+  position: absolute;
+  inset: -60%;
+  background: linear-gradient(
+    110deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.28) 38%,
+    rgba(255, 255, 255, 0) 70%
+  );
+  filter: blur(10px);
+  animation: bannerShine 10s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.welcome-banner > * {
+  position: relative;
+  z-index: 2;
+}
+
+.welcome-banner:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 34px rgba(13, 90, 143, 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-banner::before {
+    animation: none;
+  }
+
+  .welcome-banner:hover {
+    transform: none;
+  }
+}

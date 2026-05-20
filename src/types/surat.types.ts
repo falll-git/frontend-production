@@ -1,3 +1,5 @@
+import type { WatermarkFileMeta } from "@/types/watermark.types";
+
 export interface SuratUser {
   id: string;
   nama: string;
@@ -7,6 +9,19 @@ export interface SuratUser {
   roleId?: string;
   roleName?: string;
   divisionId?: string;
+}
+
+export interface PhysicalStorageSummary {
+  id: string;
+  officeId?: string | null;
+  officeCode?: string | null;
+  officeName?: string | null;
+  cabinetId?: string | null;
+  cabinetCode?: string | null;
+  rackName?: string | null;
+  capacity: number;
+  isActive: boolean;
+  locationLabel: string;
 }
 
 export type DispositionWorkflowStatus =
@@ -87,10 +102,16 @@ export interface SuratMasuk {
   last_holder_name?: string | null;
   fileName: string;
   fileUrl?: string;
+  watermark?: WatermarkFileMeta | null;
+  storageId?: string;
+  storage?: PhysicalStorageSummary | null;
+  physicalStorageLabel?: string;
   tenggatWaktu?: string;
   keteranganTenggat?: string;
   targetDivisionIds?: string[];
   targetDivisionNames?: string[];
+  targetManagerIds?: string[];
+  createdBy?: string;
 }
 
 export interface SuratKeluar {
@@ -103,11 +124,17 @@ export interface SuratKeluar {
   sifat: SifatSurat;
   fileName: string;
   fileUrl?: string;
+  watermark?: WatermarkFileMeta | null;
+  storageId?: string;
+  storage?: PhysicalStorageSummary | null;
+  physicalStorageLabel?: string;
   letterPrioritieId?: string;
   statusCode?: number;
   statusLabel: string;
   mailNumberRaw?: string;
   mediaRaw?: string;
+  createdBy?: string;
+  creatorDivisionId?: string;
 }
 
 export interface MemorandumDisposisi extends DispositionWorkflowMeta {
@@ -139,6 +166,10 @@ export interface Memorandum {
   penerima: string[];
   fileName: string;
   fileUrl?: string;
+  watermark?: WatermarkFileMeta | null;
+  storageId?: string;
+  storage?: PhysicalStorageSummary | null;
+  physicalStorageLabel?: string;
   tenggatWaktu?: string;
   keteranganTenggat?: string;
   statusCode?: number;
@@ -149,6 +180,9 @@ export interface Memorandum {
   receivedDate?: string;
   targetDivisionIds?: string[];
   targetDivisionNames?: string[];
+  targetManagerIds?: string[];
+  createdBy?: string;
+  creatorDivisionId?: string;
   disposisi_history: MemorandumDisposisi[];
   current_holders: DispositionHolderSummary[];
   current_holder_names: string[];
@@ -165,6 +199,7 @@ export interface IncomingDispositionPayload {
 
 export interface IncomingMailPayload {
   letter_prioritie_id: string;
+  storage_id: string;
   target_division_id?: string;
   target_division_ids?: string[];
   regarding: string;
@@ -177,7 +212,8 @@ export interface IncomingMailPayload {
 }
 
 export interface IncomingRedispositionPayload {
-  receiver_id: string;
+  receiver_id?: string;
+  receiver_ids?: string[];
   note?: string;
   start_date?: string;
   due_date?: string;
@@ -189,6 +225,7 @@ export interface UpdateDispositionStatusPayload {
 
 export interface OutgoingMailPayload {
   letter_prioritie_id: string;
+  storage_id: string;
   delivery_media: string;
   send_date: string;
   mail_number: string;
@@ -205,6 +242,7 @@ export interface MemorandumReceiverPayload {
 
 export interface MemorandumPayload {
   origin_division_id: string;
+  storage_id: string;
   target_division_id?: string;
   target_division_ids?: string[];
   regarding: string;
@@ -217,7 +255,8 @@ export interface MemorandumPayload {
 }
 
 export interface MemorandumRedispositionPayload {
-  receiver_id: string;
+  receiver_id?: string;
+  receiver_ids?: string[];
   note?: string;
   start_date?: string;
   due_date?: string;
@@ -270,5 +309,8 @@ export interface CorrespondencePrintableItem {
   status_label: string;
   file_name: string;
   file_url?: string;
+  storage_id?: string;
+  storage?: PhysicalStorageSummary | null;
+  physical_storage_label?: string;
   record: SuratMasuk | SuratKeluar | Memorandum;
 }

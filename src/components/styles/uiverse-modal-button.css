@@ -1,0 +1,132 @@
+.uiverse-modal-button {
+  --modal-button-color: #0f172a;
+  --modal-button-border: rgba(21, 126, 195, 0.42);
+  --modal-button-hover-border: rgba(21, 126, 195, 0.66);
+  --modal-button-fill: rgba(21, 126, 195, 0.06);
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow: hidden;
+  min-height: 42px;
+  padding: 9px 16px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1;
+  text-decoration: none;
+  color: var(--modal-button-color);
+  background: #ffffff;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease,
+    box-shadow 0.5s ease-out,
+    opacity 0.16s ease;
+  border: 1px solid var(--modal-button-border);
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 0 var(--modal-button-fill);
+}
+
+.uiverse-modal-button svg,
+.uiverse-modal-button span,
+.uiverse-modal-button .button-spinner {
+  position: relative;
+  z-index: 1;
+}
+
+.uiverse-modal-button span {
+  white-space: nowrap;
+}
+
+.uiverse-modal-button svg {
+  flex: 0 0 auto;
+}
+
+.uiverse-modal-button:hover:not(:disabled) {
+  border-color: var(--modal-button-hover-border);
+  box-shadow: inset 0 -120px 0 0 var(--modal-button-fill);
+}
+
+.uiverse-modal-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.uiverse-modal-button:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 0 var(--modal-button-fill),
+    0 0 0 4px rgba(21, 126, 195, 0.16);
+}
+
+.uiverse-modal-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 0 var(--modal-button-fill);
+}
+
+.uiverse-modal-button--neutral {
+  --modal-button-color: #0f172a;
+  --modal-button-border: rgba(21, 126, 195, 0.42);
+  --modal-button-hover-border: rgba(21, 126, 195, 0.65);
+  --modal-button-fill: rgba(21, 126, 195, 0.06);
+}
+
+.uiverse-modal-button--primary {
+  --modal-button-color: #0f172a;
+  --modal-button-border: rgba(21, 126, 195, 0.42);
+  --modal-button-hover-border: rgba(21, 126, 195, 0.66);
+  --modal-button-fill: rgba(21, 126, 195, 0.06);
+}
+
+.uiverse-modal-button--danger {
+  --modal-button-color: #dc2626;
+  --modal-button-border: rgba(220, 38, 38, 0.55);
+  --modal-button-hover-border: rgba(220, 38, 38, 0.75);
+  --modal-button-fill: rgba(220, 38, 38, 0.08);
+}
+
+.uiverse-modal-button--success {
+  --modal-button-color: #059669;
+  --modal-button-border: rgba(5, 150, 105, 0.55);
+  --modal-button-hover-border: rgba(5, 150, 105, 0.75);
+  --modal-button-fill: rgba(5, 150, 105, 0.08);
+}
+
+.watermark-type-button {
+  min-height: 42px;
+  padding: 9px 16px;
+}
+
+.watermark-type-button--active {
+  --modal-button-color: #0f172a;
+  --modal-button-border: rgba(21, 126, 195, 0.66);
+  --modal-button-hover-border: rgba(21, 126, 195, 0.78);
+  --modal-button-fill: rgba(21, 126, 195, 0.08);
+
+  background: rgba(21, 126, 195, 0.08);
+}
+
+.uiverse-modal-button--icon {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  gap: 0;
+}
+
+.uiverse-modal-button__spinner {
+  --spinner-track: rgba(21, 126, 195, 0.18);
+  --spinner-head: #157ec3;
+}
+
+.uiverse-modal-button:hover:not(:disabled) .uiverse-modal-button__spinner {
+  --spinner-track: rgba(21, 126, 195, 0.18);
+  --spinner-head: #157ec3;
+}
+

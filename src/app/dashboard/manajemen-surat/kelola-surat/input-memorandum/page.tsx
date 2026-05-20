@@ -1,17 +1,29 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertCircle, FileText, Send, UploadCloud } from "lucide-react";
-import DatePickerInput from "@/components/ui/DatePickerInput";
+import { AlertCircle, FileText, Send } from "lucide-react";
+import BasicDateInput from "@/components/ui/BasicDateInput";
+import FileUploadField from "@/components/ui/FileUploadField";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import FeatureHeader from "@/components/ui/FeatureHeader";
+import PhysicalStorageSelect from "@/components/manajemen-surat/PhysicalStorageSelect";
+import SetupSelect from "@/components/ui/SetupSelect";
+import SetupTextInput from "@/components/ui/SetupTextInput";
+import SetupTextarea from "@/components/ui/SetupTextarea";
+import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
+import {
+  SETUP_PAGE_BACK_BUTTON_CLASS,
+  SETUP_PAGE_PRIMARY_BUTTON_CLASS,
+} from "@/components/ui/setupPageStyles";
 import TenggatWaktuModal from "@/components/surat/TenggatWaktuModal";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { validatePersuratanFile } from "@/lib/utils/file";
 import { toApiDateTime } from "@/services/api.utils";
 import { divisionService } from "@/services/division.service";
+import { storageService } from "@/services/storage.service";
 import { memorandumService } from "@/services/memorandum.service";
+import type { Storage } from "@/types/master.types";
 
 const MEMORANDUM_MENU_URL =
   "/dashboard/manajemen-surat/kelola-surat/input-memorandum";
@@ -26,6 +38,7 @@ type MemorandumDraft = {
   perihalMemo: string;
   tanggalMemo: string;
   originDivisionId: string;
+  storageId: string;
   targetDivisionIds: string[];
   pembuatMemo: string;
   keteranganMemo: string;
@@ -37,6 +50,7 @@ const INITIAL_FORM_DATA = {
   perihalMemo: "",
   tanggalMemo: "",
   originDivisionId: "",
+  storageId: "",
   targetDivisionIds: [] as string[],
   pembuatMemo: "",
   keteranganMemo: "",
@@ -58,6 +72,7 @@ export default function InputMemorandumPage() {
   const [savedMemo, setSavedMemo] = useState<MemorandumDraft | null>(null);
   const [isTenggatModalOpen, setIsTenggatModalOpen] = useState(false);
   const [divisionOptions, setDivisionOptions] = useState<DivisionOption[]>([]);
+  const [storageOptions, setStorageOptions] = useState<Storage[]>([]);
   const [isMasterLoading, setIsMasterLoading] = useState(true);
 
   useEffect(() => {
@@ -75,7 +90,10 @@ export default function InputMemorandumPage() {
       setIsMasterLoading(true);
 
       try {
-        const divisions = await divisionService.getAll();
+        const [divisions, storages] = await Promise.all([
+          divisionService.getAll(),
+          storageService.getAll(),
+        ]);
 
         if (ignore) return;
 
@@ -86,6 +104,15 @@ export default function InputMemorandumPage() {
               id: item.id,
               name: item.name,
             })),
+        );
+        setStorageOptions(
+          storages
+            .filter((item) => item.status === "Aktif")
+            .sort((left, right) =>
+              `${left.kodeKantor}${left.kodeLemari}${left.rak}`.localeCompare(
+                `${right.kodeKantor}${right.kodeLemari}${right.rak}`,
+              ),
+            ),
         );
       } catch (error) {
         if (!ignore) {
@@ -181,6 +208,11 @@ export default function InputMemorandumPage() {
       return;
     }
 
+    if (!formData.storageId) {
+      showToast("Tempat penyimpanan fisik wajib dipilih.", "error");
+      return;
+    }
+
     if (!formData.noMemo.trim()) {
       showToast("Nomor memo wajib diisi.", "error");
       return;
@@ -255,6 +287,7 @@ export default function InputMemorandumPage() {
 
       await memorandumService.createWithDisposition({
         origin_division_id: savedMemo.originDivisionId,
+        storage_id: savedMemo.storageId,
         target_division_ids: savedMemo.targetDivisionIds,
         regarding: savedMemo.perihalMemo.trim(),
         memo_date: memoDate,
@@ -289,9 +322,6 @@ export default function InputMemorandumPage() {
     void submitMemorandum({});
   };
 
-  const selectedOriginDivisionName =
-    divisionOptions.find((item) => item.id === formData.originDivisionId)?.name ??
-    "";
   const selectedTargetDivisionNames = divisionOptions
     .filter((item) => formData.targetDivisionIds.includes(item.id))
     .map((item) => item.name);
@@ -306,7 +336,7 @@ export default function InputMemorandumPage() {
 
       {showCreateBlockedNotice && (
         <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-slate-900" />
           <div>
             <p className="font-semibold">Akses input belum aktif</p>
             <p className="mt-1">
@@ -327,14 +357,13 @@ export default function InputMemorandumPage() {
               >
                 Divisi Asal <span className="text-red-500">*</span>
               </label>
-              <select
+              <SetupSelect
                 id="originDivisionId"
                 name="originDivisionId"
                 value={formData.originDivisionId}
                 onChange={handleChange}
                 required
                 disabled={isMasterLoading || isLoading || !canCreateMemorandum}
-                className="select"
               >
                 <option value="">
                   {isMasterLoading ? "Memuat divisi..." : "Pilih Divisi Asal"}
@@ -344,7 +373,7 @@ export default function InputMemorandumPage() {
                     {division.name}
                   </option>
                 ))}
-              </select>
+              </SetupSelect>
               <p className="mt-2 text-xs text-slate-500">
                 Pilih divisi yang menerbitkan atau memiliki memorandum ini.
               </p>
@@ -357,16 +386,15 @@ export default function InputMemorandumPage() {
               >
                 No Memo <span className="text-red-500">*</span>
               </label>
-              <input
+              <SetupTextInput
                 id="noMemo"
-                type="text"
                 name="noMemo"
                 value={formData.noMemo}
                 onChange={handleChange}
                 required
                 disabled={isLoading}
-                className="input tabular-nums"
-                placeholder="Contoh: MEMO/001/HRD/2026"
+                className="tabular-nums"
+                placeholder="Masukkan nomor memorandum"
               />
             </div>
 
@@ -377,7 +405,8 @@ export default function InputMemorandumPage() {
               >
                 Tanggal Memo <span className="text-red-500">*</span>
               </label>
-              <DatePickerInput
+              <BasicDateInput
+                id="tanggalMemo"
                 value={formData.tanggalMemo}
                 onChange={(nextValue) =>
                   setFormData((prev) => ({
@@ -391,6 +420,16 @@ export default function InputMemorandumPage() {
               </p>
             </div>
 
+            <PhysicalStorageSelect
+              id="storageId"
+              name="storageId"
+              value={formData.storageId}
+              storages={storageOptions}
+              isLoading={isMasterLoading}
+              disabled={isLoading || !canCreateMemorandum}
+              onChange={handleChange}
+            />
+
             <div>
               <label
                 htmlFor="pembuatMemo"
@@ -398,15 +437,14 @@ export default function InputMemorandumPage() {
               >
                 Pembuat Memo <span className="text-red-500">*</span>
               </label>
-              <input
+              <SetupTextInput
                 id="pembuatMemo"
-                type="text"
                 name="pembuatMemo"
                 value={formData.pembuatMemo}
                 required
                 readOnly
                 disabled={isLoading}
-                className="input !cursor-default !bg-white !text-gray-700"
+                className="!cursor-default !bg-white !text-gray-700"
                 placeholder="Nama pembuat memo"
               />
               <p className="mt-2 text-xs text-slate-500">
@@ -431,34 +469,55 @@ export default function InputMemorandumPage() {
                     const isChecked = formData.targetDivisionIds.includes(
                       division.id,
                     );
+                    const isDisabled =
+                      isMasterLoading || isLoading || !canCreateMemorandum;
 
                     return (
-                      <label
+                      <div
                         key={division.id}
+                        role="checkbox"
+                        aria-checked={isChecked}
+                        aria-disabled={isDisabled}
+                        tabIndex={isDisabled ? -1 : 0}
+                        onClick={() => {
+                          if (!isDisabled) handleToggleDivision(division.id);
+                        }}
+                        onKeyDown={(event) => {
+                          if (isDisabled) return;
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            handleToggleDivision(division.id);
+                          }
+                        }}
                         className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 transition-colors ${
                           isChecked
                             ? "border-blue-200 bg-blue-50"
                             : "border-gray-200 bg-white hover:border-gray-300"
                         }`}
                       >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          disabled={
-                            isMasterLoading || isLoading || !canCreateMemorandum
-                          }
-                          onChange={() => handleToggleDivision(division.id)}
-                          className="mt-1 h-4 w-4 rounded border-gray-300 text-[#157ec3] focus:ring-[#157ec3]"
-                        />
+                        <div
+                          className="mt-0.5"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <UiverseCheckbox
+                            checked={isChecked}
+                            disabled={isDisabled}
+                            onCheckedChange={() =>
+                              handleToggleDivision(division.id)
+                            }
+                            ariaLabel={`Pilih ${division.name}`}
+                            size={18}
+                          />
+                        </div>
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-gray-800">
                             {division.name}
                           </p>
                           <p className="mt-1 text-xs text-slate-500">
-                            Memorandum akan masuk lebih dulu ke Manager aktif pada divisi ini.
+                            Memorandum akan masuk lebih dulu ke penerima disposisi aktif pada divisi ini.
                           </p>
                         </div>
-                      </label>
+                      </div>
                     );
                   })}
                 </div>
@@ -476,16 +535,14 @@ export default function InputMemorandumPage() {
             >
               Perihal Memo <span className="text-red-500">*</span>
             </label>
-            <input
+            <SetupTextInput
               id="perihalMemo"
-              type="text"
               name="perihalMemo"
               value={formData.perihalMemo}
               onChange={handleChange}
               required
               disabled={isLoading}
-              className="input"
-              placeholder="Contoh: Evaluasi Kinerja Karyawan"
+              placeholder="Masukkan perihal memorandum"
             />
             <p className="mt-2 text-xs text-slate-500">
               Tulis judul memo dengan singkat.
@@ -499,7 +556,7 @@ export default function InputMemorandumPage() {
             >
               Keterangan Memo <span className="text-red-500">*</span>
             </label>
-            <textarea
+            <SetupTextarea
               id="keteranganMemo"
               name="keteranganMemo"
               value={formData.keteranganMemo}
@@ -507,7 +564,6 @@ export default function InputMemorandumPage() {
               required
               disabled={isLoading}
               rows={4}
-              className="textarea"
               placeholder="Jelaskan detail memorandum secara lengkap..."
             />
             <p className="mt-2 text-xs text-slate-500">
@@ -515,110 +571,34 @@ export default function InputMemorandumPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Upload File <span className="text-red-500">*</span>
-              </label>
-              <div
-                className={[
-                  "file-upload",
-                  "flex flex-col items-center justify-center",
-                  dragOver ? "dragover" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                onDrop={handleDrop}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOver(true);
-                }}
-                onDragLeave={() => setDragOver(false)}
-                onClick={() => {
-                  if (!isLoading && canCreateMemorandum) {
-                    fileInputRef.current?.click();
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if ((e.key === "Enter" || e.key === " ") && !isLoading) {
-                    e.preventDefault();
-                    if (canCreateMemorandum) fileInputRef.current?.click();
-                  }
-                }}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  onChange={handleFileChange}
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                  disabled={isLoading || !canCreateMemorandum}
-                />
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mb-4 text-blue-600">
-                  <UploadCloud className="w-8 h-8" aria-hidden="true" />
-                </div>
-                {file ? (
-                  <div>
-                    <p className="text-sm font-bold text-gray-800">
-                      {file.name}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {(file.size / 1024).toFixed(2)} KB
-                    </p>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">
-                      <span className="text-primary-600 font-bold">
-                        Klik untuk upload
-                      </span>{" "}
-                      atau drag & drop
-                    </p>
-                    <p className="text-xs text-gray-400 mt-2">
-                      PDF, DOC, XLS, Gambar (Max 10MB)
-                    </p>
-                  </div>
-                )}
-              </div>
-              <p className="mt-3 text-xs text-slate-500">
-                Upload file memo sebelum simpan.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Ringkasan Alur Awal
-              </label>
-              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Divisi Asal
-                </p>
-                <p className="mt-1 text-sm font-semibold text-gray-800">
-                  {selectedOriginDivisionName || "Pilih divisi asal dulu"}
-                </p>
-                <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Tujuan Awal
-                </p>
-                <p className="mt-1 text-sm font-semibold text-gray-800">
-                  {selectedTargetDivisionNames.length > 0
-                    ? selectedTargetDivisionNames.join(", ")
-                    : "Pilih divisi tujuan dulu"}
-                </p>
-                <p className="mt-2 text-xs text-slate-500">
-                  Disposisi awal akan masuk ke Manager aktif pada setiap divisi yang dipilih.
-                </p>
-              </div>
-            </div>
-          </div>
+          <FileUploadField
+            id="memorandum-file-input"
+            file={file}
+            inputRef={fileInputRef}
+            disabled={isLoading || !canCreateMemorandum}
+            isDragActive={dragOver}
+            title={file ? "Ganti file memorandum" : "Pilih file memorandum"}
+            helperText="Upload file memo sebelum simpan."
+            onChange={handleFileChange}
+            onClear={() => {
+              setFile(null);
+              if (fileInputRef.current) fileInputRef.current.value = "";
+            }}
+            onDrop={handleDrop}
+            onDragOver={(event) => {
+              event.preventDefault();
+              if (isLoading || !canCreateMemorandum) return;
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+          />
 
           <div className="pt-2 flex flex-wrap justify-end gap-3">
             <button
               type="button"
               onClick={handleReset}
               disabled={isLoading}
-              className="btn btn-outline"
+              className={SETUP_PAGE_BACK_BUTTON_CLASS}
             >
               Reset
             </button>
@@ -629,9 +609,11 @@ export default function InputMemorandumPage() {
                 isMasterLoading ||
                 !canCreateMemorandum ||
                 !formData.originDivisionId ||
-                formData.targetDivisionIds.length === 0
+                formData.targetDivisionIds.length === 0 ||
+                storageOptions.length === 0 ||
+                !formData.storageId
               }
-              className="btn btn-primary"
+              className={SETUP_PAGE_PRIMARY_BUTTON_CLASS}
             >
               {isLoading ? (
                 <>

@@ -1,5 +1,8 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+"use client";
+
+import ParameterMasterPage from "@/components/parameter/ParameterMasterPage";
+import { contractTypeParameterConfig } from "@/components/parameter/parameterMasterConfigs";
 
 export default function SetupJenisAkadPage() {
-  return <ModuleSkeletonPage title="Setup Jenis Akad" />;
+  return <ParameterMasterPage config={contractTypeParameterConfig} />;
 }

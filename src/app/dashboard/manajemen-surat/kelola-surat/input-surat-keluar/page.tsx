@@ -1,16 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AlertCircle, Send, UploadCloud } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertCircle, Send } from "lucide-react";
 
 import FeatureHeader from "@/components/ui/FeatureHeader";
-import DatePickerInput from "@/components/ui/DatePickerInput";
+import BasicDateInput from "@/components/ui/BasicDateInput";
+import FileUploadField from "@/components/ui/FileUploadField";
+import PhysicalStorageSelect from "@/components/manajemen-surat/PhysicalStorageSelect";
+import SetupSelect from "@/components/ui/SetupSelect";
+import SetupTextInput from "@/components/ui/SetupTextInput";
+import SetupTextarea from "@/components/ui/SetupTextarea";
 import { useAppToast } from "@/components/ui/AppToastProvider";
+import {
+  SETUP_PAGE_BACK_BUTTON_CLASS,
+  SETUP_PAGE_PRIMARY_BUTTON_CLASS,
+} from "@/components/ui/setupPageStyles";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { validatePersuratanFile } from "@/lib/utils/file";
 import { letterPriorityService } from "@/services/letter-priority.service";
 import { toApiDateTime } from "@/services/api.utils";
+import { storageService } from "@/services/storage.service";
 import { suratKeluarService } from "@/services/surat-keluar.service";
+import type { Storage } from "@/types/master.types";
 
 const SURAT_KELUAR_MENU_URL =
   "/dashboard/manajemen-surat/kelola-surat/input-surat-keluar";
@@ -22,6 +33,7 @@ type SuratKeluarFormState = {
   tanggalPengiriman: string;
   mediaPengiriman: string;
   sifatSurat: string;
+  storageId: string;
 };
 
 const INITIAL_FORM_STATE: SuratKeluarFormState = {
@@ -31,6 +43,7 @@ const INITIAL_FORM_STATE: SuratKeluarFormState = {
   tanggalPengiriman: "",
   mediaPengiriman: "",
   sifatSurat: "",
+  storageId: "",
 };
 
 function normalizeMediaValue(value: string) {
@@ -49,11 +62,13 @@ export default function InputSuratKeluarPage() {
   const [formData, setFormData] =
     useState<SuratKeluarFormState>(INITIAL_FORM_STATE);
   const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [letterPriorities, setLetterPriorities] = useState<
     { id: string; name: string }[]
   >([]);
+  const [storageOptions, setStorageOptions] = useState<Storage[]>([]);
   const [isMasterLoading, setIsMasterLoading] = useState(true);
 
   useEffect(() => {
@@ -63,10 +78,22 @@ export default function InputSuratKeluarPage() {
       setIsMasterLoading(true);
 
       try {
-        const priorities = await letterPriorityService.getAll();
+        const [priorities, storages] = await Promise.all([
+          letterPriorityService.getAll(),
+          storageService.getAll(),
+        ]);
         if (!ignore) {
           setLetterPriorities(
             priorities.map((item) => ({ id: item.id, name: item.name })),
+          );
+          setStorageOptions(
+            storages
+              .filter((item) => item.status === "Aktif")
+              .sort((left, right) =>
+                `${left.kodeKantor}${left.kodeLemari}${left.rak}`.localeCompare(
+                  `${right.kodeKantor}${right.kodeLemari}${right.rak}`,
+                ),
+              ),
           );
         }
       } catch (error) {
@@ -142,6 +169,7 @@ export default function InputSuratKeluarPage() {
   const handleReset = () => {
     setFormData(INITIAL_FORM_STATE);
     setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -156,6 +184,11 @@ export default function InputSuratKeluarPage() {
 
     if (!formData.sifatSurat) {
       showToast("Sifat surat wajib dipilih!", "error");
+      return;
+    }
+
+    if (!formData.storageId) {
+      showToast("Tempat penyimpanan fisik wajib dipilih.", "error");
       return;
     }
 
@@ -175,6 +208,7 @@ export default function InputSuratKeluarPage() {
     try {
       await suratKeluarService.create({
         letter_prioritie_id: formData.sifatSurat,
+        storage_id: formData.storageId,
         delivery_media: normalizeMediaValue(formData.mediaPengiriman),
         send_date: toApiDateTime(formData.tanggalPengiriman),
         mail_number: formData.namaSurat.trim(),
@@ -205,7 +239,7 @@ export default function InputSuratKeluarPage() {
 
       {showCreateBlockedNotice && (
         <div className="mb-6 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-slate-900" />
           <div>
             <p className="font-semibold">Akses input belum aktif</p>
             <p className="mt-1">
@@ -227,14 +261,12 @@ export default function InputSuratKeluarPage() {
                 >
                   Nama Penerima <span className="text-red-500">*</span>
                 </label>
-                <input
+                <SetupTextInput
                   id="namaPenerima"
-                  type="text"
                   name="namaPenerima"
                   value={formData.namaPenerima}
                   onChange={handleChange}
-                  className="input"
-                  placeholder="Contoh: PT Mitra Solusi"
+                  placeholder="Masukkan nama penerima"
                   required
                 />
               </div>
@@ -246,7 +278,8 @@ export default function InputSuratKeluarPage() {
                 >
                   Tanggal Pengiriman <span className="text-red-500">*</span>
                 </label>
-                <DatePickerInput
+                <BasicDateInput
+                  id="tanggalPengiriman"
                   value={formData.tanggalPengiriman}
                   onChange={(nextValue) =>
                     setFormData((prev) => ({
@@ -268,13 +301,13 @@ export default function InputSuratKeluarPage() {
               >
                 Alamat Penerima <span className="text-red-500">*</span>
               </label>
-              <textarea
+              <SetupTextarea
                 id="alamatPenerima"
                 name="alamatPenerima"
                 value={formData.alamatPenerima}
                 onChange={handleChange}
                 rows={2}
-                className="textarea resize-none"
+                className="resize-none"
                 placeholder="Alamat lengkap penerima..."
                 required
               />
@@ -292,14 +325,12 @@ export default function InputSuratKeluarPage() {
                 >
                   Nama/Nomor Surat <span className="text-red-500">*</span>
                 </label>
-                <input
+                <SetupTextInput
                   id="namaSurat"
-                  type="text"
                   name="namaSurat"
                   value={formData.namaSurat}
                   onChange={handleChange}
-                  className="input"
-                  placeholder="Contoh: 005/OUT/2023"
+                  placeholder="Masukkan nomor surat"
                   required
                 />
               </div>
@@ -311,12 +342,11 @@ export default function InputSuratKeluarPage() {
                 >
                   Media Pengiriman <span className="text-red-500">*</span>
                 </label>
-                <select
+                <SetupSelect
                   id="mediaPengiriman"
                   name="mediaPengiriman"
                   value={formData.mediaPengiriman}
                   onChange={handleChange}
-                  className="select"
                   required
                 >
                   <option value="">Pilih Media</option>
@@ -324,7 +354,7 @@ export default function InputSuratKeluarPage() {
                   <option value="kurir">Kurir</option>
                   <option value="langsung">Langsung / Tangan</option>
                   <option value="pos">Pos</option>
-                </select>
+                </SetupSelect>
                 <p className="mt-2 text-xs text-slate-500">
                   Pilih cara surat ini dikirim.
                 </p>
@@ -339,12 +369,11 @@ export default function InputSuratKeluarPage() {
                 >
                   Sifat Surat <span className="text-red-500">*</span>
                 </label>
-                <select
+                <SetupSelect
                   id="sifatSurat"
                   name="sifatSurat"
                   value={formData.sifatSurat}
                   onChange={handleChange}
-                  className="select"
                   disabled={isMasterLoading}
                   required
                 >
@@ -358,80 +387,53 @@ export default function InputSuratKeluarPage() {
                       {priority.name}
                     </option>
                   ))}
-                </select>
+                </SetupSelect>
                 <p className="mt-2 text-xs text-slate-500">
                   Pilih sifat surat yang sesuai.
                 </p>
               </div>
+
+              <PhysicalStorageSelect
+                id="storageId"
+                name="storageId"
+                value={formData.storageId}
+                storages={storageOptions}
+                isLoading={isMasterLoading}
+                disabled={isLoading || !canCreateSuratKeluar}
+                onChange={handleChange}
+              />
             </div>
           </div>
 
           <div className="border-t border-gray-100" />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Upload File <span className="text-red-500">*</span>
-            </label>
-            <div
-              className={[
-                "file-upload",
-                "flex flex-col items-center justify-center",
-                dragOver ? "dragover" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              onDrop={handleDrop}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(true);
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onClick={() =>
-                document.getElementById("file-input-keluar")?.click()
-              }
-            >
-              <input
-                id="file-input-keluar"
-                type="file"
-                onChange={handleFileChange}
-                className="hidden"
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                disabled={!canCreateSuratKeluar || isLoading}
-              />
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mb-4 text-blue-600">
-                <UploadCloud className="w-8 h-8" />
-              </div>
-              {file ? (
-                <div>
-                  <p className="text-sm font-bold text-gray-800">{file.name}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {(file.size / 1024).toFixed(2)} KB
-                  </p>
-                </div>
-                ) : (
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">
-                    <span className="text-primary-600 font-bold">
-                      Klik untuk upload
-                    </span>{" "}
-                    atau drag & drop
-                  </p>
-                    <p className="text-xs text-gray-400 mt-2">
-                      PDF, DOC, XLS, Gambar (Max 10MB)
-                    </p>
-                  </div>
-                )}
-            </div>
-            <p className="mt-3 text-xs text-slate-500">
-              Upload file surat keluar sebelum simpan.
-            </p>
-          </div>
+          <FileUploadField
+            id="surat-keluar-file-input"
+            file={file}
+            inputRef={fileInputRef}
+            disabled={!canCreateSuratKeluar || isLoading}
+            isDragActive={dragOver}
+            title={file ? "Ganti file surat keluar" : "Pilih file surat keluar"}
+            helperText="Upload file surat keluar sebelum simpan."
+            onChange={handleFileChange}
+            onClear={() => {
+              setFile(null);
+              if (fileInputRef.current) fileInputRef.current.value = "";
+            }}
+            onDrop={handleDrop}
+            onDragOver={(event) => {
+              event.preventDefault();
+              if (!canCreateSuratKeluar || isLoading) return;
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+          />
 
           <div className="border-t border-gray-100 pt-6 flex flex-col sm:flex-row justify-end gap-3">
             <button
               type="button"
               onClick={handleReset}
-              className="btn btn-outline"
+              className={SETUP_PAGE_BACK_BUTTON_CLASS}
             >
               Reset Form
             </button>
@@ -441,9 +443,11 @@ export default function InputSuratKeluarPage() {
                 !canCreateSuratKeluar ||
                 isLoading ||
                 isMasterLoading ||
-                letterPriorities.length === 0
+                letterPriorities.length === 0 ||
+                storageOptions.length === 0 ||
+                !formData.storageId
               }
-              className="btn btn-primary"
+              className={SETUP_PAGE_PRIMARY_BUTTON_CLASS}
             >
               {isLoading ? (
                 <span className="flex items-center gap-2">

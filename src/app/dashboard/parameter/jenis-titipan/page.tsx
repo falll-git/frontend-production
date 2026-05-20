@@ -1,5 +1,8 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+"use client";
+
+import ParameterMasterPage from "@/components/parameter/ParameterMasterPage";
+import { depositTypeParameterConfig } from "@/components/parameter/parameterMasterConfigs";
 
 export default function SetupJenisTitipanPage() {
-  return <ModuleSkeletonPage title="Setup Jenis Titipan" />;
+  return <ParameterMasterPage config={depositTypeParameterConfig} />;
 }

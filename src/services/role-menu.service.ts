@@ -1,11 +1,12 @@
 import api from "@/lib/axios";
 import {
   extractList,
+  extractLastPage,
   extractRecord,
   readBoolean,
-  readNumber,
   readString,
 } from "@/services/api.utils";
+import { MAX_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import { normalizeDashboardMenuUrl } from "@/services/menu.service";
 import type { RoleMenuPermission } from "@/types/rbac.types";
 
@@ -67,19 +68,15 @@ async function getRoleMenuPage(
   const res = await api.get("/role-menus", {
     params: {
       page,
+      limit: MAX_TABLE_PAGE_SIZE,
       ...(roleId ? { role_id: roleId } : {}),
     },
   });
-  const payload =
-    typeof res.data === "object" && res.data !== null
-      ? (res.data as UnknownRecord)
-      : {};
-
   return {
     items: extractList(res.data)
       .map((record) => mapRoleMenuPermission(record))
       .filter((item): item is RoleMenuPermission => item !== null),
-    lastPage: Math.max(1, readNumber(payload, "lastPage", "last_page") ?? 1),
+    lastPage: extractLastPage(res.data),
   };
 }
 

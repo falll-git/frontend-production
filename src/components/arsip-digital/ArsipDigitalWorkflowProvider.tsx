@@ -27,6 +27,7 @@ import type {
 type SubmitDisposisiParams = {
   dokumenIds: string[];
   alasanPengajuan: string;
+  tanggalExpired: string;
 };
 
 type ProcessDisposisiParams = {
@@ -89,6 +90,7 @@ const DIGITAL_DOCUMENT_READ_PATHS = [
   "/dashboard/arsip-digital/ruang-arsip/list-dokumen",
   "/dashboard/arsip-digital/ruang-arsip/tempat-penyimpanan",
   "/dashboard/arsip-digital/ruang-arsip/jatuh-tempo",
+  "/dashboard/arsip-digital/peminjaman/request",
   "/dashboard/arsip-digital/laporan",
 ];
 
@@ -104,6 +106,7 @@ const LOAN_READ_PATHS = [
   "/dashboard/arsip-digital/peminjaman/accept",
   "/dashboard/arsip-digital/peminjaman/laporan",
   "/dashboard/arsip-digital/historis/peminjaman",
+  "/dashboard/arsip-digital/ruang-arsip/jatuh-tempo",
   "/dashboard/arsip-digital/laporan",
 ];
 
@@ -236,10 +239,15 @@ export function ArsipDigitalWorkflowProvider({
   );
 
   const submitDisposisi = useCallback(
-    async ({ dokumenIds, alasanPengajuan }: SubmitDisposisiParams): Promise<number> => {
+    async ({
+      dokumenIds,
+      alasanPengajuan,
+      tanggalExpired,
+    }: SubmitDisposisiParams): Promise<number> => {
       const created = await disposisiArsipService.create({
         document_ids: dokumenIds,
         request_reason: alasanPengajuan,
+        expires_at: tanggalExpired,
       });
       await refreshWorkflowData();
       return created.length;

@@ -1,0 +1,169 @@
+.uiverse-checkbox {
+  display: inline-flex;
+  align-items: center;
+}
+
+.uiverse-checkbox__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.uiverse-checkbox__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.uiverse-checkbox__check {
+  cursor: pointer;
+  position: relative;
+  width: var(--uicheck-size, 18px);
+  height: var(--uicheck-size, 18px);
+  -webkit-tap-highlight-color: transparent;
+  transform: translate3d(0, 0, 0);
+  flex: 0 0 auto;
+}
+
+.uiverse-checkbox__check:before {
+  content: "";
+  position: absolute;
+  top: -15px;
+  left: -15px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(34, 50, 84, 0.03);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.uiverse-checkbox__check svg {
+  position: relative;
+  z-index: 1;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke: #c8ccd4;
+  stroke-width: 1.5;
+  transform: translate3d(0, 0, 0);
+  transition: all 0.2s ease;
+}
+
+.uiverse-checkbox__check svg path {
+  stroke-dasharray: 60;
+  stroke-dashoffset: 0;
+}
+
+.uiverse-checkbox__check svg polyline {
+  stroke-dasharray: 22;
+  stroke-dashoffset: 66;
+}
+
+.uiverse-checkbox__label:hover .uiverse-checkbox__check:before {
+  opacity: 1;
+}
+
+.uiverse-checkbox__label:hover .uiverse-checkbox__check svg {
+  stroke: #4285f4;
+}
+
+.uiverse-checkbox__input:checked
+  + .uiverse-checkbox__label
+  .uiverse-checkbox__check
+  svg {
+  stroke: #4285f4;
+}
+
+.uiverse-checkbox__input:checked
+  + .uiverse-checkbox__label
+  .uiverse-checkbox__check
+  svg
+  path {
+  stroke-dashoffset: 60;
+  transition: all 0.3s linear;
+}
+
+.uiverse-checkbox__input:checked
+  + .uiverse-checkbox__label
+  .uiverse-checkbox__check
+  svg
+  polyline {
+  stroke-dashoffset: 42;
+  transition: all 0.2s linear;
+  transition-delay: 0.15s;
+}
+
+.uiverse-checkbox__input:disabled + .uiverse-checkbox__label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.uiverse-checkbox--unavailable .uiverse-checkbox__label,
+.uiverse-checkbox--unavailable .uiverse-checkbox__check {
+  cursor: not-allowed;
+}
+
+.uiverse-checkbox--unavailable .uiverse-checkbox__check:before {
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.uiverse-checkbox--unavailable .uiverse-checkbox__check svg,
+.uiverse-checkbox--unavailable
+  .uiverse-checkbox__label:hover
+  .uiverse-checkbox__check
+  svg,
+.uiverse-checkbox--unavailable
+  .uiverse-checkbox__input:checked
+  + .uiverse-checkbox__label
+  .uiverse-checkbox__check
+  svg {
+  stroke: #cbd5e1;
+}
+
+.uiverse-checkbox--unavailable
+  .uiverse-checkbox__input:checked
+  + .uiverse-checkbox__label
+  .uiverse-checkbox__check
+  svg
+  polyline {
+  stroke-dashoffset: 66;
+}
+
+.uiverse-checkbox__input:focus-visible
+  + .uiverse-checkbox__label
+  .uiverse-checkbox__check:before {
+  opacity: 1;
+}
+
+.uiverse-checkbox__text {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.auth-remember-checkbox .uiverse-checkbox__text {
+  color: #157ec3;
+  font-weight: 600;
+}
+
+.uiverse-checkbox--block {
+  display: flex;
+  width: 100%;
+}
+
+.uiverse-checkbox--block .uiverse-checkbox__label {
+  width: 100%;
+}
+
+.uiverse-checkbox--block .uiverse-checkbox__text {
+  flex: 1;
+  min-width: 0;
+}

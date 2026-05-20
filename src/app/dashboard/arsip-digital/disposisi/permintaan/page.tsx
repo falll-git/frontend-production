@@ -1,36 +1,101 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Check, Inbox, X, AlertCircle } from "lucide-react";
-import ConfirmModal from "@/components/ui/ConfirmModal";
-import DatePickerInput from "@/components/ui/DatePickerInput";
+import {
+  SetupDataTable,
+  SetupDataTableHead,
+  SetupDataTableBody,
+  SetupDataTableRow,
+  SetupDataTableHeaderCell,
+  SetupDataTableCell,
+  SetupDataTableColGroup,
+  SetupDataTableCol
+} from "@/components/ui/SetupDataTable";
+import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { AlertTriangle, Check, CheckCircle2, Inbox, X } from "lucide-react";
+import DashboardModal from "@/components/ui/DashboardModal";
+import BasicDateInput from "@/components/ui/BasicDateInput";
+import Pagination from "@/components/ui/Pagination";
+import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
+import SetupTextarea from "@/components/ui/SetupTextarea";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
-import { formatDateDisplay, parseDateString } from "@/lib/utils/date";
+import { useClientPagination } from "@/hooks/useClientPagination";
+import { OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import { formatDateOnly, parseDateString } from "@/lib/utils/date";
 import { useArsipDigitalWorkflow } from "@/components/arsip-digital/ArsipDigitalWorkflowProvider";
+import {
+  SETUP_PAGE_MODERN_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
+  SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_TABLE_CLASS,
+  SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
+  SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+  SETUP_PAGE_TABLE_CARD_CLASS,
+} from "@/components/ui/setupPageStyles";
+
+const PERMINTAAN_DISPOSISI_TABLE_COLUMN_WIDTHS = [
+  "56px",
+  "168px",
+  null,
+  null,
+  "124px",
+  "128px",
+  null,
+  "216px",
+  "72px",
+] as const;
+
+const INLINE_ACTION_BUTTON_CLASS =
+  "inline-flex items-center justify-center p-1 text-gray-400 transition-colors focus:outline-none";
 
 const formatPersonName = (value: string) =>
   value
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
 
+type SummaryFieldProps = {
+  label: string;
+  children: ReactNode;
+  className?: string;
+  contentClassName?: string;
+};
+
+function SummaryField({
+  label,
+  children,
+  className = "",
+  contentClassName = "",
+}: SummaryFieldProps) {
+  return (
+    <div className={className}>
+      <label className="mb-2 block text-sm font-medium text-gray-700">
+        {label}
+      </label>
+      <div
+        className={`min-h-[48px] rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800 ${contentClassName}`.trim()}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function PermintaanDisposisiPage() {
   const { user } = useAuth();
   const { showToast } = useAppToast();
-  const { ensureCapability, ensureFeature, hasCapability, hasFeature } =
-    useProtectedAction();
+  const { ensureCapability, hasCapability, hasFeature } = useProtectedAction();
   const { disposisi, processDisposisi } = useArsipDigitalWorkflow();
   const menuUrl = "/dashboard/arsip-digital/disposisi/permintaan";
   const canUpdatePermintaanDisposisi = hasCapability(
     menuUrl,
     "update",
   );
-  const canApprovePermintaanDisposisi =
-    canUpdatePermintaanDisposisi && hasFeature(menuUrl, "approve");
-  const canRejectPermintaanDisposisi =
-    canUpdatePermintaanDisposisi && hasFeature(menuUrl, "reject");
   const [showModal, setShowModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<{
     id: string;
@@ -39,7 +104,9 @@ export default function PermintaanDisposisiPage() {
     detail: string;
     pemohon: string;
     tglPengajuan: string;
+    tglExpired: string | null;
     alasan: string;
+    ownerId: string | null;
   } | null>(null);
   const [actionType, setActionType] = useState<"approve" | "reject" | null>(
     null,
@@ -51,10 +118,7 @@ export default function PermintaanDisposisiPage() {
 
   const data = useMemo(() => {
     return disposisi
-      .filter(
-        (item) =>
-          item.statusKey === "PENDING" && item.owner?.id === user?.id,
-      )
+      .filter((item) => item.statusKey === "PENDING")
       .map((item) => ({
         id: item.id,
         kode: item.document?.kode ?? "-",
@@ -62,9 +126,11 @@ export default function PermintaanDisposisiPage() {
         detail: item.document?.detail ?? item.detail,
         pemohon: item.requester?.username ?? item.requester?.name ?? item.pemohon,
         tglPengajuan: item.tglPengajuan,
+        tglExpired: item.tglExpired,
         alasan: item.alasanPengajuan,
+        ownerId: item.owner?.id ?? null,
       }));
-  }, [disposisi, user?.id]);
+  }, [disposisi]);
 
   const approvedTodayCount = useMemo(() => {
     if (!user?.id) return 0;
@@ -79,6 +145,21 @@ export default function PermintaanDisposisiPage() {
     }).length;
   }, [disposisi, todayKey, user?.id]);
 
+  const canProcessItem = (
+    item: (typeof data)[0],
+    type: "approve" | "reject",
+  ) => {
+    if (!canUpdatePermintaanDisposisi) return false;
+    if (item.ownerId && item.ownerId === user?.id) return true;
+    return hasFeature(menuUrl, type);
+  };
+
+  const {
+    paginatedItems: paginatedData,
+    meta: paginationMeta,
+    setPage,
+  } = useClientPagination(data, OPERATIONAL_TABLE_PAGE_SIZE);
+
   const handleAction = (
     item: (typeof data)[0],
     type: "approve" | "reject",
@@ -87,11 +168,14 @@ export default function PermintaanDisposisiPage() {
       return;
     }
 
-    if (!ensureFeature(menuUrl, type)) {
+    if (!canProcessItem(item, type)) {
+      showToast("Anda tidak memiliki akses untuk memproses permintaan ini.", "warning");
       return;
     }
     setSelectedItem(item);
     setActionType(type);
+    setTanggalExpired(type === "approve" ? item.tglExpired ?? "" : "");
+    setAlasanAksi("");
     setShowModal(true);
   };
 
@@ -101,7 +185,8 @@ export default function PermintaanDisposisiPage() {
     }
     if (!selectedItem || !actionType) return;
 
-    if (!ensureFeature(menuUrl, actionType)) {
+    if (!canProcessItem(selectedItem, actionType)) {
+      showToast("Anda tidak memiliki akses untuk memproses permintaan ini.", "warning");
       return;
     }
 
@@ -163,250 +248,300 @@ export default function PermintaanDisposisiPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Total Permintaan
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-2">{data.length}</p>
+            <p className="mt-1 text-2xl font-semibold text-gray-900">{data.length}</p>
           </div>
-          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
-            <Inbox className="w-7 h-7" />
-          </div>
+          <Inbox className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Menunggu Aksi
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-2">{data.length}</p>
+            <p className="mt-1 text-2xl font-semibold text-gray-900">{data.length}</p>
           </div>
-          <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-amber-600">
-            <AlertCircle className="w-7 h-7" />
-          </div>
+          <AlertTriangle className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Disetujui Hari Ini
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-2">{approvedTodayCount}</p>
+            <p className="mt-1 text-2xl font-semibold text-gray-900">{approvedTodayCount}</p>
           </div>
-          <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600">
-            <Check className="w-7 h-7" />
-          </div>
+          <CheckCircle2 className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
       </div>
 
-      {data.length > 0 ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">
-                    No
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Kode
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Nama Dokumen
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Keterangan
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Pemohon
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Tanggal
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-1/4">
-                    Alasan
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">
-                    Aksi
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {data.map((item, idx) => (
-                  <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 text-sm text-gray-500">{idx + 1}</td>
-                    <td className="px-6 py-4">
-                      <span className="text-primary-600 bg-primary-50 px-2 py-1 rounded border border-primary-100 text-xs font-medium tabular-nums">
+      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} mb-8`}>
+        <div className="overflow-x-auto">
+          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+            <SetupDataTableColGroup>
+              {PERMINTAAN_DISPOSISI_TABLE_COLUMN_WIDTHS.map((width, index) => (
+                <SetupDataTableCol
+                  key={`${index}-${width ?? "flex"}`}
+                  style={width ? { width } : undefined}
+                />
+              ))}
+            </SetupDataTableColGroup>
+            <SetupDataTableHead className="ltr:text-left rtl:text-right">
+              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Kode</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Nama Dokumen</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Keterangan</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Pemohon</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Tanggal</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Alasan</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Status</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
+              </SetupDataTableRow>
+            </SetupDataTableHead>
+            <SetupDataTableBody className="divide-y divide-gray-200">
+              {paginatedData.length > 0 ? (
+                paginatedData.map((item, idx) => (
+                  <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                      {(paginationMeta.page - 1) * paginationMeta.limit + idx + 1}
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                      <span
+                        className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 tabular-nums"
+                        title={item.kode}
+                      >
                         {item.kode}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-800">
-                      {item.namaDokumen}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate" title={item.detail}>
-                      {item.detail}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm font-semibold text-gray-800">
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}>
+                      <span className="block truncate" title={item.namaDokumen}>
+                        {item.namaDokumen}
+                      </span>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                      <span className="block truncate" title={item.detail}>
+                        {item.detail}
+                      </span>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}>
+                      <span className="block truncate" title={formatPersonName(item.pemohon)}>
                         {formatPersonName(item.pemohon)}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      {formatDateDisplay(item.tglPengajuan)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 truncate max-w-xs italic">
-                      &quot;{item.alasan}&quot;
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
-                        Menunggu Persetujuan
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                      <span
+                        className="block truncate tabular-nums"
+                        title={formatDateOnly(item.tglPengajuan)}
+                      >
+                        {formatDateOnly(item.tglPengajuan)}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        {canApprovePermintaanDisposisi ||
-                        canRejectPermintaanDisposisi ? (
-                          <>
-                            {canApprovePermintaanDisposisi ? (
-                              <button
-                                onClick={() => handleAction(item, "approve")}
-                                className="p-2 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 transition-colors"
-                                title="Setujui"
-                              >
-                                <Check className="w-4 h-4" />
-                              </button>
-                            ) : null}
-                            {canRejectPermintaanDisposisi ? (
-                              <button
-                                onClick={() => handleAction(item, "reject")}
-                                className="p-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
-                                title="Tolak"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            ) : null}
-                          </>
-                        ) : null}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                      <span className="block truncate" title={item.alasan}>
+                        {item.alasan}
+                      </span>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      <SetupStatusBadge status="Menunggu Persetujuan" />
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      {canProcessItem(item, "approve") || canProcessItem(item, "reject") ? (
+                        <div className="flex items-center justify-center gap-3">
+                          {canProcessItem(item, "approve") ? (
+                            <button
+                              type="button"
+                              onClick={() => handleAction(item, "approve")}
+                              className={`${INLINE_ACTION_BUTTON_CLASS} hover:text-emerald-600`}
+                              title="Setujui"
+                            >
+                              <Check className="h-5 w-5" aria-hidden="true" />
+                              <span className="sr-only">Setujui</span>
+                            </button>
+                          ) : null}
+                          {canProcessItem(item, "reject") ? (
+                            <button
+                              type="button"
+                              onClick={() => handleAction(item, "reject")}
+                              className={`${INLINE_ACTION_BUTTON_CLASS} hover:text-red-600`}
+                              title="Tolak"
+                            >
+                              <X className="h-5 w-5" aria-hidden="true" />
+                              <span className="sr-only">Tolak</span>
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="text-sm text-slate-300">-</span>
+                      )}
+                    </SetupDataTableCell>
+                  </SetupDataTableRow>
+                ))
+              ) : (
+                <SetupDataTableRow>
+                  <SetupDataTableCell colSpan={9} className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}>
+                    Tidak ada permintaan disposisi yang menunggu aksi.
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
+              )}
+            </SetupDataTableBody>
+          </SetupDataTable>
         </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 flex flex-col items-center justify-center text-center">
-          <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-            <Check className="w-10 h-10 text-gray-300" />
-          </div>
-          <h3 className="text-lg font-bold text-gray-900">Tidak Ada Permintaan</h3>
-          <p className="text-gray-500 mt-2">
-            Semua permintaan akses dokumen sudah diproses.
-          </p>
-        </div>
-      )}
+        <Pagination
+          page={paginationMeta.page}
+          lastPage={paginationMeta.lastPage}
+          total={paginationMeta.total}
+          limit={paginationMeta.limit}
+          onPageChange={setPage}
+        />
+      </div>
 
-      <ConfirmModal
-        isOpen={showModal && !!selectedItem}
-        onClose={() => setShowModal(false)}
-        onConfirm={() => void handleSubmit()}
-        title={actionType === "approve" ? "Setujui Disposisi" : "Tolak Disposisi"}
-        type={actionType === "approve" ? "success" : "danger"}
-        confirmText={
-          actionType === "approve" ? (
+      {showModal && selectedItem && actionType ? (
+        <DashboardModal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          closeDisabled={isLoading}
+          title={actionType === "approve" ? "Setujui Disposisi" : "Tolak Disposisi"}
+          description="Review permintaan akses dokumen."
+          maxWidth="3xl"
+          bodyClassName="max-h-[calc(90vh-164px)] overflow-y-auto p-6"
+          footerClassName="flex flex-col justify-end gap-3 border-t border-gray-100 bg-gray-50 p-6 sm:flex-row"
+          footer={
             <>
-              <Check className="w-4 h-4" />
-              Setujui
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                disabled={isLoading}
+                className="uiverse-modal-button uiverse-modal-button--neutral"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSubmit()}
+                disabled={
+                  isLoading ||
+                  !alasanAksi.trim() ||
+                  (actionType === "approve" && !tanggalExpired)
+                }
+                className={`uiverse-modal-button ${
+                  actionType === "approve"
+                    ? "uiverse-modal-button--primary"
+                    : "uiverse-modal-button--danger"
+                } disabled:cursor-not-allowed disabled:opacity-60`}
+              >
+                {isLoading ? (
+                  <>
+                    <div
+                      className="button-spinner uiverse-modal-button__spinner"
+                      style={
+                        {
+                          ["--spinner-size"]: "18px",
+                          ["--spinner-border"]: "2px",
+                        } as CSSProperties
+                      }
+                      aria-hidden="true"
+                    />
+                    <span>Memproses...</span>
+                  </>
+                ) : (
+                  <>
+                    {actionType === "approve" ? (
+                      <Check className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      <X className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    <span>{actionType === "approve" ? "Setujui" : "Tolak"}</span>
+                  </>
+                )}
+              </button>
             </>
-          ) : (
-            <>
-              <X className="w-4 h-4" />
-              Tolak
-            </>
-          )
-        }
-        cancelText="Batal"
-        isLoading={isLoading}
-        isConfirmDisabled={
-          !alasanAksi.trim() || (actionType === "approve" && !tanggalExpired)
-        }
-      >
-        {selectedItem && (
-          <div className="space-y-6">
-            <div className="bg-gray-50 rounded-lg p-5 border border-gray-100">
-              <div className="grid grid-cols-2 gap-y-4 gap-x-6">
-                <div>
-                  <label className="text-xs text-gray-500 uppercase font-semibold tracking-wider">
-                    Kode Dokumen
-                  </label>
-                  <p className="font-bold text-primary-600 mt-1">{selectedItem.kode}</p>
+          }
+        >
+          <div className="space-y-8">
+            <section className="space-y-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  {actionType === "approve" ? (
+                    <CheckCircle2 className="h-5 w-5 text-slate-900" aria-hidden="true" />
+                  ) : (
+                    <AlertTriangle className="h-5 w-5 text-slate-900" aria-hidden="true" />
+                  )}
+                  <h3 className="text-base font-semibold text-gray-900">
+                    Ringkasan Dokumen
+                  </h3>
                 </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase font-semibold tracking-wider">
-                    Nama Dokumen
-                  </label>
-                  <p className="font-medium text-gray-800 mt-1">
-                    {selectedItem.namaDokumen}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase font-semibold tracking-wider">
-                    Keterangan
-                  </label>
-                  <p className="font-medium text-gray-800 mt-1 text-sm">
-                    {selectedItem.detail}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase font-semibold tracking-wider">
-                    Pemohon
-                  </label>
-                  <p className="font-semibold text-gray-800 mt-1">
-                    {formatPersonName(selectedItem.pemohon)}
-                  </p>
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500 uppercase font-semibold tracking-wider">
-                    Alasan Pengajuan
-                  </label>
-                  <p className="font-medium text-gray-800 italic mt-1 text-sm bg-white p-2 rounded border border-gray-200">
-                    &quot;{selectedItem.alasan}&quot;
-                  </p>
-                </div>
+                <p className="mt-1 text-sm text-slate-500">
+                  Pastikan data permintaan sesuai sebelum memproses akses dokumen.
+                </p>
               </div>
-            </div>
 
-            <div className="space-y-4">
-              {actionType === "approve" && (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <SummaryField label="Kode Dokumen">
+                  <span
+                    className="inline-flex rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 tabular-nums"
+                    title={selectedItem.kode}
+                  >
+                    {selectedItem.kode}
+                  </span>
+                </SummaryField>
+                <SummaryField label="Nama Dokumen" contentClassName="font-semibold text-gray-900">
+                  {selectedItem.namaDokumen}
+                </SummaryField>
+                <SummaryField label="Pemohon" contentClassName="font-semibold text-gray-900">
+                  {formatPersonName(selectedItem.pemohon)}
+                </SummaryField>
+                <SummaryField label="Expired Diminta" contentClassName="font-medium text-gray-900">
+                  {selectedItem.tglExpired ? formatDateOnly(selectedItem.tglExpired) : "-"}
+                </SummaryField>
+                <SummaryField label="Keterangan" className="md:col-span-2">
+                  {selectedItem.detail || "-"}
+                </SummaryField>
+                <SummaryField label="Alasan Pengajuan" className="md:col-span-2">
+                  {selectedItem.alasan || "-"}
+                </SummaryField>
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">
+                  Tindak Lanjut
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Isi keputusan dan catatan yang akan tersimpan pada histori disposisi.
+                </p>
+              </div>
+
+              {actionType === "approve" ? (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
                     Tanggal Expired Akses <span className="text-red-500">*</span>
                   </label>
-                  <DatePickerInput
+                  <BasicDateInput
                     value={tanggalExpired}
                     onChange={setTanggalExpired}
                   />
                 </div>
-              )}
+              ) : null}
 
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700">
                   Alasan {actionType === "approve" ? "Persetujuan" : "Penolakan"}{" "}
                   <span className="text-red-500">*</span>
                 </label>
-                <textarea
+                <SetupTextarea
                   value={alasanAksi}
                   onChange={(event) => setAlasanAksi(event.target.value)}
                   placeholder={`Masukkan alasan ${actionType === "approve" ? "persetujuan" : "penolakan"}...`}
-                  className="textarea resize-none"
-                  rows={3}
+                  className="resize-none"
+                  rows={4}
                 />
               </div>
-            </div>
+            </section>
           </div>
-        )}
-      </ConfirmModal>
+        </DashboardModal>
+      ) : null}
     </div>
   );
 }

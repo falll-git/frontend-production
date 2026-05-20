@@ -1,0 +1,70 @@
+.logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 45px;
+  height: 45px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(255, 255, 255, 0.15);
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  backdrop-filter: blur(10px);
+}
+
+.logout-btn .sign {
+  width: 100%;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+.logout-btn .sign svg {
+  width: 20px;
+  height: 20px;
+}
+
+.logout-btn .sign svg path {
+  fill: none;
+}
+
+.logout-btn .logout-text {
+  position: absolute;
+  right: 0%;
+  width: 0%;
+  opacity: 0;
+  color: #ffffff;
+  font-size: 0.9em;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.logout-btn:hover {
+  width: 125px;
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+}
+
+.logout-btn:hover .sign {
+  width: 35%;
+  padding-left: 12px;
+}
+
+.logout-btn:hover .logout-text {
+  opacity: 1;
+  width: 65%;
+  padding-right: 12px;
+}
+
+.logout-btn:active {
+  transform: scale(0.98);
+}

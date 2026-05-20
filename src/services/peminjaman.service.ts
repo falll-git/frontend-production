@@ -1,9 +1,13 @@
 import api from "@/lib/axios";
 import {
+  extractList,
+  extractPaginationMeta,
   extractRecord,
   readString,
   toApiDateTime,
 } from "@/services/api.utils";
+import { OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import type { PaginatedResult } from "@/types/api.types";
 import { getAllPaginatedRecords, mapDigitalDocument } from "@/services/arsip.service";
 import type { Peminjaman } from "@/types/arsip.types";
 
@@ -111,6 +115,9 @@ function mapPeminjaman(record: AnyRecord): Peminjaman | null {
 }
 
 type GetAllPeminjamanParams = {
+  page?: number;
+  limit?: number;
+  search?: string;
   scope?: "borrower";
   status?:
     | "PENDING"
@@ -119,11 +126,17 @@ type GetAllPeminjamanParams = {
     | "HANDED_OVER"
     | "BORROWED"
     | "RETURNED"
+    | "ACTIVE"
     | "OVERDUE";
+  due_status?: "UPCOMING" | "OVERDUE";
   report?: "history" | "overdue";
   document_id?: string;
   office_id?: string;
   cabinet_id?: string;
+  requested_start_date_from?: string;
+  requested_start_date_to?: string;
+  start_date_from?: string;
+  start_date_to?: string;
 };
 
 type CreatePeminjamanPayload = {
@@ -139,6 +152,67 @@ export const peminjamanService = {
     return records
       .map((record) => mapPeminjaman(record))
       .filter((item): item is Peminjaman => item !== null);
+  },
+  getPage: async ({
+    page = 1,
+    limit = OPERATIONAL_TABLE_PAGE_SIZE,
+    ...params
+  }: GetAllPeminjamanParams = {}): Promise<PaginatedResult<Peminjaman>> => {
+    const res = await api.get("/digital-document-loans", {
+      params: {
+        ...params,
+        page,
+        limit,
+      },
+    });
+    const items = extractList(res.data)
+      .map((record) => mapPeminjaman(record))
+      .filter((item): item is Peminjaman => item !== null);
+
+    return {
+      items,
+      meta: extractPaginationMeta(res.data, {
+        page,
+        limit,
+        total: items.length,
+      }),
+    };
+  },
+  getReport: async (
+    params: GetAllPeminjamanParams = {},
+  ): Promise<Peminjaman[]> => {
+    const records = await getAllPaginatedRecords(
+      "/digital-archives/reports/loans",
+      params,
+    );
+    return records
+      .map((record) => mapPeminjaman(record))
+      .filter((item): item is Peminjaman => item !== null);
+  },
+  getReportPage: async ({
+    page = 1,
+    limit = OPERATIONAL_TABLE_PAGE_SIZE,
+    ...params
+  }: GetAllPeminjamanParams = {}): Promise<PaginatedResult<Peminjaman>> => {
+    const res = await api.get("/digital-archives/reports/loans", {
+      params: {
+        ...params,
+        page,
+        limit,
+      },
+    });
+    const items = extractList(res.data)
+      .map((record) => mapPeminjaman(record))
+      .filter((item): item is Peminjaman => item !== null);
+
+    return {
+      items,
+      meta: extractPaginationMeta(res.data, {
+        page,
+        limit,
+        total: items.length,
+      }),
+    };
   },
   getById: async (id: string): Promise<Peminjaman | null> => {
     const res = await api.get(`/digital-document-loans/${id}`);
@@ -220,10 +294,13 @@ export const peminjamanService = {
 
     return mapped;
   },
-  getHistory: async (): Promise<Peminjaman[]> => {
-    const records = await getAllPaginatedRecords("/digital-document-loans", {
-      report: "history",
-    });
+  getHistory: async (
+    params: Pick<GetAllPeminjamanParams, "office_id" | "cabinet_id" | "search"> = {},
+  ): Promise<Peminjaman[]> => {
+    const records = await getAllPaginatedRecords(
+      "/digital-archives/histories/loans",
+      params,
+    );
     return records
       .map((record) => mapPeminjaman(record))
       .filter((item): item is Peminjaman => item !== null);

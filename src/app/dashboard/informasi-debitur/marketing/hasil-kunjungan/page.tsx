@@ -1,5 +1,5 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+import { DebtorMarketingClient } from "@/components/informasi-debitur/DebiturModuleClients";
 
 export default function HasilKunjunganPage() {
-  return <ModuleSkeletonPage title="Hasil Kunjungan" />;
+  return <DebtorMarketingClient kind="visit-results" />;
 }

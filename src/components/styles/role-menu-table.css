@@ -1,0 +1,27 @@
+.role-menu-table-card {
+  width: fit-content !important;
+  max-width: 100%;
+}
+
+.role-menu-table-scroll {
+  width: fit-content;
+  max-width: 100%;
+}
+
+.role-menu-permission-table {
+  width: 850px !important;
+  min-width: 850px !important;
+}
+
+.role-menu-permission-table th.role-menu-name-cell {
+  text-align: center !important;
+}
+
+.role-menu-permission-table td.role-menu-name-cell,
+.role-menu-permission-table td.role-menu-name-cell * {
+  text-align: center !important;
+}
+
+.role-menu-permission-table td.role-menu-name-cell .flex {
+  justify-content: center !important;
+}

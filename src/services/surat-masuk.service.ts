@@ -4,6 +4,7 @@ import {
   toPreviewableFileUrl,
 } from "@/lib/utils/file";
 import {
+  extractPaginationMeta,
   extractList,
   extractRecord,
   readNumber,
@@ -11,6 +12,13 @@ import {
   readString,
   toMultipartFormData,
 } from "@/services/api.utils";
+import { MAX_TABLE_PAGE_SIZE, OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import { mapWatermarkFileMeta } from "@/services/watermark.service";
+import {
+  readPhysicalStorage,
+  readPhysicalStorageLabel,
+} from "@/services/persuratan-storage.mapper";
+import type { PageQuery, PaginatedResult } from "@/types/api.types";
 import type {
   DispositionHolderSummary,
   IncomingMailPayload,
@@ -28,6 +36,47 @@ function asRecord(value: unknown): UnknownRecord | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as UnknownRecord)
     : null;
+}
+
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean);
+}
+
+function readUserIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => {
+      const record = asRecord(item);
+      return record ? readString(record, "id") : null;
+    })
+    .filter((item): item is string => Boolean(item));
+}
+
+function readTargetManagerIds(
+  record: UnknownRecord,
+  targetDivisionRecords: UnknownRecord[],
+): string[] {
+  const managerIds = [
+    ...readStringArray(record.target_manager_ids),
+    ...readUserIds(record.target_managers),
+  ];
+
+  for (const target of targetDivisionRecords) {
+    managerIds.push(
+      ...readStringArray(target.manager_ids),
+      ...readUserIds(target.managers),
+    );
+
+    const singleManagerId = readString(target, "manager_id", "managerId");
+    if (singleManagerId) managerIds.push(singleManagerId);
+  }
+
+  return [...new Set(managerIds)];
 }
 
 function readDispositions(record: UnknownRecord): string[] {
@@ -163,7 +212,7 @@ function readDispositionHistory(record: UnknownRecord): SuratDisposisi[] {
             "createdAt",
             "start_date",
             "startDate",
-          ) ?? new Date().toISOString(),
+          ) ?? "",
         disposed_at:
           readNullableString(normalized, "disposed_at", "created_at", "createdAt") ??
           null,
@@ -233,7 +282,7 @@ function mapAssignableUserRecord(record: UnknownRecord): SuratUser | null {
 
   return {
     id,
-    nama: roleName ? `${name} ${roleName}` : name,
+    nama: name,
     divisi: divisionName,
     username: readNullableString(record, "username"),
     email: readNullableString(record, "email") ?? null,
@@ -354,6 +403,13 @@ export function mapSuratMasukRecord(
   const status = readSuratMasukStatus(record, disposisiKepada);
   const currentHolders = readCurrentHolders(record);
   const lastHolder = mapHolderSummary(record.last_holder);
+  const storage = readPhysicalStorage(record);
+  const targetDivisionRecords = Array.isArray(record.target_divisions)
+    ? record.target_divisions.filter(
+        (item): item is UnknownRecord =>
+          typeof item === "object" && item !== null && !Array.isArray(item),
+      )
+    : [];
 
   return {
     id,
@@ -396,6 +452,11 @@ export function mapSuratMasukRecord(
       null,
     fileName: fallbackFileName,
     fileUrl: previewableFileUrl,
+    watermark: mapWatermarkFileMeta(record.watermark),
+    storageId:
+      readString(record, "storage_id", "storageId") ?? storage?.id ?? undefined,
+    storage,
+    physicalStorageLabel: readPhysicalStorageLabel(record),
     targetDivisionIds: Array.isArray(record.target_division_ids)
       ? record.target_division_ids.filter(
           (item): item is string =>
@@ -408,6 +469,8 @@ export function mapSuratMasukRecord(
             typeof item === "string" && item.trim().length > 0,
         )
       : undefined,
+    targetManagerIds: readTargetManagerIds(record, targetDivisionRecords),
+    createdBy: readString(record, "created_by", "createdBy") ?? undefined,
     tenggatWaktu:
       readNullableString(record, "due_date", "dueDate") ??
       latestDispositionWithDueDate?.due_date ??
@@ -419,12 +482,50 @@ export function mapSuratMasukRecord(
   };
 }
 
+async function getSuratMasukPage({
+  page = 1,
+  limit = OPERATIONAL_TABLE_PAGE_SIZE,
+  search,
+}: PageQuery = {}): Promise<PaginatedResult<SuratMasuk>> {
+  const res = await api.get("/incoming-mails", {
+    params: {
+      page,
+      limit,
+      ...(search ? { search } : {}),
+    },
+  });
+  const items = extractList(res.data)
+    .map((record, index) => mapSuratMasukRecord(record, index))
+    .filter((item): item is SuratMasuk => item !== null);
+
+  return {
+    items,
+    meta: extractPaginationMeta(res.data, {
+      page,
+      limit,
+      total: items.length,
+    }),
+  };
+}
+
 export const suratMasukService = {
+  getPage: getSuratMasukPage,
   getAll: async (): Promise<SuratMasuk[]> => {
-    const res = await api.get("/incoming-mails");
-    return extractList(res.data)
-      .map((record, index) => mapSuratMasukRecord(record, index))
-      .filter((item): item is SuratMasuk => item !== null);
+    const first = await getSuratMasukPage({
+      page: 1,
+      limit: MAX_TABLE_PAGE_SIZE,
+    });
+    const all = [...first.items];
+
+    for (let page = 2; page <= first.meta.lastPage; page += 1) {
+      const next = await getSuratMasukPage({
+        page,
+        limit: MAX_TABLE_PAGE_SIZE,
+      });
+      all.push(...next.items);
+    }
+
+    return all;
   },
   createWithDisposition: async (
     data: IncomingMailPayload,
@@ -437,86 +538,8 @@ export const suratMasukService = {
   redispose: async (
     id: string,
     data: IncomingRedispositionPayload,
-  ): Promise<SuratDisposisi | null> => {
-    const res = await api.post(`/incoming-mails/${id}/redispose`, data);
-    const record = extractRecord(res.data);
-
-    if (!record) return null;
-
-    const senderRecord = asRecord(record.sender);
-    const receiverRecord = asRecord(record.receiver);
-    const senderId = readString(record, "sender_id", "senderId") ?? "";
-    const receiverId = readString(record, "receiver_id", "receiverId") ?? "";
-
-    return {
-      id: readString(record, "id") ?? `disp-${id}`,
-      surat_masuk_id:
-        readString(
-          record,
-          "incoming_mails_id",
-          "incoming_mail_id",
-          "surat_masuk_id",
-          "incomingMailId",
-        ) ?? id,
-      dari_user_id: senderId,
-      dari_user_nama:
-        readString(record, "sender_name", "senderName") ??
-        (senderRecord
-          ? readString(senderRecord, "name", "username")
-          : null) ??
-        senderId ??
-        "-",
-      ke_user_id: receiverId,
-      ke_user_nama:
-        readString(record, "receiver_name", "receiverName") ??
-        (receiverRecord
-          ? readString(receiverRecord, "name", "username")
-          : null) ??
-        receiverId ??
-        "-",
-      catatan: readNullableString(record, "note", "catatan") ?? null,
-      created_at:
-        readString(
-          record,
-          "disposed_at",
-          "created_at",
-          "createdAt",
-          "start_date",
-          "startDate",
-        ) ?? new Date().toISOString(),
-      disposed_at:
-        readNullableString(record, "disposed_at", "created_at", "createdAt") ??
-        null,
-      start_date:
-        readNullableString(record, "start_date", "startDate") ?? null,
-      due_date:
-        readNullableString(record, "due_date", "dueDate") ?? null,
-      completed_at:
-        readNullableString(record, "completed_at", "completedAt") ?? null,
-      parent_disposition_id:
-        readNullableString(
-          record,
-          "parent_disposition_id",
-          "parentDispositionId",
-        ) ?? null,
-      status:
-        ((readString(record, "status_key", "statusKey", "status") ?? "").toUpperCase() as SuratDisposisi["status"]) ||
-        "NEW",
-      status_key:
-        ((readString(record, "status_key", "statusKey", "status") ?? "").toUpperCase() as SuratDisposisi["status_key"]) ||
-        "NEW",
-      status_label:
-        readString(record, "status_label", "statusLabel") || "Baru",
-      sequence: readNumber(record, "sequence") ?? null,
-      is_current: Boolean(record.is_current),
-      timeline_label:
-        readString(record, "timeline_label", "timelineLabel") ||
-        `${senderId || "-"} -> ${receiverId || "-"}`,
-      is_disposisi_ulang: true,
-      can_start: Boolean(record.can_start),
-      can_complete: Boolean(record.can_complete),
-      can_redispose: Boolean(record.can_redispose),
-    };
+  ): Promise<void> => {
+    await api.post(`/incoming-mails/${id}/redispose`, data);
   },
   updateDispositionStatus: async (
     id: string,
@@ -536,6 +559,7 @@ export const suratMasukService = {
       Pick<
         IncomingMailPayload,
         | "letter_prioritie_id"
+        | "storage_id"
         | "regarding"
         | "receive_date"
         | "mail_number"

@@ -2,6 +2,8 @@
 
 import { Trash2 } from "lucide-react";
 
+import DashboardModal from "@/components/ui/DashboardModal";
+
 type DeleteConfirmModalProps = {
   isOpen: boolean;
   title: string;
@@ -24,36 +26,51 @@ export default function DeleteConfirmModal({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={isLoading ? undefined : onClose}>
-      <div className="modal-content" onClick={(event) => event.stopPropagation()}>
-        <div className="text-center">
-          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-            <Trash2 className="w-8 h-8 text-red-600" aria-hidden="true" />
+    <DashboardModal
+      isOpen={isOpen}
+      title={title}
+      description={`Tindakan ini akan menghapus ${entityLabel} dari sistem.`}
+      onClose={onClose}
+      closeDisabled={isLoading}
+      maxWidth="md"
+      bodyClassName="p-6"
+      footer={
+        <>
+          <button
+            onClick={onClose}
+            className="uiverse-modal-button uiverse-modal-button--neutral"
+            disabled={isLoading}
+            type="button"
+          >
+            Batal
+          </button>
+          <button
+            onClick={onConfirm}
+            className="uiverse-modal-button uiverse-modal-button--danger"
+            disabled={isLoading}
+            type="button"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+            <span>{isLoading ? "Menghapus..." : "Hapus"}</span>
+          </button>
+        </>
+      }
+    >
+      <div className="rounded-lg border border-red-100 bg-red-50 px-4 py-4">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-100 text-slate-900">
+            <Trash2 className="h-5 w-5" aria-hidden="true" />
           </div>
-          <h3 className="text-xl font-bold text-gray-800 mb-2">{title}</h3>
-          <p className="text-gray-500 mb-6">
-            Apakah Anda yakin ingin menghapus {entityLabel}{" "}
-            <strong>{itemName}</strong>?
-          </p>
-          <div className="flex justify-center gap-3">
-            <button
-              onClick={onClose}
-              className="btn btn-outline"
-              disabled={isLoading}
-            >
-              Batal
-            </button>
-            <button
-              onClick={onConfirm}
-              className="btn btn-danger"
-              disabled={isLoading}
-            >
-              <Trash2 className="w-4 h-4" aria-hidden="true" />
-              {isLoading ? "Menghapus..." : "Hapus"}
-            </button>
+          <div>
+            <p className="text-sm font-semibold text-red-900">
+              {itemName || "Data terpilih"}
+            </p>
+            <p className="mt-1 text-sm leading-6 text-red-800">
+              Data yang sudah dihapus tidak bisa dikembalikan dari halaman ini.
+            </p>
           </div>
         </div>
       </div>
-    </div>
+    </DashboardModal>
   );
 }

@@ -1,7 +1,12 @@
+import {
+  DOCUMENT_UPLOAD_MAX_SIZE_BYTES,
+  DOCUMENT_UPLOAD_MAX_SIZE_LABEL,
+} from "@/lib/upload-limits";
+
 export type DocumentFileType = "pdf" | "image" | "other";
 
-const PERSURATAN_MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
-const DIGITAL_ARCHIVE_MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+const PERSURATAN_MAX_FILE_SIZE_BYTES = DOCUMENT_UPLOAD_MAX_SIZE_BYTES;
+const DIGITAL_ARCHIVE_MAX_FILE_SIZE_BYTES = DOCUMENT_UPLOAD_MAX_SIZE_BYTES;
 const PERSURATAN_ALLOWED_FILE_EXTENSIONS = new Set([
   "pdf",
   "doc",
@@ -93,7 +98,7 @@ export function validatePersuratanFile(file: File): string | null {
   }
 
   if (file.size > PERSURATAN_MAX_FILE_SIZE_BYTES) {
-    return "Ukuran file maksimal 10MB.";
+    return `Ukuran file maksimal ${DOCUMENT_UPLOAD_MAX_SIZE_LABEL}.`;
   }
 
   const normalizedMimeType = file.type.trim().toLowerCase();
@@ -131,7 +136,7 @@ export function validateDigitalArchiveFile(file: File): string | null {
   }
 
   if (file.size > DIGITAL_ARCHIVE_MAX_FILE_SIZE_BYTES) {
-    return "Ukuran file maksimal 15MB.";
+    return `Ukuran file maksimal ${DOCUMENT_UPLOAD_MAX_SIZE_LABEL}.`;
   }
 
   const normalizedMimeType = file.type.trim().toLowerCase();
@@ -213,7 +218,8 @@ export function detectDocumentFileType(
   fileUrl?: string | null,
   fileName?: string | null,
 ): DocumentFileType {
-  const url = typeof fileUrl === "string" ? fileUrl.trim().toLowerCase() : "";
+  const rawUrl = typeof fileUrl === "string" ? fileUrl.trim().toLowerCase() : "";
+  const url = rawUrl.split("#")[0].split("?")[0];
   const name = typeof fileName === "string" ? fileName.trim().toLowerCase() : "";
 
   const mimeType = inferMimeTypeFromFileName(name);
@@ -232,7 +238,7 @@ export function detectDocumentFileType(
   const extension =
     inferExtensionFromFileName(name) ||
     (url.includes(".")
-      ? url.split("#")[0].split("?")[0].split(".").at(-1) ?? null
+      ? url.split(".").at(-1) ?? null
       : null);
 
   if (

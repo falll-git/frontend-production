@@ -1,5 +1,5 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+import { DebtorImportClient } from "@/components/informasi-debitur/DebiturModuleClients";
 
 export default function UploadSlikPage() {
-  return <ModuleSkeletonPage title="Upload Data SLIK" />;
+  return <DebtorImportClient type="SLIK" />;
 }

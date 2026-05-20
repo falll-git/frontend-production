@@ -25,6 +25,10 @@ import type { DashboardMenuNode } from "@/types/rbac.types";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
+const RBAC_REFRESH_EVENT = "ruang-arsip:rbac-refresh";
+const RBAC_REFRESH_STORAGE_KEY = "ruang-arsip.rbac-refresh-at";
+const RBAC_REFRESH_INTERVAL_MS = 60_000;
+
 interface SignInResultSuccess {
   ok: true;
   user: User;
@@ -149,6 +153,14 @@ function normalizeUserPayload(payload: unknown): User | null {
           : roleRecord && typeof roleRecord.id === "string"
             ? roleRecord.id
             : "",
+    role_name:
+      typeof record.role_name === "string"
+        ? record.role_name
+        : typeof record.roleName === "string"
+          ? record.roleName
+          : roleRecord && typeof roleRecord.name === "string"
+            ? roleRecord.name
+            : role,
     division_id:
       typeof record.division_id === "string"
         ? record.division_id
@@ -157,7 +169,28 @@ function normalizeUserPayload(payload: unknown): User | null {
           : divisionRecord && typeof divisionRecord.id === "string"
             ? divisionRecord.id
             : "",
-    is_restrict: Boolean(record.is_restrict ?? record.isRestrict ?? false),
+    division_name:
+      typeof record.division_name === "string"
+        ? record.division_name
+        : typeof record.divisionName === "string"
+          ? record.divisionName
+          : divisionRecord && typeof divisionRecord.name === "string"
+            ? divisionRecord.name
+            : "",
+    can_access_restricted_documents: Boolean(
+      record.can_access_restricted_documents ??
+        record.canAccessRestrictedDocuments ??
+        record.is_restrict ??
+        record.isRestrict ??
+        false,
+    ),
+    is_restrict: Boolean(
+      record.can_access_restricted_documents ??
+        record.canAccessRestrictedDocuments ??
+        record.is_restrict ??
+        record.isRestrict ??
+        false,
+    ),
     is_active:
       typeof record.is_active === "boolean"
         ? record.is_active
@@ -203,25 +236,24 @@ function extractToken(payload: unknown): string | null {
   return null;
 }
 
-function extractRefreshToken(payload: unknown): string | null {
-  if (typeof payload !== "object" || payload === null) return null;
-  const data = payload as Record<string, unknown>;
-  const authEnvelope =
-    typeof data.data === "object" && data.data !== null
-      ? (data.data as Record<string, unknown>)
-      : null;
-
-  if (authEnvelope && typeof authEnvelope.refreshToken === "string") {
-    return authEnvelope.refreshToken;
-  }
-
-  if (typeof data.refreshToken === "string") return data.refreshToken;
-
-  return null;
-}
-
 function clearStoredSession() {
   clearAuthBrowserStorage();
+}
+
+function updateStoredUser(user: User) {
+  if (typeof window === "undefined") return;
+
+  const serializedUser = JSON.stringify(user);
+  if (window.sessionStorage.getItem(AUTH_STORAGE_KEYS.sessionUser)) {
+    window.sessionStorage.setItem(AUTH_STORAGE_KEYS.sessionUser, serializedUser);
+  }
+
+  if (window.localStorage.getItem(AUTH_STORAGE_KEYS.persistedUser)) {
+    window.localStorage.setItem(
+      AUTH_STORAGE_KEYS.persistedUser,
+      serializedUser,
+    );
+  }
 }
 
 export function AuthProvider({ children }: AuthProviderProps): ReactNode {
@@ -229,18 +261,42 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
   const [user, setUser] = useState<User | null>(null);
   const [dashboardMenus, setDashboardMenus] = useState<DashboardMenuNode[]>([]);
 
-  const syncRuntimeRbac = useCallback(async () => {
+  const syncRuntimeRbac = useCallback(async (options?: {
+    clearOnFailure?: boolean;
+    refreshUser?: boolean;
+  }) => {
+    const clearOnFailure = options?.clearOnFailure ?? true;
+    const refreshUser = options?.refreshUser ?? false;
+
     try {
-      const [menus, roleMenus] = await Promise.all([
+      const [menus, roleMenus, nextUser] = await Promise.all([
         menuService.getAll(),
         roleMenuService.getAll(),
+        refreshUser
+          ? userService
+              .getMe()
+              .then((me) => normalizeUserPayload(me as unknown))
+              .catch(() => null)
+          : Promise.resolve(null),
       ]);
 
       setRuntimeRbacData({ menus, roleMenus });
       setDashboardMenus(menus);
+
+      if (refreshUser) {
+        if (!nextUser || !nextUser.is_active) {
+          throw new Error("Sesi pengguna tidak valid.");
+        }
+
+        const publicUser = toPublicUser(nextUser);
+        setUser(publicUser);
+        updateStoredUser(publicUser);
+      }
     } catch {
-      clearRuntimeRbacData();
-      setDashboardMenus([]);
+      if (clearOnFailure) {
+        clearRuntimeRbacData();
+        setDashboardMenus([]);
+      }
     }
   }, []);
 
@@ -254,15 +310,18 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
         const rawUser =
           window.sessionStorage.getItem(AUTH_STORAGE_KEYS.sessionUser) ??
           window.localStorage.getItem(AUTH_STORAGE_KEYS.persistedUser);
-        const rawToken =
-          window.sessionStorage.getItem(AUTH_STORAGE_KEYS.sessionAccessToken) ??
-          window.localStorage.getItem(AUTH_STORAGE_KEYS.persistedAccessToken);
-
+        const remember =
+          window.localStorage.getItem(AUTH_STORAGE_KEYS.persistedUser) !== null;
         const parsedUser = readJson<User>(rawUser);
         let nextUser =
           parsedUser && parsedUser.is_active ? toPublicUser(parsedUser) : null;
 
-        if (!rawToken) {
+        const refreshPayload = await authService
+          .refresh({ remember })
+          .catch(() => null);
+        const refreshedToken = extractToken(refreshPayload);
+
+        if (!refreshedToken) {
           clearStoredSession();
           clearRuntimeRbacData();
           setDashboardMenus([]);
@@ -273,10 +332,12 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
           return;
         }
 
-        setAccessToken(rawToken);
+        setAccessToken(refreshedToken);
 
         const me = await userService.getMe().catch(() => null);
-        const fromServer = me ? normalizeUserPayload(me as unknown) : null;
+        const fromServer =
+          (me ? normalizeUserPayload(me as unknown) : null) ??
+          extractUser(refreshPayload);
         if (fromServer && fromServer.is_active) {
           nextUser = toPublicUser(fromServer);
         }
@@ -292,7 +353,7 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
           return;
         }
 
-        await syncRuntimeRbac();
+        await syncRuntimeRbac({ clearOnFailure: true });
 
         if (cancelled) return;
 
@@ -329,6 +390,7 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
         payload = await authService.login(
           normalizeUsername(username),
           password,
+          { remember },
         );
       } catch (error) {
         return {
@@ -341,7 +403,6 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
       }
 
       const token = extractToken(payload);
-      const refreshToken = extractRefreshToken(payload);
 
       if (!token) {
         return {
@@ -375,26 +436,16 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
             AUTH_STORAGE_KEYS.persistedUser,
             serializedUser,
           );
-          window.localStorage.setItem(
-            AUTH_STORAGE_KEYS.persistedAccessToken,
-            token,
-          );
           window.sessionStorage.removeItem(AUTH_STORAGE_KEYS.sessionUser);
           window.sessionStorage.removeItem(
             AUTH_STORAGE_KEYS.sessionAccessToken,
           );
-
-          if (refreshToken) {
-            window.localStorage.setItem(
-              AUTH_STORAGE_KEYS.persistedRefreshToken,
-              refreshToken,
-            );
-          } else {
-            window.localStorage.removeItem(
-              AUTH_STORAGE_KEYS.persistedRefreshToken,
-            );
-          }
-
+          window.localStorage.removeItem(
+            AUTH_STORAGE_KEYS.persistedAccessToken,
+          );
+          window.localStorage.removeItem(
+            AUTH_STORAGE_KEYS.persistedRefreshToken,
+          );
           window.sessionStorage.removeItem(
             AUTH_STORAGE_KEYS.sessionRefreshToken,
           );
@@ -403,33 +454,23 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
             AUTH_STORAGE_KEYS.sessionUser,
             serializedUser,
           );
-          window.sessionStorage.setItem(
+          window.sessionStorage.removeItem(
             AUTH_STORAGE_KEYS.sessionAccessToken,
-            token,
           );
           window.localStorage.removeItem(AUTH_STORAGE_KEYS.persistedUser);
           window.localStorage.removeItem(
             AUTH_STORAGE_KEYS.persistedAccessToken,
           );
-
-          if (refreshToken) {
-            window.sessionStorage.setItem(
-              AUTH_STORAGE_KEYS.sessionRefreshToken,
-              refreshToken,
-            );
-          } else {
-            window.sessionStorage.removeItem(
-              AUTH_STORAGE_KEYS.sessionRefreshToken,
-            );
-          }
-
+          window.sessionStorage.removeItem(
+            AUTH_STORAGE_KEYS.sessionRefreshToken,
+          );
           window.localStorage.removeItem(
             AUTH_STORAGE_KEYS.persistedRefreshToken,
           );
         }
       }
 
-      await syncRuntimeRbac();
+      await syncRuntimeRbac({ clearOnFailure: true });
 
       const publicUser = toPublicUser(nextUser);
       setUser(publicUser);
@@ -441,20 +482,7 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
 
   const signOut = useCallback(async () => {
     try {
-      const token =
-        typeof window === "undefined"
-          ? null
-          : (window.sessionStorage.getItem(
-              AUTH_STORAGE_KEYS.sessionAccessToken,
-            ) ??
-            window.localStorage.getItem(
-              AUTH_STORAGE_KEYS.persistedAccessToken,
-            ));
-
-      if (token) {
-        setAccessToken(token);
-        await authService.logout().catch(() => null);
-      }
+      await authService.logout().catch(() => null);
     } finally {
       clearStoredSession();
       clearRuntimeRbacData();
@@ -466,8 +494,40 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
   }, []);
 
   const refreshRbac = useCallback(async () => {
-    await syncRuntimeRbac();
+    await syncRuntimeRbac({ clearOnFailure: false, refreshUser: true });
   }, [syncRuntimeRbac]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    if (status !== "authenticated") return undefined;
+
+    const refreshCurrentAccess = () => {
+      void syncRuntimeRbac({ clearOnFailure: false, refreshUser: true });
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshCurrentAccess();
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === RBAC_REFRESH_STORAGE_KEY) refreshCurrentAccess();
+    };
+
+    window.addEventListener("focus", refreshCurrentAccess);
+    window.addEventListener(RBAC_REFRESH_EVENT, refreshCurrentAccess);
+    window.addEventListener("storage", handleStorage);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    const intervalId = window.setInterval(
+      refreshCurrentAccess,
+      RBAC_REFRESH_INTERVAL_MS,
+    );
+
+    return () => {
+      window.removeEventListener("focus", refreshCurrentAccess);
+      window.removeEventListener(RBAC_REFRESH_EVENT, refreshCurrentAccess);
+      window.removeEventListener("storage", handleStorage);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.clearInterval(intervalId);
+    };
+  }, [status, syncRuntimeRbac]);
 
   const value = useMemo<AuthContextValue>(() => {
     const resolvedRole = user ? parseRole(user.role) : null;

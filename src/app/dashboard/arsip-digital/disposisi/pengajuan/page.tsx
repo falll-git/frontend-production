@@ -1,11 +1,44 @@
 "use client";
 
+import {
+  SetupDataTable,
+  SetupDataTableHead,
+  SetupDataTableBody,
+  SetupDataTableRow,
+  SetupDataTableHeaderCell,
+  SetupDataTableCell,
+  SetupDataTableColGroup,
+  SetupDataTableCol
+} from "@/components/ui/SetupDataTable";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Send, X, FileText } from "lucide-react";
+import { Send, FileText } from "lucide-react";
 import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
 import { useAppToast } from "@/components/ui/AppToastProvider";
+import DashboardModal from "@/components/ui/DashboardModal";
+import DashboardNotice from "@/components/ui/DashboardNotice";
 import FeatureHeader from "@/components/ui/FeatureHeader";
+import BasicDateInput from "@/components/ui/BasicDateInput";
+import InputDokumenSectionTitle from "@/components/arsip-digital/input-dokumen/InputDokumenSectionTitle";
+import Pagination from "@/components/ui/Pagination";
+import SetupPrimaryButton from "@/components/ui/SetupPrimaryButton";
+import SetupSearchInput from "@/components/ui/SetupSearchInput";
+import SetupTextarea from "@/components/ui/SetupTextarea";
+import {
+  SETUP_PAGE_MODERN_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
+  SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_TABLE_CLASS,
+  SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
+  SETUP_PAGE_SEARCH_CARD_CLASS,
+  SETUP_PAGE_TABLE_CARD_CLASS,
+  SETUP_PAGE_TABLE_SCROLL_CLASS,
+  SETUP_PAGE_WIDTH_2XL_CLASS,
+} from "@/components/ui/setupPageStyles";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
+import { useClientPagination } from "@/hooks/useClientPagination";
+import { OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import { useArsipDigitalWorkflow } from "@/components/arsip-digital/ArsipDigitalWorkflowProvider";
 import { arsipService } from "@/services/arsip.service";
 import type { Dokumen } from "@/types/arsip.types";
@@ -14,6 +47,16 @@ const formatPersonName = (value: string) =>
   value
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
+
+const PENGAJUAN_TABLE_COLUMN_WIDTHS: Array<string | null> = [
+  "56px",
+  "184px",
+  "144px",
+  null,
+  null,
+  "152px",
+  "108px",
+];
 
 export default function PengajuanDisposisiPage() {
   const { showToast } = useAppToast();
@@ -28,6 +71,7 @@ export default function PengajuanDisposisiPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [alasan, setAlasan] = useState("");
+  const [tanggalExpired, setTanggalExpired] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDocsLoading, setIsDocsLoading] = useState(true);
 
@@ -67,7 +111,12 @@ export default function PengajuanDisposisiPage() {
         jenisDokumen: item.jenisDokumen,
         namaDokumen: item.namaDokumen,
         detail: item.detail,
-        pemilik: item.creator?.username ?? item.creator?.name ?? item.userInput,
+        pemilik:
+          item.owner?.name ??
+          item.owner?.username ??
+          item.creator?.name ??
+          item.creator?.username ??
+          item.userInput,
       }));
   }, [requestableDocs]);
 
@@ -76,6 +125,16 @@ export default function PengajuanDisposisiPage() {
       doc.namaDokumen.toLowerCase().includes(searchTerm.toLowerCase()) ||
       doc.kode.toLowerCase().includes(searchTerm.toLowerCase()),
   );
+  const {
+    paginatedItems: paginatedDokumen,
+    meta: paginationMeta,
+    setPage,
+    resetPage,
+  } = useClientPagination(filteredDokumen, OPERATIONAL_TABLE_PAGE_SIZE);
+
+  useEffect(() => {
+    resetPage();
+  }, [resetPage, searchTerm]);
 
   const handleCheckbox = (id: string) => {
     setSelectedDocs((prev) =>
@@ -116,11 +175,17 @@ export default function PengajuanDisposisiPage() {
       return;
     }
 
+    if (!tanggalExpired) {
+      showToast("Tanggal expired akses wajib diisi.", "warning");
+      return;
+    }
+
     setIsLoading(true);
     try {
       const created = await submitDisposisi({
         dokumenIds: selectedDocs,
         alasanPengajuan: alasan.trim(),
+        tanggalExpired,
       });
 
       if (created === 0) {
@@ -135,6 +200,7 @@ export default function PengajuanDisposisiPage() {
       );
       setSelectedDocs([]);
       setAlasan("");
+      setTanggalExpired("");
       await loadRequestableDocs();
     } catch (error) {
       showToast(
@@ -151,62 +217,66 @@ export default function PengajuanDisposisiPage() {
   );
 
   return (
-    <div className="animate-fade-in max-w-7xl mx-auto">
+    <div className="animate-fade-in max-w-7xl mx-auto space-y-6">
       <FeatureHeader
         title="Pengajuan Disposisi"
         subtitle="Ajukan permohonan akses untuk melihat detail dokumen."
         icon={<Send />}
       />
 
-      <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 max-w-2xl mb-8">
-        <h3 className="text-blue-800 font-semibold mb-2 flex items-center gap-2">
-          Cara Mengajukan:
-        </h3>
-        <ol className="list-decimal pl-5 space-y-1 text-sm text-blue-700">
+      <DashboardNotice
+        title="Cara Mengajukan:"
+        className="w-full"
+      >
+        <ol className="list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-700 marker:text-slate-500">
           <li>Pilih dokumen yang ingin Anda akses.</li>
-          <li>Klik tombol <span className="font-semibold">&quot;Ajukan Disposisi&quot;</span>.</li>
+          <li>
+            Klik tombol{" "}
+            <span className="font-semibold text-slate-800">
+              &quot;Ajukan Disposisi&quot;
+            </span>
+            .
+          </li>
           <li>Isi alasan pengajuan dengan jelas.</li>
           <li>Tunggu persetujuan dari pemilik dokumen.</li>
         </ol>
-      </div>
+      </DashboardNotice>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6 p-5">
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_2XL_CLASS}`}>
         <div className="flex flex-col md:flex-row gap-4 items-end justify-between">
           <div className="flex-1 w-full">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              Cari Dokumen
-            </label>
-            <div className="relative">
-              <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Cari berdasarkan nama dokumen atau kode..."
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="input input-with-icon"
-              />
-            </div>
+            <SetupSearchInput
+              label="Cari Dokumen"
+              placeholder="Cari berdasarkan nama dokumen atau kode..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
           </div>
-          <button
+          <SetupPrimaryButton
             onClick={() => setShowModal(true)}
             disabled={!canCreatePengajuanDisposisi || selectedDocs.length === 0}
-            className="btn btn-primary px-6 py-2.5 transition-all"
+            icon={<Send className="h-4 w-4" aria-hidden="true" />}
+            count={selectedDocs.length}
           >
-            <Send className="w-4 h-4 mr-2" />
             Ajukan Disposisi
-            <span className="ml-1 bg-white/20 px-2 py-0.5 rounded text-xs">
-              {selectedDocs.length}
-            </span>
-          </button>
+          </SetupPrimaryButton>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="w-16 px-6 py-3 text-center">
+      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} ${SETUP_PAGE_WIDTH_2XL_CLASS}`}>
+        <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
+          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+            <SetupDataTableColGroup>
+              {PENGAJUAN_TABLE_COLUMN_WIDTHS.map((width, index) => (
+                <SetupDataTableCol
+                  key={`${index}-${width ?? "flex"}`}
+                  style={width ? { width } : undefined}
+                />
+              ))}
+            </SetupDataTableColGroup>
+            <SetupDataTableHead className="ltr:text-left rtl:text-right">
+              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   <div className="flex justify-center">
                     <UiverseCheckbox
                       checked={
@@ -218,48 +288,48 @@ export default function PengajuanDisposisiPage() {
                       size={20}
                     />
                   </div>
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Kode
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Jenis Dokumen
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-1/3">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Nama Dokumen
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-1/4">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Keterangan
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Pemilik
-                </th>
-                <th className="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   Aksi
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
+                </SetupDataTableHeaderCell>
+              </SetupDataTableRow>
+            </SetupDataTableHead>
+            <SetupDataTableBody className="divide-y divide-gray-200">
               {isDocsLoading ? (
-                <tr>
-                  <td
+                <SetupDataTableRow>
+                  <SetupDataTableCell
                     colSpan={7}
-                    className="px-6 py-12 text-center text-sm text-gray-500"
+                    className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
                   >
                     Memuat dokumen yang bisa diajukan...
-                  </td>
-                </tr>
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
               ) : filteredDokumen.length > 0 ? (
-                filteredDokumen.map((doc) => (
-                <tr
+                paginatedDokumen.map((doc) => (
+                <SetupDataTableRow
                   key={doc.id}
-                  className={`group transition-colors cursor-pointer hover:bg-blue-50/40 ${
-                    selectedDocs.includes(doc.id) ? "bg-blue-50/60" : ""
+                  className={`cursor-pointer transition-colors hover:bg-gray-50 ${
+                    selectedDocs.includes(doc.id) ? "bg-sky-50/50" : ""
                   }`}
                   onClick={() => handleCheckbox(doc.id)}
                 >
-                  <td
-                    className="px-6 py-3 text-center"
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
                     onClick={(event) => event.stopPropagation()}
                   >
                     <div className="flex justify-center">
@@ -270,159 +340,178 @@ export default function PengajuanDisposisiPage() {
                         size={20}
                       />
                     </div>
-                  </td>
-                  <td className="px-6 py-3">
-                    <span className="text-primary-600 bg-primary-50 px-2 py-1 rounded border border-primary-100 text-xs font-medium tabular-nums">
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                    <span className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
                       {doc.kode}
                     </span>
-                  </td>
-                  <td className="px-6 py-3 text-sm text-gray-600">
-                    {doc.jenisDokumen}
-                  </td>
-                  <td className="px-6 py-3 text-sm font-semibold text-gray-800">
-                    {doc.namaDokumen}
-                  </td>
-                  <td className="px-6 py-3 text-sm text-gray-600 max-w-xs truncate" title={doc.detail}>
-                    {doc.detail}
-                  </td>
-                  <td className="px-6 py-3">
-                    <span className="text-sm font-semibold text-gray-800">
+                  </SetupDataTableCell>
+                  <SetupDataTableCell
+                    className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-medium text-gray-700`}
+                    title={doc.jenisDokumen}
+                  >
+                    <span className="block truncate">{doc.jenisDokumen}</span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell
+                    className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}
+                    title={doc.namaDokumen}
+                  >
+                    <span className="block truncate">{doc.namaDokumen}</span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell
+                    className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}
+                    title={doc.detail}
+                  >
+                    <span className="block truncate">{doc.detail}</span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell
+                    className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}
+                    title={formatPersonName(doc.pemilik)}
+                  >
+                    <span className="block truncate">
                       {formatPersonName(doc.pemilik)}
                     </span>
-                  </td>
-                  <td
-                    className="px-6 py-3 text-right"
+                  </SetupDataTableCell>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
                     onClick={(event) => event.stopPropagation()}
                   >
-                    <button
+                    <SetupPrimaryButton
                       onClick={() => {
                         setSelectedDocs([doc.id]);
                         setShowModal(true);
                       }}
-                      className="btn btn-sm btn-outline hover:bg-primary-600 hover:text-white transition-colors"
+                      size="sm"
                     >
                       Ajukan
-                    </button>
-                  </td>
-                </tr>
+                    </SetupPrimaryButton>
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
                 ))
               ) : (
-                <tr>
-                  <td
+                <SetupDataTableRow>
+                  <SetupDataTableCell
                     colSpan={7}
-                    className="px-6 py-12 text-center text-sm text-gray-500"
+                    className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
                   >
                     Tidak ada dokumen yang bisa diajukan.
-                  </td>
-                </tr>
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
               )}
-            </tbody>
-          </table>
+            </SetupDataTableBody>
+          </SetupDataTable>
         </div>
+        <Pagination
+          page={paginationMeta.page}
+          lastPage={paginationMeta.lastPage}
+          total={paginationMeta.total}
+          limit={paginationMeta.limit}
+          isLoading={isDocsLoading}
+          onPageChange={setPage}
+        />
       </div>
 
-      {showModal && (
-        <div
-          data-dashboard-overlay="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in"
-          onClick={() => setShowModal(false)}
-        >
-          <div
-            className="bg-white rounded-lg shadow-sm w-full max-w-lg overflow-hidden"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
-                  <Send className="w-5 h-5" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-800">
-                  Form Pengajuan
-                </h2>
-              </div>
-              <button
-                onClick={() => setShowModal(false)}
-                className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-6">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                  Dokumen yang Diajukan ({selectedDocuments.length})
-                </label>
-                <div className="bg-gray-50 rounded-lg border border-gray-100 max-h-48 overflow-y-auto divide-y divide-gray-100">
-                  {selectedDocuments.map((doc) => (
-                    <div key={doc.id} className="p-3 flex items-start gap-3">
-                      <FileText className="w-5 h-5 text-gray-400 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">
-                          {doc.namaDokumen}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded tabular-nums">
-                            {doc.kode}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            &bull; Pemilik:{" "}
-                            <span className="font-semibold text-gray-700">
-                              {formatPersonName(doc.pemilik)}
-                            </span>
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Keterangan: {doc.detail}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Alasan Pengajuan <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={alasan}
-                  onChange={(event) => setAlasan(event.target.value)}
-                  placeholder="Jelaskan alasan Anda membutuhkan akses ke dokumen ini..."
-                  className="textarea resize-none"
-                  rows={4}
-                />
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-end gap-3">
-              <button
-                onClick={() => setShowModal(false)}
-                className="btn btn-outline"
-              >
-                Batal
-              </button>
-              <button
-                onClick={() => void handleSubmit()}
-                disabled={!alasan.trim() || isLoading}
-                className="btn btn-primary"
-              >
-                {isLoading ? (
-                  <span className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Mengirim...
-                  </span>
+      <DashboardModal
+        isOpen={showModal}
+        title="Ajukan Disposisi"
+        description={`${selectedDocuments.length} dokumen dipilih`}
+        onClose={() => setShowModal(false)}
+        maxWidth="xl"
+        bodyClassName="space-y-6 p-6"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setShowModal(false)}
+              className="uiverse-modal-button uiverse-modal-button--neutral"
+            >
+              <span>Batal</span>
+            </button>
+            <SetupPrimaryButton
+              onClick={() => void handleSubmit()}
+              disabled={!alasan.trim() || !tanggalExpired || isLoading}
+              icon={
+                isLoading ? (
+                  <div className="uiverse-modal-button__spinner h-4 w-4 animate-spin rounded-full border-2 border-current/20 border-t-current" />
                 ) : (
-                  <span className="flex items-center gap-2">
-                    <Send className="w-4 h-4" />
-                    Kirim Pengajuan
-                  </span>
-                )}
-              </button>
+                  <Send className="h-4 w-4" aria-hidden="true" />
+                )
+              }
+            >
+              {isLoading ? "Mengirim..." : "Kirim Pengajuan"}
+            </SetupPrimaryButton>
+          </>
+        }
+      >
+        <section className="space-y-3">
+          <InputDokumenSectionTitle
+            title="Dokumen yang diajukan"
+            description="Ringkasan dokumen yang akan dimasukkan ke pengajuan ini."
+          />
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50/60">
+            <div className="max-h-44 divide-y divide-gray-200 overflow-y-auto">
+              {selectedDocuments.map((doc) => (
+                <div key={doc.id} className="flex items-start gap-3 px-4 py-3">
+                  <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center text-gray-400">
+                    <FileText className="h-5 w-5" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p
+                        className="truncate text-sm font-semibold text-gray-900"
+                        title={doc.namaDokumen}
+                      >
+                        {doc.namaDokumen}
+                      </p>
+                      <span className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
+                        {doc.kode}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600">
+                      Pemilik:{" "}
+                      <span className="font-semibold text-slate-700">
+                        {formatPersonName(doc.pemilik)}
+                      </span>
+                    </p>
+                    <p
+                      className="truncate text-xs text-slate-500"
+                      title={doc.detail}
+                    >
+                      Keterangan: {doc.detail}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
+        </section>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Alasan Pengajuan <span className="text-red-500">*</span>
+          </label>
+          <SetupTextarea
+            value={alasan}
+            onChange={(event) => setAlasan(event.target.value)}
+            placeholder="Jelaskan alasan Anda membutuhkan akses ke dokumen ini..."
+            className="min-h-[128px] resize-none"
+            rows={4}
+          />
+          <p className="text-xs text-slate-500">
+            Jelaskan kebutuhan akses dengan singkat dan jelas.
+          </p>
         </div>
-      )}
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Tanggal Expired Akses <span className="text-red-500">*</span>
+          </label>
+          <BasicDateInput
+            value={tanggalExpired}
+            onChange={setTanggalExpired}
+          />
+        </div>
+      </DashboardModal>
     </div>
   );
 }

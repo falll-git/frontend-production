@@ -1,5 +1,5 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+import { DebtorImportClient } from "@/components/informasi-debitur/DebiturModuleClients";
 
 export default function ImportDebiturPage() {
-  return <ModuleSkeletonPage title="Import Master Debitur & Kontrak" />;
+  return <DebtorImportClient type="MASTER" />;
 }

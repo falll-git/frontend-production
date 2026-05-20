@@ -1,5 +1,5 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+import { DebtorImportClient } from "@/components/informasi-debitur/DebiturModuleClients";
 
 export default function UploadRestrikPage() {
-  return <ModuleSkeletonPage title="Upload Data Restrik" />;
+  return <DebtorImportClient type="RESTRIK" />;
 }

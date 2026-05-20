@@ -1,459 +1,616 @@
 import api from "@/lib/axios";
+import { MAX_TABLE_PAGE_SIZE, SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import {
   extractList,
+  extractPaginationMeta,
   extractRecord,
-  readNullableString,
+  isRecord,
+  readBoolean,
   readNumber,
   readString,
+  toMultipartFormData,
 } from "@/services/api.utils";
+import type { ParameterMasterRecord } from "@/services/parameter-master.service";
+import type {
+  DebtorContract,
+  DebtorFileMeta,
+  DebtorParameterSummary,
+  DebtorRecord,
+} from "@/types/debitur.types";
+import type {
+  LegalClaim,
+  LegalClaimPayload,
+  LegalDeposit,
+  LegalDepositFundsReport,
+  LegalDepositPayload,
+  LegalDepositTransaction,
+  LegalDepositTransactionPayload,
+  LegalIdebPayload,
+  LegalIdebUpload,
+  LegalInsurancePayload,
+  LegalKjppPayload,
+  LegalListQuery,
+  LegalPageResult,
+  LegalPrintHistory,
+  LegalPrintPayload,
+  LegalProgressRecord,
+  LegalSummaryReport,
+  LegalTemplate,
+  LegalTemplatePayload,
+  LegalThirdPartyDocumentsReport,
+  LegalNotaryPayload,
+} from "@/types/legal.types";
 
-type UnknownRecord = Record<string, unknown>;
+type AnyRecord = Record<string, unknown>;
 
-function readFile(record: UnknownRecord): { url?: string; name?: string } | null {
-  const fileRaw = record.file;
-  if (typeof fileRaw === "object" && fileRaw !== null) {
-    return {
-      url: readNullableString(fileRaw as UnknownRecord, "url"),
-      name: readNullableString(fileRaw as UnknownRecord, "name"),
-    };
+function asRecord(value: unknown): AnyRecord | null {
+  return isRecord(value) ? value : null;
+}
+
+function nullableString(record: AnyRecord, ...keys: string[]): string | null {
+  return readString(record, ...keys);
+}
+
+function numberValue(record: AnyRecord, key: string, fallback = 0): number {
+  return readNumber(record, key) ?? fallback;
+}
+
+function booleanValue(record: AnyRecord, key: string, fallback = false): boolean {
+  if (!(key in record)) return fallback;
+  return readBoolean(record, key);
+}
+
+function normalizeDate(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function mapParameter(record: unknown): ParameterMasterRecord | null {
+  const item = asRecord(record);
+  const id = item ? readString(item, "id") : null;
+  if (!item || !id) return null;
+  return Object.fromEntries(
+    Object.entries(item).map(([key, value]) => {
+      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        return [key, value];
+      }
+      return [key, value === null || value === undefined ? null : String(value)];
+    }),
+  ) as ParameterMasterRecord;
+}
+
+function mapDebtorParameter(record: unknown): DebtorParameterSummary | null {
+  const item = asRecord(record);
+  const id = item ? readString(item, "id") : null;
+  const name = item ? readString(item, "name", "label") : null;
+  if (!item || !id || !name) return null;
+  return {
+    id,
+    code: nullableString(item, "code", "kode"),
+    name,
+    level: readNumber(item, "level"),
+    is_npf: readBoolean(item, "is_npf", "isNpf"),
+  };
+}
+
+function mapFile(record: unknown): DebtorFileMeta | null {
+  const file = asRecord(record);
+  if (!file) return null;
+  return {
+    name: nullableString(file, "name", "file_name"),
+    mime_type: nullableString(file, "mime_type", "mimeType"),
+    size_bytes: readNumber(file, "size_bytes", "sizeBytes"),
+    url: nullableString(file, "url", "file_url", "fileUrl"),
+    original_url: nullableString(file, "original_url", "originalUrl"),
+    watermarked_url: nullableString(file, "watermarked_url", "watermarkedUrl"),
+  };
+}
+
+function mapDebtor(record: unknown): DebtorRecord | null {
+  const debtor = asRecord(record);
+  const id = debtor ? readString(debtor, "id") : null;
+  const name = debtor ? readString(debtor, "name") : null;
+  if (!debtor || !id || !name) return null;
+  return {
+    id,
+    debtor_number: nullableString(debtor, "debtor_number", "debtorNumber"),
+    identity_number: nullableString(debtor, "identity_number", "identityNumber"),
+    name,
+    address: nullableString(debtor, "address"),
+    phone: nullableString(debtor, "phone"),
+    branch_id: nullableString(debtor, "branch_id", "branchId"),
+    marketing_user_id: nullableString(debtor, "marketing_user_id", "marketingUserId"),
+    financing_number: nullableString(debtor, "financing_number", "financingNumber"),
+    status: readString(debtor, "status") ?? "ACTIVE",
+    description: nullableString(debtor, "description"),
+    branch: null,
+    marketing_user: null,
+    latest_contract: null,
+    contracts: [],
+    contracts_count: 0,
+    documents_count: 0,
+    created_at: nullableString(debtor, "created_at", "createdAt"),
+    updated_at: nullableString(debtor, "updated_at", "updatedAt"),
+  };
+}
+
+function mapContract(record: unknown): DebtorContract | null {
+  const contract = asRecord(record);
+  const id = contract ? readString(contract, "id") : null;
+  const noKontrak = contract ? readString(contract, "no_kontrak", "noKontrak") : null;
+  const debtor = contract ? mapDebtor(contract.debtor) : null;
+  const debtorId = contract ? readString(contract, "debtor_id", "debtorId") ?? debtor?.id : null;
+  if (!contract || !id || !noKontrak || !debtorId) return null;
+  return {
+    id,
+    no_kontrak: noKontrak,
+    debtor_id: debtorId,
+    debtor,
+    product_id: nullableString(contract, "product_id", "productId"),
+    akad_type_id: nullableString(contract, "akad_type_id", "akadTypeId"),
+    branch_id: nullableString(contract, "branch_id", "branchId"),
+    marketing_user_id: nullableString(contract, "marketing_user_id", "marketingUserId"),
+    tanggal_akad: normalizeDate(contract.tanggal_akad),
+    tanggal_jatuh_tempo: normalizeDate(contract.tanggal_jatuh_tempo),
+    plafond: numberValue(contract, "plafond"),
+    pokok: numberValue(contract, "pokok"),
+    margin: numberValue(contract, "margin"),
+    tenor: readNumber(contract, "tenor"),
+    outstanding_pokok: numberValue(contract, "outstanding_pokok"),
+    outstanding_margin: numberValue(contract, "outstanding_margin"),
+    total_outstanding: numberValue(contract, "total_outstanding"),
+    status: readString(contract, "status") ?? "ACTIVE",
+    objek_pembiayaan: nullableString(contract, "objek_pembiayaan", "objekPembiayaan"),
+    agunan: nullableString(contract, "agunan"),
+    product: mapDebtorParameter(contract.product),
+    akad_type: mapDebtorParameter(contract.akad_type),
+    branch: null,
+    marketing_user: null,
+    latest_collectibility: null,
+    collectibilities: [],
+    created_at: nullableString(contract, "created_at", "createdAt"),
+    updated_at: nullableString(contract, "updated_at", "updatedAt"),
+  };
+}
+
+function mapTemplate(record: unknown): LegalTemplate | null {
+  const item = asRecord(record);
+  const id = item ? readString(item, "id") : null;
+  if (!item || !id) return null;
+  return {
+    id,
+    template_type: readString(item, "template_type", "templateType") ?? "",
+    version: numberValue(item, "version", 1),
+    title: readString(item, "title") ?? "-",
+    content_template: nullableString(item, "content_template", "contentTemplate"),
+    is_active: booleanValue(item, "is_active", true),
+    file: mapFile(item.file),
+    created_at: nullableString(item, "created_at", "createdAt"),
+    updated_at: nullableString(item, "updated_at", "updatedAt"),
+  };
+}
+
+function mapPrint(record: unknown): LegalPrintHistory | null {
+  const item = asRecord(record);
+  const id = item ? readString(item, "id") : null;
+  const contractId = item ? readString(item, "contract_id", "contractId") : null;
+  const generatedNumber = item ? readString(item, "generated_number", "generatedNumber") : null;
+  if (!item || !id || !contractId || !generatedNumber) return null;
+  return {
+    id,
+    template_id: nullableString(item, "template_id", "templateId"),
+    numbering_template_id: nullableString(item, "numbering_template_id", "numberingTemplateId"),
+    contract_id: contractId,
+    document_type: readString(item, "document_type", "documentType") ?? "",
+    generated_number: generatedNumber,
+    payload_snapshot: asRecord(item.payload_snapshot),
+    generated_file: mapFile(item.generated_file),
+    template: mapTemplate(item.template),
+    numbering_template: mapParameter(item.numbering_template),
+    contract: mapContract(item.contract),
+    printed_at: nullableString(item, "printed_at", "printedAt"),
+    created_at: nullableString(item, "created_at", "createdAt"),
+  };
+}
+
+function mapIdeb(record: unknown): LegalIdebUpload | null {
+  const item = asRecord(record);
+  const id = item ? readString(item, "id") : null;
+  if (!item || !id) return null;
+  return {
+    id,
+    debtor_id: nullableString(item, "debtor_id", "debtorId"),
+    contract_id: nullableString(item, "contract_id", "contractId"),
+    month: numberValue(item, "month"),
+    year: numberValue(item, "year"),
+    status: readString(item, "status") ?? "PENDING",
+    result_summary: asRecord(item.result_summary),
+    file: mapFile(item.file),
+    debtor: mapDebtor(item.debtor),
+    contract: mapContract(item.contract),
+    created_at: nullableString(item, "created_at", "createdAt"),
+  };
+}
+
+function mapProgress(record: unknown): LegalProgressRecord | null {
+  const item = asRecord(record);
+  const id = item ? readString(item, "id") : null;
+  const contractId = item ? readString(item, "contract_id", "contractId") : null;
+  const thirdPartyId = item ? readString(item, "third_party_id", "thirdPartyId") : null;
+  if (!item || !id || !contractId || !thirdPartyId) return null;
+  return {
+    id,
+    contract_id: contractId,
+    third_party_id: thirdPartyId,
+    deed_type: nullableString(item, "deed_type", "deedType"),
+    received_at: nullableString(item, "received_at", "receivedAt"),
+    estimated_completed_at: nullableString(item, "estimated_completed_at", "estimatedCompletedAt"),
+    completed_at: nullableString(item, "completed_at", "completedAt"),
+    insurance_type: nullableString(item, "insurance_type", "insuranceType"),
+    coverage_amount: numberValue(item, "coverage_amount"),
+    period_start: nullableString(item, "period_start", "periodStart"),
+    period_end: nullableString(item, "period_end", "periodEnd"),
+    policy_number: nullableString(item, "policy_number", "policyNumber"),
+    appraisal_type: nullableString(item, "appraisal_type", "appraisalType"),
+    report_number: nullableString(item, "report_number", "reportNumber"),
+    collateral_object: nullableString(item, "collateral_object", "collateralObject"),
+    appraisal_value: readNumber(item, "appraisal_value", "appraisalValue"),
+    status: readString(item, "status") ?? "PROSES",
+    deed_number: nullableString(item, "deed_number", "deedNumber"),
+    notes: nullableString(item, "notes"),
+    file: mapFile(item.file),
+    contract: mapContract(item.contract),
+    third_party: mapParameter(item.third_party),
+    created_at: nullableString(item, "created_at", "createdAt"),
+    updated_at: nullableString(item, "updated_at", "updatedAt"),
+  };
+}
+
+function mapClaim(record: unknown): LegalClaim | null {
+  const item = asRecord(record);
+  const id = item ? readString(item, "id") : null;
+  const contractId = item ? readString(item, "contract_id", "contractId") : null;
+  if (!item || !id || !contractId) return null;
+  return {
+    id,
+    contract_id: contractId,
+    insurance_progress_id: nullableString(item, "insurance_progress_id", "insuranceProgressId"),
+    policy_number: nullableString(item, "policy_number", "policyNumber"),
+    claim_type: readString(item, "claim_type", "claimType") ?? "-",
+    claim_amount: numberValue(item, "claim_amount"),
+    submitted_at: nullableString(item, "submitted_at", "submittedAt"),
+    status: readString(item, "status") ?? "PENGAJUAN",
+    approved_amount: readNumber(item, "approved_amount", "approvedAmount"),
+    disbursed_amount: readNumber(item, "disbursed_amount", "disbursedAmount"),
+    disbursed_at: nullableString(item, "disbursed_at", "disbursedAt"),
+    rejection_reason: nullableString(item, "rejection_reason", "rejectionReason"),
+    notes: nullableString(item, "notes"),
+    file: mapFile(item.file),
+    contract: mapContract(item.contract),
+    insurance_progress: mapProgress(item.insurance_progress),
+    created_at: nullableString(item, "created_at", "createdAt"),
+    updated_at: nullableString(item, "updated_at", "updatedAt"),
+  };
+}
+
+function mapDepositTransaction(record: unknown): LegalDepositTransaction | null {
+  const item = asRecord(record);
+  const id = item ? readString(item, "id") : null;
+  const depositId = item ? readString(item, "deposit_id", "depositId") : null;
+  if (!item || !id || !depositId) return null;
+  return {
+    id,
+    deposit_id: depositId,
+    transaction_date: nullableString(item, "transaction_date", "transactionDate"),
+    action: readString(item, "action") ?? "-",
+    amount: numberValue(item, "amount"),
+    notes: nullableString(item, "notes"),
+    created_at: nullableString(item, "created_at", "createdAt"),
+  };
+}
+
+function mapDeposit(record: unknown): LegalDeposit | null {
+  const item = asRecord(record);
+  const id = item ? readString(item, "id") : null;
+  const contractId = item ? readString(item, "contract_id", "contractId") : null;
+  if (!item || !id || !contractId) return null;
+  const transactions = Array.isArray(item.transactions)
+    ? item.transactions
+        .map(mapDepositTransaction)
+        .filter((transaction): transaction is LegalDepositTransaction => transaction !== null)
+    : [];
+  return {
+    id,
+    deposit_type_id: nullableString(item, "deposit_type_id", "depositTypeId"),
+    type: readString(item, "type") ?? "-",
+    contract_id: contractId,
+    third_party_id: nullableString(item, "third_party_id", "thirdPartyId"),
+    nominal: numberValue(item, "nominal"),
+    paid_amount: numberValue(item, "paid_amount"),
+    processed_amount: numberValue(item, "processed_amount"),
+    remaining_amount: numberValue(item, "remaining_amount"),
+    status: readString(item, "status") ?? "PENDING",
+    notes: nullableString(item, "notes"),
+    deposit_type: mapParameter(item.deposit_type),
+    contract: mapContract(item.contract),
+    third_party: mapParameter(item.third_party),
+    transactions,
+    created_at: nullableString(item, "created_at", "createdAt"),
+    updated_at: nullableString(item, "updated_at", "updatedAt"),
+  };
+}
+
+function mapPage<T>(
+  payload: unknown,
+  mapper: (record: unknown) => T | null,
+  fallback: { page?: number; limit?: number } = {},
+): LegalPageResult<T> {
+  const items = extractList(payload)
+    .map(mapper)
+    .filter((item): item is T => item !== null);
+  return {
+    items,
+    meta: extractPaginationMeta(payload, {
+      page: fallback.page,
+      limit: fallback.limit,
+      total: items.length,
+    }),
+  };
+}
+
+function buildParams(query: LegalListQuery = {}) {
+  return Object.fromEntries(
+    Object.entries({
+      page: query.page ?? 1,
+      limit: query.limit ?? SETUP_TABLE_PAGE_SIZE,
+      search: query.search,
+      status: query.status,
+      document_type: query.document_type,
+      template_type: query.template_type,
+      contract_id: query.contract_id,
+      third_party_id: query.third_party_id,
+      type: query.type,
+      deposit_id: query.deposit_id,
+    }).filter(([, value]) => value !== undefined && value !== null && value !== ""),
+  );
+}
+
+function multipartBody<T extends object>(payload: T): T | FormData {
+  return typeof File !== "undefined" &&
+    Object.values(payload).some((value) => value instanceof File)
+    ? toMultipartFormData(payload)
+    : payload;
+}
+
+async function getAllPages<T>(
+  getter: (query: LegalListQuery) => Promise<LegalPageResult<T>>,
+  query: LegalListQuery = {},
+): Promise<T[]> {
+  const first = await getter({ ...query, page: 1, limit: MAX_TABLE_PAGE_SIZE });
+  const all = [...first.items];
+  for (let page = 2; page <= first.meta.lastPage; page += 1) {
+    const next = await getter({ ...query, page, limit: MAX_TABLE_PAGE_SIZE });
+    all.push(...next.items);
   }
-  return null;
+  return all;
 }
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface LegalTemplate {
-  id: string;
-  template_type?: string;
-  version?: number;
-  title?: string;
-  content_template?: string;
-  is_active?: boolean;
-  file?: { url?: string; name?: string } | null;
-  created_at?: string;
-}
-
-export interface LegalIdeb {
-  id: string;
-  debtor_id?: string;
-  contract_id?: string;
-  month?: number;
-  year?: number;
-  status?: string;
-  file?: { url?: string; name?: string } | null;
-  created_at?: string;
-}
-
-export interface NotaryProgress {
-  id: string;
-  contract_id?: string;
-  third_party_id?: string;
-  deed_type?: string;
-  deed_number?: string;
-  received_at?: string;
-  estimated_completed_at?: string;
-  completed_at?: string;
-  status?: string;
-  notes?: string;
-  file?: { url?: string; name?: string } | null;
-  created_at?: string;
-}
-
-export interface InsuranceProgress {
-  id: string;
-  contract_id?: string;
-  third_party_id?: string;
-  insurance_type?: string;
-  coverage_amount?: number;
-  period_start?: string;
-  period_end?: string;
-  policy_number?: string;
-  status?: string;
-  notes?: string;
-  file?: { url?: string; name?: string } | null;
-  created_at?: string;
-}
-
-export interface LegalClaim {
-  id: string;
-  contract_id?: string;
-  insurance_progress_id?: string;
-  policy_number?: string;
-  claim_type?: string;
-  claim_amount?: number;
-  approved_amount?: number;
-  disbursed_amount?: number;
-  submitted_at?: string;
-  disbursed_at?: string;
-  status?: string;
-  rejection_reason?: string;
-  notes?: string;
-  file?: { url?: string; name?: string } | null;
-  created_at?: string;
-}
-
-export interface LegalDeposit {
-  id: string;
-  contract_id?: string;
-  type?: string;
-  nominal?: number;
-  paid_amount?: number;
-  processed_amount?: number;
-  remaining_amount?: number;
-  status?: string;
-  notes?: string;
-  created_at?: string;
-}
-
-export interface LegalDepositTransaction {
-  id: string;
-  deposit_id?: string;
-  transaction_date?: string;
-  action?: string;
-  amount?: number;
-  notes?: string;
-  created_at?: string;
-}
-
-export interface LegalSummaryReport {
-  templates?: number;
-  prints?: number;
-  ideb?: number;
-  notary?: number;
-  insurance?: number;
-  claims?: number;
-  deposits?: number;
-}
-
-export interface LegalThirdPartyDocumentsReport {
-  notary: UnknownRecord[];
-  insurance: UnknownRecord[];
-  claims: UnknownRecord[];
-}
-
-export interface LegalThirdPartyDepositFundReport {
-  type?: string;
-  status?: string;
-  total_records?: number;
-  nominal?: number;
-  paid_amount?: number;
-  processed_amount?: number;
-  remaining_amount?: number;
-}
-
-// ─── Mappers ──────────────────────────────────────────────────────────────────
-
-function mapTemplate(record: UnknownRecord): LegalTemplate | null {
-  const id = readString(record, "id");
-  if (!id) return null;
-  return {
-    id,
-    template_type: readNullableString(record, "template_type"),
-    version: readNumber(record, "version") ?? undefined,
-    title: readNullableString(record, "title"),
-    content_template: readNullableString(record, "content_template"),
-    is_active: typeof record.is_active === "boolean" ? record.is_active : undefined,
-    file: readFile(record),
-    created_at: readNullableString(record, "created_at"),
-  };
-}
-
-function mapIdeb(record: UnknownRecord): LegalIdeb | null {
-  const id = readString(record, "id");
-  if (!id) return null;
-  return {
-    id,
-    debtor_id: readNullableString(record, "debtor_id"),
-    contract_id: readNullableString(record, "contract_id"),
-    month: readNumber(record, "month") ?? undefined,
-    year: readNumber(record, "year") ?? undefined,
-    status: readNullableString(record, "status"),
-    file: readFile(record),
-    created_at: readNullableString(record, "created_at"),
-  };
-}
-
-function mapNotaryProgress(record: UnknownRecord): NotaryProgress | null {
-  const id = readString(record, "id");
-  if (!id) return null;
-  return {
-    id,
-    contract_id: readNullableString(record, "contract_id"),
-    third_party_id: readNullableString(record, "third_party_id"),
-    deed_type: readNullableString(record, "deed_type"),
-    deed_number: readNullableString(record, "deed_number"),
-    received_at: readNullableString(record, "received_at"),
-    estimated_completed_at: readNullableString(record, "estimated_completed_at"),
-    completed_at: readNullableString(record, "completed_at"),
-    status: readNullableString(record, "status"),
-    notes: readNullableString(record, "notes"),
-    file: readFile(record),
-    created_at: readNullableString(record, "created_at"),
-  };
-}
-
-function mapInsuranceProgress(record: UnknownRecord): InsuranceProgress | null {
-  const id = readString(record, "id");
-  if (!id) return null;
-  return {
-    id,
-    contract_id: readNullableString(record, "contract_id"),
-    third_party_id: readNullableString(record, "third_party_id"),
-    insurance_type: readNullableString(record, "insurance_type"),
-    coverage_amount: readNumber(record, "coverage_amount") ?? undefined,
-    period_start: readNullableString(record, "period_start"),
-    period_end: readNullableString(record, "period_end"),
-    policy_number: readNullableString(record, "policy_number"),
-    status: readNullableString(record, "status"),
-    notes: readNullableString(record, "notes"),
-    file: readFile(record),
-    created_at: readNullableString(record, "created_at"),
-  };
-}
-
-function mapClaim(record: UnknownRecord): LegalClaim | null {
-  const id = readString(record, "id");
-  if (!id) return null;
-  return {
-    id,
-    contract_id: readNullableString(record, "contract_id"),
-    insurance_progress_id: readNullableString(record, "insurance_progress_id"),
-    policy_number: readNullableString(record, "policy_number"),
-    claim_type: readNullableString(record, "claim_type"),
-    claim_amount: readNumber(record, "claim_amount") ?? undefined,
-    approved_amount: readNumber(record, "approved_amount") ?? undefined,
-    disbursed_amount: readNumber(record, "disbursed_amount") ?? undefined,
-    submitted_at: readNullableString(record, "submitted_at"),
-    disbursed_at: readNullableString(record, "disbursed_at"),
-    status: readNullableString(record, "status"),
-    rejection_reason: readNullableString(record, "rejection_reason"),
-    notes: readNullableString(record, "notes"),
-    file: readFile(record),
-    created_at: readNullableString(record, "created_at"),
-  };
-}
-
-function mapDeposit(record: UnknownRecord): LegalDeposit | null {
-  const id = readString(record, "id");
-  if (!id) return null;
-  return {
-    id,
-    contract_id: readNullableString(record, "contract_id"),
-    type: readNullableString(record, "type"),
-    nominal: readNumber(record, "nominal") ?? undefined,
-    paid_amount: readNumber(record, "paid_amount") ?? undefined,
-    processed_amount: readNumber(record, "processed_amount") ?? undefined,
-    remaining_amount: readNumber(record, "remaining_amount") ?? undefined,
-    status: readNullableString(record, "status"),
-    notes: readNullableString(record, "notes"),
-    created_at: readNullableString(record, "created_at"),
-  };
-}
-
-function mapDepositTransaction(record: UnknownRecord): LegalDepositTransaction | null {
-  const id = readString(record, "id");
-  if (!id) return null;
-  return {
-    id,
-    deposit_id: readNullableString(record, "deposit_id"),
-    transaction_date: readNullableString(record, "transaction_date"),
-    action: readNullableString(record, "action"),
-    amount: readNumber(record, "amount") ?? undefined,
-    notes: readNullableString(record, "notes"),
-    created_at: readNullableString(record, "created_at"),
-  };
-}
-
-// ─── Service ──────────────────────────────────────────────────────────────────
 
 export const legalService = {
-  // Templates
-  getTemplates: async (): Promise<LegalTemplate[]> => {
-    const res = await api.get("/legal/templates");
-    return extractList(res.data).map(mapTemplate).filter((i): i is LegalTemplate => i !== null);
+  getTemplatesPage: async (query: LegalListQuery = {}) => {
+    const params = buildParams(query);
+    const res = await api.get("/legal/templates", { params });
+    return mapPage(res.data, mapTemplate, {
+      page: Number(params.page),
+      limit: Number(params.limit),
+    });
   },
-  createTemplate: async (data: FormData): Promise<LegalTemplate> => {
-    const res = await api.post("/legal/templates", data);
-    const record = extractRecord(res.data);
-    const mapped = record ? mapTemplate(record) : null;
-    if (!mapped) throw new Error("Respons create template tidak valid");
+  getAllTemplates: (query: LegalListQuery = {}) =>
+    getAllPages(legalService.getTemplatesPage, query),
+  createTemplate: async (payload: LegalTemplatePayload) => {
+    const res = await api.post("/legal/templates", multipartBody(payload));
+    const mapped = mapTemplate(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons template legal dari server tidak valid");
     return mapped;
   },
-  updateTemplate: async (id: string, data: FormData): Promise<LegalTemplate> => {
-    const res = await api.put(`/legal/templates/${id}`, data);
-    const record = extractRecord(res.data);
-    const mapped = record ? mapTemplate(record) : null;
-    if (!mapped) throw new Error("Respons update template tidak valid");
+  updateTemplate: async (id: string, payload: LegalTemplatePayload) => {
+    const res = await api.put(`/legal/templates/${id}`, multipartBody(payload));
+    const mapped = mapTemplate(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons update template legal dari server tidak valid");
     return mapped;
   },
-  removeTemplate: async (id: string): Promise<void> => {
+  removeTemplate: async (id: string) => {
     await api.delete(`/legal/templates/${id}`);
   },
-
-  // Print Documents
-  getPrintDocuments: async (): Promise<UnknownRecord[]> => {
-    const res = await api.get("/legal/print-documents");
-    return extractList(res.data);
+  getPrintsPage: async (query: LegalListQuery = {}) => {
+    const params = buildParams(query);
+    const res = await api.get("/legal/print-documents", { params });
+    return mapPage(res.data, mapPrint, {
+      page: Number(params.page),
+      limit: Number(params.limit),
+    });
   },
-  createPrintDocument: async (data: FormData): Promise<UnknownRecord> => {
-    const res = await api.post("/legal/print-documents", data);
-    return extractRecord(res.data) ?? {};
-  },
-
-  // IDEB
-  getIdeb: async (): Promise<LegalIdeb[]> => {
-    const res = await api.get("/legal/ideb");
-    return extractList(res.data).map(mapIdeb).filter((i): i is LegalIdeb => i !== null);
-  },
-  createIdeb: async (data: FormData): Promise<LegalIdeb> => {
-    const res = await api.post("/legal/ideb", data);
-    const record = extractRecord(res.data);
-    const mapped = record ? mapIdeb(record) : null;
-    if (!mapped) throw new Error("Respons upload IDEB tidak valid");
+  createPrint: async (payload: LegalPrintPayload) => {
+    const res = await api.post("/legal/print-documents", multipartBody(payload));
+    const mapped = mapPrint(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons cetak dokumen legal dari server tidak valid");
     return mapped;
   },
-
-  // Notary Progress
-  getNotaryProgress: async (): Promise<NotaryProgress[]> => {
-    const res = await api.get("/legal/progress/notary");
-    return extractList(res.data).map(mapNotaryProgress).filter((i): i is NotaryProgress => i !== null);
+  getIdebPage: async (query: LegalListQuery = {}) => {
+    const params = buildParams(query);
+    const res = await api.get("/legal/ideb", { params });
+    return mapPage(res.data, mapIdeb, {
+      page: Number(params.page),
+      limit: Number(params.limit),
+    });
   },
-  createNotaryProgress: async (data: FormData): Promise<NotaryProgress> => {
-    const res = await api.post("/legal/progress/notary", data);
-    const record = extractRecord(res.data);
-    const mapped = record ? mapNotaryProgress(record) : null;
-    if (!mapped) throw new Error("Respons create progress notaris tidak valid");
+  createIdeb: async (payload: LegalIdebPayload) => {
+    const res = await api.post("/legal/ideb", toMultipartFormData(payload));
+    const mapped = mapIdeb(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons upload IDEB dari server tidak valid");
     return mapped;
   },
-  updateNotaryProgress: async (id: string, data: FormData): Promise<NotaryProgress> => {
-    const res = await api.put(`/legal/progress/notary/${id}`, data);
-    const record = extractRecord(res.data);
-    const mapped = record ? mapNotaryProgress(record) : null;
-    if (!mapped) throw new Error("Respons update progress notaris tidak valid");
+  getNotaryPage: async (query: LegalListQuery = {}) => {
+    const params = buildParams(query);
+    const res = await api.get("/legal/progress/notary", { params });
+    return mapPage(res.data, mapProgress, {
+      page: Number(params.page),
+      limit: Number(params.limit),
+    });
+  },
+  createNotary: async (payload: LegalNotaryPayload) => {
+    const res = await api.post("/legal/progress/notary", multipartBody(payload));
+    const mapped = mapProgress(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons progress notaris dari server tidak valid");
     return mapped;
   },
-  removeNotaryProgress: async (id: string): Promise<void> => {
+  updateNotary: async (id: string, payload: LegalNotaryPayload) => {
+    const res = await api.put(`/legal/progress/notary/${id}`, multipartBody(payload));
+    const mapped = mapProgress(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons update progress notaris dari server tidak valid");
+    return mapped;
+  },
+  removeNotary: async (id: string) => {
     await api.delete(`/legal/progress/notary/${id}`);
   },
-
-  // Insurance Progress
-  getInsuranceProgress: async (): Promise<InsuranceProgress[]> => {
-    const res = await api.get("/legal/progress/insurance");
-    return extractList(res.data).map(mapInsuranceProgress).filter((i): i is InsuranceProgress => i !== null);
+  getInsurancePage: async (query: LegalListQuery = {}) => {
+    const params = buildParams(query);
+    const res = await api.get("/legal/progress/insurance", { params });
+    return mapPage(res.data, mapProgress, {
+      page: Number(params.page),
+      limit: Number(params.limit),
+    });
   },
-  createInsuranceProgress: async (data: FormData): Promise<InsuranceProgress> => {
-    const res = await api.post("/legal/progress/insurance", data);
-    const record = extractRecord(res.data);
-    const mapped = record ? mapInsuranceProgress(record) : null;
-    if (!mapped) throw new Error("Respons create progress asuransi tidak valid");
+  createInsurance: async (payload: LegalInsurancePayload) => {
+    const res = await api.post("/legal/progress/insurance", multipartBody(payload));
+    const mapped = mapProgress(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons progress asuransi dari server tidak valid");
     return mapped;
   },
-  updateInsuranceProgress: async (id: string, data: FormData): Promise<InsuranceProgress> => {
-    const res = await api.put(`/legal/progress/insurance/${id}`, data);
-    const record = extractRecord(res.data);
-    const mapped = record ? mapInsuranceProgress(record) : null;
-    if (!mapped) throw new Error("Respons update progress asuransi tidak valid");
+  updateInsurance: async (id: string, payload: LegalInsurancePayload) => {
+    const res = await api.put(`/legal/progress/insurance/${id}`, multipartBody(payload));
+    const mapped = mapProgress(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons update progress asuransi dari server tidak valid");
     return mapped;
   },
-  removeInsuranceProgress: async (id: string): Promise<void> => {
+  removeInsurance: async (id: string) => {
     await api.delete(`/legal/progress/insurance/${id}`);
   },
-
-  // Claims
-  getClaims: async (): Promise<LegalClaim[]> => {
-    const res = await api.get("/legal/claims");
-    return extractList(res.data).map(mapClaim).filter((i): i is LegalClaim => i !== null);
+  getKjppPage: async (query: LegalListQuery = {}) => {
+    const params = buildParams(query);
+    const res = await api.get("/legal/progress/kjpp", { params });
+    return mapPage(res.data, mapProgress, {
+      page: Number(params.page),
+      limit: Number(params.limit),
+    });
   },
-  createClaim: async (data: FormData): Promise<LegalClaim> => {
-    const res = await api.post("/legal/claims", data);
-    const record = extractRecord(res.data);
-    const mapped = record ? mapClaim(record) : null;
-    if (!mapped) throw new Error("Respons create klaim tidak valid");
+  createKjpp: async (payload: LegalKjppPayload) => {
+    const res = await api.post("/legal/progress/kjpp", multipartBody(payload));
+    const mapped = mapProgress(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons progress KJPP dari server tidak valid");
     return mapped;
   },
-  updateClaim: async (id: string, data: FormData): Promise<LegalClaim> => {
-    const res = await api.put(`/legal/claims/${id}`, data);
-    const record = extractRecord(res.data);
-    const mapped = record ? mapClaim(record) : null;
-    if (!mapped) throw new Error("Respons update klaim tidak valid");
+  updateKjpp: async (id: string, payload: LegalKjppPayload) => {
+    const res = await api.put(`/legal/progress/kjpp/${id}`, multipartBody(payload));
+    const mapped = mapProgress(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons update progress KJPP dari server tidak valid");
     return mapped;
   },
-  removeClaim: async (id: string): Promise<void> => {
+  removeKjpp: async (id: string) => {
+    await api.delete(`/legal/progress/kjpp/${id}`);
+  },
+  getClaimsPage: async (query: LegalListQuery = {}) => {
+    const params = buildParams(query);
+    const res = await api.get("/legal/claims", { params });
+    return mapPage(res.data, mapClaim, {
+      page: Number(params.page),
+      limit: Number(params.limit),
+    });
+  },
+  createClaim: async (payload: LegalClaimPayload) => {
+    const res = await api.post("/legal/claims", multipartBody(payload));
+    const mapped = mapClaim(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons klaim legal dari server tidak valid");
+    return mapped;
+  },
+  updateClaim: async (id: string, payload: LegalClaimPayload) => {
+    const res = await api.put(`/legal/claims/${id}`, multipartBody(payload));
+    const mapped = mapClaim(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons update klaim legal dari server tidak valid");
+    return mapped;
+  },
+  removeClaim: async (id: string) => {
     await api.delete(`/legal/claims/${id}`);
   },
-
-  // Deposits
-  getDeposits: async (): Promise<LegalDeposit[]> => {
-    const res = await api.get("/legal/deposits");
-    return extractList(res.data).map(mapDeposit).filter((i): i is LegalDeposit => i !== null);
+  getDepositsPage: async (query: LegalListQuery = {}) => {
+    const params = buildParams(query);
+    const res = await api.get("/legal/deposits", { params });
+    return mapPage(res.data, mapDeposit, {
+      page: Number(params.page),
+      limit: Number(params.limit),
+    });
   },
-  createDeposit: async (data: object): Promise<LegalDeposit> => {
-    const res = await api.post("/legal/deposits", data);
-    const record = extractRecord(res.data);
-    const mapped = record ? mapDeposit(record) : null;
-    if (!mapped) throw new Error("Respons create titipan tidak valid");
+  createDeposit: async (payload: LegalDepositPayload) => {
+    const res = await api.post("/legal/deposits", payload);
+    const mapped = mapDeposit(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons dana titipan dari server tidak valid");
     return mapped;
   },
-  updateDeposit: async (id: string, data: object): Promise<LegalDeposit> => {
-    const res = await api.put(`/legal/deposits/${id}`, data);
-    const record = extractRecord(res.data);
-    const mapped = record ? mapDeposit(record) : null;
-    if (!mapped) throw new Error("Respons update titipan tidak valid");
+  updateDeposit: async (id: string, payload: LegalDepositPayload) => {
+    const res = await api.put(`/legal/deposits/${id}`, payload);
+    const mapped = mapDeposit(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons update dana titipan dari server tidak valid");
     return mapped;
   },
-  removeDeposit: async (id: string): Promise<void> => {
+  removeDeposit: async (id: string) => {
     await api.delete(`/legal/deposits/${id}`);
   },
-
-  // Deposit Transactions
-  getDepositTransactions: async (): Promise<LegalDepositTransaction[]> => {
-    const res = await api.get("/legal/deposit-transactions");
-    return extractList(res.data).map(mapDepositTransaction).filter((i): i is LegalDepositTransaction => i !== null);
+  getDepositTransactionsPage: async (query: LegalListQuery = {}) => {
+    const params = buildParams(query);
+    const res = await api.get("/legal/deposit-transactions", { params });
+    return mapPage(res.data, mapDepositTransaction, {
+      page: Number(params.page),
+      limit: Number(params.limit),
+    });
   },
-  createDepositTransaction: async (data: object): Promise<LegalDepositTransaction> => {
-    const res = await api.post("/legal/deposit-transactions", data);
-    const record = extractRecord(res.data);
-    const mapped = record ? mapDepositTransaction(record) : null;
-    if (!mapped) throw new Error("Respons create transaksi tidak valid");
+  createDepositTransaction: async (payload: LegalDepositTransactionPayload) => {
+    const res = await api.post("/legal/deposit-transactions", payload);
+    const mapped = mapDepositTransaction(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons transaksi dana titipan dari server tidak valid");
     return mapped;
   },
-
-  // Reports
   getSummaryReport: async (): Promise<LegalSummaryReport> => {
     const res = await api.get("/legal/reports/summary");
-    const record = extractRecord(res.data);
-    if (!record) return {};
+    const record = extractRecord(res.data) ?? {};
     return {
-      templates: readNumber(record, "templates") ?? undefined,
-      prints: readNumber(record, "prints") ?? undefined,
-      ideb: readNumber(record, "ideb") ?? undefined,
-      notary: readNumber(record, "notary") ?? undefined,
-      insurance: readNumber(record, "insurance") ?? undefined,
-      claims: readNumber(record, "claims") ?? undefined,
-      deposits: readNumber(record, "deposits") ?? undefined,
+      templates: numberValue(record, "templates"),
+      prints: numberValue(record, "prints"),
+      ideb: numberValue(record, "ideb"),
+      notary: numberValue(record, "notary"),
+      insurance: numberValue(record, "insurance"),
+      kjpp: numberValue(record, "kjpp"),
+      claims: numberValue(record, "claims"),
+      deposits: numberValue(record, "deposits"),
     };
   },
-
   getThirdPartyDocumentsReport: async (): Promise<LegalThirdPartyDocumentsReport> => {
     const res = await api.get("/legal/reports/third-party-documents");
-    const record = extractRecord(res.data);
+    const record = extractRecord(res.data) ?? {};
     return {
-      notary: Array.isArray(record?.notary) ? record.notary as UnknownRecord[] : [],
-      insurance: Array.isArray(record?.insurance) ? record.insurance as UnknownRecord[] : [],
-      claims: Array.isArray(record?.claims) ? record.claims as UnknownRecord[] : [],
+      notary: Array.isArray(record.notary) ? record.notary.filter(isRecord) : [],
+      insurance: Array.isArray(record.insurance) ? record.insurance.filter(isRecord) : [],
+      kjpp: Array.isArray(record.kjpp) ? record.kjpp.filter(isRecord) : [],
+      claims: Array.isArray(record.claims) ? record.claims.filter(isRecord) : [],
     };
   },
-
-  getThirdPartyDepositFundsReport: async (): Promise<LegalThirdPartyDepositFundReport[]> => {
+  getThirdPartyDepositFundsReport: async (): Promise<LegalDepositFundsReport[]> => {
     const res = await api.get("/legal/reports/third-party-deposit-funds");
-    return extractList(res.data).map((record) => ({
-      type: readNullableString(record, "type"),
-      status: readNullableString(record, "status"),
-      total_records: readNumber(record, "total_records") ?? undefined,
-      nominal: readNumber(record, "nominal") ?? undefined,
-      paid_amount: readNumber(record, "paid_amount") ?? undefined,
-      processed_amount: readNumber(record, "processed_amount") ?? undefined,
-      remaining_amount: readNumber(record, "remaining_amount") ?? undefined,
+    return extractList(res.data).map((item) => ({
+      type: readString(item, "type") ?? "-",
+      status: readString(item, "status") ?? "-",
+      total_records: numberValue(item, "total_records"),
+      nominal: numberValue(item, "nominal"),
+      paid_amount: numberValue(item, "paid_amount"),
+      processed_amount: numberValue(item, "processed_amount"),
+      remaining_amount: numberValue(item, "remaining_amount"),
     }));
   },
 };

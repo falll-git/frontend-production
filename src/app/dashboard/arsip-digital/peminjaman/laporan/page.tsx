@@ -1,26 +1,106 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import {
+  SetupDataTable,
+  SetupDataTableHead,
+  SetupDataTableBody,
+  SetupDataTableRow,
+  SetupDataTableHeaderCell,
+  SetupDataTableCell,
+  SetupDataTableColGroup,
+  SetupDataTableCol
+} from "@/components/ui/SetupDataTable";
+import { useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
   CheckCircle2,
   FileBarChart2,
-  FileSpreadsheet,
-  Filter,
-  Search,
-  XCircle,
 } from "lucide-react";
 
 import { exportToExcel } from "@/lib/utils/exportExcel";
-import DatePickerInput from "@/components/ui/DatePickerInput";
+import BasicDateInput from "@/components/ui/BasicDateInput";
 import FeatureHeader from "@/components/ui/FeatureHeader";
+import Pagination from "@/components/ui/Pagination";
+import SetupExcelButton from "@/components/ui/SetupExcelButton";
+import SetupSearchInput from "@/components/ui/SetupSearchInput";
+import SetupSelect from "@/components/ui/SetupSelect";
+import { formatDateOnly } from "@/lib/utils/date";
+import { DEFAULT_PAGINATION_META, OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import { useAppToast } from "@/components/ui/AppToastProvider";
+import { peminjamanService } from "@/services/peminjaman.service";
+import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
 import {
-  formatDateDisplay,
-  parseDateString,
-  toIsoDate,
-} from "@/lib/utils/date";
-import { useArsipDigitalWorkflow } from "@/components/arsip-digital/ArsipDigitalWorkflowProvider";
+  SETUP_PAGE_MODERN_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
+  SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_TABLE_CLASS,
+  SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
+  SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+  SETUP_PAGE_SEARCH_CARD_CLASS,
+  SETUP_PAGE_SEARCH_LABEL_CLASS,
+  SETUP_PAGE_TABLE_CARD_CLASS,
+} from "@/components/ui/setupPageStyles";
 import type { LoanStatusKey } from "@/types/arsip.types";
+import type { Peminjaman } from "@/types/arsip.types";
+import type { PaginationMeta } from "@/types/api.types";
+
+const LAPORAN_PEMINJAMAN_TABLE_COLUMN_WIDTHS = [
+  "52px",
+  "152px",
+  null,
+  "108px",
+  "104px",
+  "104px",
+  "116px",
+  "116px",
+  "112px",
+  "148px",
+] as const;
+
+const INITIAL_PAGINATION_META: PaginationMeta = {
+  ...DEFAULT_PAGINATION_META,
+  limit: OPERATIONAL_TABLE_PAGE_SIZE,
+};
+
+const STATUS_FILTER_TO_API: Record<
+  string,
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "HANDED_OVER"
+  | "BORROWED"
+  | "RETURNED"
+  | "OVERDUE"
+  | undefined
+> = {
+  Semua: undefined,
+  "Menunggu Persetujuan": "PENDING",
+  Disetujui: "APPROVED",
+  "Sudah Diserahkan": "HANDED_OVER",
+  Dipinjam: "BORROWED",
+  Terlambat: "OVERDUE",
+  Dikembalikan: "RETURNED",
+  Ditolak: "REJECTED",
+};
+
+type LaporanPeminjamanRow = {
+  id: string;
+  kode: string;
+  namaDokumen: string;
+  peminjam: string;
+  tanggalPinjam: string;
+  tanggalPenyerahan: string | null | undefined;
+  tanggalEstimasiPengembalian: string;
+  tanggalPengembalian: string | null | undefined;
+  statusKey: LoanStatusKey;
+  statusText: string;
+  approvedBy: string;
+  isTerlambat: boolean;
+};
 
 function formatPersonName(value: string) {
   const trimmed = value.trim();
@@ -55,80 +135,157 @@ function getStatusText(statusKey: LoanStatusKey, isOverdue: boolean) {
   }
 }
 
-function getStatusPillClass(statusKey: LoanStatusKey, isOverdue: boolean) {
+function getStatusLabel(statusKey: LoanStatusKey, isOverdue: boolean) {
   switch (statusKey) {
     case "PENDING":
-      return "bg-amber-50 text-amber-700 border-amber-200";
+      return "Menunggu Persetujuan" as const;
     case "APPROVED":
-      return "bg-blue-50 text-blue-700 border-blue-200";
+      return "Disetujui" as const;
     case "REJECTED":
-      return "bg-rose-50 text-rose-700 border-rose-200";
+      return "Ditolak" as const;
     case "HANDED_OVER":
-    case "BORROWED":
+      return isOverdue ? ("Terlambat" as const) : ("Sudah Diserahkan" as const);
     case "OVERDUE":
-      return isOverdue
-        ? "bg-red-50 text-red-700 border-red-200"
-        : "bg-blue-50 text-blue-700 border-blue-200";
+      return "Terlambat" as const;
+    case "BORROWED":
+      return isOverdue ? ("Terlambat" as const) : ("Dipinjam" as const);
     case "RETURNED":
-      return "bg-green-50 text-green-700 border-green-200";
+      return "Dikembalikan" as const;
     default:
-      return "bg-gray-100 text-gray-700 border-gray-200";
+      return "Menunggu Persetujuan" as const;
   }
 }
 
+function mapLoanReportRow(item: Peminjaman): LaporanPeminjamanRow {
+  return {
+    id: item.id,
+    kode: item.document?.kode ?? "-",
+    namaDokumen: item.document?.namaDokumen ?? "-",
+    peminjam: item.peminjam,
+    tanggalPinjam: item.tglPinjam,
+    tanggalPenyerahan: item.tglPenyerahan,
+    tanggalEstimasiPengembalian: item.tglKembali,
+    tanggalPengembalian: item.tanggalDikembalikan ?? item.tglPengembalian,
+    statusKey: item.statusKey,
+    statusText: getStatusText(item.statusKey, item.isTerlambat),
+    approvedBy:
+      item.approverUser?.username ??
+      item.approverUser?.name ??
+      item.approver ??
+      "-",
+    isTerlambat: item.isTerlambat,
+  };
+}
+
 export default function LaporanPeminjamanPage() {
-  const { peminjaman } = useArsipDigitalWorkflow();
+  const { showToast } = useAppToast();
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("Semua");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-
-  const riwayatPeminjaman = useMemo(() => {
-    return peminjaman.map((item) => ({
-      id: item.id,
-      kode: item.document?.kode ?? "-",
-      namaDokumen: item.document?.namaDokumen ?? "-",
-      peminjam: item.peminjam,
-      tanggalPinjam: item.tglPinjam,
-      tanggalPenyerahan: item.tglPenyerahan,
-      tanggalEstimasiPengembalian: item.tglKembali,
-      tanggalPengembalian: item.tanggalDikembalikan ?? item.tglPengembalian,
-      statusKey: item.statusKey,
-      statusText: getStatusText(item.statusKey, item.isTerlambat),
-      approvedBy:
-        item.approverUser?.username ??
-        item.approverUser?.name ??
-        item.approver ??
-        "-",
-      isTerlambat: item.isTerlambat,
-    }));
-  }, [peminjaman]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageLoans, setPageLoans] = useState<Peminjaman[]>([]);
+  const [reportLoans, setReportLoans] = useState<Peminjaman[]>([]);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>(
+    INITIAL_PAGINATION_META,
+  );
+  const [isLoading, setIsLoading] = useState(true);
 
   const normalizedFrom =
     dateFrom && dateTo && dateFrom > dateTo ? dateTo : dateFrom;
   const normalizedTo =
     dateFrom && dateTo && dateFrom > dateTo ? dateFrom : dateTo;
 
-  const filteredData = useMemo(() => {
-    return riwayatPeminjaman.filter((item) => {
-      const keyword = searchTerm.trim().toLowerCase();
-      const matchSearch =
-        keyword.length === 0 ||
-        item.namaDokumen.toLowerCase().includes(keyword) ||
-        item.kode.toLowerCase().includes(keyword) ||
-        item.peminjam.toLowerCase().includes(keyword);
-      const matchStatus =
-        filterStatus === "Semua" || item.statusText === filterStatus;
+  const reportQuery = useMemo(
+    () => ({
+      search: debouncedSearch || undefined,
+      status: STATUS_FILTER_TO_API[filterStatus],
+      requested_start_date_from: normalizedFrom || undefined,
+      requested_start_date_to: normalizedTo || undefined,
+    }),
+    [debouncedSearch, filterStatus, normalizedFrom, normalizedTo],
+  );
 
-      const pinjamDate = parseDateString(item.tanggalPinjam);
-      const pinjamIso = pinjamDate ? toIsoDate(pinjamDate) : "";
-      const matchFrom =
-        !normalizedFrom || (pinjamIso && pinjamIso >= normalizedFrom);
-      const matchTo = !normalizedTo || (pinjamIso && pinjamIso <= normalizedTo);
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim());
+    }, 250);
 
-      return matchSearch && matchStatus && matchFrom && matchTo;
-    });
-  }, [filterStatus, normalizedFrom, normalizedTo, riwayatPeminjaman, searchTerm]);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [searchTerm]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [reportQuery]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadPage() {
+      setIsLoading(true);
+      try {
+        const result = await peminjamanService.getReportPage({
+          ...reportQuery,
+          page: currentPage,
+          limit: OPERATIONAL_TABLE_PAGE_SIZE,
+        });
+        if (ignore) return;
+        setPageLoans(result.items);
+        setPaginationMeta(result.meta);
+      } catch (error) {
+        if (!ignore) {
+          setPageLoans([]);
+          setPaginationMeta(INITIAL_PAGINATION_META);
+          showToast(
+            error instanceof Error
+              ? error.message
+              : "Gagal memuat laporan peminjaman.",
+            "error",
+          );
+        }
+      } finally {
+        if (!ignore) setIsLoading(false);
+      }
+    }
+
+    void loadPage();
+
+    return () => {
+      ignore = true;
+    };
+  }, [currentPage, reportQuery, showToast]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadReportRows() {
+      try {
+        const result = await peminjamanService.getReport(reportQuery);
+        if (!ignore) setReportLoans(result);
+      } catch {
+        if (!ignore) setReportLoans([]);
+      }
+    }
+
+    void loadReportRows();
+
+    return () => {
+      ignore = true;
+    };
+  }, [reportQuery]);
+
+  const riwayatPeminjaman = useMemo(
+    () => reportLoans.map((item) => mapLoanReportRow(item)),
+    [reportLoans],
+  );
+
+  const paginatedData = useMemo(
+    () => pageLoans.map((item) => mapLoanReportRow(item)),
+    [pageLoans],
+  );
 
   const totalAktif = useMemo(
     () =>
@@ -169,17 +326,17 @@ export default function LaporanPeminjamanPage() {
         { header: "Disetujui Oleh", key: "approvedBy", width: 20 },
         { header: "Status", key: "status", width: 16 },
       ],
-      data: filteredData.map((item, idx) => ({
+      data: riwayatPeminjaman.map((item, idx) => ({
         no: idx + 1,
         kode: item.kode,
         namaDokumen: item.namaDokumen,
         peminjam: item.peminjam,
-        tanggalPinjam: formatDateDisplay(item.tanggalPinjam),
-        tanggalPenyerahan: formatDateDisplay(item.tanggalPenyerahan),
-        tanggalEstimasiPengembalian: formatDateDisplay(
+        tanggalPinjam: formatDateOnly(item.tanggalPinjam),
+        tanggalPenyerahan: formatDateOnly(item.tanggalPenyerahan),
+        tanggalEstimasiPengembalian: formatDateOnly(
           item.tanggalEstimasiPengembalian,
         ),
-        tanggalPengembalian: formatDateDisplay(item.tanggalPengembalian),
+        tanggalPengembalian: formatDateOnly(item.tanggalPengembalian),
         approvedBy: item.approvedBy,
         status: item.statusText,
       })),
@@ -193,229 +350,206 @@ export default function LaporanPeminjamanPage() {
         subtitle="Daftar peminjaman dan pengembalian dokumen fisik."
         icon={<FileBarChart2 />}
         actions={
-          <button
-            onClick={handleExport}
-            className="btn btn-export-excel"
-            title="Export Excel"
-          >
-            <FileSpreadsheet className="w-4 h-4" aria-hidden="true" />
-            <span>Export Excel</span>
-          </button>
+          <SetupExcelButton onClick={handleExport} />
         }
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Total Peminjaman
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-2">
-              {riwayatPeminjaman.length}
+            <p className="mt-1 text-2xl font-semibold text-gray-900">
+              {paginationMeta.total}
             </p>
           </div>
-          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
-            <FileBarChart2 className="w-7 h-7" />
-          </div>
+          <FileBarChart2 className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Sedang Dipinjam
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-2">{totalAktif}</p>
+            <p className="mt-1 text-2xl font-semibold text-gray-900">{totalAktif}</p>
           </div>
-          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
-            <BookOpen className="w-7 h-7" />
-          </div>
+          <BookOpen className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-gray-900 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Sudah Dikembalikan
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-2">
+            <p className="mt-1 text-2xl font-semibold text-gray-900">
               {totalDikembalikan}
             </p>
           </div>
-          <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600">
-            <CheckCircle2 className="w-7 h-7" />
-          </div>
+          <CheckCircle2 className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6 p-5">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} mb-6`}>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4 items-end">
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              Cari Dokumen
-            </label>
-            <div className="relative">
-              <Search
-                className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                aria-hidden="true"
-              />
-              <input
-                type="text"
-                placeholder="Dokumen, peminjam..."
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="input input-with-icon"
-              />
-            </div>
+            <SetupSearchInput
+              label="Cari Dokumen"
+              placeholder="Dokumen, peminjam..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            <label className={SETUP_PAGE_SEARCH_LABEL_CLASS}>
               Status Peminjaman
             </label>
-            <div className="relative">
-              <Filter className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <select
-                value={filterStatus}
-                onChange={(event) => setFilterStatus(event.target.value)}
-                className="select input-with-icon"
-              >
-                <option value="Semua">Semua Status</option>
-                <option value="Menunggu Persetujuan">
-                  Menunggu Persetujuan
-                </option>
-                <option value="Disetujui">Disetujui</option>
-                <option value="Sudah Diserahkan">Sudah Diserahkan</option>
-                <option value="Dipinjam">Dipinjam</option>
-                <option value="Terlambat">Terlambat</option>
-                <option value="Dikembalikan">Dikembalikan</option>
-                <option value="Ditolak">Ditolak</option>
-              </select>
-            </div>
+            <SetupSelect
+              value={filterStatus}
+              onChange={(event) => setFilterStatus(event.target.value)}
+            >
+              <option value="Semua">Semua Status</option>
+              <option value="Menunggu Persetujuan">Menunggu Persetujuan</option>
+              <option value="Disetujui">Disetujui</option>
+              <option value="Sudah Diserahkan">Sudah Diserahkan</option>
+              <option value="Dipinjam">Dipinjam</option>
+              <option value="Terlambat">Terlambat</option>
+              <option value="Dikembalikan">Dikembalikan</option>
+              <option value="Ditolak">Ditolak</option>
+            </SetupSelect>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              Dari Tanggal
-            </label>
-            <DatePickerInput value={dateFrom} onChange={setDateFrom} />
+            <label className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Dari Tanggal</label>
+            <BasicDateInput value={dateFrom} onChange={setDateFrom} />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              Sampai Tanggal
-            </label>
-            <DatePickerInput value={dateTo} onChange={setDateTo} />
+            <label className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Sampai Tanggal</label>
+            <BasicDateInput value={dateTo} onChange={setDateTo} />
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
+      <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
+        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 p-4">
           <p className="text-sm font-medium text-gray-600">
             Menampilkan{" "}
-            <span className="font-bold text-gray-900">{filteredData.length}</span>{" "}
+            <span className="font-bold text-gray-900">{paginationMeta.total}</span>{" "}
             data
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider w-16">
-                  No
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Kode
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Nama Dokumen
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Peminjam
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Tanggal Pinjam
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Tanggal Penyerahan
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Estimasi Pengembalian
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Tanggal Pengembalian
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  Disetujui Oleh
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+            <SetupDataTableColGroup>
+              {LAPORAN_PEMINJAMAN_TABLE_COLUMN_WIDTHS.map((width, index) => (
+                <SetupDataTableCol
+                  key={`${index}-${width ?? "flex"}`}
+                  style={width ? { width } : undefined}
+                />
+              ))}
+            </SetupDataTableColGroup>
+            <SetupDataTableHead className="ltr:text-left rtl:text-right">
+              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Kode</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Nama Dokumen</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Peminjam</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Tgl Pinjam</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Tgl Serah</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Est. Kembali</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Tgl Kembali</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Penyetuju</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   Status
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredData.map((item, idx) => (
-                <tr
+                </SetupDataTableHeaderCell>
+              </SetupDataTableRow>
+            </SetupDataTableHead>
+            <SetupDataTableBody className="divide-y divide-gray-100">
+              {paginatedData.map((item, idx) => (
+                <SetupDataTableRow
                   key={item.id}
-                  className={`hover:bg-gray-50/50 transition-colors ${
+                  className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} ${
                     item.isTerlambat ? "bg-red-50/30" : ""
-                  }`}
+                  } hover:bg-gray-50/50`}
                 >
-                  <td className="px-6 py-4 text-sm text-gray-500">{idx + 1}</td>
-                  <td className="px-6 py-4">
-                    <span className="text-primary-600 bg-primary-50 px-2 py-1 rounded border border-primary-100 text-xs font-medium tabular-nums">
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                    {(paginationMeta.page - 1) * paginationMeta.limit + idx + 1}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                    <span className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
                       {item.kode}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-800">
-                    {item.namaDokumen}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm font-medium text-gray-800">
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-800`}>
+                    <span className="block truncate" title={item.namaDokumen}>
+                      {item.namaDokumen}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}>
+                    <span className="block truncate" title={formatPersonName(item.peminjam)}>
                       {formatPersonName(item.peminjam)}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatDateDisplay(item.tanggalPinjam)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatDateDisplay(item.tanggalPenyerahan)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatDateDisplay(item.tanggalEstimasiPengembalian)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatDateDisplay(item.tanggalPengembalian)}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-800">
-                    {formatPersonName(item.approvedBy)}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusPillClass(item.statusKey, item.isTerlambat)}`}
-                    >
-                      {item.statusKey === "RETURNED" ? (
-                        <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-                      ) : item.statusKey === "REJECTED" ? (
-                        <XCircle className="w-3.5 h-3.5" aria-hidden="true" />
-                      ) : (
-                        <BookOpen className="w-3.5 h-3.5" aria-hidden="true" />
-                      )}
-                      {item.statusText}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                    <span className="block truncate tabular-nums" title={formatDateOnly(item.tanggalPinjam)}>
+                      {formatDateOnly(item.tanggalPinjam)}
                     </span>
-                  </td>
-                </tr>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                    <span className="block truncate tabular-nums" title={formatDateOnly(item.tanggalPenyerahan)}>
+                      {formatDateOnly(item.tanggalPenyerahan)}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                    <span
+                      className="block truncate tabular-nums"
+                      title={formatDateOnly(item.tanggalEstimasiPengembalian)}
+                    >
+                      {formatDateOnly(item.tanggalEstimasiPengembalian)}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                    <span
+                      className="block truncate tabular-nums"
+                      title={formatDateOnly(item.tanggalPengembalian)}
+                    >
+                      {formatDateOnly(item.tanggalPengembalian)}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}>
+                    <span className="block truncate" title={formatPersonName(item.approvedBy)}>
+                      {formatPersonName(item.approvedBy)}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                    <SetupStatusBadge
+                      status={getStatusLabel(item.statusKey, item.isTerlambat)}
+                    />
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
               ))}
-              {filteredData.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={9}
-                    className="px-6 py-12 text-center text-sm text-gray-500"
+              {paginationMeta.total === 0 ? (
+                <SetupDataTableRow>
+                  <SetupDataTableCell
+                    colSpan={10}
+                    className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
                   >
-                    Belum ada data peminjaman yang sesuai.
-                  </td>
-                </tr>
+                    {isLoading
+                      ? "Memuat laporan peminjaman..."
+                      : "Belum ada data peminjaman yang sesuai."}
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
               ) : null}
-            </tbody>
-          </table>
+            </SetupDataTableBody>
+          </SetupDataTable>
         </div>
+        <Pagination
+          page={paginationMeta.page}
+          lastPage={paginationMeta.lastPage}
+          total={paginationMeta.total}
+          limit={paginationMeta.limit}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

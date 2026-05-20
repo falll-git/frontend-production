@@ -1,19 +1,62 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Archive, FileSpreadsheet, Search } from "lucide-react";
+import {
+  SetupDataTable,
+  SetupDataTableHead,
+  SetupDataTableBody,
+  SetupDataTableRow,
+  SetupDataTableHeaderCell,
+  SetupDataTableCell,
+  SetupDataTableColGroup,
+  SetupDataTableCol
+} from "@/components/ui/SetupDataTable";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Archive,
+  ArrowRightLeft,
+  CirclePlus,
+  Pencil,
+} from "lucide-react";
 
-import { exportToExcel } from "@/lib/utils/exportExcel";
 import FeatureHeader from "@/components/ui/FeatureHeader";
-import { formatDateDisplay } from "@/lib/utils/date";
+import Pagination from "@/components/ui/Pagination";
+import SetupExcelButton from "@/components/ui/SetupExcelButton";
+import SetupSearchInput from "@/components/ui/SetupSearchInput";
+import SetupSelect from "@/components/ui/SetupSelect";
+import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
+import {
+  SETUP_PAGE_MODERN_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
+  SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_TABLE_CLASS,
+  SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
+  SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+  SETUP_PAGE_SEARCH_CARD_CLASS,
+  SETUP_PAGE_SEARCH_LABEL_CLASS,
+  SETUP_PAGE_TABLE_CARD_CLASS,
+} from "@/components/ui/setupPageStyles";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { useArsipDigitalWorkflow } from "@/components/arsip-digital/ArsipDigitalWorkflowProvider";
+import { OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import { formatDateOnly } from "@/lib/utils/date";
+import { exportToExcel } from "@/lib/utils/exportExcel";
+
+type StorageHistoryActionLabel =
+  | "Input Baru"
+  | "Pindah Lokasi"
+  | "Perubahan Data"
+  | "Hapus";
 
 type StorageHistoryRow = {
   id: string;
   kode: string;
   namaDokumen: string;
   aksiKey: string;
-  aksiLabel: string;
+  aksiLabel: StorageHistoryActionLabel;
   lokasiLama: string;
   lokasiBaru: string;
   user: string;
@@ -29,41 +72,59 @@ const ACTION_FILTERS = [
   "Hapus",
 ] as const;
 
+const HISTORIS_PENYIMPANAN_TABLE_COLUMN_WIDTHS = [
+  "52px",
+  "124px",
+  "72px",
+  "160px",
+  "152px",
+  "164px",
+  null,
+  null,
+  "112px",
+] as const;
+
 function formatPersonName(value: string) {
-  return value.toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === "-") return value;
+
+  return trimmed
+    .toLowerCase()
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function formatTimeLabel(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+
+  return `${String(date.getHours()).padStart(2, "0")}:${String(
+    date.getMinutes(),
+  ).padStart(2, "0")}`;
 }
 
-function mapActionLabel(actionKey: string, fallback: string) {
+function mapActionLabel(
+  actionKey: string,
+  fallback: string,
+): StorageHistoryActionLabel {
   switch (actionKey) {
     case "CREATED":
       return "Input Baru";
     case "STORAGE_MOVED":
       return "Pindah Lokasi";
-    case "UPDATED":
-      return "Perubahan Data";
     case "DELETED":
       return "Hapus";
+    case "UPDATED":
     default:
-      return fallback || "Perubahan Data";
-  }
-}
-
-function getActionPillClass(actionLabel: string) {
-  switch (actionLabel) {
-    case "Input Baru":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    case "Pindah Lokasi":
-      return "border-amber-200 bg-amber-50 text-amber-700";
-    case "Hapus":
-      return "border-rose-200 bg-rose-50 text-rose-700";
-    default:
-      return "border-blue-200 bg-blue-50 text-blue-700";
+      return fallback === "Hapus"
+        ? "Hapus"
+        : fallback === "Input Baru"
+          ? "Input Baru"
+          : fallback === "Pindah Lokasi"
+            ? "Pindah Lokasi"
+            : "Perubahan Data";
   }
 }
 
@@ -112,22 +173,35 @@ export default function HistorisPenyimpananPage() {
 
   const totalInputBaru = useMemo(
     () =>
-      historisPenyimpanan.filter((item) => item.aksiKey === "CREATED").length,
+      historisPenyimpanan.filter((item) => item.aksiLabel === "Input Baru")
+        .length,
     [historisPenyimpanan],
   );
 
   const totalPindahLokasi = useMemo(
     () =>
-      historisPenyimpanan.filter((item) => item.aksiKey === "STORAGE_MOVED")
+      historisPenyimpanan.filter((item) => item.aksiLabel === "Pindah Lokasi")
         .length,
     [historisPenyimpanan],
   );
 
   const totalPerubahanData = useMemo(
     () =>
-      historisPenyimpanan.filter((item) => item.aksiKey === "UPDATED").length,
+      historisPenyimpanan.filter((item) => item.aksiLabel === "Perubahan Data")
+        .length,
     [historisPenyimpanan],
   );
+
+  const {
+    paginatedItems: paginatedData,
+    meta: paginationMeta,
+    setPage,
+    resetPage,
+  } = useClientPagination(filteredData, OPERATIONAL_TABLE_PAGE_SIZE);
+
+  useEffect(() => {
+    resetPage();
+  }, [filterAksi, resetPage, searchTerm]);
 
   const handleExport = async () => {
     await exportToExcel({
@@ -136,25 +210,25 @@ export default function HistorisPenyimpananPage() {
       title: "Historis Penyimpanan Dokumen",
       columns: [
         { header: "No", key: "no", width: 6 },
-        { header: "Tanggal", key: "tanggal", width: 15 },
+        { header: "Tanggal", key: "tanggal", width: 16 },
         { header: "Jam", key: "jam", width: 10 },
-        { header: "Kode", key: "kode", width: 15 },
+        { header: "Kode", key: "kode", width: 18 },
         { header: "Nama Dokumen", key: "namaDokumen", width: 30 },
         { header: "Aksi", key: "aksi", width: 18 },
-        { header: "Lokasi Lama", key: "lokasiLama", width: 24 },
-        { header: "Lokasi Baru", key: "lokasiBaru", width: 24 },
+        { header: "Lokasi Lama", key: "lokasiLama", width: 30 },
+        { header: "Lokasi Baru", key: "lokasiBaru", width: 30 },
         { header: "User", key: "user", width: 18 },
       ],
       data: filteredData.map((item, idx) => ({
         no: idx + 1,
-        tanggal: formatDateDisplay(item.tanggal),
+        tanggal: formatDateOnly(item.tanggal),
         jam: item.jam,
         kode: item.kode,
         namaDokumen: item.namaDokumen,
         aksi: item.aksiLabel,
         lokasiLama: item.lokasiLama,
         lokasiBaru: item.lokasiBaru,
-        user: item.user,
+        user: formatPersonName(item.user),
       })),
     });
   };
@@ -166,201 +240,197 @@ export default function HistorisPenyimpananPage() {
         subtitle="Riwayat perubahan lokasi dan aktivitas dokumen arsip digital."
         icon={<Archive />}
         actions={
-          <button
-            onClick={handleExport}
-            className="btn btn-export-excel"
-            title="Export Excel"
-          >
-            <FileSpreadsheet className="w-4 h-4" aria-hidden="true" />
-            <span>Export Excel</span>
-          </button>
+          <SetupExcelButton onClick={handleExport} />
         }
       />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
+      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-white p-6 shadow-sm">
           <div>
-            <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Total Aktivitas
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-1">
+            <p className="mt-1 text-2xl font-semibold text-gray-900">
               {historisPenyimpanan.length}
             </p>
           </div>
-          <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
-            <Archive className="w-6 h-6" aria-hidden="true" />
-          </div>
+          <Archive className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-white p-6 shadow-sm">
           <div>
-            <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Input Baru
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-1">
+            <p className="mt-1 text-2xl font-semibold text-gray-900">
               {totalInputBaru}
             </p>
           </div>
-          <div className="w-9 h-9 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600">
-            <Archive className="w-6 h-6" aria-hidden="true" />
-          </div>
+          <CirclePlus className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-white p-6 shadow-sm">
           <div>
-            <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Pindah Lokasi
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-1">
+            <p className="mt-1 text-2xl font-semibold text-gray-900">
               {totalPindahLokasi}
             </p>
           </div>
-          <div className="w-9 h-9 bg-amber-100 rounded-lg flex items-center justify-center text-amber-600">
-            <Archive className="w-6 h-6" aria-hidden="true" />
-          </div>
+          <ArrowRightLeft
+            className="h-7 w-7 text-slate-900"
+            aria-hidden="true"
+          />
         </div>
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-white p-6 shadow-sm">
           <div>
-            <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider">
+            <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Perubahan Data
             </p>
-            <p className="text-2xl font-semibold text-gray-900 mt-1">
+            <p className="mt-1 text-2xl font-semibold text-gray-900">
               {totalPerubahanData}
             </p>
           </div>
-          <div className="w-9 h-9 bg-violet-100 rounded-lg flex items-center justify-center text-violet-600">
-            <Archive className="w-6 h-6" aria-hidden="true" />
-          </div>
+          <Pencil className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6 p-5">
-        <div className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              Cari
-            </label>
-            <div className="relative">
-              <Search
-                className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                aria-hidden="true"
-              />
-              <input
-                type="text"
-                placeholder="Cari dokumen, aksi, atau user..."
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="input input-with-icon"
-              />
-            </div>
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} mb-6`}>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_320px] md:items-end">
+          <div>
+            <SetupSearchInput
+              label="Cari"
+              placeholder="Cari dokumen, aksi, atau user..."
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+            />
           </div>
-          <div className="w-full md:w-64">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              Filter Aksi
-            </label>
-            <select
+          <div>
+            <label className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Filter Aksi</label>
+            <SetupSelect
               value={filterAksi}
               onChange={(event) =>
                 setFilterAksi(
                   event.target.value as (typeof ACTION_FILTERS)[number],
                 )
               }
-              className="select"
             >
               {ACTION_FILTERS.map((aksi) => (
                 <option key={aksi} value={aksi}>
                   {aksi}
                 </option>
               ))}
-            </select>
+            </SetupSelect>
           </div>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50">
-              <tr>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  No
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Tanggal
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Jam
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Kode
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
+          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+            <SetupDataTableColGroup>
+              {HISTORIS_PENYIMPANAN_TABLE_COLUMN_WIDTHS.map((width, index) => (
+                <SetupDataTableCol
+                  key={`${index}-${width ?? "flex"}`}
+                  style={width ? { width } : undefined}
+                />
+              ))}
+            </SetupDataTableColGroup>
+            <SetupDataTableHead className="ltr:text-left rtl:text-right">
+              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Tanggal</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Jam</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Kode</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Nama Dokumen
-                </th>
-                <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   Aksi
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Lokasi Lama
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Lokasi Baru
-                </th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  User
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredData.map((item, idx) => (
-                <tr
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>User</SetupDataTableHeaderCell>
+              </SetupDataTableRow>
+            </SetupDataTableHead>
+            <SetupDataTableBody className="divide-y divide-gray-100">
+              {paginatedData.map((item, idx) => (
+                <SetupDataTableRow
                   key={item.id}
-                  className="transition-colors hover:bg-gray-50"
+                  className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} hover:bg-gray-50/50`}
                 >
-                  <td className="px-6 py-4 text-sm text-gray-500">{idx + 1}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {formatDateDisplay(item.tanggal)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {item.jam}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex items-center rounded-lg border-2 border-gray-800 bg-white px-3 py-1 text-xs font-semibold text-gray-900 tabular-nums">
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                    {(paginationMeta.page - 1) * paginationMeta.limit + idx + 1}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                    <span
+                      className="block truncate tabular-nums"
+                      title={formatDateOnly(item.tanggal)}
+                    >
+                      {formatDateOnly(item.tanggal)}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                    <span className="block truncate tabular-nums" title={item.jam}>
+                      {item.jam}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                    <span
+                      className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 tabular-nums"
+                      title={item.kode}
+                    >
                       {item.kode}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-800">
-                    {item.namaDokumen}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <span
-                      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${getActionPillClass(item.aksiLabel)}`}
-                    >
-                      {item.aksiLabel}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}>
+                    <span className="block truncate" title={item.namaDokumen}>
+                      {item.namaDokumen}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {item.lokasiLama}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-800">
-                    {item.lokasiBaru}
-                  </td>
-                  <td className="px-6 py-4 text-sm font-semibold text-gray-800">
-                    {formatPersonName(item.user)}
-                  </td>
-                </tr>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                    <SetupStatusBadge status={item.aksiLabel} />
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
+                    <span className="block truncate" title={item.lokasiLama}>
+                      {item.lokasiLama}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-medium text-gray-900`}>
+                    <span className="block truncate" title={item.lokasiBaru}>
+                      {item.lokasiBaru}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}>
+                    <span
+                      className="block truncate"
+                      title={formatPersonName(item.user)}
+                    >
+                      {formatPersonName(item.user)}
+                    </span>
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
               ))}
               {filteredData.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={9}
-                    className="px-6 py-12 text-center text-sm text-gray-500"
-                  >
+                <SetupDataTableRow>
+                  <SetupDataTableCell colSpan={9} className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}>
                     Belum ada data historis penyimpanan yang sesuai.
-                  </td>
-                </tr>
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
               ) : null}
-            </tbody>
-          </table>
+            </SetupDataTableBody>
+          </SetupDataTable>
         </div>
+        <Pagination
+          page={paginationMeta.page}
+          lastPage={paginationMeta.lastPage}
+          total={paginationMeta.total}
+          limit={paginationMeta.limit}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   );

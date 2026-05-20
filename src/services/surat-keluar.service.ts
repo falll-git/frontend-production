@@ -4,6 +4,7 @@ import {
   toPreviewableFileUrl,
 } from "@/lib/utils/file";
 import {
+  extractPaginationMeta,
   extractList,
   extractRecord,
   readNullableString,
@@ -11,6 +12,13 @@ import {
   readString,
   toMultipartFormData,
 } from "@/services/api.utils";
+import { MAX_TABLE_PAGE_SIZE, OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import { mapWatermarkFileMeta } from "@/services/watermark.service";
+import {
+  readPhysicalStorage,
+  readPhysicalStorageLabel,
+} from "@/services/persuratan-storage.mapper";
+import type { PageQuery, PaginatedResult } from "@/types/api.types";
 import type {
   OutgoingMailPayload,
   SuratKeluar,
@@ -48,6 +56,8 @@ export function mapSuratKeluarRecord(
   const deliveryMedia = readString(record, "delivery_media", "deliveryMedia");
   const statusCode = readNumber(record, "status") ?? undefined;
   const letterPriorityRecord = asRecord(record.letter_prioritie);
+  const creatorRecord = asRecord(record.creator);
+  const storage = readPhysicalStorage(record);
 
   if (!sendDate || !recipientName || !mailNumber) return null;
 
@@ -80,6 +90,11 @@ export function mapSuratKeluarRecord(
             : "Biasa",
     fileName: fallbackFileName,
     fileUrl: previewableFileUrl,
+    watermark: mapWatermarkFileMeta(record.watermark),
+    storageId:
+      readString(record, "storage_id", "storageId") ?? storage?.id ?? undefined,
+    storage,
+    physicalStorageLabel: readPhysicalStorageLabel(record),
     letterPrioritieId:
       readString(record, "letter_prioritie_id", "letterPrioritieId") ??
       undefined,
@@ -87,15 +102,61 @@ export function mapSuratKeluarRecord(
     statusLabel: formatOutgoingStatusLabel(record),
     mailNumberRaw: mailNumber,
     mediaRaw: deliveryMedia ?? undefined,
+    createdBy:
+      readString(record, "created_by", "createdBy") ??
+      (creatorRecord ? readString(creatorRecord, "id") : null) ??
+      undefined,
+    creatorDivisionId:
+      readString(record, "creator_division_id", "creatorDivisionId") ??
+      (creatorRecord ? readString(creatorRecord, "division_id", "divisionId") : null) ??
+      undefined,
+  };
+}
+
+async function getSuratKeluarPage({
+  page = 1,
+  limit = OPERATIONAL_TABLE_PAGE_SIZE,
+  search,
+}: PageQuery = {}): Promise<PaginatedResult<SuratKeluar>> {
+  const res = await api.get("/outgoing-mails", {
+    params: {
+      page,
+      limit,
+      ...(search ? { search } : {}),
+    },
+  });
+  const items = extractList(res.data)
+    .map((record, index) => mapSuratKeluarRecord(record, index))
+    .filter((item): item is SuratKeluar => item !== null);
+
+  return {
+    items,
+    meta: extractPaginationMeta(res.data, {
+      page,
+      limit,
+      total: items.length,
+    }),
   };
 }
 
 export const suratKeluarService = {
+  getPage: getSuratKeluarPage,
   getAll: async (): Promise<SuratKeluar[]> => {
-    const res = await api.get("/outgoing-mails");
-    return extractList(res.data)
-      .map((record, index) => mapSuratKeluarRecord(record, index))
-      .filter((item): item is SuratKeluar => item !== null);
+    const first = await getSuratKeluarPage({
+      page: 1,
+      limit: MAX_TABLE_PAGE_SIZE,
+    });
+    const all = [...first.items];
+
+    for (let page = 2; page <= first.meta.lastPage; page += 1) {
+      const next = await getSuratKeluarPage({
+        page,
+        limit: MAX_TABLE_PAGE_SIZE,
+      });
+      all.push(...next.items);
+    }
+
+    return all;
   },
   create: async (data: OutgoingMailPayload): Promise<SuratKeluar | null> => {
     const formData = toMultipartFormData(data);

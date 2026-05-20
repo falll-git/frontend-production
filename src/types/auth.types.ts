@@ -12,14 +12,15 @@ export interface User {
   name: string;
   role: Role;
   role_id: string;
+  role_name?: string;
   division_id: string;
+  division_name?: string;
+  can_access_restricted_documents: boolean;
   is_restrict: boolean;
   is_active: boolean;
 }
 
-export interface StoredUser extends User {
-  password?: string;
-}
+export type StoredUser = User;
 
 export interface AuthApiResponse<T> {
   status: boolean;
@@ -55,6 +56,7 @@ export interface LoginResponse {
       division_id: string;
       phone?: string;
       is_active: boolean;
+      can_access_restricted_documents?: boolean;
       is_restrict: boolean;
       created_at: string;
       updated_at: string;
@@ -70,7 +72,6 @@ export interface LoginResponse {
       };
     };
     token: string;
-    refreshToken: string;
   };
 }
 
@@ -79,7 +80,6 @@ export interface RefreshResponse {
   message: string;
   data: {
     token: string;
-    refreshToken?: string;
     user?: {
       id: string;
       name: string;
@@ -89,6 +89,7 @@ export interface RefreshResponse {
       division_id: string;
       phone?: string;
       is_active: boolean;
+      can_access_restricted_documents?: boolean;
       is_restrict: boolean;
       email_verified_at?: string | null;
       password_set_at?: string | null;
@@ -125,6 +126,7 @@ export type PasswordMutationResponse = AuthApiResponse<{
     division_id: string;
     phone?: string;
     is_active: boolean;
+    can_access_restricted_documents?: boolean;
     is_restrict: boolean;
     invitation_pending?: boolean;
     onboarding_status?: OnboardingStatus;
@@ -152,6 +154,7 @@ export interface UserRecord {
   name: string;
   role_id: string;
   division_id: string;
+  can_access_restricted_documents: boolean;
   is_restrict: boolean;
   is_active: boolean;
   phone?: string;
@@ -198,8 +201,8 @@ export interface UserPayload {
   name: string;
   username: string;
   email: string;
-  password?: string;
   phone?: string;
+  can_access_restricted_documents?: boolean;
   is_restrict?: boolean;
   role_id: string;
   division_id: string;

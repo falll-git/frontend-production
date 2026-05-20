@@ -1,6 +1,9 @@
 import axios from "axios";
 
-import { AUTH_STORAGE_KEYS, clearAuthBrowserStorage } from "@/lib/auth-storage";
+import {
+  clearAuthBrowserStorage,
+  hasPersistedAuthSession,
+} from "@/lib/auth-storage";
 
 function getApiMessage(payload: unknown): string | null {
   if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
@@ -27,6 +30,7 @@ function hasFailedApiFlag(payload: unknown): boolean {
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
   headers: { "Content-Type": "application/json" },
+  withCredentials: true,
 });
 
 let accessToken: string | null = null;
@@ -37,41 +41,6 @@ export function setAccessToken(token: string | null) {
 
 export function getAccessToken(): string | null {
   return accessToken;
-}
-
-function getStoredRefreshToken(): string | null {
-  if (typeof window === "undefined") return null;
-
-  return (
-    window.localStorage.getItem(AUTH_STORAGE_KEYS.persistedRefreshToken) ??
-    window.sessionStorage.getItem(AUTH_STORAGE_KEYS.sessionRefreshToken)
-  );
-}
-
-function persistAccessToken(token: string) {
-  if (typeof window === "undefined") return;
-
-  if (window.localStorage.getItem(AUTH_STORAGE_KEYS.persistedAccessToken)) {
-    window.localStorage.setItem(AUTH_STORAGE_KEYS.persistedAccessToken, token);
-    return;
-  }
-
-  if (window.sessionStorage.getItem(AUTH_STORAGE_KEYS.sessionAccessToken)) {
-    window.sessionStorage.setItem(AUTH_STORAGE_KEYS.sessionAccessToken, token);
-  }
-}
-
-function persistRefreshToken(token: string) {
-  if (typeof window === "undefined") return;
-
-  if (window.localStorage.getItem(AUTH_STORAGE_KEYS.persistedRefreshToken)) {
-    window.localStorage.setItem(AUTH_STORAGE_KEYS.persistedRefreshToken, token);
-    return;
-  }
-
-  if (window.sessionStorage.getItem(AUTH_STORAGE_KEYS.sessionRefreshToken)) {
-    window.sessionStorage.setItem(AUTH_STORAGE_KEYS.sessionRefreshToken, token);
-  }
 }
 
 function extractAuthToken(payload: unknown): string | null {
@@ -89,26 +58,6 @@ function extractAuthToken(payload: unknown): string | null {
     typeof (record.data as Record<string, unknown>).token === "string"
   ) {
     return (record.data as Record<string, unknown>).token as string;
-  }
-
-  return null;
-}
-
-function extractRefreshToken(payload: unknown): string | null {
-  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
-    return null;
-  }
-
-  const record = payload as Record<string, unknown>;
-  if (typeof record.refreshToken === "string") return record.refreshToken;
-
-  if (
-    typeof record.data === "object" &&
-    record.data !== null &&
-    !Array.isArray(record.data) &&
-    typeof (record.data as Record<string, unknown>).refreshToken === "string"
-  ) {
-    return (record.data as Record<string, unknown>).refreshToken as string;
   }
 
   return null;
@@ -158,12 +107,10 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshToken = getStoredRefreshToken();
-        if (!refreshToken) throw new Error("No refresh token");
-
         const res = await axios.post(
           `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
-          { refreshToken },
+          { remember: hasPersistedAuthSession() },
+          { withCredentials: true },
         );
 
         if (hasFailedApiFlag(res.data)) {
@@ -173,13 +120,7 @@ api.interceptors.response.use(
         const newToken = extractAuthToken(res.data);
         if (!newToken) throw new Error("Refresh failed");
 
-        const nextRefreshToken = extractRefreshToken(res.data);
         setAccessToken(newToken);
-        persistAccessToken(newToken);
-
-        if (nextRefreshToken) {
-          persistRefreshToken(nextRefreshToken);
-        }
 
         originalRequest.headers = originalRequest.headers ?? {};
         originalRequest.headers.Authorization = `Bearer ${newToken}`;

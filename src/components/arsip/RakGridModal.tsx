@@ -2,55 +2,101 @@
 
 import {
   ArrowLeft,
-  ChevronRight,
+  CircleCheck,
   FolderOpen,
+  Gauge,
   Layers,
-  Search,
   SearchX,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import StorageSummaryCard from "@/components/arsip/StorageSummaryCard";
+import Pagination from "@/components/ui/Pagination";
+import SetupSearchInput from "@/components/ui/SetupSearchInput";
+import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
+import { DEFAULT_PAGINATION_META } from "@/lib/pagination";
 import type { Kantor, Lemari, Rak } from "@/lib/types";
-import { useMemo, useState } from "react";
+import { arsipService } from "@/services/arsip.service";
+import type { PaginationMeta } from "@/types/api.types";
 
-type RakWithMeta = Rak & {
-  kapasitas?: number;
-  status?: "Aktif" | "Nonaktif";
+const STORAGE_GRID_PAGE_SIZE = 6;
+const INITIAL_PAGINATION_META: PaginationMeta = {
+  ...DEFAULT_PAGINATION_META,
+  limit: STORAGE_GRID_PAGE_SIZE,
 };
 
 type RakGridModalProps = {
   lemari: Lemari;
   kantor: Kantor;
-  rakList: Rak[];
   onClose: () => void;
   onBack: () => void;
   onSelectRak: (rak: Rak) => void;
 };
 
-function getStatusBadgeClass(status: "Aktif" | "Nonaktif") {
-  return status === "Aktif"
-    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-    : "border-gray-200 bg-gray-100 text-gray-700";
-}
-
 export default function RakGridModal({
   lemari,
   kantor,
-  rakList,
   onClose,
   onBack,
   onSelectRak,
 }: RakGridModalProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rakPage, setRakPage] = useState<Rak[]>([]);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>(
+    INITIAL_PAGINATION_META,
+  );
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  const filteredRak = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase();
-    if (!query) return rakList;
-    return rakList.filter((item) => item.namaRak.toLowerCase().includes(query));
-  }, [rakList, searchTerm]);
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim());
+    }, 250);
 
-  const hasNoData = rakList.length === 0;
-  const hasNoFilteredData = rakList.length > 0 && filteredRak.length === 0;
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [searchTerm]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    void arsipService
+      .getCabinetRacksPage(lemari.id, {
+        page: currentPage,
+        limit: STORAGE_GRID_PAGE_SIZE,
+        search: debouncedSearch || undefined,
+      })
+      .then((result) => {
+        if (isCancelled) return;
+        setRakPage(result.items);
+        setPaginationMeta(result.meta);
+      })
+      .catch((error) => {
+        if (isCancelled) return;
+        setRakPage([]);
+        setPaginationMeta(INITIAL_PAGINATION_META);
+        setErrorMessage(
+          error instanceof Error ? error.message : "Gagal memuat daftar rak",
+        );
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentPage, debouncedSearch, lemari.id]);
+
+  const hasNoData =
+    !isLoading && paginationMeta.total === 0 && debouncedSearch.length === 0;
+  const hasNoFilteredData =
+    !isLoading && paginationMeta.total === 0 && debouncedSearch.length > 0;
 
   return (
     <div
@@ -77,28 +123,34 @@ export default function RakGridModal({
             <h3 className="truncate text-lg font-bold text-gray-900">
               {lemari.kodeLemari} {"\u00B7"} {kantor.namaKantor}
             </h3>
-            <p className="text-sm text-gray-500">{filteredRak.length} Rak</p>
+            <p className="text-sm text-gray-500">{paginationMeta.total} Rak</p>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-6">
           <div className="mb-5">
-            <div className="relative">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
-                aria-hidden="true"
-              />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="input input-with-icon"
-                placeholder="Cari nomor rak..."
-              />
-            </div>
+            <SetupSearchInput
+              value={searchTerm}
+              onChange={(event) => {
+                setIsLoading(true);
+                setErrorMessage("");
+                setSearchTerm(event.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Cari nomor rak..."
+            />
           </div>
 
-          {hasNoData ? (
+          {errorMessage ? (
+            <div className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-slate-900">
+                <SearchX className="h-7 w-7" aria-hidden="true" />
+              </div>
+              <p className="text-base font-medium text-gray-700">
+                {errorMessage}
+              </p>
+            </div>
+          ) : hasNoData ? (
             <div className="flex min-h-[300px] flex-col items-center justify-center px-6 text-center">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-gray-300">
                 <FolderOpen className="h-7 w-7" aria-hidden="true" />
@@ -114,110 +166,96 @@ export default function RakGridModal({
                 Tidak ada rak yang sesuai
               </p>
             </div>
+          ) : isLoading && rakPage.length === 0 ? (
+            <div className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">
+              <p className="text-base font-medium text-gray-700">
+                Memuat daftar rak...
+              </p>
+            </div>
           ) : (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              {filteredRak.map((rak, idx) => {
-                const metadata = rak as RakWithMeta;
-                const hasKapasitas = typeof metadata.kapasitas === "number";
-                const status = metadata.status;
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                {rakPage.map((rak, idx) => {
+                  const hasKapasitas = typeof rak.kapasitas === "number";
+                  const status = rak.status;
 
-                return (
-                  <div
-                    key={rak.id}
-                    className="group bg-white rounded-lg p-6 shadow-sm border border-gray-100 text-left transition-colors duration-150"
-                    style={{ animationDelay: `${idx * 0.1}s` }}
-                  >
-                    <div className="flex items-start justify-between mb-6">
-                      <div className="w-10 h-10 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-[#157ec3]">
-                        <Layers className="w-6 h-6" aria-hidden="true" />
-                      </div>
-                      <div className="flex flex-col items-end">
-                        <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                          Total Arsip
-                        </span>
-                        <span className="text-xl font-semibold text-gray-800 tabular-nums">
-                          {rak.totalArsip}
-                        </span>
-                      </div>
-                    </div>
+                  return (
+                    <StorageSummaryCard
+                      key={rak.id}
+                      style={{ animationDelay: `${idx * 0.1}s` }}
+                      icon={<Layers className="h-6 w-6" aria-hidden="true" />}
+                      total={rak.totalArsip}
+                      rows={[
+                        {
+                          icon: <Layers className="h-4 w-4" aria-hidden="true" />,
+                          label: "Nama Rak",
+                          value: rak.namaRak,
+                        },
+                        ...(hasKapasitas
+                          ? [
+                              {
+                                icon: (
+                                  <Gauge className="h-4 w-4" aria-hidden="true" />
+                                ),
+                                label: "Kapasitas",
+                                value: rak.kapasitas,
+                              },
+                            ]
+                          : []),
+                        ...(status === "Aktif" || status === "Nonaktif"
+                          ? [
+                              {
+                                icon: (
+                                  <CircleCheck
+                                    className="h-4 w-4"
+                                    aria-hidden="true"
+                                  />
+                                ),
+                                label: "Status",
+                                value: <SetupStatusBadge status={status} />,
+                              },
+                            ]
+                          : []),
+                      ]}
+                      actionLabel="Lihat Dokumen"
+                      onAction={() => onSelectRak(rak)}
+                    />
+                  );
+                })}
+              </div>
 
-                    <div className="space-y-4">
-                      <div className="rounded-lg bg-gray-50">
-                        <div className="flex items-center justify-between px-4 py-3 text-sm">
-                          <span className="flex items-center gap-3 text-gray-600 whitespace-nowrap">
-                            <Layers
-                              className="h-4 w-4 text-gray-500"
-                              aria-hidden="true"
-                            />
-                            Nama Rak
-                          </span>
-                          <span className="font-semibold text-gray-800 text-right whitespace-nowrap">
-                            {rak.namaRak}
-                          </span>
-                        </div>
-                        {hasKapasitas ? (
-                          <>
-                            <div className="h-px w-full bg-gray-200" />
-                            <div className="flex items-center justify-between px-4 py-3 text-sm">
-                              <span className="flex items-center gap-3 text-gray-600 whitespace-nowrap">
-                                <Layers
-                                  className="h-4 w-4 text-gray-500"
-                                  aria-hidden="true"
-                                />
-                                Kapasitas
-                              </span>
-                              <span className="min-w-[2.5rem] font-semibold text-gray-800 tabular-nums text-right">
-                                {metadata.kapasitas}
-                              </span>
-                            </div>
-                          </>
-                        ) : null}
-                        {status === "Aktif" || status === "Nonaktif" ? (
-                          <>
-                            <div className="h-px w-full bg-gray-200" />
-                            <div className="flex items-center justify-between px-4 py-3 text-sm">
-                              <span className="flex items-center gap-3 text-gray-600 whitespace-nowrap">
-                                <Layers
-                                  className="h-4 w-4 text-gray-500"
-                                  aria-hidden="true"
-                                />
-                                Status
-                              </span>
-                              <span
-                                className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusBadgeClass(
-                                  status,
-                                )}`}
-                              >
-                                {status}
-                              </span>
-                            </div>
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => onSelectRak(rak)}
-                      className="mt-6 flex w-full items-center justify-between text-primary-600 font-medium transition-colors"
-                    >
-                      <span className="text-sm">Lihat Dokumen</span>
-                      <ChevronRight className="w-5 h-5" aria-hidden="true" />
-                    </button>
-                  </div>
-                );
-              })}
+              <Pagination
+                page={paginationMeta.page}
+                lastPage={paginationMeta.lastPage}
+                total={paginationMeta.total}
+                limit={paginationMeta.limit}
+                isLoading={isLoading}
+                className="rounded-lg border border-gray-200 bg-white shadow-sm"
+                onPageChange={(page) => {
+                  setIsLoading(true);
+                  setErrorMessage("");
+                  setCurrentPage(page);
+                }}
+              />
             </div>
           )}
         </div>
 
         <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-5 py-4">
-          <Button type="button" variant="outline" onClick={onBack}>
+          <button
+            type="button"
+            className="uiverse-modal-button uiverse-modal-button--neutral"
+            onClick={onBack}
+          >
             Kembali
-          </Button>
-          <Button type="button" variant="outline" onClick={onClose}>
+          </button>
+          <button
+            type="button"
+            className="uiverse-modal-button uiverse-modal-button--neutral"
+            onClick={onClose}
+          >
             Tutup
-          </Button>
+          </button>
         </div>
       </div>
     </div>

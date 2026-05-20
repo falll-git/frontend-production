@@ -1,32 +1,43 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Archive,
-  ArrowLeft,
   ArrowLeftRight,
-  ChevronRight,
   BookOpen,
   Building2,
-  FileSpreadsheet,
-  Search,
+  SearchX,
   Warehouse,
 } from "lucide-react";
 
 import DokumenListModal from "@/components/arsip/DokumenListModal";
 import LemariGridModal from "@/components/arsip/LemariGridModal";
 import RakGridModal from "@/components/arsip/RakGridModal";
+import StorageSummaryCard from "@/components/arsip/StorageSummaryCard";
 import { useArsipDigitalMasterData } from "@/components/arsip-digital/ArsipDigitalMasterDataProvider";
 import { useArsipDigitalWorkflow } from "@/components/arsip-digital/ArsipDigitalWorkflowProvider";
 import FeatureHeader from "@/components/ui/FeatureHeader";
+import SetupExcelButton from "@/components/ui/SetupExcelButton";
+import SetupSearchInput from "@/components/ui/SetupSearchInput";
+import {
+  SETUP_PAGE_SEARCH_CARD_CLASS,
+  SETUP_PAGE_WIDTH_2XL_CLASS,
+} from "@/components/ui/setupPageStyles";
 import { buildArsipDigitalStorageData } from "@/lib/arsip-digital-storage";
+import { DEFAULT_PAGINATION_META } from "@/lib/pagination";
 import { exportToExcel } from "@/lib/utils/exportExcel";
+import { arsipService } from "@/services/arsip.service";
+import type { PaginationMeta } from "@/types/api.types";
 import type { Kantor, Lemari, Rak } from "@/lib/types";
+import Pagination from "@/components/ui/Pagination";
 
-const HOVER_ROW_CLASS = "transition-colors hover:bg-gray-100";
+const STORAGE_GRID_PAGE_SIZE = 6;
+const INITIAL_PAGINATION_META: PaginationMeta = {
+  ...DEFAULT_PAGINATION_META,
+  limit: STORAGE_GRID_PAGE_SIZE,
+};
 
 function startOfDay(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate());
@@ -41,6 +52,14 @@ export default function TempatPenyimpananPage() {
   const [selectedLemari, setSelectedLemari] = useState<Lemari | null>(null);
   const [selectedRak, setSelectedRak] = useState<Rak | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [kantorPage, setKantorPage] = useState<Kantor[]>([]);
+  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>(
+    INITIAL_PAGINATION_META,
+  );
+  const [isLoadingKantor, setIsLoadingKantor] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const storageData = useMemo(
     () =>
@@ -76,19 +95,14 @@ export default function TempatPenyimpananPage() {
   }, [kantorSummary, searchTerm]);
 
   const lemariList = useMemo(
-    () =>
-      selectedKantor
-        ? storageData.lemariList.filter((item) => item.kantorId === selectedKantor.id)
-        : [],
+    () => {
+      if (!selectedKantor) return [];
+      const selectedKantorCode = selectedKantor.kodeKantor ?? selectedKantor.id;
+      return storageData.lemariList.filter(
+        (item) => item.kantorId === selectedKantorCode,
+      );
+    },
     [selectedKantor, storageData.lemariList],
-  );
-
-  const rakList = useMemo(
-    () =>
-      selectedLemari
-        ? storageData.rakList.filter((item) => item.lemariId === selectedLemari.id)
-        : [],
-    [selectedLemari, storageData.rakList],
   );
 
   const dokumenList = useMemo(
@@ -98,6 +112,49 @@ export default function TempatPenyimpananPage() {
         : [],
     [selectedRak, storageData.dokumenArsipList],
   );
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearch(searchTerm.trim());
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [searchTerm]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    void arsipService
+      .getStorageOfficesPage({
+        page: currentPage,
+        limit: STORAGE_GRID_PAGE_SIZE,
+        search: debouncedSearch || undefined,
+      })
+      .then((result) => {
+        if (isCancelled) return;
+        setKantorPage(result.items);
+        setPaginationMeta(result.meta);
+      })
+      .catch((error) => {
+        if (isCancelled) return;
+        setKantorPage([]);
+        setPaginationMeta(INITIAL_PAGINATION_META);
+        setErrorMessage(
+          error instanceof Error ? error.message : "Gagal memuat daftar kantor",
+        );
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsLoadingKantor(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentPage, debouncedSearch]);
 
   const handleExport = async () => {
     await exportToExcel({
@@ -112,7 +169,7 @@ export default function TempatPenyimpananPage() {
         { header: "Dokumen Disposisi", key: "dokumenDisposisi", width: 18 },
         { header: "Dokumen Dipinjam", key: "dokumenDipinjam", width: 18 },
         {
-          header: "Dokumen Jatuh Tempo",
+          header: "Peminjaman Jatuh Tempo",
           key: "dokumenDipinjamJatuhTempo",
           width: 20,
         },
@@ -130,184 +187,138 @@ export default function TempatPenyimpananPage() {
   };
 
   return (
-    <div className="animate-fade-in max-w-7xl mx-auto">
-      <div className="mb-4">
-        <Link href="/dashboard" className="btn btn-outline btn-sm">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Kembali ke Dashboard
-        </Link>
-      </div>
-
+    <div className="mx-auto max-w-7xl animate-fade-in">
       <FeatureHeader
         title="Ruang Arsip Digital"
         subtitle="Laporan visual penyimpanan dokumen fisik dan digital."
         icon={<Warehouse />}
         actions={
-          <button
-            onClick={handleExport}
-            className="btn btn-export-excel"
-            title="Export Excel"
-          >
-            <FileSpreadsheet className="w-4 h-4" aria-hidden="true" />
-            <span>Export Excel</span>
-          </button>
+          <SetupExcelButton onClick={handleExport} />
         }
       />
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6 p-5">
+      <div className={`mb-6 ${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_2XL_CLASS}`}>
         <div className="flex flex-col gap-4">
           <div className="w-full">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-              Cari Kantor
-            </label>
-            <div className="relative">
-              <Search
-                className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                aria-hidden="true"
-              />
-              <input
-                type="text"
-                placeholder="Cari nama kantor..."
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="input input-with-icon"
-                aria-label="Cari kantor"
-              />
-            </div>
+            <SetupSearchInput
+              label="Cari Kantor"
+              placeholder="Cari nama kantor..."
+              value={searchTerm}
+              onChange={(event) => {
+                setIsLoadingKantor(true);
+                setErrorMessage("");
+                setSearchTerm(event.target.value);
+                setCurrentPage(1);
+              }}
+              aria-label="Cari kantor"
+            />
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 2xl:grid-cols-3">
-        {filteredKantorSummary.map((kantor, idx) => (
-          <div
-            key={kantor.id}
-            className="group bg-white rounded-lg p-6 shadow-sm border border-gray-100 text-left transition-colors duration-150"
-            style={{ animationDelay: `${idx * 0.1}s` }}
-          >
-            <div className="flex items-start justify-between mb-6">
-              <div className="w-10 h-10 rounded-lg border border-slate-200 bg-white flex items-center justify-center text-[#157ec3]">
-                <Warehouse className="w-6 h-6" aria-hidden="true" />
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
-                  Total Arsip
-                </span>
-                <span className="text-xl font-semibold text-gray-800 tabular-nums">
-                  {kantor.totalDokumen}
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="rounded-lg bg-gray-50">
-                <div className="flex items-center justify-between px-4 py-3 text-sm">
-                  <span className="flex items-center gap-3 text-gray-600 whitespace-nowrap">
-                    <Building2
-                      className="h-4 w-4 text-gray-500"
-                      aria-hidden="true"
-                    />
-                    Kantor
-                  </span>
-                  <span className="font-semibold text-gray-800 text-right whitespace-nowrap">
-                    {kantor.namaKantor}
-                  </span>
-                </div>
-                <div className="h-px w-full bg-gray-200" />
-                <div className="flex items-center justify-between px-4 py-3 text-sm">
-                  <span className="flex items-center gap-3 text-gray-600 whitespace-nowrap">
-                    <Archive
-                      className="h-4 w-4 text-gray-500"
-                      aria-hidden="true"
-                    />
-                    Jumlah Lemari
-                  </span>
-                  <span className="min-w-[2.5rem] font-semibold text-gray-800 tabular-nums text-right">
-                    {kantor.jumlahLemari}
-                  </span>
-                </div>
-                <div className="h-px w-full bg-gray-200" />
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/dashboard/arsip-digital/disposisi/historis?kantorId=${kantor.id}`,
-                    )
-                  }
-                  className={`w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm cursor-pointer ${HOVER_ROW_CLASS}`}
-                >
-                  <span className="flex items-center gap-3 text-gray-600 whitespace-nowrap">
-                    <ArrowLeftRight
-                      className="h-4 w-4 text-gray-500"
-                      aria-hidden="true"
-                    />
-                    Dokumen Disposisi
-                  </span>
-                  <span className="min-w-[2.5rem] text-sm font-semibold text-gray-800 tabular-nums text-right">
-                    {kantor.dokumenDisposisi}
-                  </span>
-                </button>
-                <div className="h-px w-full bg-gray-200" />
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/dashboard/arsip-digital/historis/peminjaman?kantorId=${kantor.id}`,
-                    )
-                  }
-                  className={`w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm cursor-pointer ${HOVER_ROW_CLASS}`}
-                >
-                  <span className="flex items-center gap-3 text-gray-600 whitespace-nowrap">
-                    <BookOpen
-                      className="h-4 w-4 text-gray-500"
-                      aria-hidden="true"
-                    />
-                    Dokumen Dipinjam
-                  </span>
-                  <span className="min-w-[2.5rem] text-sm font-semibold text-gray-800 tabular-nums text-right">
-                    {kantor.dokumenDipinjam}
-                  </span>
-                </button>
-                <div className="h-px w-full bg-gray-200" />
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/dashboard/arsip-digital/ruang-arsip/jatuh-tempo?kantorId=${kantor.id}`,
-                    )
-                  }
-                  className={`w-full flex items-center justify-between rounded-lg px-4 py-3 text-sm cursor-pointer ${HOVER_ROW_CLASS}`}
-                >
-                  <span className="flex items-center gap-3 text-gray-600 whitespace-nowrap">
-                    <AlertTriangle
-                      className="h-4 w-4 text-gray-500"
-                      aria-hidden="true"
-                    />
-                    Dokumen Dipinjam &amp; Jatuh Tempo
-                  </span>
-                  <span className="min-w-[2.5rem] text-sm font-semibold text-gray-800 tabular-nums text-right">
-                    {kantor.dokumenDipinjamJatuhTempo}
-                  </span>
-                </button>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() =>
-                setSelectedKantor({
-                  id: kantor.id,
-                  namaKantor: kantor.namaKantor,
-                })
-              }
-              className="mt-6 flex w-full items-center justify-between text-primary-600 font-medium transition-colors"
-            >
-              <span className="text-sm">Lihat Detail Dokumen</span>
-              <ChevronRight className="w-5 h-5" aria-hidden="true" />
-            </button>
-
+      {errorMessage ? (
+        <div className="mt-6 rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-slate-900">
+            <SearchX className="h-7 w-7" aria-hidden="true" />
           </div>
-        ))}
-      </div>
+          <p className="text-base font-medium text-gray-700">
+            {errorMessage}
+          </p>
+        </div>
+      ) : isLoadingKantor && kantorPage.length === 0 ? (
+        <div className="mt-6 rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm">
+          <p className="text-base font-medium text-gray-700">
+            Memuat daftar kantor...
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 2xl:grid-cols-3">
+            {kantorPage.map((kantor, idx) => (
+              <StorageSummaryCard
+                key={kantor.id}
+                style={{ animationDelay: `${idx * 0.1}s` }}
+                icon={<Warehouse className="h-6 w-6" aria-hidden="true" />}
+                total={kantor.totalDokumen ?? 0}
+                rows={[
+                  {
+                    icon: <Building2 className="h-4 w-4" aria-hidden="true" />,
+                    label: "Kantor",
+                    value: kantor.namaKantor,
+                  },
+                  {
+                    icon: <Archive className="h-4 w-4" aria-hidden="true" />,
+                    label: "Jumlah Lemari",
+                    value: kantor.jumlahLemari ?? 0,
+                  },
+                  {
+                    icon: <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />,
+                    label: "Dokumen Disposisi",
+                    value: kantor.dokumenDisposisi ?? 0,
+                    onClick: () =>
+                      router.push(
+                        `/dashboard/arsip-digital/disposisi/historis?kantorId=${kantor.id}`,
+                      ),
+                  },
+                  {
+                    icon: <BookOpen className="h-4 w-4" aria-hidden="true" />,
+                    label: "Dokumen Dipinjam",
+                    value: kantor.dokumenDipinjam ?? 0,
+                    onClick: () =>
+                      router.push(
+                        `/dashboard/arsip-digital/historis/peminjaman?kantorId=${kantor.id}`,
+                      ),
+                  },
+                  {
+                    icon: <AlertTriangle className="h-4 w-4" aria-hidden="true" />,
+                    label: "Peminjaman Jatuh Tempo",
+                    value: kantor.dokumenDipinjamJatuhTempo ?? 0,
+                    onClick: () =>
+                      router.push(
+                        `/dashboard/arsip-digital/ruang-arsip/jatuh-tempo?kantorId=${kantor.kodeKantor ?? kantor.id}`,
+                      ),
+                  },
+                ]}
+                actionLabel="Lihat Lemari"
+                onAction={() => {
+                  setSelectedKantor({
+                    id: kantor.id,
+                    kodeKantor: kantor.kodeKantor,
+                    namaKantor: kantor.namaKantor,
+                  });
+                  setSelectedLemari(null);
+                  setSelectedRak(null);
+                }}
+              />
+            ))}
+          </div>
+
+          <Pagination
+            page={paginationMeta.page}
+            lastPage={paginationMeta.lastPage}
+            total={paginationMeta.total}
+            limit={paginationMeta.limit}
+            isLoading={isLoadingKantor}
+            className="rounded-lg border border-gray-200 bg-white shadow-sm"
+            onPageChange={(page) => {
+              setIsLoadingKantor(true);
+              setErrorMessage("");
+              setCurrentPage(page);
+            }}
+          />
+        </div>
+      )}
+
+      {!errorMessage && !isLoadingKantor && paginationMeta.total === 0 ? (
+        <div className="mt-6 rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm">
+          <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-gray-300">
+            <SearchX className="h-7 w-7" aria-hidden="true" />
+          </div>
+          <p className="text-base font-medium text-gray-700">
+            Tidak ada kantor yang sesuai pencarian
+          </p>
+        </div>
+      ) : null}
 
       {selectedKantor ? (
         <LemariGridModal
@@ -315,13 +326,12 @@ export default function TempatPenyimpananPage() {
           lemariList={lemariList}
           rakList={storageData.rakList}
           dokumenList={storageData.dokumenArsipList}
-          totalDokumenByLemariId={storageData.totalDokumenByLemariId}
-          jumlahRakByLemariId={storageData.jumlahRakByLemariId}
-          disposisiByLemariId={storageData.disposisiByLemariId}
-          dipinjamByLemariId={storageData.dipinjamByLemariId}
-          jatuhTempoByLemariId={storageData.jatuhTempoByLemariId}
           onSelectLemari={(lemari) => setSelectedLemari(lemari)}
-          onClose={() => setSelectedKantor(null)}
+          onClose={() => {
+            setSelectedKantor(null);
+            setSelectedLemari(null);
+            setSelectedRak(null);
+          }}
         />
       ) : null}
 
@@ -329,12 +339,15 @@ export default function TempatPenyimpananPage() {
         <RakGridModal
           lemari={selectedLemari}
           kantor={selectedKantor}
-          rakList={rakList}
           onSelectRak={(rak) => setSelectedRak(rak)}
-          onBack={() => setSelectedLemari(null)}
+          onBack={() => {
+            setSelectedLemari(null);
+            setSelectedRak(null);
+          }}
           onClose={() => {
             setSelectedKantor(null);
             setSelectedLemari(null);
+            setSelectedRak(null);
           }}
         />
       ) : null}

@@ -1,29 +1,66 @@
 "use client";
 
 import {
+  useEffect,
   useMemo,
   useState,
   type CSSProperties,
+  type ComponentType,
   type ReactNode,
 } from "react";
 import {
   ArrowRight,
+  BarChart3,
   FolderArchive,
   Grid2x2,
   Mail,
+  Scale,
 } from "lucide-react";
 
 import { useAuth } from "@/components/auth/AuthProvider";
+import LaporanAktivitasMarketingSection from "@/components/dashboard/LaporanAktivitasMarketingSection";
+import LaporanNPFSection from "@/components/dashboard/LaporanNPFSection";
+import LaporanPihakKetigaSection from "@/components/dashboard/LaporanPihakKetigaSection";
+import LaporanTitipanSection from "@/components/dashboard/LaporanTitipanSection";
+import StorageOverviewWidget from "@/components/dashboard/StorageOverviewWidget";
 import ProtectedLink from "@/components/rbac/ProtectedLink";
-import { getDashboardRouteDecision, getRoleLabel } from "@/lib/rbac";
+import { getRoleLabel } from "@/lib/rbac";
+import { menuService } from "@/services/menu.service";
+import type { DashboardMenuNode } from "@/types/rbac.types";
 
-type ModuleCard = {
-  title: string;
-  href: string;
+type DashboardCardTone = {
   accentColor: string;
   icon: ReactNode;
-  subtitle?: string;
-  buttonText?: string;
+};
+
+const MODULE_REPORT_COMPONENT_PREFIX = "dashboard.module_report.";
+const STORAGE_USAGE_COMPONENT_KEY = "dashboard.storage_usage";
+const REPORT_ALL_FEATURE = "report_all";
+const REPORT_ALL_REQUIRED_WIDGET_KEYS = new Set([
+  "dashboard.module_report.debtor",
+  "dashboard.module_report.legal",
+  "dashboard.report.third_party_documents",
+  "dashboard.report.third_party_deposit_funds",
+  "dashboard.report.npf",
+  "dashboard.report.marketing_activity",
+]);
+type DashboardReportSectionProps = {
+  widget: DashboardMenuNode;
+};
+const DASHBOARD_REPORT_SECTION_RENDERERS: Record<
+  string,
+  ComponentType<DashboardReportSectionProps>
+> = {
+  "dashboard.report.third_party_documents": LaporanPihakKetigaSection,
+  "dashboard.report.third_party_deposit_funds": LaporanTitipanSection,
+  "dashboard.report.npf": LaporanNPFSection,
+  "dashboard.report.marketing_activity": LaporanAktivitasMarketingSection,
+};
+const DASHBOARD_REPORT_SECTION_ORDER: Record<string, number> = {
+  "dashboard.report.third_party_documents": 10,
+  "dashboard.report.third_party_deposit_funds": 20,
+  "dashboard.report.npf": 30,
+  "dashboard.report.marketing_activity": 40,
 };
 
 function hexToRgb(value: string): string | null {
@@ -46,33 +83,37 @@ function hexToRgb(value: string): string | null {
   return `${r}, ${g}, ${b}`;
 }
 
-function DashboardPremiumCard({
+function DashboardWidgetCard({
   title,
   icon,
   href,
-  badge,
   subtitle,
-  className = "",
-  accentColor = "#157ec3",
-  buttonText = "Akses Modul",
+  badge,
+  accentColor,
+  buttonText = "Lihat Detail",
 }: {
   title: string;
   icon: ReactNode;
   href: string;
+  subtitle: string;
   badge?: string;
-  subtitle?: string;
-  className?: string;
-  accentColor?: string;
+  accentColor: string;
   buttonText?: string;
 }) {
   const accentRgb = hexToRgb(accentColor) ?? "21, 126, 195";
-  const cardStyle = {
-    "--card-accent": accentColor,
-    "--card-accent-rgb": accentRgb,
-  } as CSSProperties;
-  const cardClassName = `uiverse-card ${className}`.trim();
-  const content = (
-    <>
+
+  return (
+    <ProtectedLink
+      href={href}
+      className="uiverse-card"
+      style={
+        {
+          "--card-accent": accentColor,
+          "--card-accent-rgb": accentRgb,
+        } as CSSProperties
+      }
+      title={title}
+    >
       <div className="uiverse-card-shine" aria-hidden="true" />
       <div className="uiverse-card-glow" aria-hidden="true" />
       <div className="uiverse-card-content">
@@ -82,9 +123,7 @@ function DashboardPremiumCard({
         </div>
         <div className="uiverse-card-text">
           <p className="uiverse-card-title">{title}</p>
-          {subtitle ? (
-            <p className="uiverse-card-description">{subtitle}</p>
-          ) : null}
+          <p className="uiverse-card-description">{subtitle}</p>
         </div>
         <div className="uiverse-card-footer">
           <div className="uiverse-card-price">{buttonText}</div>
@@ -93,18 +132,26 @@ function DashboardPremiumCard({
           </div>
         </div>
       </div>
-    </>
-  );
-
-  return (
-    <ProtectedLink
-      href={href}
-      className={cardClassName}
-      style={cardStyle}
-      title={title}
-    >
-      {content}
     </ProtectedLink>
+  );
+}
+
+function DashboardModuleReportCard({
+  widget,
+  tone,
+}: {
+  widget: DashboardMenuNode;
+  tone: DashboardCardTone;
+}) {
+  return (
+    <DashboardWidgetCard
+      title={widget.name}
+      href={widget.url}
+      subtitle={getWidgetSubtitle(widget)}
+      accentColor={tone.accentColor}
+      icon={tone.icon}
+      buttonText="Akses Laporan"
+    />
   );
 }
 
@@ -154,38 +201,169 @@ function DashboardSkeletonBanner() {
   );
 }
 
+function getWidgetTone(widget: DashboardMenuNode): DashboardCardTone {
+  switch (widget.component_key) {
+    case "dashboard.module_report.digital_archive":
+      return {
+        accentColor: "#157ec3",
+        icon: <FolderArchive className="h-8 w-8" aria-hidden="true" />,
+      };
+    case "dashboard.module_report.correspondence":
+      return {
+        accentColor: "#7c3aed",
+        icon: <Mail className="h-8 w-8" aria-hidden="true" />,
+      };
+    case "dashboard.module_report.debtor":
+      return {
+        accentColor: "#0f766e",
+        icon: <BarChart3 className="h-8 w-8" aria-hidden="true" />,
+      };
+    case "dashboard.module_report.legal":
+      return {
+        accentColor: "#2563eb",
+        icon: <Scale className="h-8 w-8" aria-hidden="true" />,
+      };
+    default:
+      return {
+        accentColor: "#157ec3",
+        icon: <BarChart3 className="h-8 w-8" aria-hidden="true" />,
+      };
+  }
+}
+
+function getWidgetSubtitle(widget: DashboardMenuNode): string {
+  switch (widget.component_key) {
+    case "dashboard.module_report.digital_archive":
+      return "Dokumen dan penyimpanan";
+    case "dashboard.module_report.correspondence":
+      return "Surat dan memorandum";
+    case "dashboard.module_report.debtor":
+      return "Debitur dan pembiayaan";
+    case "dashboard.module_report.legal":
+      return "Legal dan pihak ketiga";
+    default:
+      break;
+  }
+
+  if (widget.parent) return `Widget dashboard ${widget.parent}`;
+  if (widget.component_key) return widget.component_key;
+  return "Widget dashboard";
+}
+
+function isModuleReportWidget(widget: DashboardMenuNode): boolean {
+  return Boolean(widget.component_key?.startsWith(MODULE_REPORT_COMPONENT_PREFIX));
+}
+
+function isDashboardReportSectionWidget(widget: DashboardMenuNode): boolean {
+  return Boolean(
+    widget.component_key &&
+      DASHBOARD_REPORT_SECTION_RENDERERS[widget.component_key],
+  );
+}
+
+function isStorageUsageWidget(widget: DashboardMenuNode): boolean {
+  return widget.component_key === STORAGE_USAGE_COMPONENT_KEY;
+}
+
+function canRenderDashboardWidget(widget: DashboardMenuNode): boolean {
+  if (
+    widget.menu_type !== "DASHBOARD_WIDGET" ||
+    widget.placement !== "DASHBOARD" ||
+    widget.role_permissions?.can_read === false
+  ) {
+    return false;
+  }
+
+  if (isStorageUsageWidget(widget)) return true;
+
+  if (
+    widget.component_key &&
+    REPORT_ALL_REQUIRED_WIDGET_KEYS.has(widget.component_key)
+  ) {
+    return Boolean(widget.role_permissions?.features?.includes(REPORT_ALL_FEATURE));
+  }
+
+  return true;
+}
+
+function getDashboardReportSectionOrder(widget: DashboardMenuNode): number {
+  if (widget.component_key && widget.component_key in DASHBOARD_REPORT_SECTION_ORDER) {
+    return DASHBOARD_REPORT_SECTION_ORDER[widget.component_key];
+  }
+
+  return 1000 + widget.order;
+}
+
 export default function DashboardOverviewClient() {
   const { user, role, status } = useAuth();
-  const [isLoading] = useState(false);
+  const [isWidgetLoading, setIsWidgetLoading] = useState(false);
+  const [dashboardWidgets, setDashboardWidgets] = useState<DashboardMenuNode[]>(
+    [],
+  );
 
-  const moduleCards = useMemo<ModuleCard[]>(() => {
-    const list: ModuleCard[] = [
-      {
-        title: "Laporan Arsip Digital",
-        href: "/dashboard/arsip-digital/laporan",
-        accentColor: "#157ec3",
-        subtitle: "Dokumen dan penyimpanan",
-        buttonText: "Akses Laporan",
-        icon: <FolderArchive className="w-8 h-8" aria-hidden="true" />,
-      },
-      {
-        title: "Laporan Persuratan",
-        href: "/dashboard/manajemen-surat/laporan",
-        accentColor: "#7c3aed",
-        subtitle: "Surat dan memorandum",
-        buttonText: "Akses Laporan",
-        icon: <Mail className="w-8 h-8" aria-hidden="true" />,
-      },
-    ];
+  useEffect(() => {
+    if (status !== "authenticated") {
+      setDashboardWidgets([]);
+      return;
+    }
 
-    if (status !== "authenticated" || !role) return [];
+    let ignore = false;
 
-    return list.filter((card) =>
-      getDashboardRouteDecision(card.href, role, user?.role_id).allowed,
-    );
-  }, [role, status, user?.role_id]);
+    async function loadDashboardWidgets() {
+      setIsWidgetLoading(true);
+      try {
+        const items = await menuService.getDashboardWidgets();
+        if (!ignore) setDashboardWidgets(items);
+      } catch {
+        if (!ignore) setDashboardWidgets([]);
+      } finally {
+        if (!ignore) setIsWidgetLoading(false);
+      }
+    }
 
-  if (isLoading) {
+    void loadDashboardWidgets();
+
+    return () => {
+      ignore = true;
+    };
+  }, [status]);
+
+  const widgetCards = useMemo(
+    () => dashboardWidgets.filter(canRenderDashboardWidget),
+    [dashboardWidgets],
+  );
+  const moduleReportCards = useMemo(
+    () => widgetCards.filter(isModuleReportWidget),
+    [widgetCards],
+  );
+  const storageUsageWidget = useMemo(
+    () => widgetCards.find(isStorageUsageWidget) ?? null,
+    [widgetCards],
+  );
+  const dashboardReportSections = useMemo(
+    () =>
+      widgetCards
+        .filter(isDashboardReportSectionWidget)
+        .sort(
+          (left, right) =>
+            getDashboardReportSectionOrder(left) -
+              getDashboardReportSectionOrder(right) ||
+            left.name.localeCompare(right.name, "id-ID"),
+        ),
+    [widgetCards],
+  );
+  const secondaryReportCards = useMemo(
+    () =>
+      widgetCards.filter(
+        (widget) =>
+          !isModuleReportWidget(widget) &&
+          !isDashboardReportSectionWidget(widget) &&
+          !isStorageUsageWidget(widget),
+      ),
+    [widgetCards],
+  );
+
+  if (status === "loading") {
     return (
       <div className="space-y-8">
         <DashboardSkeletonBanner />
@@ -222,24 +400,72 @@ export default function DashboardOverviewClient() {
         </div>
       </div>
 
-      {moduleCards.length > 0 ? (
+      {!isWidgetLoading && storageUsageWidget ? (
+        <div className="mt-8 animate-fade-in">
+          <StorageOverviewWidget widget={storageUsageWidget} />
+        </div>
+      ) : null}
+
+      {isWidgetLoading ? (
+        <div className="mt-8 animate-fade-in">
+          <DashboardSkeletonModules count={4} />
+        </div>
+      ) : moduleReportCards.length > 0 ? (
         <div className="mt-8 animate-fade-in">
           <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-800">
             <Grid2x2 className="h-6 w-6 text-gray-600" aria-hidden="true" />
             Laporan Modul
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {moduleCards.map((card) => (
-              <DashboardPremiumCard
-                key={card.href}
-                title={card.title}
-                href={card.href}
-                accentColor={card.accentColor}
-                icon={card.icon}
-                subtitle={card.subtitle}
-                buttonText={card.buttonText}
-              />
-            ))}
+            {moduleReportCards.map((widget) => {
+              const tone = getWidgetTone(widget);
+
+              return (
+                <DashboardModuleReportCard
+                  key={widget.id}
+                  widget={widget}
+                  tone={tone}
+                />
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      {!isWidgetLoading && dashboardReportSections.length > 0 ? (
+        <div className="mt-8 space-y-8 animate-fade-in">
+          {dashboardReportSections.map((widget) => {
+            const Section =
+              widget.component_key &&
+              DASHBOARD_REPORT_SECTION_RENDERERS[widget.component_key];
+
+            return Section ? <Section key={widget.id} widget={widget} /> : null;
+          })}
+        </div>
+      ) : null}
+
+      {!isWidgetLoading && secondaryReportCards.length > 0 ? (
+        <div className="mt-8 animate-fade-in">
+          <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-800">
+            <BarChart3 className="h-6 w-6 text-gray-600" aria-hidden="true" />
+            Laporan Lainnya
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {secondaryReportCards.map((widget) => {
+              const tone = getWidgetTone(widget);
+
+              return (
+                <DashboardWidgetCard
+                  key={widget.id}
+                  title={widget.name}
+                  href={widget.url}
+                  subtitle={getWidgetSubtitle(widget)}
+                  badge="Dashboard"
+                  accentColor={tone.accentColor}
+                  icon={tone.icon}
+                />
+              );
+            })}
           </div>
         </div>
       ) : null}

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import DatePickerInput from "@/components/ui/DatePickerInput";
+import BasicDateInput from "@/components/ui/BasicDateInput";
+import SetupTextarea from "@/components/ui/SetupTextarea";
 
 type TenggatWaktuPayload = {
   tenggatWaktu?: string;
@@ -75,7 +76,7 @@ function TenggatWaktuModalContent({
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Tanggal Tenggat Waktu
             </label>
-            <DatePickerInput
+            <BasicDateInput
               value={tenggatWaktu}
               onChange={setTenggatWaktu}
               placeholder="Pilih tanggal..."
@@ -90,9 +91,9 @@ function TenggatWaktuModalContent({
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {noteLabel}
               </label>
-              <textarea
+              <SetupTextarea
                 rows={3}
-                className="textarea resize-none"
+                className="resize-none"
                 placeholder={notePlaceholder}
                 value={keteranganTenggat}
                 onChange={(event) => setKeteranganTenggat(event.target.value)}
@@ -101,10 +102,17 @@ function TenggatWaktuModalContent({
           ) : null}
 
           <div className="flex items-center justify-between border-t border-gray-100 pt-5">
-            <button type="button" onClick={onSkip} className="btn btn-outline">
+            <button
+              type="button"
+              onClick={onSkip}
+              className="uiverse-modal-button uiverse-modal-button--neutral h-11 px-4"
+            >
               Lewati
             </button>
-            <button type="submit" className="btn btn-primary">
+            <button
+              type="submit"
+              className="uiverse-modal-button uiverse-modal-button--primary h-11 px-4"
+            >
               Simpan
             </button>
           </div>

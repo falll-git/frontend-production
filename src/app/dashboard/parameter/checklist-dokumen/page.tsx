@@ -1,5 +1,8 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+"use client";
+
+import ParameterMasterPage from "@/components/parameter/ParameterMasterPage";
+import { documentChecklistParameterConfig } from "@/components/parameter/parameterMasterConfigs";
 
 export default function SetupChecklistDokumenPage() {
-  return <ModuleSkeletonPage title="Setup Checklist Dokumen" />;
+  return <ParameterMasterPage config={documentChecklistParameterConfig} />;
 }

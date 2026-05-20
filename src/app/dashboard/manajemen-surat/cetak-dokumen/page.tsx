@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { ArrowLeft, Printer } from "lucide-react";
+import { Printer } from "lucide-react";
 
 import CetakDokumenClient from "@/components/manajemen-surat/CetakDokumenClient";
 import FeatureHeader from "@/components/ui/FeatureHeader";
@@ -11,13 +10,6 @@ export const metadata = {
 export default function CetakDokumenPage() {
   return (
     <div className="animate-fade-in max-w-7xl mx-auto">
-      <div className="mb-4">
-        <Link href="/dashboard" className="btn btn-outline btn-sm">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Kembali ke Dashboard
-        </Link>
-      </div>
-
       <FeatureHeader
         title="Cetak Dokumen"
         subtitle="Pilih jenis dokumen persuratan, cek detail, lalu preview atau cetak dokumennya."

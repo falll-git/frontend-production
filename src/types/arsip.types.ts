@@ -1,10 +1,25 @@
 import type { DataAccessLevel } from "@/lib/rbac";
 
+import type { WatermarkFileMeta } from "@/types/watermark.types";
+
+export type ArsipNamedSummary = {
+  id: string;
+  name: string;
+};
+
+export type ArsipDivisionSummary = ArsipNamedSummary;
+
+export type ArsipRoleSummary = ArsipNamedSummary;
+
 export type ArsipUserSummary = {
   id: string;
   name: string;
   username: string;
   email: string;
+  role_id?: string | null;
+  division_id?: string | null;
+  role?: ArsipRoleSummary | null;
+  division?: ArsipDivisionSummary | null;
 };
 
 export type ArsipStorageSummary = {
@@ -59,6 +74,7 @@ export type LoanStatusLabel =
 export interface Dokumen {
   id: string;
   kode: string;
+  documentTypeId?: string;
   jenisDokumen: string;
   namaDokumen: string;
   detail: string;
@@ -73,7 +89,11 @@ export interface Dokumen {
   restrict: boolean;
   fileUrl?: string;
   fileName?: string;
+  watermark?: WatermarkFileMeta | null;
   creator?: ArsipUserSummary | null;
+  owner?: ArsipUserSummary | null;
+  ownerDivision?: ArsipDivisionSummary | null;
+  relatedUsers?: ArsipUserSummary[];
   storage?: ArsipStorageSummary | null;
   currentLoan?: Peminjaman | null;
   accessRequestSummary?: {
@@ -168,6 +188,8 @@ export interface Lemari {
   id: string;
   kantorId: string;
   kodeLemari: string;
+  kapasitas?: number;
+  status?: "Aktif" | "Nonaktif";
   jumlahRak?: number;
   totalDokumen?: number;
   dokumenDisposisi?: number;

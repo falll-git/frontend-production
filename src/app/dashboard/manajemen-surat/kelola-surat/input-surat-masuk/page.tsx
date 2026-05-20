@@ -1,16 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AlertCircle, Inbox, Send, UploadCloud } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertCircle, Inbox, Send } from "lucide-react";
 import FeatureHeader from "@/components/ui/FeatureHeader";
-import DatePickerInput from "@/components/ui/DatePickerInput";
+import BasicDateInput from "@/components/ui/BasicDateInput";
+import FileUploadField from "@/components/ui/FileUploadField";
+import PhysicalStorageSelect from "@/components/manajemen-surat/PhysicalStorageSelect";
+import SetupSelect from "@/components/ui/SetupSelect";
+import SetupTextInput from "@/components/ui/SetupTextInput";
+import SetupTextarea from "@/components/ui/SetupTextarea";
+import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
 import { useAppToast } from "@/components/ui/AppToastProvider";
+import {
+  SETUP_PAGE_BACK_BUTTON_CLASS,
+  SETUP_PAGE_PRIMARY_BUTTON_CLASS,
+} from "@/components/ui/setupPageStyles";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { validatePersuratanFile } from "@/lib/utils/file";
 import { toApiDateTime } from "@/services/api.utils";
 import { divisionService } from "@/services/division.service";
 import { letterPriorityService } from "@/services/letter-priority.service";
+import { storageService } from "@/services/storage.service";
 import { suratMasukService } from "@/services/surat-masuk.service";
+import type { Storage } from "@/types/master.types";
 
 const SURAT_MASUK_MENU_URL =
   "/dashboard/manajemen-surat/kelola-surat/input-surat-masuk";
@@ -34,15 +46,18 @@ export default function InputSuratMasukPage() {
     keteranganSurat: "",
     tanggalPenerimaan: "",
     sifatSurat: "",
+    storageId: "",
     divisionIds: [] as string[],
   });
   const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [divisionOptions, setDivisionOptions] = useState<DivisionOption[]>([]);
   const [letterPriorities, setLetterPriorities] = useState<
     { id: string; name: string }[]
   >([]);
+  const [storageOptions, setStorageOptions] = useState<Storage[]>([]);
   const [isMasterLoading, setIsMasterLoading] = useState(true);
 
   useEffect(() => {
@@ -51,9 +66,10 @@ export default function InputSuratMasukPage() {
     async function loadMasterData() {
       setIsMasterLoading(true);
       try {
-        const [priorities, divisions] = await Promise.all([
+        const [priorities, divisions, storages] = await Promise.all([
           letterPriorityService.getAll(),
           divisionService.getAll(),
+          storageService.getAll(),
         ]);
 
         if (ignore) return;
@@ -65,6 +81,15 @@ export default function InputSuratMasukPage() {
           [...divisions]
             .sort((left, right) => left.name.localeCompare(right.name))
             .map((item) => ({ id: item.id, name: item.name })),
+        );
+        setStorageOptions(
+          storages
+            .filter((item) => item.status === "Aktif")
+            .sort((left, right) =>
+              `${left.kodeKantor}${left.kodeLemari}${left.rak}`.localeCompare(
+                `${right.kodeKantor}${right.kodeLemari}${right.rak}`,
+              ),
+            ),
         );
       } catch (error) {
         if (!ignore) {
@@ -152,9 +177,11 @@ export default function InputSuratMasukPage() {
       keteranganSurat: "",
       tanggalPenerimaan: "",
       sifatSurat: "",
+      storageId: "",
       divisionIds: [],
     });
     setFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const submitSuratMasuk = async () => {
@@ -165,6 +192,7 @@ export default function InputSuratMasukPage() {
     try {
       await suratMasukService.createWithDisposition({
         letter_prioritie_id: formData.sifatSurat,
+        storage_id: formData.storageId,
         target_division_ids: formData.divisionIds,
         regarding: formData.perihalSurat.trim(),
         receive_date: toApiDateTime(formData.tanggalPenerimaan),
@@ -202,6 +230,11 @@ export default function InputSuratMasukPage() {
       return;
     }
 
+    if (!formData.storageId) {
+      showToast("Tempat penyimpanan fisik wajib dipilih.", "error");
+      return;
+    }
+
     if (formData.divisionIds.length === 0) {
       showToast("Pilih minimal satu divisi tujuan disposisi.", "error");
       return;
@@ -235,7 +268,7 @@ export default function InputSuratMasukPage() {
 
       {showCreateBlockedNotice && (
         <div className="mb-6 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-slate-900" />
           <div>
             <p className="font-semibold">Akses input belum aktif</p>
             <p className="mt-1">
@@ -257,14 +290,12 @@ export default function InputSuratMasukPage() {
                 >
                   Nama Pengirim <span className="text-red-500">*</span>
                 </label>
-                <input
+                <SetupTextInput
                   id="namaPengirim"
-                  type="text"
                   name="namaPengirim"
                   value={formData.namaPengirim}
                   onChange={handleChange}
-                  className="input"
-                  placeholder="Contoh: PT Amanah Sejahtera"
+                  placeholder="Masukkan nama pengirim"
                   required
                 />
               </div>
@@ -276,7 +307,8 @@ export default function InputSuratMasukPage() {
                 >
                   Tanggal Penerimaan <span className="text-red-500">*</span>
                 </label>
-                <DatePickerInput
+                <BasicDateInput
+                  id="tanggalPenerimaan"
                   value={formData.tanggalPenerimaan}
                   onChange={(nextValue) =>
                     setFormData((prev) => ({
@@ -298,13 +330,13 @@ export default function InputSuratMasukPage() {
               >
                 Alamat Pengirim <span className="text-red-500">*</span>
               </label>
-              <textarea
+              <SetupTextarea
                 id="alamatPengirim"
                 name="alamatPengirim"
                 value={formData.alamatPengirim}
                 onChange={handleChange}
                 rows={2}
-                className="textarea resize-none"
+                className="resize-none"
                 placeholder="Alamat lengkap instansi/pengirim..."
                 required
               />
@@ -322,14 +354,12 @@ export default function InputSuratMasukPage() {
                 >
                   Nama/Nomor Surat <span className="text-red-500">*</span>
                 </label>
-                <input
+                <SetupTextInput
                   id="namaSurat"
-                  type="text"
                   name="namaSurat"
                   value={formData.namaSurat}
                   onChange={handleChange}
-                  className="input"
-                  placeholder="Contoh: 001/INV/2023"
+                  placeholder="Masukkan nomor surat"
                   required
                 />
               </div>
@@ -341,12 +371,11 @@ export default function InputSuratMasukPage() {
                 >
                   Sifat Surat <span className="text-red-500">*</span>
                 </label>
-                <select
+                <SetupSelect
                   id="sifatSurat"
                   name="sifatSurat"
                   value={formData.sifatSurat}
                   onChange={handleChange}
-                  className="select"
                   disabled={isMasterLoading || letterPriorities.length === 0}
                   required
                 >
@@ -356,11 +385,21 @@ export default function InputSuratMasukPage() {
                       {priority.name}
                     </option>
                   ))}
-                </select>
+                </SetupSelect>
                 <p className="mt-2 text-xs text-slate-500">
                   Pilih sifat surat yang sesuai.
                 </p>
               </div>
+
+              <PhysicalStorageSelect
+                id="storageId"
+                name="storageId"
+                value={formData.storageId}
+                storages={storageOptions}
+                isLoading={isMasterLoading}
+                disabled={isLoading || !canCreateSuratMasuk}
+                onChange={handleChange}
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
@@ -371,13 +410,13 @@ export default function InputSuratMasukPage() {
                 >
                   Keterangan Surat <span className="text-red-500">*</span>
                 </label>
-                <textarea
+                <SetupTextarea
                   id="keteranganSurat"
                   name="keteranganSurat"
                   value={formData.keteranganSurat}
                   onChange={handleChange}
                   rows={3}
-                  className="textarea resize-none"
+                  className="resize-none"
                   placeholder="Tambahkan keterangan utama untuk surat ini..."
                   required
                 />
@@ -393,13 +432,13 @@ export default function InputSuratMasukPage() {
                 >
                   Perihal Surat <span className="text-red-500">*</span>
                 </label>
-                <textarea
+                <SetupTextarea
                   id="perihalSurat"
                   name="perihalSurat"
                   value={formData.perihalSurat}
                   onChange={handleChange}
                   rows={3}
-                  className="textarea resize-none"
+                  className="resize-none"
                   placeholder="Ringkasan perihal atau isi surat..."
                   required
                 />
@@ -413,64 +452,27 @@ export default function InputSuratMasukPage() {
           <div className="border-t border-gray-100" />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Upload File <span className="text-red-500">*</span>
-              </label>
-              <div
-                className={[
-                  "file-upload",
-                  "flex flex-col items-center justify-center",
-                  dragOver ? "dragover" : "",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                onDrop={handleDrop}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOver(true);
-                }}
-                onDragLeave={() => setDragOver(false)}
-                onClick={() => document.getElementById("file-input")?.click()}
-              >
-                <input
-                  id="file-input"
-                  type="file"
-                  onChange={handleFileChange}
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                  disabled={!canCreateSuratMasuk || isLoading}
-                />
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mb-4 text-blue-600">
-                  <UploadCloud className="w-8 h-8" />
-                </div>
-                {file ? (
-                  <div>
-                    <p className="text-sm font-bold text-gray-800">
-                      {file.name}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {(file.size / 1024).toFixed(2)} KB
-                    </p>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">
-                      <span className="text-primary-600 font-bold">
-                        Klik untuk upload
-                      </span>{" "}
-                      atau drag & drop
-                    </p>
-                    <p className="text-xs text-gray-400 mt-2">
-                      PDF, DOC, XLS, Gambar (Max 10MB)
-                    </p>
-                  </div>
-                )}
-              </div>
-              <p className="mt-3 text-xs text-slate-500">
-                Upload file suratnya dulu sebelum simpan.
-              </p>
-            </div>
+            <FileUploadField
+              id="surat-masuk-file-input"
+              file={file}
+              inputRef={fileInputRef}
+              disabled={!canCreateSuratMasuk || isLoading}
+              isDragActive={dragOver}
+              title={file ? "Ganti file surat masuk" : "Pilih file surat masuk"}
+              helperText="Upload file suratnya dulu sebelum simpan."
+              onChange={handleFileChange}
+              onClear={() => {
+                setFile(null);
+                if (fileInputRef.current) fileInputRef.current.value = "";
+              }}
+              onDrop={handleDrop}
+              onDragOver={(event) => {
+                event.preventDefault();
+                if (!canCreateSuratMasuk || isLoading) return;
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+            />
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">
@@ -487,46 +489,67 @@ export default function InputSuratMasukPage() {
                 <div className="max-h-64 space-y-2 overflow-y-auto px-4 py-3">
                   {divisionOptions.map((division) => {
                     const isChecked = formData.divisionIds.includes(division.id);
+                    const isDisabled =
+                      isMasterLoading || isLoading || !canCreateSuratMasuk;
 
                     return (
-                      <label
+                      <div
                         key={division.id}
+                        role="checkbox"
+                        aria-checked={isChecked}
+                        aria-disabled={isDisabled}
+                        tabIndex={isDisabled ? -1 : 0}
+                        onClick={() => {
+                          if (!isDisabled) handleToggleDivision(division.id);
+                        }}
+                        onKeyDown={(event) => {
+                          if (isDisabled) return;
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            handleToggleDivision(division.id);
+                          }
+                        }}
                         className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 transition-colors ${
                           isChecked
                             ? "border-blue-200 bg-blue-50"
                             : "border-gray-200 bg-white hover:border-gray-300"
                         }`}
                       >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          disabled={
-                            isMasterLoading || isLoading || !canCreateSuratMasuk
-                          }
-                          onChange={() => handleToggleDivision(division.id)}
-                          className="mt-1 h-4 w-4 rounded border-gray-300 text-[#157ec3] focus:ring-[#157ec3]"
-                        />
+                        <div
+                          className="mt-0.5"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <UiverseCheckbox
+                            checked={isChecked}
+                            disabled={isDisabled}
+                            onCheckedChange={() =>
+                              handleToggleDivision(division.id)
+                            }
+                            ariaLabel={`Pilih ${division.name}`}
+                            size={18}
+                          />
+                        </div>
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-gray-800">
                             {division.name}
                           </p>
                           <p className="mt-1 text-xs text-slate-500">
-                            Surat akan didisposisikan ke Manager aktif pada divisi ini.
+                            Surat akan didisposisikan ke penerima disposisi aktif pada divisi ini.
                           </p>
                         </div>
-                      </label>
+                      </div>
                     );
                   })}
                 </div>
               </div>
               {formData.divisionIds.length === 0 && (
                 <div className="flex items-center gap-2 mt-2 text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">
-                  <AlertCircle className="w-4 h-4" />
+                  <AlertCircle className="h-4 w-4 text-slate-900" />
                   Pilih minimal satu divisi tujuan disposisi.
                 </div>
               )}
               <p className="mt-3 text-xs text-slate-500">
-                Disposisi awal akan masuk ke Manager aktif pada setiap divisi yang dipilih.
+                Disposisi awal akan masuk ke penerima disposisi aktif pada setiap divisi yang dipilih.
               </p>
             </div>
           </div>
@@ -535,7 +558,7 @@ export default function InputSuratMasukPage() {
             <button
               type="button"
               onClick={handleReset}
-              className="btn btn-outline"
+              className={SETUP_PAGE_BACK_BUTTON_CLASS}
             >
               Reset Form
             </button>
@@ -547,9 +570,11 @@ export default function InputSuratMasukPage() {
                 isMasterLoading ||
                 formData.divisionIds.length === 0 ||
                 letterPriorities.length === 0 ||
-                divisionOptions.length === 0
+                divisionOptions.length === 0 ||
+                storageOptions.length === 0 ||
+                !formData.storageId
               }
-              className="btn btn-primary"
+              className={SETUP_PAGE_PRIMARY_BUTTON_CLASS}
             >
               {isLoading ? (
                 <span className="flex items-center gap-2">

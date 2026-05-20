@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import {
-  FEATURE_BLOCKED_MESSAGE,
   RBAC_DENIED_MESSAGE,
   getRoleLabel,
   getDashboardRouteDecision,
@@ -40,8 +39,6 @@ function getDeniedTooltip(
     }
     case "UNKNOWN_ROUTE_DENIED":
       return `Tidak ada akses untuk route ini. (Role Anda: ${roleLabel})`;
-    case "FEATURE_BLOCKED":
-      return decision.message ?? `Maaf fitur ${decision.label ?? "Modul ini"} masih dalam tahap pengembangan.`;
     case "ALLOWED":
     default:
       return "";
@@ -81,18 +78,13 @@ export default function ProtectedLink({
     : ({ allowed: true, reason: "ALLOWED" } as const);
 
   const isDenied = shouldCheck && !decision.allowed;
-  const isFeatureBlocked = isDenied && decision.reason === "FEATURE_BLOCKED";
   const tooltip = isDenied ? getDeniedTooltip(decision, role) : title;
 
   const handleClick: MouseEventHandler<HTMLAnchorElement> = (e) => {
     if (isDenied) {
       e.preventDefault();
       e.stopPropagation();
-      showToast(
-        toastMessage ??
-          (isFeatureBlocked ? (decision.message ?? FEATURE_BLOCKED_MESSAGE) : RBAC_DENIED_MESSAGE),
-        "warning",
-      );
+      showToast(toastMessage ?? RBAC_DENIED_MESSAGE, "warning");
       return;
     }
 
@@ -103,9 +95,8 @@ export default function ProtectedLink({
     <Link
       href={href}
       onClick={handleClick}
-      className={`${className ?? ""}${isDenied ? " rbac-disabled" : ""}${isFeatureBlocked ? " feature-blocked-link" : ""}`}
+      className={`${className ?? ""}${isDenied ? " rbac-disabled" : ""}`}
       aria-disabled={isDenied}
-      data-access-state={isFeatureBlocked ? "feature-blocked" : undefined}
       title={tooltip}
       style={style}
     >

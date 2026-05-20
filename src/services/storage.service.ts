@@ -1,7 +1,7 @@
 import api from "@/lib/axios";
 import {
-  extractLastPage,
   extractList,
+  extractPaginationMeta,
   extractRecord,
   fromStatusLabel,
   readBoolean,
@@ -9,6 +9,8 @@ import {
   readString,
   toStatusLabel,
 } from "@/services/api.utils";
+import { MAX_TABLE_PAGE_SIZE, SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import type { PageQuery, PaginatedResult } from "@/types/api.types";
 import type { Storage, StoragePayload } from "@/types/master.types";
 
 function mapStorage(record: Record<string, unknown>): Storage | null {
@@ -50,27 +52,40 @@ function toPayload(
   };
 }
 
-async function getStoragesPage(page: number): Promise<{
-  items: Storage[];
-  lastPage: number;
-}> {
-  const res = await api.get("/storages", { params: { page } });
+async function getStoragesPage({
+  page = 1,
+  limit = SETUP_TABLE_PAGE_SIZE,
+  search,
+}: PageQuery = {}): Promise<PaginatedResult<Storage>> {
+  const res = await api.get("/storages", {
+    params: {
+      page,
+      limit,
+      ...(search ? { search } : {}),
+    },
+  });
+  const items = extractList(res.data)
+    .map((record) => mapStorage(record))
+    .filter((item): item is Storage => item !== null);
 
   return {
-    items: extractList(res.data)
-      .map((record) => mapStorage(record))
-      .filter((item): item is Storage => item !== null),
-    lastPage: extractLastPage(res.data),
+    items,
+    meta: extractPaginationMeta(res.data, {
+      page,
+      limit,
+      total: items.length,
+    }),
   };
 }
 
 export const storageService = {
+  getPage: getStoragesPage,
   getAll: async (): Promise<Storage[]> => {
-    const first = await getStoragesPage(1);
+    const first = await getStoragesPage({ page: 1, limit: MAX_TABLE_PAGE_SIZE });
     const all = [...first.items];
 
-    for (let page = 2; page <= first.lastPage; page += 1) {
-      const next = await getStoragesPage(page);
+    for (let page = 2; page <= first.meta.lastPage; page += 1) {
+      const next = await getStoragesPage({ page, limit: MAX_TABLE_PAGE_SIZE });
       all.push(...next.items);
     }
 

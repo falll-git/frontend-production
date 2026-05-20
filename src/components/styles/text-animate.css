@@ -1,0 +1,25 @@
+.text-animate {
+  display: block;
+}
+
+.text-animate__unit {
+  display: inline-block;
+  opacity: 0;
+  animation: textAnimateSlideLeft 0.46s cubic-bezier(0.16, 1, 0.3, 1)
+    forwards;
+  animation-delay: var(--text-animate-delay, 0s);
+  will-change: opacity, transform;
+}
+
+.text-animate__space {
+  display: inline-block;
+  width: 0.32em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text-animate__unit {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

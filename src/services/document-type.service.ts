@@ -1,7 +1,7 @@
 import api from "@/lib/axios";
 import {
-  extractLastPage,
   extractList,
+  extractPaginationMeta,
   extractRecord,
   fromStatusLabel,
   readBoolean,
@@ -9,6 +9,8 @@ import {
   readString,
   toStatusLabel,
 } from "@/services/api.utils";
+import { MAX_TABLE_PAGE_SIZE, SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import type { PageQuery, PaginatedResult } from "@/types/api.types";
 import type {
   DocumentType,
   DocumentTypePayload,
@@ -39,27 +41,46 @@ function toPayload(data: Pick<DocumentType, "kode" | "nama" | "keterangan" | "st
   };
 }
 
-async function getDocumentTypesPage(page: number): Promise<{
-  items: DocumentType[];
-  lastPage: number;
-}> {
-  const res = await api.get("/document-types", { params: { page } });
+async function getDocumentTypesPage({
+  page = 1,
+  limit = SETUP_TABLE_PAGE_SIZE,
+  search,
+}: PageQuery = {}): Promise<PaginatedResult<DocumentType>> {
+  const res = await api.get("/document-types", {
+    params: {
+      page,
+      limit,
+      ...(search ? { search } : {}),
+    },
+  });
+  const items = extractList(res.data)
+    .map((record) => mapDocumentType(record))
+    .filter((item): item is DocumentType => item !== null);
 
   return {
-    items: extractList(res.data)
-      .map((record) => mapDocumentType(record))
-      .filter((item): item is DocumentType => item !== null),
-    lastPage: extractLastPage(res.data),
+    items,
+    meta: extractPaginationMeta(res.data, {
+      page,
+      limit,
+      total: items.length,
+    }),
   };
 }
 
 export const documentTypeService = {
+  getPage: getDocumentTypesPage,
   getAll: async (): Promise<DocumentType[]> => {
-    const first = await getDocumentTypesPage(1);
+    const first = await getDocumentTypesPage({
+      page: 1,
+      limit: MAX_TABLE_PAGE_SIZE,
+    });
     const all = [...first.items];
 
-    for (let page = 2; page <= first.lastPage; page += 1) {
-      const next = await getDocumentTypesPage(page);
+    for (let page = 2; page <= first.meta.lastPage; page += 1) {
+      const next = await getDocumentTypesPage({
+        page,
+        limit: MAX_TABLE_PAGE_SIZE,
+      });
       all.push(...next.items);
     }
 

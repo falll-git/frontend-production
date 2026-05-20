@@ -10,6 +10,13 @@ export type MenuFeatureOption = {
   label: string;
 };
 
+export type DashboardMenuType = "NAVIGATION" | "DASHBOARD_WIDGET" | string;
+export type DashboardMenuPlacement = "SIDEBAR" | "DASHBOARD" | string;
+
+export type DashboardWidgetRolePermissions = MenuPermissionMap & {
+  features: string[];
+};
+
 export interface DashboardMenuNode {
   id: string;
   name: string;
@@ -18,10 +25,15 @@ export interface DashboardMenuNode {
   icon?: string;
   url: string;
   order: number;
+  menu_type: DashboardMenuType;
+  placement: DashboardMenuPlacement;
+  render_in_sidebar: boolean;
+  component_key?: string | null;
   allowed_capabilities?: string[];
   allowed_permissions?: MenuPermissionMap;
   allowed_features?: string[];
   allowed_feature_options?: MenuFeatureOption[];
+  role_permissions?: DashboardWidgetRolePermissions;
   children: DashboardMenuNode[];
 }
 

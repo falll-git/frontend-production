@@ -95,11 +95,3 @@ export interface MarketingActivity {
   label: string;
   value: number;
 }
-
-export interface NotificationItem {
-  id: number | string;
-  title: string;
-  message: string;
-  time: string;
-  unread: boolean;
-}

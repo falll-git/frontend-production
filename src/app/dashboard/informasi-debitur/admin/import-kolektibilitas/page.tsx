@@ -1,5 +1,5 @@
-import ModuleSkeletonPage from "@/components/ui/ModuleSkeletonPage";
+import { DebtorImportClient } from "@/components/informasi-debitur/DebiturModuleClients";
 
 export default function ImportKolektibilitasPage() {
-  return <ModuleSkeletonPage title="Import Kolektibilitas & Outstanding" />;
+  return <DebtorImportClient type="COLLECTIBILITY" />;
 }

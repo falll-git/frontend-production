@@ -16,10 +16,10 @@ import {
   Image as ImageIcon,
   Minus,
   Plus,
-  X,
 } from "lucide-react";
 
 import NewtonsCradleLoader from "@/components/ui/NewtonsCradleLoader";
+import SetupModalCloseButton from "@/components/ui/SetupModalCloseButton";
 import { detectDocumentFileType } from "@/lib/utils/file";
 
 export type DocumentPreviewFileType = "pdf" | "image" | "other";
@@ -204,9 +204,9 @@ function DocumentPreview({
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#e6f2fa]">
               {fileType === "image" ? (
-                <ImageIcon className="h-5 w-5 text-[#0d5a8f]" />
+                <ImageIcon className="h-5 w-5 text-slate-900" />
               ) : (
-                <FileText className="h-5 w-5 text-[#0d5a8f]" />
+                <FileText className="h-5 w-5 text-slate-900" />
               )}
             </div>
             <div>
@@ -256,14 +256,11 @@ function DocumentPreview({
               <span className="hidden text-sm font-medium sm:inline">Unduh</span>
             </button>
 
-            <button
-              type="button"
+            <SetupModalCloseButton
               onClick={handleClose}
-              className="rounded-lg p-2.5 transition-colors hover:bg-gray-100"
               title="Tutup (Esc)"
-            >
-              <X className="h-5 w-5 text-gray-500" />
-            </button>
+              aria-label="Tutup preview"
+            />
           </div>
         </div>
 
@@ -306,7 +303,7 @@ function DocumentPreview({
             </div>
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
-              <FileText className="h-9 w-9 text-[#0d5a8f]" />
+              <FileText className="h-9 w-9 text-slate-900" />
               <div>
                 <p className="text-base font-semibold text-gray-800">
                   Preview file ini tidak tersedia di browser.

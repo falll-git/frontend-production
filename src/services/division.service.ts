@@ -1,10 +1,12 @@
 import api from "@/lib/axios";
 import {
-  extractLastPage,
   extractList,
+  extractPaginationMeta,
   extractRecord,
   readString,
 } from "@/services/api.utils";
+import { MAX_TABLE_PAGE_SIZE, SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import type { PageQuery, PaginatedResult } from "@/types/api.types";
 import type { Division, DivisionPayload } from "@/types/master.types";
 
 function mapDivision(record: Record<string, unknown>): Division | null {
@@ -19,27 +21,40 @@ function mapDivision(record: Record<string, unknown>): Division | null {
   };
 }
 
-async function getDivisionsPage(page: number): Promise<{
-  items: Division[];
-  lastPage: number;
-}> {
-  const res = await api.get("/divisions", { params: { page } });
+async function getDivisionsPage({
+  page = 1,
+  limit = SETUP_TABLE_PAGE_SIZE,
+  search,
+}: PageQuery = {}): Promise<PaginatedResult<Division>> {
+  const res = await api.get("/divisions", {
+    params: {
+      page,
+      limit,
+      ...(search ? { search } : {}),
+    },
+  });
+  const items = extractList(res.data)
+    .map((record) => mapDivision(record))
+    .filter((item): item is Division => item !== null);
 
   return {
-    items: extractList(res.data)
-      .map((record) => mapDivision(record))
-      .filter((item): item is Division => item !== null),
-    lastPage: extractLastPage(res.data),
+    items,
+    meta: extractPaginationMeta(res.data, {
+      page,
+      limit,
+      total: items.length,
+    }),
   };
 }
 
 export const divisionService = {
+  getPage: getDivisionsPage,
   getAll: async (): Promise<Division[]> => {
-    const first = await getDivisionsPage(1);
+    const first = await getDivisionsPage({ page: 1, limit: MAX_TABLE_PAGE_SIZE });
     const all = [...first.items];
 
-    for (let page = 2; page <= first.lastPage; page += 1) {
-      const next = await getDivisionsPage(page);
+    for (let page = 2; page <= first.meta.lastPage; page += 1) {
+      const next = await getDivisionsPage({ page, limit: MAX_TABLE_PAGE_SIZE });
       all.push(...next.items);
     }
 
