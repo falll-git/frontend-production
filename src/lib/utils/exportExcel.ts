@@ -1,4 +1,8 @@
-import ExcelJS from "exceljs";
+import writeExcelFile, {
+  type CellObject,
+  type Row,
+  type SheetData,
+} from "write-excel-file/browser";
 
 export interface ExportColumn {
   header: string;
@@ -19,86 +23,64 @@ export async function exportToExcel(options: ExportOptions): Promise<void> {
     const { filename, sheetName, columns, data, title } = options;
     if (typeof window === "undefined") return;
 
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = "Ruang Arsip";
-    workbook.created = new Date();
+    const headerCell = (value: string): CellObject => ({
+      value,
+      fontWeight: "bold",
+      fontSize: 11,
+      textColor: "#FFFFFF",
+      backgroundColor: "#157EC3",
+      borderColor: "#0D5A8F",
+      borderStyle: "thin",
+      align: "center",
+      alignVertical: "center",
+      height: 24,
+      wrap: true,
+    });
 
-    const worksheet = workbook.addWorksheet(sheetName);
+    const bodyCell = (value: unknown, isEvenRow: boolean): CellObject => ({
+      value: value == null ? "" : String(value),
+      fontSize: 11,
+      backgroundColor: isEvenRow ? "#F8FAFC" : "#FFFFFF",
+      borderColor: "#E2E8F0",
+      borderStyle: "thin",
+      alignVertical: "center",
+      wrap: true,
+    });
 
-    worksheet.columns = columns.map((col) => ({
-      header: col.header,
-      key: col.key,
-      width: col.width || 20,
-    }));
+    const sheetData: SheetData = [];
 
-    let startRow = 1;
     if (title) {
-      worksheet.insertRow(1, [title]);
-      worksheet.mergeCells(1, 1, 1, columns.length);
-      const titleCell = worksheet.getCell("A1");
-      titleCell.font = { bold: true, size: 14, color: { argb: "FF157EC3" } };
-      titleCell.alignment = { horizontal: "center", vertical: "middle" };
-      worksheet.getRow(1).height = 30;
-      startRow = 2;
-
-      const headerRow = worksheet.getRow(startRow);
-      columns.forEach((col, index) => {
-        headerRow.getCell(index + 1).value = col.header;
-      });
+      const titleRow: Row = [
+        {
+          value: title,
+          columnSpan: columns.length,
+          fontWeight: "bold",
+          fontSize: 14,
+          textColor: "#157EC3",
+          align: "center",
+          alignVertical: "center",
+          height: 30,
+        },
+      ];
+      for (let index = 1; index < columns.length; index += 1) {
+        titleRow.push(null);
+      }
+      sheetData.push(titleRow);
     }
 
-    const headerRowIndex = title ? 2 : 1;
-    const headerRow = worksheet.getRow(headerRowIndex);
-    headerRow.height = 25;
-    headerRow.eachCell((cell) => {
-      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
-      cell.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FF157EC3" },
-      };
-      cell.alignment = { horizontal: "center", vertical: "middle" };
-      cell.border = {
-        top: { style: "thin", color: { argb: "FF0D5A8F" } },
-        left: { style: "thin", color: { argb: "FF0D5A8F" } },
-        bottom: { style: "thin", color: { argb: "FF0D5A8F" } },
-        right: { style: "thin", color: { argb: "FF0D5A8F" } },
-      };
-    });
+    sheetData.push(columns.map((column) => headerCell(column.header)));
 
     data.forEach((item, index) => {
-      const rowData: unknown[] = columns.map((col) => item[col.key] ?? "");
-      const row = worksheet.addRow(rowData);
-
       const isEvenRow = index % 2 === 0;
-      row.eachCell((cell) => {
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: isEvenRow ? "FFF8FAFC" : "FFFFFFFF" },
-        };
-        cell.border = {
-          top: { style: "thin", color: { argb: "FFE2E8F0" } },
-          left: { style: "thin", color: { argb: "FFE2E8F0" } },
-          bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
-          right: { style: "thin", color: { argb: "FFE2E8F0" } },
-        };
-        cell.alignment = { vertical: "middle" };
-      });
+      sheetData.push(columns.map((column) => bodyCell(item[column.key], isEvenRow)));
     });
 
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${filename}.xlsx`;
-    link.click();
-
-    window.URL.revokeObjectURL(url);
+    await writeExcelFile(sheetData, {
+      sheet: sheetName,
+      columns: columns.map((column) => ({ width: column.width || 20 })),
+      stickyRowsCount: title ? 2 : 1,
+      showGridLines: false,
+    }).toFile(`${filename}.xlsx`);
   } catch {
     return;
   }
