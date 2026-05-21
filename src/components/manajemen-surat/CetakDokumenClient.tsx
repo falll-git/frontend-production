@@ -261,7 +261,6 @@ function mapPrintableItem(item: CorrespondencePrintableItem): PrintableRecord {
         record.pembuatMemo,
         record.physicalStorageLabel ?? "",
         record.keterangan,
-        record.keteranganTenggat ?? "",
         record.penerima.join(" "),
       ].join(" "),
     ),

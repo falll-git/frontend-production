@@ -4,12 +4,15 @@ import {
   extractPaginationMeta,
   extractRecord,
   readBoolean,
+  readNumber,
   readString,
 } from "@/services/api.utils";
 import { MAX_TABLE_PAGE_SIZE, SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import type { PageQuery, PaginatedResult } from "@/types/api.types";
 import type {
   InvitationRecord,
+  UserDeleteImpact,
+  UserDeleteImpactReason,
   UserMutationResult,
   UserPayload,
   UserRecord,
@@ -202,6 +205,29 @@ function mapUserMutationResult(record: UnknownRecord | null): UserMutationResult
   };
 }
 
+function mapUserDeleteImpact(record: UnknownRecord | null): UserDeleteImpact {
+  const reason = readString(record ?? {}, "reason") as UserDeleteImpactReason;
+
+  return {
+    can_delete: record ? readBoolean(record, "can_delete", "canDelete") : false,
+    has_activity: record ? readBoolean(record, "has_activity", "hasActivity") : false,
+    dependency_count:
+      (record
+        ? readNumber(record, "dependency_count", "dependencyCount")
+        : null) ?? 0,
+    requires_access_closure: record
+      ? readBoolean(record, "requires_access_closure", "requiresAccessClosure")
+      : false,
+    can_close_access: record
+      ? readBoolean(record, "can_close_access", "canCloseAccess")
+      : false,
+    reason,
+    message:
+      (record ? readString(record, "message") : null) ??
+      "Status penghapusan pengguna tidak tersedia.",
+  };
+}
+
 async function getUsersPage({
   page = 1,
   limit = SETUP_TABLE_PAGE_SIZE,
@@ -303,6 +329,10 @@ export const userService = {
     }
 
     return mapped;
+  },
+  getDeleteImpact: async (id: string): Promise<UserDeleteImpact> => {
+    const res = await api.get(`/users/${id}/delete-impact`);
+    return mapUserDeleteImpact(extractRecord(res.data));
   },
   remove: async (id: string): Promise<void> => {
     await api.delete(`/users/${id}`);

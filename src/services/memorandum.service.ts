@@ -329,10 +329,6 @@ export function mapMemorandumRecord(
   const dispositions = readDispositionHistory(record).sort(
     (left, right) => (left.sequence ?? 0) - (right.sequence ?? 0),
   );
-  const latestDispositionWithDueDate =
-    [...dispositions].reverse().find((item) => item.due_date) ?? null;
-  const latestDispositionWithNote =
-    [...dispositions].reverse().find((item) => item.catatan) ?? null;
   const currentHolders = readCurrentHolders(record);
   const lastHolder = mapHolderSummary(record.last_holder);
   const targetDivisionNames = Array.isArray(record.target_division_names)
@@ -384,14 +380,6 @@ export function mapMemorandumRecord(
       readString(record, "storage_id", "storageId") ?? storage?.id ?? undefined,
     storage,
     physicalStorageLabel: readPhysicalStorageLabel(record),
-    tenggatWaktu:
-      readNullableString(record, "due_date", "dueDate") ??
-      latestDispositionWithDueDate?.due_date ??
-      undefined,
-    keteranganTenggat:
-      readNullableString(record, "note", "catatan") ??
-      latestDispositionWithNote?.catatan ??
-      undefined,
     statusCode: readNumber(record, "status") ?? undefined,
     statusKey: readString(record, "status_key", "statusKey") || undefined,
     statusLabel: readString(record, "status_label", "statusLabel") || undefined,
@@ -496,7 +484,6 @@ export const memorandumService = {
         | "regarding"
         | "memo_date"
         | "received_date"
-        | "due_date"
         | "memo_number"
         | "description"
         | "file"

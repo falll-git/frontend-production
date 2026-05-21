@@ -170,8 +170,6 @@ export interface Memorandum {
   storageId?: string;
   storage?: PhysicalStorageSummary | null;
   physicalStorageLabel?: string;
-  tenggatWaktu?: string;
-  keteranganTenggat?: string;
   statusCode?: number;
   statusKey?: string;
   statusLabel?: string;
@@ -234,12 +232,6 @@ export interface OutgoingMailPayload {
   address: string;
 }
 
-export interface MemorandumReceiverPayload {
-  receiver_id: string;
-  due_date?: string;
-  note?: string;
-}
-
 export interface MemorandumPayload {
   origin_division_id: string;
   storage_id: string;
@@ -248,7 +240,6 @@ export interface MemorandumPayload {
   regarding: string;
   memo_date: string;
   received_date: string;
-  due_date?: string;
   memo_number: string;
   description?: string;
   file?: File;

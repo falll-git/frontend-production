@@ -15,7 +15,6 @@ import {
   SETUP_PAGE_BACK_BUTTON_CLASS,
   SETUP_PAGE_PRIMARY_BUTTON_CLASS,
 } from "@/components/ui/setupPageStyles";
-import TenggatWaktuModal from "@/components/surat/TenggatWaktuModal";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { validatePersuratanFile } from "@/lib/utils/file";
@@ -31,18 +30,6 @@ const MEMORANDUM_MENU_URL =
 type DivisionOption = {
   id: string;
   name: string;
-};
-
-type MemorandumDraft = {
-  noMemo: string;
-  perihalMemo: string;
-  tanggalMemo: string;
-  originDivisionId: string;
-  storageId: string;
-  targetDivisionIds: string[];
-  pembuatMemo: string;
-  keteranganMemo: string;
-  fileName?: string;
 };
 
 const INITIAL_FORM_DATA = {
@@ -69,8 +56,6 @@ export default function InputMemorandumPage() {
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [savedMemo, setSavedMemo] = useState<MemorandumDraft | null>(null);
-  const [isTenggatModalOpen, setIsTenggatModalOpen] = useState(false);
   const [divisionOptions, setDivisionOptions] = useState<DivisionOption[]>([]);
   const [storageOptions, setStorageOptions] = useState<Storage[]>([]);
   const [isMasterLoading, setIsMasterLoading] = useState(true);
@@ -249,11 +234,7 @@ export default function InputMemorandumPage() {
       return;
     }
 
-    setSavedMemo({
-      ...formData,
-      fileName: file?.name ?? "",
-    });
-    setIsTenggatModalOpen(true);
+    void submitMemorandum();
   };
 
   const handleReset = () => {
@@ -262,44 +243,30 @@ export default function InputMemorandumPage() {
       pembuatMemo: user?.name ?? "",
     });
     setFile(null);
-    setSavedMemo(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const submitMemorandum = async (payload: {
-    tenggatWaktu?: string;
-    keteranganTenggat?: string;
-  }) => {
+  const submitMemorandum = async () => {
     if (!ensureCapability(MEMORANDUM_MENU_URL, "create")) return;
-
-    if (!savedMemo) {
-      setIsTenggatModalOpen(false);
-      return;
-    }
 
     setIsLoading(true);
 
     try {
-      const memoDate = toApiDateTime(savedMemo.tanggalMemo);
-      const dueDate = payload.tenggatWaktu
-        ? toApiDateTime(payload.tenggatWaktu)
-        : undefined;
+      const memoDate = toApiDateTime(formData.tanggalMemo);
 
       await memorandumService.createWithDisposition({
-        origin_division_id: savedMemo.originDivisionId,
-        storage_id: savedMemo.storageId,
-        target_division_ids: savedMemo.targetDivisionIds,
-        regarding: savedMemo.perihalMemo.trim(),
+        origin_division_id: formData.originDivisionId,
+        storage_id: formData.storageId,
+        target_division_ids: formData.targetDivisionIds,
+        regarding: formData.perihalMemo.trim(),
         memo_date: memoDate,
         received_date: memoDate,
-        due_date: dueDate,
-        memo_number: savedMemo.noMemo.trim(),
-        description: savedMemo.keteranganMemo.trim(),
+        memo_number: formData.noMemo.trim(),
+        description: formData.keteranganMemo.trim(),
         file: file ?? undefined,
       });
 
       showToast("Memorandum berhasil disimpan!", "success");
-      setIsTenggatModalOpen(false);
       handleReset();
     } catch (error) {
       showToast(
@@ -309,17 +276,6 @@ export default function InputMemorandumPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleTenggatSave = (payload: {
-    tenggatWaktu?: string;
-    keteranganTenggat?: string;
-  }) => {
-    void submitMemorandum(payload);
-  };
-
-  const handleTenggatSkip = () => {
-    void submitMemorandum({});
   };
 
   const selectedTargetDivisionNames = divisionOptions
@@ -639,16 +595,6 @@ export default function InputMemorandumPage() {
           </div>
         </form>
       </div>
-
-      <TenggatWaktuModal
-        isOpen={isTenggatModalOpen}
-        onSave={handleTenggatSave}
-        onSkip={handleTenggatSkip}
-        disposisi={selectedTargetDivisionNames}
-        title="Tenggat Waktu Memorandum"
-        subtitle="Opsional - dapat dilewati"
-        showNoteField={false}
-      />
     </div>
   );
 }

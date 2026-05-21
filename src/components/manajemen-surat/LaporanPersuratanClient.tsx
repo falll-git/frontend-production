@@ -304,10 +304,6 @@ function normalizeDeliveryMediaValue(value: string | undefined | null) {
   return normalized;
 }
 
-function formatTenggatDate(value: string) {
-  return formatDate(value);
-}
-
 function getTenggatStats<T>(
   records: T[],
   getTenggat: (record: T) => string | undefined,
@@ -563,12 +559,6 @@ function getOutgoingStatusBadgeStatus(statusLabel: string): SetupStatusBadgeStat
   return statusLabel.trim().toLowerCase() === "aktif" ? "Aktif" : "Nonaktif";
 }
 
-function getTenggatStatusBadgeStatus(
-  variant: "active" | "overdue",
-): SetupStatusBadgeStatus {
-  return variant === "overdue" ? "Terlambat" : "Aktif";
-}
-
 function getCurrentDispositionForUser<T extends WorkflowDisposition>(
   dispositions: T[],
   userId?: string | null,
@@ -689,7 +679,7 @@ const activeSectionConfig: Record<ReportKind, ActiveSectionConfig> = {
     icon: FileText,
     searchPlaceholder:
       "Cari nomor memo, perihal, divisi, pembuat, atau penerima",
-    supportsTenggatSort: true,
+    supportsTenggatSort: false,
   },
 };
 
@@ -908,7 +898,6 @@ type EditFormState = {
   deliveryMedia: string;
   originDivisionId: string;
   receivedDate: string;
-  dueDate: string;
 };
 
 type EditCorrespondencePayload =
@@ -940,7 +929,6 @@ const EMPTY_EDIT_FORM: EditFormState = {
   deliveryMedia: "",
   originDivisionId: "",
   receivedDate: "",
-  dueDate: "",
 };
 
 function buildEditInitialState(target: DetailState): EditFormState {
@@ -982,7 +970,6 @@ function buildEditInitialState(target: DetailState): EditFormState {
     receivedDate: toDateInputValue(
       target.record.receivedDate ?? target.record.tanggal,
     ),
-    dueDate: toDateInputValue(target.record.tenggatWaktu),
     regarding: target.record.perihal,
     description: target.record.keterangan,
   };
@@ -1162,7 +1149,6 @@ function EditCorrespondenceModal({
         memo_number: form.documentNumber.trim(),
         memo_date: toApiDateTime(form.documentDate),
         received_date: toApiDateTime(form.receivedDate),
-        due_date: form.dueDate ? toApiDateTime(form.dueDate) : undefined,
         regarding: form.regarding.trim(),
         description: form.description.trim(),
         file: file ?? undefined,
@@ -1371,17 +1357,6 @@ function EditCorrespondenceModal({
                     value={form.receivedDate}
                     onChange={(nextValue) =>
                       setForm((prev) => ({ ...prev, receivedDate: nextValue }))
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Tenggat Waktu
-                  </label>
-                  <BasicDateInput
-                    value={form.dueDate}
-                    onChange={(nextValue) =>
-                      setForm((prev) => ({ ...prev, dueDate: nextValue }))
                     }
                   />
                 </div>
@@ -2397,13 +2372,8 @@ export default function LaporanPersuratanClient() {
         memilikiTenggat: 0,
         melewatiTenggat: 0,
       },
-      memorandum: getTenggatStats(
-        memorandumRecords,
-        (record) => record.tenggatWaktu,
-        today,
-      ),
     }),
-    [memorandumRecords, suratMasukRecords, today],
+    [suratMasukRecords, today],
   );
 
   const suratKeluarStatusSummary = useMemo(
@@ -2430,6 +2400,11 @@ export default function LaporanPersuratanClient() {
       countUniqueMeaningfulValues(
         memorandumRecords.map((record) => record.pembuatMemo),
       ),
+    [memorandumRecords],
+  );
+
+  const memorandumActiveDispositionCount = useMemo(
+    () => countActiveDispositionHolders(memorandumRecords),
     [memorandumRecords],
   );
 
@@ -2545,20 +2520,21 @@ export default function LaporanPersuratanClient() {
             value: `${memorandumCreatorCount} User`,
           },
           {
-            icon: CalendarDays,
-            label: "Memiliki Tenggat Waktu",
-            value: `${tenggatStats.memorandum.memilikiTenggat}`,
+            icon: Users,
+            label: "Disposisi Aktif",
+            value: `${memorandumActiveDispositionCount} User`,
           },
           {
-            icon: AlertTriangle,
-            label: "Melewati tenggat waktu",
-            value: `${tenggatStats.memorandum.melewatiTenggat}`,
+            icon: FileText,
+            label: "Dokumen Tersimpan",
+            value: `${memorandumRecords.filter((record) => Boolean(record.fileName)).length}`,
           },
         ],
       },
     ],
     [
       memorandumRecords,
+      memorandumActiveDispositionCount,
       memorandumCreatorCount,
       suratKeluarRecords,
       suratKeluarStatusSummary,
@@ -2658,7 +2634,6 @@ export default function LaporanPersuratanClient() {
           record.divisiTujuanAwal.join(" "),
           record.pembuatMemo,
           record.keterangan,
-          record.keteranganTenggat ?? "",
           record.penerima.join(" "),
         ]
           .join(" ")
@@ -2666,7 +2641,7 @@ export default function LaporanPersuratanClient() {
           .includes(keyword);
       }),
       (record) => record.tanggal,
-      (record) => record.tenggatWaktu,
+      () => undefined,
       sortValue,
     );
   }, [memorandumRecords, searchValue, sortValue]);
@@ -3285,45 +3260,11 @@ export default function LaporanPersuratanClient() {
                         <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
                           <SuratMasukStatusBadge status={record.status} />
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
-                          {record.tenggatWaktu ? (
-                            <span className={`${TABLE_TEXT_CLASS} text-center whitespace-nowrap`}>
-                              {formatTenggatDate(record.tenggatWaktu)}
-                            </span>
-                          ) : (
-                            <span className={TABLE_EMPTY_TEXT_CLASS}>—</span>
-                          )}
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
-                          {(() => {
-                            const status = getTenggatStatus(
-                              record.tenggatWaktu,
-                              today,
-                            );
-                            if (status.variant === "none") {
-                              return <span className={TABLE_EMPTY_TEXT_CLASS}>—</span>;
-                            }
-                            return (
-                              <SetupStatusBadge
-                                status={getTenggatStatusBadgeStatus(status.variant)}
-                                label={status.label}
-                              />
-                            );
-                          })()}
-                        </SetupDataTableCell>
+                        
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
                           {record.keterangan ? (
                             <p className="text-sm text-gray-600">
                               {record.keterangan}
-                            </p>
-                          ) : (
-                            <span className={TABLE_EMPTY_TEXT_CLASS}>—</span>
-                          )}
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          {record.keteranganTenggat ? (
-                            <p className="text-sm text-gray-600">
-                              {record.keteranganTenggat}
                             </p>
                           ) : (
                             <span className={TABLE_EMPTY_TEXT_CLASS}>—</span>
@@ -3590,17 +3531,8 @@ export default function LaporanPersuratanClient() {
                       <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
                         Tempat Penyimpanan
                       </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
-                        Tenggat Waktu
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
-                        Status Tenggat
-                      </SetupDataTableHeaderCell>
                       <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
                         Keterangan Memo
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Catatan Disposisi
                       </SetupDataTableHeaderCell>
                       <SetupDataTableHeaderCell className={REPORT_ACTION_HEADER_CELL_CLASS}>
                         Disposisi
@@ -3659,45 +3591,10 @@ export default function LaporanPersuratanClient() {
                             {record.physicalStorageLabel ?? "-"}
                           </span>
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
-                          {record.tenggatWaktu ? (
-                            <span className={`${TABLE_TEXT_CLASS} text-center whitespace-nowrap`}>
-                              {formatTenggatDate(record.tenggatWaktu)}
-                            </span>
-                          ) : (
-                            <span className={TABLE_EMPTY_TEXT_CLASS}>—</span>
-                          )}
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
-                          {(() => {
-                            const status = getTenggatStatus(
-                              record.tenggatWaktu,
-                              today,
-                            );
-                            if (status.variant === "none") {
-                              return <span className={TABLE_EMPTY_TEXT_CLASS}>—</span>;
-                            }
-                            return (
-                              <SetupStatusBadge
-                                status={getTenggatStatusBadgeStatus(status.variant)}
-                                label={status.label}
-                              />
-                            );
-                          })()}
-                        </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
                           <p className="text-sm text-gray-600">
                             {record.keterangan}
                           </p>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          {record.keteranganTenggat ? (
-                            <p className="text-sm text-gray-600">
-                              {record.keteranganTenggat}
-                            </p>
-                          ) : (
-                            <span className={TABLE_EMPTY_TEXT_CLASS}>—</span>
-                          )}
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_ACTION_CELL_CLASS}>
                           {(() => {
@@ -4049,31 +3946,12 @@ export default function LaporanPersuratanClient() {
                     value={selectedDetail.record.physicalStorageLabel ?? "-"}
                   />
                   <DetailRow
-                    label="Tenggat Waktu"
-                    value={formatDetailTenggatValue(
-                      selectedDetail.record.tenggatWaktu,
-                    )}
-                  />
-                  <DetailRow
                     label="Status Workflow"
                     value={selectedDetail.record.statusLabel ?? "Baru"}
                   />
                   <DetailRow
-                    label="Status Tenggat"
-                    value={formatDetailTenggatStatus(
-                      selectedDetail.record.tenggatWaktu,
-                      today,
-                    )}
-                  />
-                  <DetailRow
                     label="Keterangan Memo"
                     value={selectedDetail.record.keterangan}
-                    className="md:col-span-2"
-                    contentClassName="font-medium leading-7 text-gray-700"
-                  />
-                  <DetailRow
-                    label="Catatan Disposisi"
-                    value={selectedDetail.record.keteranganTenggat ?? "-"}
                     className="md:col-span-2"
                     contentClassName="font-medium leading-7 text-gray-700"
                   />

@@ -107,6 +107,11 @@ type AccessActionState = {
   action: "close" | "reactivate";
 };
 
+type UserStatusFilter = "active" | "inactive" | "all";
+
+const DELETE_HISTORY_CLOSE_REASON =
+  "Menutup akses karena pengguna memiliki riwayat aktivitas.";
+
 function normalizeTextInput(value: string) {
   return value.trim().replace(/\s+/g, " ");
 }
@@ -252,6 +257,11 @@ export default function ManajemenUserPage() {
   );
   const [accessReason, setAccessReason] = useState("");
   const [isAccessSubmitting, setIsAccessSubmitting] = useState(false);
+  const [deleteImpactLoadingId, setDeleteImpactLoadingId] = useState<
+    string | null
+  >(null);
+  const [statusFilter, setStatusFilter] =
+    useState<UserStatusFilter>("active");
 
   const usersRouteDecision = useMemo(
     () => getDashboardRouteDecision("/dashboard/users", role, authUser?.role_id),
@@ -316,9 +326,15 @@ export default function ManajemenUserPage() {
 
   const filteredUsers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return users;
+    const scopedUsers = users.filter((user) => {
+      if (statusFilter === "active") return user.is_active;
+      if (statusFilter === "inactive") return !user.is_active;
+      return true;
+    });
 
-    return users.filter((user) => {
+    if (!term) return scopedUsers;
+
+    return scopedUsers.filter((user) => {
       const resolvedRoleName = getResolvedRoleName(user).toLowerCase();
       const resolvedDivisionName = getResolvedDivisionName(user).toLowerCase();
 
@@ -331,7 +347,13 @@ export default function ManajemenUserPage() {
         resolvedRoleName.includes(term)
       );
     });
-  }, [getResolvedDivisionName, getResolvedRoleName, searchTerm, users]);
+  }, [
+    getResolvedDivisionName,
+    getResolvedRoleName,
+    searchTerm,
+    statusFilter,
+    users,
+  ]);
   const {
     paginatedItems: paginatedUsers,
     meta: paginationMeta,
@@ -341,7 +363,7 @@ export default function ManajemenUserPage() {
 
   useEffect(() => {
     resetPage();
-  }, [resetPage, searchTerm]);
+  }, [resetPage, searchTerm, statusFilter]);
 
   const requireCreateUserAction = () =>
     ensureCapability("/dashboard/users", "create", {
@@ -384,11 +406,51 @@ export default function ManajemenUserPage() {
     setShowModal(true);
   };
 
-  const handleDelete = (user: UserRecord) => {
+  const handleDelete = async (user: UserRecord) => {
     if (!requireDeleteUserAction()) return;
 
-    setDeleteUser(user);
-    setShowDelete(true);
+    if (user.id === authUser?.id) {
+      showToast("Anda tidak dapat menghapus akun sendiri.", "warning");
+      return;
+    }
+
+    setDeleteImpactLoadingId(user.id);
+
+    try {
+      const impact = await userService.getDeleteImpact(user.id);
+
+      if (impact.can_delete) {
+        setDeleteUser(user);
+        setShowDelete(true);
+        return;
+      }
+
+      if (impact.requires_access_closure) {
+        if (!canUpdateUsers) {
+          showToast(impact.message, "warning");
+          return;
+        }
+
+        showToast(impact.message, "warning");
+        setAccessAction({
+          user,
+          action: "close",
+        });
+        setAccessReason(DELETE_HISTORY_CLOSE_REASON);
+        return;
+      }
+
+      showToast(impact.message, "warning");
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Gagal mengecek status penghapusan pengguna",
+        "error",
+      );
+    } finally {
+      setDeleteImpactLoadingId(null);
+    }
   };
 
   const handleOpenAccessAction = (user: UserRecord) => {
@@ -678,8 +740,9 @@ export default function ManajemenUserPage() {
         label: "Hapus",
         icon: Trash2,
         tone: "red",
+        disabled: user.id === authUser?.id || deleteImpactLoadingId === user.id,
         onClick: () => {
-          handleDelete(user);
+          void handleDelete(user);
         },
       });
     }
@@ -705,13 +768,30 @@ export default function ManajemenUserPage() {
       />
 
       <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_2XL_CLASS}`}>
-        <SetupSearchInput
-          label="Cari Data"
-          labelClassName={SETUP_PAGE_SEARCH_LABEL_CLASS}
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          placeholder="Cari berdasarkan nama, username, email, no. handphone, divisi, atau role..."
-        />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
+          <SetupSearchInput
+            label="Cari Data"
+            labelClassName={SETUP_PAGE_SEARCH_LABEL_CLASS}
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Cari berdasarkan nama, username, email, no. handphone, divisi, atau role..."
+          />
+          <div>
+            <label className={`block ${SETUP_PAGE_SEARCH_LABEL_CLASS}`}>
+              Status User
+            </label>
+            <SetupSelect
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as UserStatusFilter)
+              }
+            >
+              <option value="active">Aktif</option>
+              <option value="inactive">Nonaktif</option>
+              <option value="all">Semua</option>
+            </SetupSelect>
+          </div>
+        </div>
       </div>
 
       <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} mx-auto max-w-[1240px]`}>

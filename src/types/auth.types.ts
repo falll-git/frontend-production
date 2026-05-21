@@ -197,6 +197,23 @@ export interface UserMutationResult {
   invitation: InvitationRecord | null;
 }
 
+export type UserDeleteImpactReason =
+  | "SELF_ACCOUNT"
+  | "HAS_ACTIVITY_ACTIVE"
+  | "HAS_ACTIVITY_INACTIVE"
+  | "UNKNOWN"
+  | null;
+
+export interface UserDeleteImpact {
+  can_delete: boolean;
+  has_activity: boolean;
+  dependency_count: number;
+  requires_access_closure: boolean;
+  can_close_access: boolean;
+  reason: UserDeleteImpactReason;
+  message: string;
+}
+
 export interface UserPayload {
   name: string;
   username: string;
