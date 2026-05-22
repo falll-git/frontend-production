@@ -31,6 +31,17 @@ const PERSURATAN_ALLOWED_FILE_MIME_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
 ]);
+const DOMAIN_ALLOWED_FILE_EXTENSIONS = new Set([
+  ...PERSURATAN_ALLOWED_FILE_EXTENSIONS,
+  "txt",
+  "csv",
+]);
+const DOMAIN_ALLOWED_FILE_MIME_TYPES = new Set([
+  ...PERSURATAN_ALLOWED_FILE_MIME_TYPES,
+  "text/plain",
+  "text/csv",
+  "application/csv",
+]);
 
 const MIME_EXTENSION_MAP: Record<string, string> = {
   "application/pdf": "pdf",
@@ -165,6 +176,36 @@ export function validateDigitalArchiveFile(file: File): string | null {
   }
 
   return "Format file harus PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, JPG, JPEG, atau PNG.";
+}
+
+export function validateDomainUploadFile(file: File): string | null {
+  if (!(file instanceof File)) {
+    return "File yang dipilih tidak valid.";
+  }
+
+  if (file.size <= 0) {
+    return "File yang dipilih kosong atau rusak.";
+  }
+
+  if (file.size > DOCUMENT_UPLOAD_MAX_SIZE_BYTES) {
+    return `Ukuran file maksimal ${DOCUMENT_UPLOAD_MAX_SIZE_LABEL}.`;
+  }
+
+  const normalizedMimeType = file.type.trim().toLowerCase();
+  const extension = inferExtensionFromFileName(file.name);
+
+  if (
+    normalizedMimeType &&
+    DOMAIN_ALLOWED_FILE_MIME_TYPES.has(normalizedMimeType)
+  ) {
+    return null;
+  }
+
+  if (extension && DOMAIN_ALLOWED_FILE_EXTENSIONS.has(extension)) {
+    return null;
+  }
+
+  return "Format file harus PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, CSV, JPG, JPEG, atau PNG.";
 }
 
 export function isValidFileUrl(url?: string | null): url is string {

@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/setupPageStyles";
 import { SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import { formatDateOnly } from "@/lib/utils/date";
+import { validateDomainUploadFile } from "@/lib/utils/file";
 import {
   createParameterMasterService,
   type ParameterMasterRecord,
@@ -1305,6 +1306,7 @@ function DocumentUploadModal({
         className="md:col-span-2"
         file={form.file}
         label="File Dokumen"
+        validateFile={validateDomainUploadFile}
         onChange={(event) =>
           onChange({ file: event.target.files?.[0] ?? null })
         }
@@ -2329,6 +2331,7 @@ function MarketingFormModal({
         file={form.file}
         label="File Pendukung"
         required={false}
+        validateFile={validateDomainUploadFile}
         onChange={(event) =>
           onChange({ file: event.target.files?.[0] ?? null })
         }
@@ -2868,6 +2871,7 @@ export function DebtorImportClient({ type }: { type: DebtorImportType }) {
           accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png"
           label="File Import"
           file={form.file}
+          validateFile={validateDomainUploadFile}
           onChange={(event) =>
             setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))
           }

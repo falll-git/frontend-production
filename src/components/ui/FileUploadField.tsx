@@ -28,6 +28,7 @@ type FileUploadFieldProps = {
   required?: boolean;
   title?: string;
   description?: string;
+  validateFile?: (file: File) => string | null;
   onChange: ChangeEventHandler<HTMLInputElement>;
   onClear?: () => void;
   onDragLeave?: DragEventHandler<HTMLDivElement>;
@@ -69,6 +70,7 @@ export default function FileUploadField({
   required = true,
   title,
   description = "Klik area ini atau drag & drop file",
+  validateFile,
   onChange,
   onClear,
   onDragLeave,
@@ -78,6 +80,23 @@ export default function FileUploadField({
   const resolvedFileName = fileName ?? file?.name ?? null;
   const resolvedFileMeta =
     fileMeta ?? (file ? formatUploadFileSize(file) : emptyFileMeta);
+  const handleChange: ChangeEventHandler<HTMLInputElement> = (event) => {
+    const nextFile = event.target.files?.[0] ?? null;
+
+    if (nextFile && validateFile) {
+      const validationMessage = validateFile(nextFile);
+
+      if (validationMessage) {
+        event.target.value = "";
+        event.target.setCustomValidity(validationMessage);
+        event.target.reportValidity();
+        event.target.setCustomValidity("");
+        return;
+      }
+    }
+
+    onChange(event);
+  };
 
   return (
     <div className={className}>
@@ -100,7 +119,7 @@ export default function FileUploadField({
         isDragActive={isDragActive}
         title={title ?? (resolvedFileName ? "Ganti file" : "Pilih file")}
         description={description}
-        onChange={onChange}
+        onChange={handleChange}
         onClear={onClear}
         onDragLeave={onDragLeave}
         onDragOver={onDragOver}

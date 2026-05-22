@@ -24,6 +24,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { MAX_TABLE_PAGE_SIZE, SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import { formatDateOnly } from "@/lib/utils/date";
+import { validateDomainUploadFile } from "@/lib/utils/file";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import BasicDateInput from "@/components/ui/BasicDateInput";
 import DashboardModal from "@/components/ui/DashboardModal";
@@ -1088,6 +1089,7 @@ export function LegalTemplateClient() {
           required={false}
           label="File Template"
           file={form.file}
+          validateFile={validateDomainUploadFile}
           onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
           onClear={() => setForm((prev) => ({ ...prev, file: null }))}
         />
@@ -1278,6 +1280,7 @@ export function LegalPrintClient({ documentType, title }: { documentType: LegalD
           required={false}
           label="File Dokumen"
           file={form.file}
+          validateFile={validateDomainUploadFile}
           onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
           onClear={() => setForm((prev) => ({ ...prev, file: null }))}
         />
@@ -1441,6 +1444,7 @@ export function LegalIdebClient() {
           className="md:col-span-2"
           label="File IDEB"
           file={form.file}
+          validateFile={validateDomainUploadFile}
           onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
           onClear={() => setForm((prev) => ({ ...prev, file: null }))}
         />
@@ -1851,6 +1855,7 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
           required={false}
           label="File Pendukung"
           file={form.file}
+          validateFile={validateDomainUploadFile}
           onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
           onClear={() => setForm((prev) => ({ ...prev, file: null }))}
         />
@@ -2180,7 +2185,7 @@ export function LegalClaimClient() {
         <DateField label="Tanggal Cair" value={form.disbursed_at} onChange={(value) => setForm((prev) => ({ ...prev, disbursed_at: value }))} />
         <TextareaField label="Alasan Ditolak" value={form.rejection_reason} onChange={(value) => setForm((prev) => ({ ...prev, rejection_reason: value }))} />
         <TextareaField label="Catatan" value={form.notes} onChange={(value) => setForm((prev) => ({ ...prev, notes: value }))} />
-        <FileUploadField id="legal-claim-file" className="md:col-span-2" required={false} label="File Claim" file={form.file} onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))} onClear={() => setForm((prev) => ({ ...prev, file: null }))} />
+        <FileUploadField id="legal-claim-file" className="md:col-span-2" required={false} label="File Claim" file={form.file} validateFile={validateDomainUploadFile} onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))} onClear={() => setForm((prev) => ({ ...prev, file: null }))} />
       </DashboardModal>
       <DeleteConfirmModal
         isOpen={Boolean(deleteTarget)}
