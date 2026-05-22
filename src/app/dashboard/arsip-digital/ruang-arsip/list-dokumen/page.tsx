@@ -153,6 +153,7 @@ type DokumenRow = {
   cabinetCode: string;
   rackName: string;
   fileUrl: string | null;
+  fileName: string | null;
   watermark?: WatermarkFileMeta | null;
   creator?: ArsipUserSummary | null;
   owner?: ArsipUserSummary | null;
@@ -335,6 +336,7 @@ export default function ListDokumenPage() {
       cabinetCode: item.storage?.cabinetCode ?? "-",
       rackName: item.storage?.rackName ?? "-",
       fileUrl: item.fileUrl ?? null,
+      fileName: item.fileName ?? null,
       watermark: item.watermark ?? null,
       creator: item.creator ?? null,
       owner: item.owner ?? null,
@@ -928,7 +930,10 @@ export default function ListDokumenPage() {
                   <SetupViewButton
                     onClick={() =>
                       selectedDoc.fileUrl
-                        ? openPreview(selectedDoc.fileUrl, selectedDoc.namaDokumen)
+                        ? openPreview(
+                            selectedDoc.fileUrl,
+                            selectedDoc.fileName || selectedDoc.namaDokumen,
+                          )
                         : undefined
                     }
                     disabled={!selectedDoc.fileUrl}

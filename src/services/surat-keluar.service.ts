@@ -62,9 +62,12 @@ export function mapSuratKeluarRecord(
   if (!sendDate || !recipientName || !mailNumber) return null;
 
   const fileValue = readNullableString(record, "file", "file_url", "fileUrl");
-  const fallbackFileName = fileValue
-    ? deriveDocumentFileName(fileValue, `surat-keluar-${mailNumber}`)
-    : "";
+  const originalFileName = readNullableString(record, "file_name", "fileName");
+  const fallbackFileName =
+    originalFileName ??
+    (fileValue
+      ? deriveDocumentFileName(fileValue, `surat-keluar-${mailNumber}`)
+      : "");
   const previewableFileUrl = fileValue
     ? toPreviewableFileUrl(fileValue, fallbackFileName)
     : undefined;

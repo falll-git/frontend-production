@@ -11,6 +11,8 @@ const PERSURATAN_ALLOWED_FILE_EXTENSIONS = new Set([
   "pdf",
   "doc",
   "docx",
+  "ppt",
+  "pptx",
   "xls",
   "xlsx",
   "jpg",
@@ -21,6 +23,8 @@ const PERSURATAN_ALLOWED_FILE_MIME_TYPES = new Set([
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "image/png",
@@ -33,6 +37,9 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
   "application/msword": "doc",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
     "docx",
+  "application/vnd.ms-powerpoint": "ppt",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+    "pptx",
   "application/vnd.ms-excel": "xls",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
   "image/png": "png",
@@ -71,6 +78,10 @@ function inferMimeTypeFromFileName(fileName?: string | null): string | null {
   if (normalized.endsWith(".doc")) return "application/msword";
   if (normalized.endsWith(".docx")) {
     return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  }
+  if (normalized.endsWith(".ppt")) return "application/vnd.ms-powerpoint";
+  if (normalized.endsWith(".pptx")) {
+    return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
   }
   if (normalized.endsWith(".xls")) return "application/vnd.ms-excel";
   if (normalized.endsWith(".xlsx")) {
@@ -123,7 +134,7 @@ export function validatePersuratanFile(file: File): string | null {
     return null;
   }
 
-  return "Format file harus PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, atau PNG.";
+  return "Format file harus PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, JPG, JPEG, atau PNG.";
 }
 
 export function validateDigitalArchiveFile(file: File): string | null {
@@ -153,7 +164,7 @@ export function validateDigitalArchiveFile(file: File): string | null {
     return null;
   }
 
-  return "Format file harus PDF, DOC, DOCX, XLS, XLSX, JPG, JPEG, atau PNG.";
+  return "Format file harus PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, JPG, JPEG, atau PNG.";
 }
 
 export function isValidFileUrl(url?: string | null): url is string {

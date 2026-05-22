@@ -381,12 +381,15 @@ export function mapSuratMasukRecord(
     [...disposisiHistory].reverse().find((item) => item.catatan) ?? null;
   const description = readNullableString(record, "description", "keterangan");
   const fileValue = readNullableString(record, "file", "file_url", "fileUrl");
-  const fallbackFileName = fileValue
-    ? deriveDocumentFileName(
-        fileValue,
-        `surat-masuk-${mailNumber ?? regarding ?? id}`,
-      )
-    : "";
+  const originalFileName = readNullableString(record, "file_name", "fileName");
+  const fallbackFileName =
+    originalFileName ??
+    (fileValue
+      ? deriveDocumentFileName(
+          fileValue,
+          `surat-masuk-${mailNumber ?? regarding ?? id}`,
+        )
+      : "");
   const previewableFileUrl = fileValue
     ? toPreviewableFileUrl(fileValue, fallbackFileName)
     : undefined;

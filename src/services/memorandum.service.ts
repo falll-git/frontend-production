@@ -319,9 +319,12 @@ export function mapMemorandumRecord(
 
   if (!memoNumber || !regarding || !memoDate) return null;
 
-  const fallbackFileName = fileValue
-    ? deriveDocumentFileName(fileValue, `memorandum-${memoNumber}`)
-    : "";
+  const originalFileName = readNullableString(record, "file_name", "fileName");
+  const fallbackFileName =
+    originalFileName ??
+    (fileValue
+      ? deriveDocumentFileName(fileValue, `memorandum-${memoNumber}`)
+      : "");
   const previewableFileUrl = fileValue
     ? toPreviewableFileUrl(fileValue, fallbackFileName)
     : undefined;

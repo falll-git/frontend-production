@@ -36,7 +36,7 @@ type FileUploadFieldProps = {
 };
 
 export const DOCUMENT_FILE_ACCEPT =
-  ".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png";
+  ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png";
 
 export const DOCUMENT_FILE_EMPTY_META = DOCUMENT_UPLOAD_EMPTY_META;
 

@@ -286,7 +286,10 @@ export default function DokumenModal({
                             <SetupViewButton
                               onClick={() =>
                                 item.fileUrl
-                                  ? openPreview(item.fileUrl, item.namaDokumen)
+                                  ? openPreview(
+                                      item.fileUrl,
+                                      item.fileName || item.namaDokumen,
+                                    )
                                   : undefined
                               }
                               disabled={!item.fileUrl}
