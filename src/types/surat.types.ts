@@ -282,7 +282,7 @@ export interface CorrespondenceSummaryBucket {
   nonaktif?: number;
 }
 
-export type CorrespondenceReportScope = "my" | "all";
+export type CorrespondenceReportScope = "my" | "division" | "all";
 
 export type CorrespondenceMyReportFilter =
   | "all"
@@ -295,6 +295,7 @@ export interface CorrespondenceReportFilters {
   requested_scope?: CorrespondenceReportScope | null;
   available_scopes: CorrespondenceReportScope[];
   can_report_all: boolean;
+  can_view_division?: boolean;
   my_filter: CorrespondenceMyReportFilter | null;
   scope_applies_to?: string[];
   document_scopes?: Record<string, unknown>;

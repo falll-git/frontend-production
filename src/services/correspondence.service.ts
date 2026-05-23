@@ -70,7 +70,7 @@ function readReportScope(
   ...keys: string[]
 ): CorrespondenceReportScope | null {
   const value = readNullableString(record, ...keys);
-  if (value === "my" || value === "all") {
+  if (value === "my" || value === "division" || value === "all") {
     return value;
   }
 
@@ -85,7 +85,7 @@ function readAvailableScopes(record: UnknownRecord): CorrespondenceReportScope[]
 
   return raw.filter(
     (item): item is CorrespondenceReportScope =>
-      item === "my" || item === "all",
+      item === "my" || item === "division" || item === "all",
   );
 }
 
@@ -116,6 +116,11 @@ function toReportFilters(record: UnknownRecord | null | undefined) {
       record,
       "can_report_all",
       "canReportAll",
+    ),
+    can_view_division: readBoolean(
+      record,
+      "can_view_division",
+      "canViewDivision",
     ),
     my_filter:
       scope === "my" &&

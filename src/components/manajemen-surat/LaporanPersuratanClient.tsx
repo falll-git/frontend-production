@@ -137,6 +137,7 @@ const REPORT_SCOPE_OPTIONS: Array<{
   label: string;
 }> = [
   { value: "my", label: "Laporan Saya" },
+  { value: "division", label: "Data Divisi" },
   { value: "all", label: "Semua Dokumen" },
 ];
 
@@ -1860,63 +1861,29 @@ export default function LaporanPersuratanClient() {
   const canRedisposeMemorandum =
     hasCapability(MEMORANDUM_MENU_URL, "update") &&
     hasFeature(MEMORANDUM_MENU_URL, "redispose");
-  const canReportAllPersuratan = hasFeature(
-    LAPORAN_PERSURATAN_MENU_URL,
-    "report_all",
-  );
   const hasPersuratanScopeFeature = (feature: string) =>
     PERSURATAN_DATA_SCOPE_MENU_URLS.some((menuUrl) =>
       hasFeature(menuUrl, feature),
     );
   const canManageAllPersuratan =
     hasPersuratanScopeFeature("manage_all");
-  const canViewDivisionPersuratan =
-    hasPersuratanScopeFeature("view_division");
 
   const isCurrentUserId = (value: string | undefined | null) =>
     Boolean(user?.id && value && String(value) === String(user.id));
-  const isCurrentDivisionId = (value: string | undefined | null) =>
-    Boolean(
-      user?.division_id && value && String(value) === String(user.division_id),
-    );
-  const hasCurrentTargetAccess = (
-    divisionIds?: string[],
-    managerIds?: string[],
-  ) =>
-    Boolean(
-      canViewDivisionPersuratan &&
-        (divisionIds?.some((divisionId) => isCurrentDivisionId(divisionId)) ||
-          managerIds?.some((managerId) => isCurrentUserId(managerId))),
-    );
   const canManageSuratMasukRecord = (record: SuratMasukRecord) =>
     Boolean(
       user?.id &&
-        (canManageAllPersuratan ||
-          isCurrentUserId(record.createdBy) ||
-          hasCurrentTargetAccess(
-            record.targetDivisionIds,
-            record.targetManagerIds,
-          )),
+        (canManageAllPersuratan || isCurrentUserId(record.createdBy)),
     );
   const canManageSuratKeluarRecord = (record: SuratKeluarRecord) =>
     Boolean(
       user?.id &&
-        (canManageAllPersuratan ||
-          isCurrentUserId(record.createdBy) ||
-          (canViewDivisionPersuratan &&
-            isCurrentDivisionId(record.creatorDivisionId))),
+        (canManageAllPersuratan || isCurrentUserId(record.createdBy)),
     );
   const canManageMemorandumRecord = (record: MemorandumRecord) =>
     Boolean(
       user?.id &&
-        (canManageAllPersuratan ||
-          isCurrentUserId(record.createdBy) ||
-          (canViewDivisionPersuratan &&
-            (isCurrentDivisionId(record.originDivisionId) ||
-              hasCurrentTargetAccess(
-                record.targetDivisionIds,
-                record.targetManagerIds,
-              )))),
+        (canManageAllPersuratan || isCurrentUserId(record.createdBy)),
     );
 
   const requireDeleteSuratMasukAction = () =>
@@ -1999,12 +1966,7 @@ export default function LaporanPersuratanClient() {
       ),
     [activeDisposisiMemorandum, user?.id],
   );
-  const supportsPersonalScope = activeKind !== "surat-keluar";
-  const displayedReportScope: CorrespondenceReportScope = supportsPersonalScope
-    ? reportScope
-    : canReportAllPersuratan
-      ? "all"
-      : "my";
+  const displayedReportScope: CorrespondenceReportScope = reportScope;
   const dispositionUserNameLookup = useMemo(
     () =>
       new Map(
@@ -2034,7 +1996,7 @@ export default function LaporanPersuratanClient() {
         }),
         correspondenceService.getReport({
           kind: "surat-keluar",
-          scope: canReportAllPersuratan ? "all" : "my",
+          scope: reportScope,
         }),
       ]);
       const userNameById = new Map<string, string>();
@@ -2042,6 +2004,9 @@ export default function LaporanPersuratanClient() {
         report.filters.available_scopes.length > 0
           ? report.filters.available_scopes
           : [report.filters.scope];
+      if (report.filters.scope !== reportScope) {
+        setReportScope(report.filters.scope);
+      }
 
       const nextIncoming = sortByDate(
         report.records.incoming_mails.map((record) =>
@@ -2097,19 +2062,17 @@ export default function LaporanPersuratanClient() {
       setIsLoadingSuratKeluar(false);
       setIsLoadingMemorandum(false);
     }
-  }, [canReportAllPersuratan, myReportFilter, reportScope, showToast]);
+  }, [myReportFilter, reportScope, showToast]);
 
   useEffect(() => {
     void refreshReportData();
   }, [refreshReportData]);
 
   useEffect(() => {
-    if (!supportsPersonalScope) return;
-
     if (!availableReportScopes.includes(reportScope)) {
       setReportScope(availableReportScopes[0] ?? "my");
     }
-  }, [availableReportScopes, reportScope, supportsPersonalScope]);
+  }, [availableReportScopes, reportScope]);
 
   useEffect(() => {
     if (activeDisposisiSuratId === null) {
@@ -3412,7 +3375,7 @@ export default function LaporanPersuratanClient() {
           <ReportSectionShell
             title={activeConfig.title}
             subtitle={activeConfig.subtitle}
-            showReportScopeControls={supportsPersonalScope}
+            showReportScopeControls={true}
             icon={activeConfig.icon}
             availableReportScopes={availableReportScopes}
             reportScope={displayedReportScope}

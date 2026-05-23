@@ -65,6 +65,7 @@ const REPORT_SCOPE_OPTIONS: Array<{
   label: string;
 }> = [
   { value: "my", label: "Laporan Saya" },
+  { value: "division", label: "Data Divisi" },
   { value: "all", label: "Semua Dokumen" },
 ];
 
@@ -491,6 +492,9 @@ export default function CetakDokumenClient() {
             ? filters.available_scopes
             : [filters.scope],
         );
+        if (filters.scope !== displayedReportScope) {
+          setReportScope(filters.scope);
+        }
         setPrintableData(
           items
             .map((item) => mapPrintableItem(item))
