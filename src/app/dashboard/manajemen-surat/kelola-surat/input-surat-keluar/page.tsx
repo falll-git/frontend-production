@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Send } from "lucide-react";
 
@@ -7,6 +8,9 @@ import FeatureHeader from "@/components/ui/FeatureHeader";
 import BasicDateInput from "@/components/ui/BasicDateInput";
 import FileUploadField from "@/components/ui/FileUploadField";
 import PhysicalStorageSelect from "@/components/manajemen-surat/PhysicalStorageSelect";
+import TenggatWaktuModal, {
+  type TenggatWaktuPayload,
+} from "@/components/surat/TenggatWaktuModal";
 import SetupSelect from "@/components/ui/SetupSelect";
 import SetupTextInput from "@/components/ui/SetupTextInput";
 import SetupTextarea from "@/components/ui/SetupTextarea";
@@ -64,6 +68,7 @@ export default function InputSuratKeluarPage() {
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeadlineModalOpen, setIsDeadlineModalOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [letterPriorities, setLetterPriorities] = useState<
     { id: string; name: string }[]
@@ -167,18 +172,61 @@ export default function InputSuratKeluarPage() {
   };
 
   const handleReset = () => {
+    setIsDeadlineModalOpen(false);
     setFormData(INITIAL_FORM_STATE);
     setFile(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const submitSuratKeluar = async (deadline?: TenggatWaktuPayload) => {
+    if (!ensureCapability(SURAT_KELUAR_MENU_URL, "create")) return;
+
+    setIsLoading(true);
+    setIsDeadlineModalOpen(false);
+
+    try {
+      await suratKeluarService.create({
+        letter_prioritie_id: formData.sifatSurat,
+        storage_id: formData.storageId,
+        delivery_media: normalizeMediaValue(formData.mediaPengiriman),
+        send_date: toApiDateTime(formData.tanggalPengiriman),
+        send_due_date: deadline?.targetKirimAt
+          ? toApiDateTime(deadline.targetKirimAt)
+          : undefined,
+        response_due_date: deadline?.responseDueDate
+          ? toApiDateTime(deadline.responseDueDate)
+          : undefined,
+        follow_up_note: deadline?.keteranganTenggat,
+        mail_number: formData.namaSurat.trim(),
+        name: formData.namaPenerima.trim(),
+        file: file ?? undefined,
+        address: formData.alamatPenerima.trim(),
+      });
+
+      showToast("Surat keluar berhasil disimpan!", "success");
+      handleReset();
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Gagal menyimpan surat keluar",
+        "error",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!ensureCapability(SURAT_KELUAR_MENU_URL, "create")) return;
 
     if (!formData.tanggalPengiriman) {
       showToast("Tanggal pengiriman wajib diisi!", "error");
+      return;
+    }
+
+    if (!formData.mediaPengiriman) {
+      showToast("Media pengiriman wajib dipilih!", "error");
       return;
     }
 
@@ -203,34 +251,11 @@ export default function InputSuratKeluarPage() {
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      await suratKeluarService.create({
-        letter_prioritie_id: formData.sifatSurat,
-        storage_id: formData.storageId,
-        delivery_media: normalizeMediaValue(formData.mediaPengiriman),
-        send_date: toApiDateTime(formData.tanggalPengiriman),
-        mail_number: formData.namaSurat.trim(),
-        name: formData.namaPenerima.trim(),
-        file: file ?? undefined,
-        address: formData.alamatPenerima.trim(),
-      });
-
-      showToast("Surat keluar berhasil disimpan!", "success");
-      handleReset();
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Gagal menyimpan surat keluar",
-        "error",
-      );
-    } finally {
-      setIsLoading(false);
-    }
+    setIsDeadlineModalOpen(true);
   };
 
   return (
-    <div className="max-w-5xl mx-auto animate-fade-in">
+    <DashboardPageShell variant="form">
       <FeatureHeader
         title="Input Surat Keluar"
         subtitle="Catat dan arsipkan surat keluar yang dikirim."
@@ -464,6 +489,16 @@ export default function InputSuratKeluarPage() {
           </div>
         </form>
       </div>
-    </div>
+      <TenggatWaktuModal
+        isOpen={isDeadlineModalOpen}
+        mode="outgoing"
+        title="Target dan Follow-up Surat Keluar"
+        subtitle="Atur target pengiriman atau batas follow-up balasan jika surat keluar perlu dipantau."
+        noteLabel="Catatan follow-up"
+        notePlaceholder="Contoh: hubungi penerima jika belum ada balasan sampai tenggat."
+        onSkip={() => void submitSuratKeluar()}
+        onSave={(deadline) => void submitSuratKeluar(deadline)}
+      />
+    </DashboardPageShell>
   );
 }

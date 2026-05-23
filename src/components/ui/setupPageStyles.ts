@@ -11,10 +11,10 @@ export const SETUP_PAGE_ICON_TILE_CLASS =
   "flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-900";
 
 export const SETUP_PAGE_SEGMENTED_GROUP_CLASS =
-  "inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm";
+  "inline-flex max-w-full overflow-x-auto rounded-lg border border-gray-200 bg-white p-1 shadow-sm";
 
 export const SETUP_PAGE_SEGMENTED_BUTTON_BASE_CLASS =
-  "rounded-lg px-4 py-2 text-sm font-medium transition-colors";
+  "whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors";
 
 export const SETUP_PAGE_SEGMENTED_BUTTON_ACTIVE_CLASS =
   "bg-[#157ec3] text-white shadow-sm";
@@ -42,7 +42,7 @@ export const SETUP_PAGE_WIDTH_LG_CLASS = "w-full";
 
 export const SETUP_PAGE_WIDTH_XL_CLASS = "w-full";
 
-export const SETUP_PAGE_WIDTH_2XL_CLASS = "w-full max-w-[1280px]";
+export const SETUP_PAGE_WIDTH_2XL_CLASS = "w-full";
 
 export const SETUP_PAGE_SEARCH_LABEL_CLASS =
   "mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500";
@@ -56,7 +56,7 @@ export const SETUP_PAGE_SEARCH_INPUT_CLASS =
   "h-11 w-full rounded-lg border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 outline-none transition placeholder:text-gray-400 focus:border-[#1773B0] focus:ring-3 focus:ring-[#1773B0]/10";
 
 export const SETUP_PAGE_TABLE_CARD_CLASS =
-  "mx-auto !w-fit max-w-full overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm";
+  "w-full max-w-full overflow-x-auto rounded-lg border border-gray-300 bg-white shadow-sm";
 
 export const SETUP_PAGE_TABLE_SCROLL_CLASS = "max-w-full overflow-x-auto";
 
@@ -104,7 +104,7 @@ export const SETUP_PAGE_EMPTY_STATE_CELL_CLASS =
   "h-32 px-3 text-center align-middle text-sm text-gray-500";
 
 export const SETUP_PAGE_MODERN_TABLE_CLASS =
-  "mx-auto w-max min-w-max table-auto divide-y-2 divide-gray-200";
+  "w-full table-auto divide-y-2 divide-gray-200";
 
 export const SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS =
   "*:font-medium *:text-gray-900";

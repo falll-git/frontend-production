@@ -62,6 +62,7 @@ import SetupTextInput from "@/components/ui/SetupTextInput";
 import SetupTextarea from "@/components/ui/SetupTextarea";
 import SetupActionMenu from "@/components/ui/SetupActionMenu";
 import SetupCloseListButton from "@/components/ui/SetupCloseListButton";
+import SetupExcelButton from "@/components/ui/SetupExcelButton";
 import SetupModalCloseButton from "@/components/ui/SetupModalCloseButton";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
 import WatermarkFileStatus from "@/components/ui/WatermarkFileStatus";
@@ -99,6 +100,7 @@ import {
 } from "@/types/surat.types";
 import { formatDate, formatDateTime, parseDateString } from "@/lib/utils/date";
 import { isValidFileUrl, validatePersuratanFile } from "@/lib/utils/file";
+import { exportToExcel } from "@/lib/utils/exportExcel";
 import { toApiDateTime } from "@/services/api.utils";
 import { correspondenceService } from "@/services/correspondence.service";
 import { divisionService } from "@/services/division.service";
@@ -304,6 +306,24 @@ function normalizeDeliveryMediaValue(value: string | undefined | null) {
   return normalized;
 }
 
+function toLocalDateKey(value: Date | string) {
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function isDateBeforeToday(value: string, today: Date) {
+  const valueKey = toLocalDateKey(value);
+  const todayKey = toLocalDateKey(today);
+
+  return Boolean(valueKey && todayKey && valueKey < todayKey);
+}
+
 function getTenggatStats<T>(
   records: T[],
   getTenggat: (record: T) => string | undefined,
@@ -318,7 +338,7 @@ function getTenggatStats<T>(
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return;
     memilikiTenggat += 1;
-    if (parsed < today) {
+    if (isDateBeforeToday(value, today)) {
       melewatiTenggat += 1;
     }
   });
@@ -342,7 +362,7 @@ function getTenggatStatus(value: string | undefined, today: Date) {
     };
   }
 
-  if (parsed < today) {
+  if (isDateBeforeToday(value, today)) {
     return {
       label: "Lewat",
       variant: "overdue" as const,
@@ -671,7 +691,7 @@ const activeSectionConfig: Record<ReportKind, ActiveSectionConfig> = {
     subtitle: "Klik dua kali pada baris untuk membuka detail surat keluar.",
     icon: Send,
     searchPlaceholder: "Cari nama penerima, alamat, atau nomor surat",
-    supportsTenggatSort: false,
+    supportsTenggatSort: true,
   },
   memorandum: {
     title: "Daftar Memorandum",
@@ -679,7 +699,7 @@ const activeSectionConfig: Record<ReportKind, ActiveSectionConfig> = {
     icon: FileText,
     searchPlaceholder:
       "Cari nomor memo, perihal, divisi, pembuat, atau penerima",
-    supportsTenggatSort: false,
+    supportsTenggatSort: true,
   },
 };
 
@@ -896,6 +916,9 @@ type EditFormState = {
   regarding: string;
   description: string;
   deliveryMedia: string;
+  targetKirimAt: string;
+  responseDueDate: string;
+  keteranganTenggat: string;
   originDivisionId: string;
   receivedDate: string;
 };
@@ -927,6 +950,9 @@ const EMPTY_EDIT_FORM: EditFormState = {
   regarding: "",
   description: "",
   deliveryMedia: "",
+  targetKirimAt: "",
+  responseDueDate: "",
+  keteranganTenggat: "",
   originDivisionId: "",
   receivedDate: "",
 };
@@ -958,6 +984,9 @@ function buildEditInitialState(target: DetailState): EditFormState {
       deliveryMedia: normalizeDeliveryMediaValue(
         target.record.mediaRaw ?? target.record.media,
       ),
+      targetKirimAt: toDateInputValue(target.record.targetKirimAt ?? ""),
+      responseDueDate: toDateInputValue(target.record.responseDueDate ?? ""),
+      keteranganTenggat: target.record.keteranganTenggat ?? "",
     };
   }
 
@@ -1121,6 +1150,13 @@ function EditCorrespondenceModal({
           mail_number: form.documentNumber.trim(),
           send_date: toApiDateTime(form.documentDate),
           delivery_media: form.deliveryMedia,
+          send_due_date: form.targetKirimAt
+            ? toApiDateTime(form.targetKirimAt)
+            : "",
+          response_due_date: form.responseDueDate
+            ? toApiDateTime(form.responseDueDate)
+            : "",
+          follow_up_note: form.keteranganTenggat.trim(),
           file: file ?? undefined,
         },
       });
@@ -1344,6 +1380,48 @@ function EditCorrespondenceModal({
                     <option value="pos">Pos</option>
                   </SetupSelect>
                 </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Target Pengiriman
+                  </label>
+                  <BasicDateInput
+                    value={form.targetKirimAt}
+                    onChange={(nextValue) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        targetKirimAt: nextValue,
+                      }))
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Batas Follow-up Balasan
+                  </label>
+                  <BasicDateInput
+                    value={form.responseDueDate}
+                    onChange={(nextValue) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        responseDueDate: nextValue,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Catatan Follow-up
+                  </label>
+                  <SetupTextarea
+                    name="keteranganTenggat"
+                    value={form.keteranganTenggat}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                    rows={3}
+                    className="resize-none"
+                    placeholder="Catatan tindak lanjut surat keluar..."
+                  />
+                </div>
               </>
             ) : null}
 
@@ -1522,6 +1600,10 @@ function ReportSectionShell({
   sortValue,
   onSortChange,
   supportsTenggatSort,
+  exportLabel = "Export Excel",
+  exportDisabled,
+  exportLoading,
+  onExport,
   onClose,
   children,
 }: {
@@ -1540,6 +1622,10 @@ function ReportSectionShell({
   sortValue: SortValue;
   onSortChange: (value: SortValue) => void;
   supportsTenggatSort: boolean;
+  exportLabel?: string;
+  exportDisabled?: boolean;
+  exportLoading?: boolean;
+  onExport?: () => void;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -1564,6 +1650,14 @@ function ReportSectionShell({
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          {onExport ? (
+            <SetupExcelButton
+              label={exportLabel}
+              loading={exportLoading}
+              disabled={exportDisabled}
+              onClick={onExport}
+            />
+          ) : null}
           <SetupCloseListButton onClick={onClose} />
         </div>
       </div>
@@ -1706,6 +1800,7 @@ export default function LaporanPersuratanClient() {
     MemorandumRecord[]
   >([]);
   const [isLoadingMemorandum, setIsLoadingMemorandum] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const [deleteOutgoingTarget, setDeleteOutgoingTarget] =
     useState<SuratKeluarRecord | null>(null);
   const [isDeletingSuratKeluar, setIsDeletingSuratKeluar] = useState(false);
@@ -2368,12 +2463,18 @@ export default function LaporanPersuratanClient() {
         (record) => record.tenggatWaktu,
         today,
       ),
-      suratKeluar: {
-        memilikiTenggat: 0,
-        melewatiTenggat: 0,
-      },
+      suratKeluar: getTenggatStats(
+        suratKeluarRecords,
+        (record) => record.tenggatWaktu,
+        today,
+      ),
+      memorandum: getTenggatStats(
+        memorandumRecords,
+        (record) => record.tenggatWaktu,
+        today,
+      ),
     }),
-    [suratMasukRecords, today],
+    [memorandumRecords, suratKeluarRecords, suratMasukRecords, today],
   );
 
   const suratKeluarStatusSummary = useMemo(
@@ -2483,9 +2584,14 @@ export default function LaporanPersuratanClient() {
             value: `${suratKeluarStatusSummary.aktif} / ${suratKeluarStatusSummary.nonaktif}`,
           },
           {
-            icon: FileText,
-            label: "Dokumen Tersimpan",
-            value: `${suratKeluarRecords.filter((record) => Boolean(record.fileName)).length}`,
+            icon: CalendarDays,
+            label: "Memiliki Tenggat Waktu",
+            value: `${tenggatStats.suratKeluar.memilikiTenggat}`,
+          },
+          {
+            icon: AlertTriangle,
+            label: "Melewati tenggat waktu",
+            value: `${tenggatStats.suratKeluar.melewatiTenggat}`,
           },
         ],
       },
@@ -2525,9 +2631,14 @@ export default function LaporanPersuratanClient() {
             value: `${memorandumActiveDispositionCount} User`,
           },
           {
-            icon: FileText,
-            label: "Dokumen Tersimpan",
-            value: `${memorandumRecords.filter((record) => Boolean(record.fileName)).length}`,
+            icon: CalendarDays,
+            label: "Memiliki Tenggat Waktu",
+            value: `${tenggatStats.memorandum.memilikiTenggat}`,
+          },
+          {
+            icon: AlertTriangle,
+            label: "Melewati tenggat waktu",
+            value: `${tenggatStats.memorandum.melewatiTenggat}`,
           },
         ],
       },
@@ -2610,13 +2721,15 @@ export default function LaporanPersuratanClient() {
           record.media,
           record.sifat,
           record.statusLabel,
+          record.keteranganTenggat ?? "",
+          record.followUpStatusLabel ?? "",
         ]
           .join(" ")
           .toLowerCase()
           .includes(keyword);
       }),
       (record) => record.tanggalKirim,
-      () => undefined,
+      (record) => record.tenggatWaktu,
       sortValue,
     );
   }, [searchValue, sortValue, suratKeluarRecords]);
@@ -2634,6 +2747,8 @@ export default function LaporanPersuratanClient() {
           record.divisiTujuanAwal.join(" "),
           record.pembuatMemo,
           record.keterangan,
+          record.keteranganTenggat ?? "",
+          record.followUpStatusLabel ?? "",
           record.penerima.join(" "),
         ]
           .join(" ")
@@ -2641,7 +2756,7 @@ export default function LaporanPersuratanClient() {
           .includes(keyword);
       }),
       (record) => record.tanggal,
-      () => undefined,
+      (record) => record.tenggatWaktu,
       sortValue,
     );
   }, [memorandumRecords, searchValue, sortValue]);
@@ -2680,6 +2795,174 @@ export default function LaporanPersuratanClient() {
   ]);
 
   const activeConfig = activeKind ? activeSectionConfig[activeKind] : null;
+  const activeExportRows =
+    activeKind === "surat-masuk"
+      ? filteredSuratMasuk.length
+      : activeKind === "surat-keluar"
+        ? filteredSuratKeluar.length
+        : activeKind === "memorandum"
+          ? filteredMemorandum.length
+          : 0;
+  const activeReportIsLoading =
+    activeKind === "surat-masuk"
+      ? isLoadingSuratMasuk
+      : activeKind === "surat-keluar"
+        ? isLoadingSuratKeluar
+        : activeKind === "memorandum"
+          ? isLoadingMemorandum
+          : false;
+
+  const handleExportActiveReport = async () => {
+    if (!activeKind) return;
+    if (activeExportRows === 0) {
+      showToast("Tidak ada data laporan untuk diekspor.", "warning");
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      if (activeKind === "surat-masuk") {
+        await exportToExcel({
+          filename: "laporan-surat-masuk",
+          sheetName: "Surat Masuk",
+          title: "Laporan Surat Masuk",
+          columns: [
+            { header: "No", key: "no", width: 6 },
+            { header: "Nama Pengirim", key: "pengirim", width: 24 },
+            { header: "Alamat Pengirim", key: "alamatPengirim", width: 32 },
+            { header: "Nama / Nomor Surat", key: "namaSurat", width: 28 },
+            { header: "Perihal", key: "perihal", width: 32 },
+            { header: "Tanggal Penerimaan", key: "tanggalTerima", width: 20 },
+            { header: "Sifat", key: "sifat", width: 16 },
+            { header: "Tempat Penyimpanan", key: "penyimpanan", width: 32 },
+            { header: "Penerima Disposisi", key: "disposisiKepada", width: 32 },
+            { header: "Status Surat", key: "statusSurat", width: 18 },
+            { header: "Tenggat Waktu", key: "tenggatWaktu", width: 18 },
+            { header: "Status Tenggat", key: "statusTenggat", width: 18 },
+            { header: "Keterangan Surat", key: "keterangan", width: 36 },
+            { header: "Catatan Disposisi", key: "catatanDisposisi", width: 36 },
+            { header: "File", key: "fileName", width: 30 },
+          ],
+          data: filteredSuratMasuk.map((record, index) => ({
+            no: index + 1,
+            pengirim: record.pengirim,
+            alamatPengirim: record.alamatPengirim,
+            namaSurat: record.namaSurat,
+            perihal: record.perihal,
+            tanggalTerima: formatDisplayDate(record.tanggalTerima),
+            sifat: record.sifat,
+            penyimpanan: record.physicalStorageLabel ?? "-",
+            disposisiKepada:
+              record.disposisiKepada.length > 0
+                ? record.disposisiKepada.join(", ")
+                : "-",
+            statusSurat:
+              record.statusLabel ?? formatSuratMasukStatus(record.status),
+            tenggatWaktu: formatDetailTenggatValue(record.tenggatWaktu),
+            statusTenggat: formatDetailTenggatStatus(
+              record.tenggatWaktu,
+              today,
+            ),
+            keterangan: record.keterangan ?? "-",
+            catatanDisposisi: record.keteranganTenggat ?? "-",
+            fileName: record.fileName || "-",
+          })),
+        });
+      }
+
+      if (activeKind === "surat-keluar") {
+        await exportToExcel({
+          filename: "laporan-surat-keluar",
+          sheetName: "Surat Keluar",
+          title: "Laporan Surat Keluar",
+          columns: [
+            { header: "No", key: "no", width: 6 },
+            { header: "Nama Penerima", key: "penerima", width: 24 },
+            { header: "Alamat Penerima", key: "alamatPenerima", width: 32 },
+            { header: "Nama / Nomor Surat", key: "namaSurat", width: 28 },
+            { header: "Tanggal Pengiriman", key: "tanggalKirim", width: 20 },
+            { header: "Sifat", key: "sifat", width: 16 },
+            { header: "Media", key: "media", width: 16 },
+            { header: "Tempat Penyimpanan", key: "penyimpanan", width: 32 },
+            { header: "Status", key: "status", width: 16 },
+            { header: "Target Pengiriman", key: "targetKirim", width: 18 },
+            { header: "Batas Follow-up", key: "tenggatWaktu", width: 18 },
+            { header: "Status Tenggat", key: "statusTenggat", width: 18 },
+            { header: "Catatan Follow-up", key: "catatanFollowUp", width: 36 },
+            { header: "File", key: "fileName", width: 30 },
+          ],
+          data: filteredSuratKeluar.map((record, index) => ({
+            no: index + 1,
+            penerima: record.penerima,
+            alamatPenerima: record.alamatPenerima,
+            namaSurat: record.namaSurat,
+            tanggalKirim: formatDisplayDate(record.tanggalKirim),
+            sifat: record.sifat,
+            media: record.media,
+            penyimpanan: record.physicalStorageLabel ?? "-",
+            status: record.statusLabel,
+            targetKirim: formatDetailTenggatValue(record.targetKirimAt),
+            tenggatWaktu: formatDetailTenggatValue(record.tenggatWaktu),
+            statusTenggat: formatDetailTenggatStatus(
+              record.tenggatWaktu,
+              today,
+            ),
+            catatanFollowUp: record.keteranganTenggat ?? "-",
+            fileName: record.fileName || "-",
+          })),
+        });
+      }
+
+      if (activeKind === "memorandum") {
+        await exportToExcel({
+          filename: "laporan-memorandum",
+          sheetName: "Memorandum",
+          title: "Laporan Memorandum",
+          columns: [
+            { header: "No", key: "no", width: 6 },
+            { header: "No Memo", key: "noMemo", width: 22 },
+            { header: "Perihal", key: "perihal", width: 34 },
+            { header: "Divisi Asal", key: "divisiAsal", width: 24 },
+            { header: "Tujuan Awal", key: "tujuanAwal", width: 32 },
+            { header: "Pembuat", key: "pembuat", width: 24 },
+            { header: "Penerima", key: "penerima", width: 32 },
+            { header: "Tanggal", key: "tanggal", width: 18 },
+            { header: "Tempat Penyimpanan", key: "penyimpanan", width: 32 },
+            { header: "Status Workflow", key: "status", width: 20 },
+            { header: "Tenggat Waktu", key: "tenggatWaktu", width: 18 },
+            { header: "Status Tenggat", key: "statusTenggat", width: 18 },
+            { header: "Keterangan Memo", key: "keterangan", width: 36 },
+            { header: "Catatan Disposisi", key: "catatanDisposisi", width: 36 },
+            { header: "File", key: "fileName", width: 30 },
+          ],
+          data: filteredMemorandum.map((record, index) => ({
+            no: index + 1,
+            noMemo: record.noMemo,
+            perihal: record.perihal,
+            divisiAsal: record.divisiAsal,
+            tujuanAwal: formatJoinedNames(record.divisiTujuanAwal),
+            pembuat: record.pembuatMemo,
+            penerima: formatJoinedNames(record.penerima),
+            tanggal: formatDisplayDate(record.tanggal),
+            penyimpanan: record.physicalStorageLabel ?? "-",
+            status: record.statusLabel ?? "Baru",
+            tenggatWaktu: formatDetailTenggatValue(record.tenggatWaktu),
+            statusTenggat: formatDetailTenggatStatus(
+              record.tenggatWaktu,
+              today,
+            ),
+            keterangan: record.keterangan || "-",
+            catatanDisposisi: record.keteranganTenggat ?? "-",
+            fileName: record.fileName || "-",
+          })),
+        });
+      }
+
+      showToast("Laporan berhasil diekspor ke Excel.", "success");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const loadEditOptions = useCallback(
     async (kind: ReportKind) => {
@@ -3142,6 +3425,9 @@ export default function LaporanPersuratanClient() {
             sortValue={sortValue}
             onSortChange={setSortValue}
             supportsTenggatSort={activeConfig.supportsTenggatSort}
+            exportLoading={isExporting}
+            exportDisabled={activeReportIsLoading || activeExportRows === 0}
+            onExport={handleExportActiveReport}
             onClose={() => setActiveKind(null)}
           >
             {activeKind === "surat-masuk" ? (
@@ -3260,7 +3546,36 @@ export default function LaporanPersuratanClient() {
                         <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
                           <SuratMasukStatusBadge status={record.status} />
                         </SetupDataTableCell>
-                        
+                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                          <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
+                            {formatDetailTenggatValue(record.tenggatWaktu)}
+                          </span>
+                        </SetupDataTableCell>
+                        <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
+                          {(() => {
+                            const tenggatStatus = getTenggatStatus(
+                              record.tenggatWaktu,
+                              today,
+                            );
+
+                            if (tenggatStatus.variant === "none") {
+                              return (
+                                <span className={TABLE_EMPTY_TEXT_CLASS}>-</span>
+                              );
+                            }
+
+                            return (
+                              <SetupStatusBadge
+                                status={
+                                  tenggatStatus.variant === "overdue"
+                                    ? "Terlambat"
+                                    : "Aktif"
+                                }
+                                label={tenggatStatus.label}
+                              />
+                            );
+                          })()}
+                        </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
                           {record.keterangan ? (
                             <p className="text-sm text-gray-600">
@@ -3390,6 +3705,15 @@ export default function LaporanPersuratanClient() {
                       <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
                         Status
                       </SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
+                        Target Pengiriman
+                      </SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
+                        Batas Follow-up
+                      </SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
+                        Status Tenggat
+                      </SetupDataTableHeaderCell>
                       <SetupDataTableHeaderCell className={REPORT_ACTION_HEADER_CELL_CLASS}>
                         Aksi
                       </SetupDataTableHeaderCell>
@@ -3442,6 +3766,41 @@ export default function LaporanPersuratanClient() {
                             status={getOutgoingStatusBadgeStatus(record.statusLabel)}
                             label={record.statusLabel}
                           />
+                        </SetupDataTableCell>
+                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                          <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
+                            {formatDetailTenggatValue(record.targetKirimAt)}
+                          </span>
+                        </SetupDataTableCell>
+                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                          <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
+                            {formatDetailTenggatValue(record.tenggatWaktu)}
+                          </span>
+                        </SetupDataTableCell>
+                        <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
+                          {(() => {
+                            const tenggatStatus = getTenggatStatus(
+                              record.tenggatWaktu,
+                              today,
+                            );
+
+                            if (tenggatStatus.variant === "none") {
+                              return (
+                                <span className={TABLE_EMPTY_TEXT_CLASS}>-</span>
+                              );
+                            }
+
+                            return (
+                              <SetupStatusBadge
+                                status={
+                                  tenggatStatus.variant === "overdue"
+                                    ? "Terlambat"
+                                    : "Aktif"
+                                }
+                                label={tenggatStatus.label}
+                              />
+                            );
+                          })()}
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_ACTION_CELL_CLASS}>
                           <div
@@ -3528,6 +3887,12 @@ export default function LaporanPersuratanClient() {
                       <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
                         Tanggal
                       </SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
+                        Tenggat Waktu
+                      </SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
+                        Status Tenggat
+                      </SetupDataTableHeaderCell>
                       <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
                         Tempat Penyimpanan
                       </SetupDataTableHeaderCell>
@@ -3585,6 +3950,36 @@ export default function LaporanPersuratanClient() {
                           <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
                             {formatDisplayDate(record.tanggal)}
                           </span>
+                        </SetupDataTableCell>
+                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                          <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
+                            {formatDetailTenggatValue(record.tenggatWaktu)}
+                          </span>
+                        </SetupDataTableCell>
+                        <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
+                          {(() => {
+                            const tenggatStatus = getTenggatStatus(
+                              record.tenggatWaktu,
+                              today,
+                            );
+
+                            if (tenggatStatus.variant === "none") {
+                              return (
+                                <span className={TABLE_EMPTY_TEXT_CLASS}>-</span>
+                              );
+                            }
+
+                            return (
+                              <SetupStatusBadge
+                                status={
+                                  tenggatStatus.variant === "overdue"
+                                    ? "Terlambat"
+                                    : "Aktif"
+                                }
+                                label={tenggatStatus.label}
+                              />
+                            );
+                          })()}
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
                           <span className={TABLE_TEXT_MUTED_CLASS}>
@@ -3874,6 +4269,25 @@ export default function LaporanPersuratanClient() {
                 label="Tanggal Pengiriman"
                 value={formatDisplayDate(selectedDetail.record.tanggalKirim)}
               />
+              <DetailRow
+                label="Target Pengiriman"
+                value={formatDetailTenggatValue(
+                  selectedDetail.record.targetKirimAt,
+                )}
+              />
+              <DetailRow
+                label="Batas Follow-up"
+                value={formatDetailTenggatValue(
+                  selectedDetail.record.tenggatWaktu,
+                )}
+              />
+              <DetailRow
+                label="Status Tenggat"
+                value={formatDetailTenggatStatus(
+                  selectedDetail.record.tenggatWaktu,
+                  today,
+                )}
+              />
               <DetailRow label="Media" value={selectedDetail.record.media} />
               <DetailRow label="Sifat" value={selectedDetail.record.sifat} />
               <DetailRow
@@ -3883,6 +4297,12 @@ export default function LaporanPersuratanClient() {
               <DetailRow
                 label="Status"
                 value={selectedDetail.record.statusLabel}
+              />
+              <DetailRow
+                label="Catatan Follow-up"
+                value={selectedDetail.record.keteranganTenggat ?? "-"}
+                className="md:col-span-2"
+                contentClassName="font-medium leading-7 text-gray-700"
               />
             </DetailSection>
 
@@ -3942,6 +4362,19 @@ export default function LaporanPersuratanClient() {
                     value={formatDisplayDate(selectedDetail.record.tanggal)}
                   />
                   <DetailRow
+                    label="Tenggat Waktu"
+                    value={formatDetailTenggatValue(
+                      selectedDetail.record.tenggatWaktu,
+                    )}
+                  />
+                  <DetailRow
+                    label="Status Tenggat"
+                    value={formatDetailTenggatStatus(
+                      selectedDetail.record.tenggatWaktu,
+                      today,
+                    )}
+                  />
+                  <DetailRow
                     label="Tempat Penyimpanan Fisik"
                     value={selectedDetail.record.physicalStorageLabel ?? "-"}
                   />
@@ -3952,6 +4385,12 @@ export default function LaporanPersuratanClient() {
                   <DetailRow
                     label="Keterangan Memo"
                     value={selectedDetail.record.keterangan}
+                    className="md:col-span-2"
+                    contentClassName="font-medium leading-7 text-gray-700"
+                  />
+                  <DetailRow
+                    label="Catatan Disposisi"
+                    value={selectedDetail.record.keteranganTenggat ?? "-"}
                     className="md:col-span-2"
                     contentClassName="font-medium leading-7 text-gray-700"
                   />

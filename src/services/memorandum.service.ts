@@ -332,6 +332,10 @@ export function mapMemorandumRecord(
   const dispositions = readDispositionHistory(record).sort(
     (left, right) => (left.sequence ?? 0) - (right.sequence ?? 0),
   );
+  const latestDispositionWithDueDate =
+    [...dispositions].reverse().find((item) => item.due_date) ?? null;
+  const latestDispositionWithNote =
+    [...dispositions].reverse().find((item) => item.catatan) ?? null;
   const currentHolders = readCurrentHolders(record);
   const lastHolder = mapHolderSummary(record.last_holder);
   const targetDivisionNames = Array.isArray(record.target_division_names)
@@ -421,6 +425,20 @@ export function mapMemorandumRecord(
       readNullableString(record, "last_holder_name", "lastHolderName") ??
       lastHolder?.name ??
       null,
+    tenggatWaktu:
+      readNullableString(record, "due_date", "dueDate") ??
+      latestDispositionWithDueDate?.due_date ??
+      undefined,
+    keteranganTenggat:
+      readNullableString(record, "note", "catatan") ??
+      latestDispositionWithNote?.catatan ??
+      undefined,
+    followUpStatus:
+      readString(record, "follow_up_status", "followUpStatus") ?? undefined,
+    followUpStatusLabel:
+      readString(record, "follow_up_status_label", "followUpStatusLabel") ??
+      undefined,
+    isFollowUpOverdue: Boolean(record.is_follow_up_overdue),
   };
 }
 

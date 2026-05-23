@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import {
   SetupDataTable,
   SetupDataTableHead,
@@ -221,7 +222,7 @@ export default function SetupPrioritasSuratPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Setup Prioritas Surat"
         subtitle="Kelola master sifat atau prioritas surat."
@@ -411,6 +412,6 @@ export default function SetupPrioritasSuratPage() {
         onConfirm={() => void confirmDelete()}
         isLoading={isDeleting}
       />
-    </div>
+    </DashboardPageShell>
   );
 }

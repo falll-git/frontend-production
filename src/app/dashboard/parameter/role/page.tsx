@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import {
   SetupDataTable,
   SetupDataTableHead,
@@ -222,7 +223,7 @@ export default function SetupRolePage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Setup Role"
         subtitle="Atur role yang dipakai di sistem."
@@ -414,6 +415,6 @@ export default function SetupRolePage() {
         onConfirm={() => void confirmDelete()}
         isLoading={isDeleting}
       />
-    </div>
+    </DashboardPageShell>
   );
 }

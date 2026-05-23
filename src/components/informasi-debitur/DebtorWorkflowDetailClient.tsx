@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowLeft, User } from "lucide-react";
 
@@ -1300,7 +1301,7 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
   const headerCollectibility = collectibilityLabel(mainContract?.latest_collectibility ?? null);
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title={workflow?.debtor.name ?? "Detail Debitur"}
         subtitle={
@@ -1395,6 +1396,6 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
           </div>
         </>
       ) : null}
-    </div>
+    </DashboardPageShell>
   );
 }

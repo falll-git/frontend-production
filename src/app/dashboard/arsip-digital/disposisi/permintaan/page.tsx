@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import {
   SetupDataTable,
   SetupDataTableHead,
@@ -238,7 +239,7 @@ export default function PermintaanDisposisiPage() {
   };
 
   return (
-    <div className="animate-fade-in max-w-7xl mx-auto">
+    <DashboardPageShell>
       <FeatureHeader
         title="Permintaan Disposisi"
         subtitle="Kelola persetujuan permintaan akses dokumen dari pengguna lain."
@@ -542,6 +543,6 @@ export default function PermintaanDisposisiPage() {
           </div>
         </DashboardModal>
       ) : null}
-    </div>
+    </DashboardPageShell>
   );
 }

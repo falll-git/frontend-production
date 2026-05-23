@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import {
   SetupDataTable,
   SetupDataTableHead,
@@ -301,7 +302,7 @@ export default function SetupTempatPenyimpananPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Setup Tempat Penyimpanan"
         subtitle="Kelola master lokasi penyimpanan dokumen fisik."
@@ -625,6 +626,6 @@ export default function SetupTempatPenyimpananPage() {
         onConfirm={() => void confirmDelete()}
         isLoading={isDeleting}
       />
-    </div>
+    </DashboardPageShell>
   );
 }

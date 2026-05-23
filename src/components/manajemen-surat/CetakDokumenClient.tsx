@@ -78,7 +78,7 @@ const MY_REPORT_FILTER_OPTIONS: Array<{
   { value: "forwarded", label: "Diteruskan" },
 ];
 
-function canPreviewOrPrintFileType(fileType: DocumentFileType) {
+function canDirectPrintFileType(fileType: DocumentFileType) {
   return fileType === "pdf" || fileType === "image";
 }
 
@@ -181,6 +181,10 @@ function formatDocumentFileName(value: string) {
   return normalized ? normalized : "Belum tersedia";
 }
 
+function formatDeadlineValue(value: string | undefined) {
+  return value ? formatDate(value) : "-";
+}
+
 function mapPrintableItem(item: CorrespondencePrintableItem): PrintableRecord {
   if (item.kind === "incoming-mail") {
     const record = item.record as SuratMasuk;
@@ -201,6 +205,7 @@ function mapPrintableItem(item: CorrespondencePrintableItem): PrintableRecord {
           record.perihal,
           record.keterangan ?? "",
           record.keteranganTenggat ?? "",
+          record.tenggatWaktu ?? "",
           record.sifat,
           record.statusDisposisi,
           record.physicalStorageLabel ?? "",
@@ -233,6 +238,11 @@ function mapPrintableItem(item: CorrespondencePrintableItem): PrintableRecord {
           record.media,
           record.sifat,
           record.statusLabel,
+          record.targetKirimAt ?? "",
+          record.responseDueDate ?? "",
+          record.tenggatWaktu ?? "",
+          record.keteranganTenggat ?? "",
+          record.followUpStatusLabel ?? "",
           record.physicalStorageLabel ?? "",
         ].join(" "),
       ),
@@ -261,6 +271,9 @@ function mapPrintableItem(item: CorrespondencePrintableItem): PrintableRecord {
         record.pembuatMemo,
         record.physicalStorageLabel ?? "",
         record.keterangan,
+        record.tenggatWaktu ?? "",
+        record.keteranganTenggat ?? "",
+        record.followUpStatusLabel ?? "",
         record.penerima.join(" "),
       ].join(" "),
     ),
@@ -324,8 +337,8 @@ function MiniPdfPreview({
           Preview belum tersedia untuk format ini
         </p>
         <p className="mt-2 text-sm text-gray-500">
-          File DOC, DOCX, XLS, dan XLSX tetap bisa dibuka atau diunduh sesuai
-          izin akses.
+          File PPT, PPTX, DOC, DOCX, XLS, dan XLSX tetap bisa dibuka atau
+          diunduh sesuai izin akses.
         </p>
       </div>
     </div>
@@ -562,7 +575,7 @@ export default function CetakDokumenClient() {
   );
   const selectedRecordCanPrint =
     selectedRecordHasFile &&
-    canPreviewOrPrintFileType(selectedRecordFileType);
+    canDirectPrintFileType(selectedRecordFileType);
 
   const handleOpenPreview = () => {
     if (!selectedRecord) {
@@ -596,9 +609,9 @@ export default function CetakDokumenClient() {
       selectedRecord.fileUrl,
       selectedRecord.fileName,
     );
-    if (!canPreviewOrPrintFileType(fileType)) {
+    if (!canDirectPrintFileType(fileType)) {
       showToast(
-        "Cetak langsung hanya tersedia untuk PDF, JPG, dan PNG. Silakan unduh file untuk format DOC, DOCX, XLS, atau XLSX.",
+        "Cetak langsung hanya tersedia untuk PDF, JPG, JPEG, dan PNG. File PPT/PPTX atau Office bisa dibuka/diunduh dulu.",
         "warning",
       );
       return;
@@ -788,6 +801,7 @@ export default function CetakDokumenClient() {
                         <SetupDataTableCol style={{ minWidth: "160px" }} />
                         <SetupDataTableCol style={{ minWidth: "150px" }} />
                         <SetupDataTableCol style={{ minWidth: "140px" }} />
+                        <SetupDataTableCol style={{ minWidth: "150px" }} />
                       </>
                     ) : activeKind === "surat-keluar" ? (
                       <>
@@ -797,6 +811,8 @@ export default function CetakDokumenClient() {
                         <SetupDataTableCol style={{ minWidth: "120px" }} />
                         <SetupDataTableCol style={{ minWidth: "140px" }} />
                         <SetupDataTableCol style={{ minWidth: "110px" }} />
+                        <SetupDataTableCol style={{ minWidth: "150px" }} />
+                        <SetupDataTableCol style={{ minWidth: "150px" }} />
                         <SetupDataTableCol style={{ minWidth: "120px" }} />
                       </>
                     ) : (
@@ -806,6 +822,7 @@ export default function CetakDokumenClient() {
                         <SetupDataTableCol style={{ minWidth: "220px" }} />
                         <SetupDataTableCol style={{ minWidth: "110px" }} />
                         <SetupDataTableCol style={{ minWidth: "140px" }} />
+                        <SetupDataTableCol style={{ minWidth: "150px" }} />
                         <SetupDataTableCol style={{ minWidth: "220px" }} />
                         <SetupDataTableCol style={{ minWidth: "220px" }} />
                       </>
@@ -832,6 +849,9 @@ export default function CetakDokumenClient() {
                           </SetupDataTableHeaderCell>
                           <SetupDataTableHeaderCell className="text-center">
                             Tgl Penerimaan
+                          </SetupDataTableHeaderCell>
+                          <SetupDataTableHeaderCell className="text-center">
+                            Tenggat
                           </SetupDataTableHeaderCell>
                           <SetupDataTableHeaderCell>
                             Keterangan Surat
@@ -862,6 +882,12 @@ export default function CetakDokumenClient() {
                             Sifat
                           </SetupDataTableHeaderCell>
                           <SetupDataTableHeaderCell className="text-center">
+                            Target Kirim
+                          </SetupDataTableHeaderCell>
+                          <SetupDataTableHeaderCell className="text-center">
+                            Follow-up
+                          </SetupDataTableHeaderCell>
+                          <SetupDataTableHeaderCell className="text-center">
                             Status
                           </SetupDataTableHeaderCell>
                         </>
@@ -882,6 +908,9 @@ export default function CetakDokumenClient() {
                           </SetupDataTableHeaderCell>
                           <SetupDataTableHeaderCell className="text-center">
                             Tanggal
+                          </SetupDataTableHeaderCell>
+                          <SetupDataTableHeaderCell className="text-center">
+                            Tenggat
                           </SetupDataTableHeaderCell>
                         </>
                       ) : null}
@@ -934,6 +963,9 @@ export default function CetakDokumenClient() {
                               <SetupDataTableCell className="text-center text-gray-700">
                                 {formatDate(record.sortDate)}
                               </SetupDataTableCell>
+                              <SetupDataTableCell className="text-center text-gray-700">
+                                {formatDeadlineValue(record.record.tenggatWaktu)}
+                              </SetupDataTableCell>
                               <SetupDataTableCell className="max-w-[220px] text-gray-600">
                                 <p className="line-clamp-2">
                                   {record.record.keterangan ?? "-"}
@@ -971,6 +1003,12 @@ export default function CetakDokumenClient() {
                               <SetupDataTableCell className="text-center font-medium text-gray-700">
                                 {record.record.sifat}
                               </SetupDataTableCell>
+                              <SetupDataTableCell className="text-center text-gray-700">
+                                {formatDeadlineValue(record.record.targetKirimAt)}
+                              </SetupDataTableCell>
+                              <SetupDataTableCell className="text-center text-gray-700">
+                                {formatDeadlineValue(record.record.tenggatWaktu)}
+                              </SetupDataTableCell>
                               <SetupDataTableCell className="text-center">
                                 <SetupStatusBadge
                                   status={record.record.statusLabel}
@@ -1001,6 +1039,9 @@ export default function CetakDokumenClient() {
                               </SetupDataTableCell>
                               <SetupDataTableCell className="text-center text-gray-700">
                                 {formatDate(record.sortDate)}
+                              </SetupDataTableCell>
+                              <SetupDataTableCell className="text-center text-gray-700">
+                                {formatDeadlineValue(record.record.tenggatWaktu)}
                               </SetupDataTableCell>
                             </>
                           ) : null}
@@ -1066,7 +1107,7 @@ export default function CetakDokumenClient() {
                     selectedRecordCanPrint
                       ? "Cetak dokumen"
                       : selectedRecordHasFile
-                        ? "Cetak langsung hanya tersedia untuk PDF, JPG, dan PNG"
+                        ? "Cetak langsung hanya tersedia untuk PDF, JPG, JPEG, dan PNG"
                         : "File belum tersedia"
                   }
                   disabled={!selectedRecordCanPrint}

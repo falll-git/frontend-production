@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -20,7 +21,6 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import DashboardModal from "@/components/ui/DashboardModal";
 import DashboardNotice from "@/components/ui/DashboardNotice";
-import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import Pagination from "@/components/ui/Pagination";
 import {
@@ -114,6 +114,10 @@ const DELETE_HISTORY_CLOSE_REASON =
 
 function normalizeTextInput(value: string) {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function getDeleteConfirmationText(user: UserRecord | null) {
+  return user ? `HAPUS ${user.username}` : "";
 }
 
 function isValidEmail(value: string) {
@@ -248,6 +252,8 @@ export default function ManajemenUserPage() {
   const [isFetching, setIsFetching] = useState(true);
   const [showDelete, setShowDelete] = useState(false);
   const [deleteUser, setDeleteUser] = useState<UserRecord | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [inviteLoadingId, setInviteLoadingId] = useState<string | null>(null);
   const [manualInvitation, setManualInvitation] =
@@ -295,7 +301,7 @@ export default function ManajemenUserPage() {
 
     try {
       const [userList, divisionList, roleList] = await Promise.all([
-        userService.getAll(),
+        userService.getAll({ status: statusFilter }),
         divisionService.getAll(),
         roleService.getAll(),
       ]);
@@ -311,7 +317,7 @@ export default function ManajemenUserPage() {
     } finally {
       setIsFetching(false);
     }
-  }, [showToast]);
+  }, [showToast, statusFilter]);
 
   useEffect(() => {
     if (!role) return;
@@ -421,6 +427,7 @@ export default function ManajemenUserPage() {
 
       if (impact.can_delete) {
         setDeleteUser(user);
+        setDeleteConfirmation("");
         setShowDelete(true);
         return;
       }
@@ -521,18 +528,38 @@ export default function ManajemenUserPage() {
     if (!requireDeleteUserAction()) return;
     if (!deleteUser) return;
 
+    const expectedConfirmation = getDeleteConfirmationText(deleteUser);
+    const confirmation = normalizeTextInput(deleteConfirmation);
+
+    if (confirmation !== expectedConfirmation) {
+      showToast(`Ketik "${expectedConfirmation}" untuk menghapus pengguna ini.`, "warning");
+      return;
+    }
+
+    setIsDeleteSubmitting(true);
+
     try {
-      await userService.remove(deleteUser.id);
+      await userService.remove(deleteUser.id, confirmation);
       setUsers((prev) => prev.filter((user) => user.id !== deleteUser.id));
       showToast("Pengguna berhasil dihapus.", "success");
       setShowDelete(false);
       setDeleteUser(null);
+      setDeleteConfirmation("");
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : "Gagal menghapus pengguna",
         "error",
       );
+    } finally {
+      setIsDeleteSubmitting(false);
     }
+  };
+
+  const closeDeleteModal = () => {
+    if (isDeleteSubmitting) return;
+    setShowDelete(false);
+    setDeleteUser(null);
+    setDeleteConfirmation("");
   };
 
   const handleResendInvite = async (user: UserRecord) => {
@@ -750,10 +777,15 @@ export default function ManajemenUserPage() {
     return items;
   };
 
+  const deleteConfirmationText = getDeleteConfirmationText(deleteUser);
+  const normalizedDeleteConfirmation = normalizeTextInput(deleteConfirmation);
+  const isDeleteConfirmationValid =
+    Boolean(deleteUser) && normalizedDeleteConfirmation === deleteConfirmationText;
+
   if (!canReadUsers) return null;
 
   return (
-    <div className="max-w-7xl mx-auto animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Manajemen User"
         subtitle="Kelola pengguna, role, dan akses sistem"
@@ -1342,14 +1374,81 @@ export default function ManajemenUserPage() {
         ) : null}
       </DashboardModal>
 
-      <DeleteConfirmModal
+      <DashboardModal
         isOpen={showDelete && deleteUser !== null}
-        title="Hapus Pengguna?"
-        entityLabel="pengguna"
-        itemName={deleteUser?.name ?? ""}
-        onClose={() => setShowDelete(false)}
-        onConfirm={() => void confirmDelete()}
-      />
-    </div>
+        title="Hapus Pengguna Permanen?"
+        description="Tindakan ini hanya boleh dilakukan untuk akun yang belum memiliki riwayat aktivitas."
+        onClose={closeDeleteModal}
+        closeDisabled={isDeleteSubmitting}
+        maxWidth="lg"
+        footer={
+          <>
+            <button
+              type="button"
+              className="uiverse-modal-button uiverse-modal-button--neutral"
+              onClick={closeDeleteModal}
+              disabled={isDeleteSubmitting}
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              className="uiverse-modal-button uiverse-modal-button--danger"
+              onClick={() => void confirmDelete()}
+              disabled={isDeleteSubmitting || !isDeleteConfirmationValid}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              <span>{isDeleteSubmitting ? "Menghapus..." : "Hapus Permanen"}</span>
+            </button>
+          </>
+        }
+      >
+        {deleteUser ? (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-4">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-100 text-red-700">
+                  <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-red-900">
+                    {deleteUser.name}
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-red-800">
+                    Pengguna akan dihapus permanen dari sistem. Data ini tidak
+                    dapat dikembalikan dari halaman aplikasi.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
+              <p className="text-sm font-semibold text-slate-800">
+                Ketik teks berikut untuk melanjutkan:
+              </p>
+              <p className="mt-2 rounded-md border border-slate-200 bg-white px-3 py-2 font-mono text-sm font-bold text-slate-900">
+                {deleteConfirmationText}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Konfirmasi Penghapusan <span className="text-red-500">*</span>
+              </label>
+              <SetupTextInput
+                value={deleteConfirmation}
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                placeholder={deleteConfirmationText}
+                disabled={isDeleteSubmitting}
+                autoComplete="off"
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                Tombol hapus permanen hanya aktif jika teks konfirmasi sesuai.
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </DashboardModal>
+    </DashboardPageShell>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -187,7 +188,7 @@ export default function TempatPenyimpananPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in">
+    <DashboardPageShell>
       <FeatureHeader
         title="Ruang Arsip Digital"
         subtitle="Laporan visual penyimpanan dokumen fisik dan digital."
@@ -366,6 +367,6 @@ export default function TempatPenyimpananPage() {
           }}
         />
       ) : null}
-    </div>
+    </DashboardPageShell>
   );
 }

@@ -18,6 +18,7 @@ import type {
   SuratMasuk,
 } from "@/types/surat.types";
 import api from "@/lib/axios";
+import { toPreviewableFileUrl } from "@/lib/utils/file";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -58,6 +59,10 @@ function readNullableString(
 
 function readString(record: UnknownRecord, ...keys: string[]): string {
   return readNullableString(record, ...keys) ?? "";
+}
+
+function normalizeFileUrl(fileUrl?: string, fileName?: string) {
+  return fileUrl ? toPreviewableFileUrl(fileUrl, fileName) : undefined;
 }
 
 function readReportScope(
@@ -142,6 +147,12 @@ function mapPrintableRecord(
     const mapped = mapSuratMasukRecord(entityRecord);
     if (!mapped) return null;
 
+    const fileName = readString(record, "file_name", "fileName");
+    const fileUrl = normalizeFileUrl(
+      readNullableString(record, "file_url", "fileUrl"),
+      fileName || mapped.fileName,
+    );
+
     return {
       id: readString(record, "id") || String(mapped.id),
       kind,
@@ -152,8 +163,8 @@ function mapPrintableRecord(
       document_date: readString(record, "document_date", "documentDate"),
       status_key: readString(record, "status_key", "statusKey"),
       status_label: readString(record, "status_label", "statusLabel"),
-      file_name: readString(record, "file_name", "fileName"),
-      file_url: readNullableString(record, "file_url", "fileUrl"),
+      file_name: fileName,
+      file_url: fileUrl,
       storage_id:
         readNullableString(record, "storage_id", "storageId") ??
         mapped.storageId,
@@ -171,6 +182,12 @@ function mapPrintableRecord(
     const mapped = mapSuratKeluarRecord(entityRecord);
     if (!mapped) return null;
 
+    const fileName = readString(record, "file_name", "fileName");
+    const fileUrl = normalizeFileUrl(
+      readNullableString(record, "file_url", "fileUrl"),
+      fileName || mapped.fileName,
+    );
+
     return {
       id: readString(record, "id") || String(mapped.id),
       kind,
@@ -181,8 +198,8 @@ function mapPrintableRecord(
       document_date: readString(record, "document_date", "documentDate"),
       status_key: readString(record, "status_key", "statusKey"),
       status_label: readString(record, "status_label", "statusLabel"),
-      file_name: readString(record, "file_name", "fileName"),
-      file_url: readNullableString(record, "file_url", "fileUrl"),
+      file_name: fileName,
+      file_url: fileUrl,
       storage_id:
         readNullableString(record, "storage_id", "storageId") ??
         mapped.storageId,
@@ -200,6 +217,12 @@ function mapPrintableRecord(
     const mapped = mapMemorandumRecord(entityRecord);
     if (!mapped) return null;
 
+    const fileName = readString(record, "file_name", "fileName");
+    const fileUrl = normalizeFileUrl(
+      readNullableString(record, "file_url", "fileUrl"),
+      fileName || mapped.fileName,
+    );
+
     return {
       id: readString(record, "id") || String(mapped.id),
       kind,
@@ -210,8 +233,8 @@ function mapPrintableRecord(
       document_date: readString(record, "document_date", "documentDate"),
       status_key: readString(record, "status_key", "statusKey"),
       status_label: readString(record, "status_label", "statusLabel"),
-      file_name: readString(record, "file_name", "fileName"),
-      file_url: readNullableString(record, "file_url", "fileUrl"),
+      file_name: fileName,
+      file_url: fileUrl,
       storage_id:
         readNullableString(record, "storage_id", "storageId") ??
         mapped.storageId,

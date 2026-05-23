@@ -10,6 +10,7 @@ import {
   toMultipartFormData,
 } from "@/services/api.utils";
 import { OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import { toPreviewableFileUrl } from "@/lib/utils/file";
 import { mapWatermarkFileMeta } from "@/services/watermark.service";
 import type { PageQuery, PaginatedResult, PaginationMeta } from "@/types/api.types";
 import type {
@@ -253,6 +254,12 @@ export function mapDigitalDocument(record: AnyRecord): Dokumen | null {
 
   if (!id || !kode || !namaDokumen || !statusPinjamKey) return null;
 
+  const fileName = readString(fileRecord ?? {}, "name") ?? undefined;
+  const rawFileUrl = readString(fileRecord ?? {}, "url");
+  const fileUrl = rawFileUrl
+    ? toPreviewableFileUrl(rawFileUrl, fileName ?? namaDokumen)
+    : undefined;
+
   return {
     id,
     kode,
@@ -272,8 +279,8 @@ export function mapDigitalDocument(record: AnyRecord): Dokumen | null {
         ? "RESTRICT"
         : "NON_RESTRICT",
     restrict: readBoolean(record, "is_restricted"),
-    fileUrl: readString(fileRecord ?? {}, "url") ?? undefined,
-    fileName: readString(fileRecord ?? {}, "name") ?? undefined,
+    fileUrl,
+    fileName,
     watermark: mapWatermarkFileMeta(record.watermark ?? fileRecord?.watermark),
     creator,
     owner,

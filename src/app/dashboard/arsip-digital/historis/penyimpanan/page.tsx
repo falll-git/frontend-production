@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import {
   SetupDataTable,
   SetupDataTableHead,
@@ -234,7 +235,7 @@ export default function HistorisPenyimpananPage() {
   };
 
   return (
-    <div className="animate-fade-in max-w-7xl mx-auto">
+    <DashboardPageShell>
       <FeatureHeader
         title="Historis Penyimpanan"
         subtitle="Riwayat perubahan lokasi dan aktivitas dokumen arsip digital."
@@ -432,6 +433,6 @@ export default function HistorisPenyimpananPage() {
           onPageChange={setPage}
         />
       </div>
-    </div>
+    </DashboardPageShell>
   );
 }

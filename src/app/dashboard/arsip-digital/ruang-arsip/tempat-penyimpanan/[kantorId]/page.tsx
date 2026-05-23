@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -132,7 +133,7 @@ export default function KantorLemariPage() {
 
   if (!kantor) {
     return (
-      <div className="mx-auto max-w-7xl animate-fade-in">
+      <DashboardPageShell>
         <div className="mb-4">
           <Link
             href="/dashboard/arsip-digital/ruang-arsip/tempat-penyimpanan"
@@ -150,12 +151,12 @@ export default function KantorLemariPage() {
             {isLoadingKantor ? "Memuat data kantor..." : "Kantor tidak ditemukan"}
           </p>
         </div>
-      </div>
+      </DashboardPageShell>
     );
   }
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in">
+    <DashboardPageShell>
       <div className="mb-4">
         <Link
           href="/dashboard/arsip-digital/ruang-arsip/tempat-penyimpanan"
@@ -271,6 +272,6 @@ export default function KantorLemariPage() {
           onCloseAll={handleCloseAll}
         />
       ) : null}
-    </div>
+    </DashboardPageShell>
   );
 }

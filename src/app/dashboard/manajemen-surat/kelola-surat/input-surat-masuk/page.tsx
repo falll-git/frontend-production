@@ -1,11 +1,15 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Inbox, Send } from "lucide-react";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import BasicDateInput from "@/components/ui/BasicDateInput";
 import FileUploadField from "@/components/ui/FileUploadField";
 import PhysicalStorageSelect from "@/components/manajemen-surat/PhysicalStorageSelect";
+import TenggatWaktuModal, {
+  type TenggatWaktuPayload,
+} from "@/components/surat/TenggatWaktuModal";
 import SetupSelect from "@/components/ui/SetupSelect";
 import SetupTextInput from "@/components/ui/SetupTextInput";
 import SetupTextarea from "@/components/ui/SetupTextarea";
@@ -52,6 +56,7 @@ export default function InputSuratMasukPage() {
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeadlineModalOpen, setIsDeadlineModalOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [divisionOptions, setDivisionOptions] = useState<DivisionOption[]>([]);
   const [letterPriorities, setLetterPriorities] = useState<
@@ -169,6 +174,7 @@ export default function InputSuratMasukPage() {
   };
 
   const handleReset = () => {
+    setIsDeadlineModalOpen(false);
     setFormData({
       namaPengirim: "",
       alamatPengirim: "",
@@ -184,10 +190,11 @@ export default function InputSuratMasukPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const submitSuratMasuk = async () => {
+  const submitSuratMasuk = async (deadline?: TenggatWaktuPayload) => {
     if (!ensureCapability(SURAT_MASUK_MENU_URL, "create")) return;
 
     setIsLoading(true);
+    setIsDeadlineModalOpen(false);
 
     try {
       await suratMasukService.createWithDisposition({
@@ -199,6 +206,10 @@ export default function InputSuratMasukPage() {
         mail_number: formData.namaSurat.trim(),
         name: formData.namaPengirim.trim(),
         description: formData.keteranganSurat.trim() || undefined,
+        due_date: deadline?.tenggatWaktu
+          ? toApiDateTime(deadline.tenggatWaktu)
+          : undefined,
+        note: deadline?.keteranganTenggat,
         address: formData.alamatPengirim.trim(),
         file: file ?? undefined,
       });
@@ -251,7 +262,7 @@ export default function InputSuratMasukPage() {
       return;
     }
 
-    void submitSuratMasuk();
+    setIsDeadlineModalOpen(true);
   };
 
   const selectedDivisionNames = divisionOptions
@@ -259,7 +270,7 @@ export default function InputSuratMasukPage() {
     .map((division) => division.name);
 
   return (
-    <div className="max-w-5xl mx-auto animate-fade-in">
+    <DashboardPageShell variant="form">
       <FeatureHeader
         title="Input Surat Masuk"
         subtitle="Form pencatatan dan pendisposisian surat masuk."
@@ -592,6 +603,14 @@ export default function InputSuratMasukPage() {
         </form>
       </div>
 
-    </div>
+      <TenggatWaktuModal
+        isOpen={isDeadlineModalOpen}
+        title="Tenggat Tindak Lanjut Surat Masuk"
+        subtitle="Atur batas waktu disposisi awal jika surat masuk perlu ditindaklanjuti."
+        disposisi={selectedDivisionNames}
+        onSkip={() => void submitSuratMasuk()}
+        onSave={(deadline) => void submitSuratMasuk(deadline)}
+      />
+    </DashboardPageShell>
   );
 }

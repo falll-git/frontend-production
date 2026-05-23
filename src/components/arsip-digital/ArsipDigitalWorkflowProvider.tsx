@@ -86,28 +86,23 @@ const ArsipDigitalWorkflowContext =
 const ARSIP_DIGITAL_ROOT_PATH = "/dashboard/arsip-digital";
 
 const DIGITAL_DOCUMENT_READ_PATHS = [
-  "/dashboard/arsip-digital/input-dokumen",
   "/dashboard/arsip-digital/ruang-arsip/list-dokumen",
   "/dashboard/arsip-digital/ruang-arsip/tempat-penyimpanan",
   "/dashboard/arsip-digital/ruang-arsip/jatuh-tempo",
   "/dashboard/arsip-digital/peminjaman/request",
-  "/dashboard/arsip-digital/laporan",
 ];
 
 const ACCESS_REQUEST_READ_PATHS = [
   "/dashboard/arsip-digital/disposisi/pengajuan",
   "/dashboard/arsip-digital/disposisi/permintaan",
   "/dashboard/arsip-digital/disposisi/historis",
-  "/dashboard/arsip-digital/laporan",
 ];
 
 const LOAN_READ_PATHS = [
   "/dashboard/arsip-digital/peminjaman/request",
   "/dashboard/arsip-digital/peminjaman/accept",
-  "/dashboard/arsip-digital/peminjaman/laporan",
   "/dashboard/arsip-digital/historis/peminjaman",
   "/dashboard/arsip-digital/ruang-arsip/jatuh-tempo",
-  "/dashboard/arsip-digital/laporan",
 ];
 
 const STORAGE_HISTORY_PATH = "/dashboard/arsip-digital/historis/penyimpanan";

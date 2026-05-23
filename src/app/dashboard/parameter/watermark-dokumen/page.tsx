@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import {
   useEffect,
   useMemo,
@@ -499,7 +500,7 @@ export default function SetupWatermarkDokumenPage() {
     : "Klik area ini untuk memilih file";
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Setup Watermark Dokumen"
         subtitle="Konfigurasi watermark file dokumen."
@@ -1035,6 +1036,6 @@ export default function SetupWatermarkDokumenPage() {
           </section>
         </aside>
       </div>
-    </div>
+    </DashboardPageShell>
   );
 }

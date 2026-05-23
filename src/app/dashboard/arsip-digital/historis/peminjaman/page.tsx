@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import {
   SetupDataTable,
   SetupDataTableHead,
@@ -243,7 +244,7 @@ export default function HistorisPeminjamanPage() {
   };
 
   return (
-    <div className="animate-fade-in max-w-7xl mx-auto">
+    <DashboardPageShell>
       {filterLemariId || filterKantorId ? (
         <div className="mb-4">
           <Link
@@ -460,6 +461,6 @@ export default function HistorisPeminjamanPage() {
           onPageChange={setPage}
         />
       </div>
-    </div>
+    </DashboardPageShell>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import {
   SetupDataTable,
   SetupDataTableHead,
@@ -210,7 +211,7 @@ export default function RequestPeminjamanPage() {
   );
 
   return (
-    <div className="animate-fade-in max-w-7xl mx-auto">
+    <DashboardPageShell>
       <FeatureHeader
         title="Request Peminjaman"
         subtitle="Ajukan permohonan peminjaman dokumen fisik."
@@ -510,6 +511,6 @@ export default function RequestPeminjamanPage() {
           </div>
         </DashboardModal>
       ) : null}
-    </div>
+    </DashboardPageShell>
   );
 }

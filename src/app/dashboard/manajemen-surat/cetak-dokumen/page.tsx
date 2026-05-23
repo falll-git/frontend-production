@@ -1,3 +1,5 @@
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
+
 import { Printer } from "lucide-react";
 
 import CetakDokumenClient from "@/components/manajemen-surat/CetakDokumenClient";
@@ -9,7 +11,7 @@ export const metadata = {
 
 export default function CetakDokumenPage() {
   return (
-    <div className="animate-fade-in max-w-7xl mx-auto">
+    <DashboardPageShell>
       <FeatureHeader
         title="Cetak Dokumen"
         subtitle="Pilih jenis dokumen persuratan, cek detail, lalu preview atau cetak dokumennya."
@@ -17,6 +19,6 @@ export default function CetakDokumenPage() {
       />
 
       <CetakDokumenClient />
-    </div>
+    </DashboardPageShell>
   );
 }

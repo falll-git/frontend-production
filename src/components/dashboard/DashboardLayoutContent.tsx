@@ -264,12 +264,14 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
   };
   const mainStyle: CSSProperties = {
     marginLeft: shouldOffsetMain ? `${sidebarWidth}px` : "0px",
-    width: shouldOffsetMain ? `calc(100% - ${sidebarWidth}px)` : "100%",
+    width: shouldOffsetMain ? `calc(100vw - ${sidebarWidth}px)` : "100%",
+    maxWidth: shouldOffsetMain ? `calc(100vw - ${sidebarWidth}px)` : "100%",
+    minWidth: 0,
   };
 
   return (
     <div
-      className="min-h-screen"
+      className="min-h-screen w-full overflow-x-hidden"
       style={{
         background: "linear-gradient(135deg, #f8fafc 0%, #e6f2fa 100%)",
       }}
@@ -393,9 +395,9 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
         </div>
       </aside>
 
-      <main className="transition-all duration-300" style={mainStyle}>
+      <main className="min-w-0 transition-all duration-300" style={mainStyle}>
         <header
-          className={`px-4 lg:px-6 py-4 flex items-center justify-between sticky top-0 z-40 border-b border-gray-100 transition-all duration-300 transform ${
+          className={`sticky top-0 z-40 flex min-w-0 items-center justify-between gap-3 border-b border-gray-100 px-4 py-4 transition-all duration-300 transform lg:px-6 ${
             headerVisible && !isPreviewOpen && !isFocusMode && !isOverlayOpen
               ? "translate-y-0 opacity-100"
               : "-translate-y-full opacity-0 pointer-events-none"
@@ -405,7 +407,7 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
             backdropFilter: "blur(12px)",
           }}
         >
-          <div className="flex items-center gap-2 lg:gap-4">
+          <div className="flex min-w-0 items-center gap-2 lg:gap-4">
             <button
               onClick={() => {
                 updateSidebarOpen(true);
@@ -430,13 +432,13 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
                 <Menu className="h-7 w-7" aria-hidden="true" />
               )}
             </button>
-            <div>
-              <h2 className="text-lg font-bold text-gray-800">
+            <div className="min-w-0">
+              <h2 className="truncate text-lg font-bold text-gray-800">
                 {pageTitle}
               </h2>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-3">
             <Notification />
             <div
               className="hidden sm:flex items-center rounded-full border text-sm shadow-sm overflow-hidden"
@@ -492,7 +494,7 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
           </div>
         </header>
 
-        <div className="p-4 lg:p-6">{children}</div>
+        <div className="w-full min-w-0 p-4 lg:p-6">{children}</div>
       </main>
     </div>
   );

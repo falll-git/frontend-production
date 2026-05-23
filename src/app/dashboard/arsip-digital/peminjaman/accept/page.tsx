@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import {
   SetupDataTable,
   SetupDataTableHead,
@@ -291,7 +292,7 @@ export default function AcceptPeminjamanPage() {
           : "Simpan Pengembalian";
 
   return (
-    <div className="animate-fade-in max-w-7xl mx-auto">
+    <DashboardPageShell>
       <FeatureHeader
         title="Accept Peminjaman"
         subtitle="Kelola persetujuan, penyerahan, dan pengembalian dokumen fisik."
@@ -603,6 +604,6 @@ export default function AcceptPeminjamanPage() {
           ) : null}
         </DashboardModal>
       ) : null}
-    </div>
+    </DashboardPageShell>
   );
 }

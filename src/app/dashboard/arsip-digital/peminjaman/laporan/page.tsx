@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import {
   SetupDataTable,
   SetupDataTableHead,
@@ -344,7 +345,7 @@ export default function LaporanPeminjamanPage() {
   };
 
   return (
-    <div className="animate-fade-in max-w-7xl mx-auto">
+    <DashboardPageShell>
       <FeatureHeader
         title="Laporan Peminjaman"
         subtitle="Daftar peminjaman dan pengembalian dokumen fisik."
@@ -551,6 +552,6 @@ export default function LaporanPeminjamanPage() {
           onPageChange={setCurrentPage}
         />
       </div>
-    </div>
+    </DashboardPageShell>
   );
 }

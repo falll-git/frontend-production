@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import {
   SetupDataTable,
   SetupDataTableHead,
@@ -265,7 +266,7 @@ export default function SetupJenisDokumenPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Setup Jenis Dokumen"
         subtitle="Kelola master jenis dokumen."
@@ -537,6 +538,6 @@ export default function SetupJenisDokumenPage() {
         onConfirm={() => void confirmDelete()}
         isLoading={isDeleting}
       />
-    </div>
+    </DashboardPageShell>
   );
 }

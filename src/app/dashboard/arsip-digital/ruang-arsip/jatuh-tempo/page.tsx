@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import {
   SetupDataTable,
   SetupDataTableHead,
@@ -173,7 +174,7 @@ export default function JatuhTempoPage() {
     : "Daftar dokumen yang melewati batas waktu pengembalian.";
 
   return (
-    <div className="animate-fade-in max-w-7xl mx-auto">
+    <DashboardPageShell>
       <div className="mb-4">
         <Link
           href="/dashboard/arsip-digital/ruang-arsip/tempat-penyimpanan"
@@ -344,6 +345,6 @@ export default function JatuhTempoPage() {
           onPageChange={setPage}
         />
       </div>
-    </div>
+    </DashboardPageShell>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import {
   SetupDataTable,
   SetupDataTableHead,
@@ -642,7 +643,7 @@ export default function ListDokumenPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="List Dokumen Digital"
         subtitle="Daftar seluruh dokumen yang tersimpan dalam sistem."
@@ -1438,6 +1439,6 @@ export default function ListDokumenPage() {
           </form>
         </DashboardModal>
       ) : null}
-    </div>
+    </DashboardPageShell>
   );
 }

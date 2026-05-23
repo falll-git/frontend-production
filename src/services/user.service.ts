@@ -19,6 +19,10 @@ import type {
 } from "@/types/auth.types";
 
 type UnknownRecord = Record<string, unknown>;
+type UserStatusFilter = "active" | "inactive" | "all";
+type UserPageQuery = PageQuery & {
+  status?: UserStatusFilter;
+};
 
 function asRecord(value: unknown): UnknownRecord | null {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -232,11 +236,13 @@ async function getUsersPage({
   page = 1,
   limit = SETUP_TABLE_PAGE_SIZE,
   search,
-}: PageQuery = {}): Promise<PaginatedResult<UserRecord>> {
+  status = "active",
+}: UserPageQuery = {}): Promise<PaginatedResult<UserRecord>> {
   const res = await api.get("/users", {
     params: {
       page,
       limit,
+      status,
       ...(search ? { search } : {}),
     },
   });
@@ -256,12 +262,20 @@ async function getUsersPage({
 
 export const userService = {
   getPage: getUsersPage,
-  getAll: async (): Promise<UserRecord[]> => {
-    const first = await getUsersPage({ page: 1, limit: MAX_TABLE_PAGE_SIZE });
+  getAll: async (params: Pick<UserPageQuery, "status" | "search"> = {}): Promise<UserRecord[]> => {
+    const first = await getUsersPage({
+      page: 1,
+      limit: MAX_TABLE_PAGE_SIZE,
+      ...params,
+    });
     const all = [...first.items];
 
     for (let page = 2; page <= first.meta.lastPage; page += 1) {
-      const next = await getUsersPage({ page, limit: MAX_TABLE_PAGE_SIZE });
+      const next = await getUsersPage({
+        page,
+        limit: MAX_TABLE_PAGE_SIZE,
+        ...params,
+      });
       all.push(...next.items);
     }
 
@@ -334,7 +348,9 @@ export const userService = {
     const res = await api.get(`/users/${id}/delete-impact`);
     return mapUserDeleteImpact(extractRecord(res.data));
   },
-  remove: async (id: string): Promise<void> => {
-    await api.delete(`/users/${id}`);
+  remove: async (id: string, confirmation: string): Promise<void> => {
+    await api.delete(`/users/${id}`, {
+      data: { confirmation },
+    });
   },
 };

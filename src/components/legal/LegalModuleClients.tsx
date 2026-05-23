@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import { usePathname } from "next/navigation";
 import {
   Banknote,
@@ -24,7 +25,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { MAX_TABLE_PAGE_SIZE, SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import { formatDateOnly } from "@/lib/utils/date";
-import { validateDomainUploadFile } from "@/lib/utils/file";
+import { toPreviewableFileUrl, validateDomainUploadFile } from "@/lib/utils/file";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import BasicDateInput from "@/components/ui/BasicDateInput";
 import DashboardModal from "@/components/ui/DashboardModal";
@@ -351,7 +352,7 @@ function statusLabel(status: string | null | undefined) {
 
 function openFile(url: string | null | undefined) {
   if (!url || typeof window === "undefined") return;
-  window.open(url, "_blank", "noopener,noreferrer");
+  window.open(toPreviewableFileUrl(url) ?? url, "_blank", "noopener,noreferrer");
 }
 
 function FieldLabel({ children, required = false }: { children: string; required?: boolean }) {
@@ -496,7 +497,7 @@ function ModalFooter({
 }
 
 function TableCard({ children }: { children: React.ReactNode }) {
-  return <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} !w-full`}>{children}</div>;
+  return <div className={SETUP_PAGE_TABLE_CARD_CLASS}>{children}</div>;
 }
 
 function SearchCard({
@@ -868,7 +869,7 @@ export function LegalOverviewClient() {
   ];
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Manajemen Legal"
         subtitle="Template, dokumen legal, IDEB, PHK3, dana titipan, claim, dan laporan legal."
@@ -890,7 +891,7 @@ export function LegalOverviewClient() {
           </ProtectedLink>
         ))}
       </div>
-    </div>
+    </DashboardPageShell>
   );
 }
 
@@ -992,7 +993,7 @@ export function LegalTemplateClient() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Template Dokumen Legal"
         subtitle="Master template dokumen legal untuk cetak akad, surat, IDEB, dan dokumen pendukung."
@@ -1103,7 +1104,7 @@ export function LegalTemplateClient() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => void remove()}
       />
-    </div>
+    </DashboardPageShell>
   );
 }
 
@@ -1204,7 +1205,7 @@ export function LegalPrintClient({ documentType, title }: { documentType: LegalD
   };
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title={title}
         subtitle="Cetak dan arsipkan dokumen legal berdasarkan data kontrak pembiayaan."
@@ -1285,7 +1286,7 @@ export function LegalPrintClient({ documentType, title }: { documentType: LegalD
           onClear={() => setForm((prev) => ({ ...prev, file: null }))}
         />
       </DashboardModal>
-    </div>
+    </DashboardPageShell>
   );
 }
 
@@ -1377,7 +1378,7 @@ export function LegalIdebClient() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader title="Upload IDEB" subtitle="Simpan file IDEB dan hubungkan dengan debitur atau kontrak." icon={<FolderInput />} actions={canCreate ? <SetupAddButton label="Upload IDEB" onClick={openCreate} /> : null} />
       <SearchCard search={search} onSearch={(value) => { setPage(1); setSearch(value); }} placeholder="Cari status atau nama file..." />
       <TableCard>
@@ -1449,7 +1450,7 @@ export function LegalIdebClient() {
           onClear={() => setForm((prev) => ({ ...prev, file: null }))}
         />
       </DashboardModal>
-    </div>
+    </DashboardPageShell>
   );
 }
 
@@ -1737,7 +1738,7 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
   }, [items, meta.total]);
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader title={title} subtitle={subtitle} icon={config.icon} actions={canCreate ? <SetupAddButton label="Tambah Progress" onClick={openCreate} /> : null} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Total Progress" value={isLoading ? "-" : progressSummary.total} icon={ClipboardList} />
@@ -1960,7 +1961,7 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => void remove()}
       />
-    </div>
+    </DashboardPageShell>
   );
 }
 
@@ -2120,7 +2121,7 @@ export function LegalClaimClient() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader title="Claim Asuransi" subtitle="Kelola proses klaim asuransi untuk kontrak debitur." icon={<FileCheck2 />} actions={canCreate ? <SetupAddButton label="Tambah Claim" onClick={openCreate} /> : null} />
       <SearchCard search={search} onSearch={(value) => { setPage(1); setSearch(value); }} />
       <TableCard>
@@ -2196,7 +2197,7 @@ export function LegalClaimClient() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => void remove()}
       />
-    </div>
+    </DashboardPageShell>
   );
 }
 
@@ -2372,7 +2373,7 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
   };
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader title={title} subtitle="Kelola dana titipan yang terhubung ke kontrak debitur." icon={<Banknote />} actions={canCreate ? <SetupAddButton label="Tambah Titipan" onClick={openCreate} /> : null} />
       <SearchCard search={search} onSearch={(value) => { setPage(1); setSearch(value); }} />
       <TableCard>
@@ -2461,7 +2462,7 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => void remove()}
       />
-    </div>
+    </DashboardPageShell>
   );
 }
 
@@ -2492,7 +2493,7 @@ export function LegalReportClient() {
   const flowSteps = useMemo(() => buildLegalFlowSteps(data, isLoading), [data, isLoading]);
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader title="Laporan Legal" subtitle="Ringkasan aktivitas legal, PHK3, dana titipan, dan claim." icon={<ClipboardList />} />
       <LegalFlowBoard
         steps={flowSteps}
@@ -2509,7 +2510,7 @@ export function LegalReportClient() {
         <StatCard label="Claim" value={isLoading ? "-" : data?.claims ?? 0} icon={FileCheck2} />
         <StatCard label="Dana Titipan" value={isLoading ? "-" : data?.deposits ?? 0} icon={Banknote} />
       </div>
-    </div>
+    </DashboardPageShell>
   );
 }
 
@@ -2571,7 +2572,7 @@ export function LegalThirdPartyDocumentsReportClient() {
   ];
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader title="Laporan Pihak Ketiga Dokumen" subtitle="Rekap progress dokumen notaris, asuransi, KJPP, dan claim." icon={<ClipboardList />} />
       <TableCard>
         <SetupDataTable className="min-w-[720px]">
@@ -2599,7 +2600,7 @@ export function LegalThirdPartyDocumentsReportClient() {
           </SetupDataTableBody>
         </SetupDataTable>
       </TableCard>
-    </div>
+    </DashboardPageShell>
   );
 }
 
@@ -2628,7 +2629,7 @@ export function LegalThirdPartyDepositFundsReportClient() {
   }, [showToast]);
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader title="Laporan Pihak Ketiga Dana Titipan" subtitle="Rekap nominal dana titipan legal berdasarkan tipe dan status." icon={<Banknote />} />
       <TableCard>
         <SetupDataTable className="min-w-[900px]">
@@ -2660,6 +2661,6 @@ export function LegalThirdPartyDepositFundsReportClient() {
           </SetupDataTableBody>
         </SetupDataTable>
       </TableCard>
-    </div>
+    </DashboardPageShell>
   );
 }

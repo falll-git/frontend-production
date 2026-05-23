@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import {
   SetupDataTable,
   SetupDataTableHead,
@@ -100,6 +101,9 @@ const FEATURE_BUTTON_CLASS =
   "inline-flex size-8 items-center justify-center rounded-lg border border-[rgba(21,126,195,0.42)] bg-white text-slate-900 shadow-sm transition hover:border-[rgba(21,126,195,0.66)] hover:bg-[rgba(21,126,195,0.06)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400";
 const RBAC_REFRESH_EVENT = "ruang-arsip:rbac-refresh";
 const RBAC_REFRESH_STORAGE_KEY = "ruang-arsip.rbac-refresh-at";
+const REPORT_ALL_FEATURE = "report_all";
+const VIEW_DIVISION_FEATURE = "view_division";
+const MANAGE_ALL_FEATURE = "manage_all";
 
 function createEmptyPermission(): PermissionFlags {
   return {
@@ -112,7 +116,15 @@ function createEmptyPermission(): PermissionFlags {
 }
 
 function normalizeFeatures(features: string[] | undefined): string[] {
-  return [...new Set((features ?? []).map((item) => item.trim()).filter(Boolean))];
+  const normalized = [
+    ...new Set((features ?? []).map((item) => item.trim()).filter(Boolean)),
+  ];
+
+  if (!normalized.includes(MANAGE_ALL_FEATURE)) {
+    return normalized;
+  }
+
+  return normalized.filter((feature) => feature !== VIEW_DIVISION_FEATURE);
 }
 
 function clonePermission(permission: PermissionFlags): PermissionFlags {
@@ -258,6 +270,54 @@ function getFeatureSummaryLabel(features: string[]): string {
   return `${features.length} fitur`;
 }
 
+function getFeatureGroupTitle(group: string): string {
+  if (group === "operational") return "Scope Operasional";
+  if (group === "report") return "Laporan";
+  return "Aksi Tambahan";
+}
+
+function getFeatureGroupDescription(group: string): string {
+  if (group === "operational") {
+    return "Data sendiri/terkait aktif otomatis. Data Divisi hanya memperluas akses baca, sedangkan Kelola Semua Data membuka scope operasional penuh.";
+  }
+  if (group === "report") {
+    return "Semua Data hanya berlaku untuk laporan, export, atau cetak laporan.";
+  }
+  return "Aksi khusus yang tetap mengikuti permission menu dan validasi backend.";
+}
+
+function groupFeatureOptions(features: FeatureOption[]) {
+  const groups = new Map<string, FeatureOption[]>();
+
+  for (const feature of features) {
+    const group =
+      feature.key === REPORT_ALL_FEATURE
+        ? "report"
+        : feature.key === VIEW_DIVISION_FEATURE ||
+            feature.key === MANAGE_ALL_FEATURE
+          ? "operational"
+          : "actions";
+    groups.set(group, [...(groups.get(group) ?? []), feature]);
+  }
+
+  return ["operational", "report", "actions"]
+    .map((group) => ({
+      key: group,
+      features: groups.get(group) ?? [],
+    }))
+    .filter((group) => group.features.length > 0);
+}
+
+function isFeatureDisabledByScopeRule(
+  featureKey: FeatureKey,
+  permission: PermissionFlags,
+): boolean {
+  return (
+    featureKey === VIEW_DIVISION_FEATURE &&
+    permission.features.includes(MANAGE_ALL_FEATURE)
+  );
+}
+
 function getPermissionSupport(row: FlatMenu): PermissionSupport {
   const backendPermissions = row.menu.allowed_permissions;
   const backendFeatures = normalizeFeatureOptions(row);
@@ -352,6 +412,9 @@ function toggleFeature(
   } else {
     features.add(key);
     next.can_read = true;
+    if (key === MANAGE_ALL_FEATURE) {
+      features.delete(VIEW_DIVISION_FEATURE);
+    }
   }
 
   next.features = Array.from(features);
@@ -733,7 +796,7 @@ export default function SetupRoleMenuPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Setup Akses Menu per Role"
         subtitle="Pilih role yang mau diatur, lalu tentukan menu mana yang boleh dibuka atau dikelola."
@@ -1070,49 +1133,87 @@ export default function SetupRoleMenuPage() {
               Menu ini tidak memiliki fitur tambahan.
             </div>
           ) : (
-            featureModalSupport.features.map((feature) => {
-              const checked = featureModalPermission.features.includes(
-                feature.key,
-              );
-              const disabled =
-                isBusy ||
-                !selectedRoleId ||
-                !featureModalPermission.can_read;
-
-              return (
-                <div
-                  key={feature.key}
-                  className={`flex items-center justify-between gap-4 rounded-lg border px-4 py-3 transition ${
-                    checked
-                      ? "border-blue-200 bg-blue-50"
-                      : "border-gray-200 bg-white"
-                  } ${
-                    disabled
-                      ? "cursor-not-allowed opacity-60"
-                      : "hover:border-blue-200 hover:bg-blue-50/60"
-                  }`}
+            <div className="space-y-4">
+              {groupFeatureOptions(featureModalSupport.features).map((group) => (
+                <section
+                  key={group.key}
+                  className="rounded-xl border border-gray-200 bg-white p-4"
                 >
-                  <p className="text-sm font-semibold text-gray-950">
-                    {feature.label}
-                  </p>
-                  <UiverseCheckbox
-                    checked={checked}
-                    onCheckedChange={() =>
-                      handleFeatureToggle(
-                        featureModalRow.menu.id,
+                  <div className="mb-3 space-y-1">
+                    <h3 className="text-sm font-bold text-gray-950">
+                      {getFeatureGroupTitle(group.key)}
+                    </h3>
+                    <p className="text-xs leading-5 text-gray-500">
+                      {getFeatureGroupDescription(group.key)}
+                    </p>
+                  </div>
+
+                  {group.key === "operational" ? (
+                    <div className="mb-2 rounded-lg bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-700">
+                      Data Sendiri/Terkait aktif otomatis saat Baca dicentang.
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-2">
+                    {group.features.map((feature) => {
+                      const checked = featureModalPermission.features.includes(
                         feature.key,
-                      )
-                    }
-                    disabled={disabled}
-                    ariaLabel={`${featureModalRow.menu.name} - ${feature.label}`}
-                    size={20}
-                  />
-                </div>
-              );
-            })
+                      );
+                      const disabledByScopeRule = isFeatureDisabledByScopeRule(
+                        feature.key,
+                        featureModalPermission,
+                      );
+                      const disabled =
+                        isBusy ||
+                        !selectedRoleId ||
+                        !featureModalPermission.can_read ||
+                        disabledByScopeRule;
+
+                      return (
+                        <div
+                          key={feature.key}
+                          className={`flex items-center justify-between gap-4 rounded-lg border px-4 py-3 transition ${
+                            checked
+                              ? "border-blue-200 bg-blue-50"
+                              : "border-gray-200 bg-white"
+                          } ${
+                            disabled
+                              ? "cursor-not-allowed opacity-60"
+                              : "hover:border-blue-200 hover:bg-blue-50/60"
+                          }`}
+                        >
+                          <div>
+                            <p className="text-sm font-semibold text-gray-950">
+                              {feature.label}
+                            </p>
+                            {disabledByScopeRule ? (
+                              <p className="mt-1 text-xs font-medium text-gray-500">
+                                Tidak perlu dicentang karena Kelola Semua Data sudah aktif.
+                              </p>
+                            ) : null}
+                          </div>
+                          <UiverseCheckbox
+                            checked={checked}
+                            onCheckedChange={() =>
+                              handleFeatureToggle(
+                                featureModalRow.menu.id,
+                                feature.key,
+                              )
+                            }
+                            disabled={disabled}
+                            ariaLabel={`${featureModalRow.menu.name} - ${feature.label}`}
+                            size={20}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
           )}
         </DashboardModal>
       )}
-    </div>
+    </DashboardPageShell>
   );
 }

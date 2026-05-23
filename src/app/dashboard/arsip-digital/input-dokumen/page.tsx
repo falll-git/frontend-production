@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { RotateCcw, Save, UploadCloud } from "lucide-react";
 import { useAppToast } from "@/components/ui/AppToastProvider";
@@ -345,7 +346,7 @@ export default function InputDokumenPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Input Dokumen Digital"
         subtitle="Masukkan dokumen baru beserta lokasi fisik dan hak aksesnya."
@@ -669,6 +670,6 @@ export default function InputDokumenPage() {
           </div>
         </div>
       </form>
-    </div>
+    </DashboardPageShell>
   );
 }

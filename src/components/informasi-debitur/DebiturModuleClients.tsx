@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -1762,7 +1763,7 @@ export function DebtorListClient() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="List Debitur"
         subtitle="Daftar debitur dan kontrak pembiayaan yang tercatat di sistem."
@@ -1790,7 +1791,7 @@ export function DebtorListClient() {
           onPageChange={table.setPage}
         />
       </TableCard>
-    </div>
+    </DashboardPageShell>
   );
 }
 
@@ -2017,7 +2018,7 @@ export function DebtorMasterClient() {
   );
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Master Debitur & Kontrak"
         subtitle="Kelola data debitur, kontrak pembiayaan, dan dokumen pendukung."
@@ -2174,7 +2175,7 @@ export function DebtorMasterClient() {
         onConfirm={() => void confirmDeleteContract()}
         isLoading={isDeletingContract}
       />
-    </div>
+    </DashboardPageShell>
   );
 }
 
@@ -2466,7 +2467,7 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
   };
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title={config.title}
         subtitle={config.subtitle}
@@ -2624,7 +2625,7 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
         onConfirm={() => void confirmDelete()}
         isLoading={isDeleting}
       />
-    </div>
+    </DashboardPageShell>
   );
 }
 
@@ -2734,7 +2735,7 @@ export function DebtorImportClient({ type }: { type: DebtorImportType }) {
   );
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title={config.title}
         subtitle={config.subtitle}
@@ -2878,7 +2879,7 @@ export function DebtorImportClient({ type }: { type: DebtorImportType }) {
           onClear={() => setForm((prev) => ({ ...prev, file: null }))}
         />
       </DashboardModal>
-    </div>
+    </DashboardPageShell>
   );
 }
 
@@ -2915,7 +2916,7 @@ export function DebtorReportClient() {
   }, [showToast]);
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Laporan Debitur"
         subtitle="Ringkasan debitur dan kontrak pembiayaan."
@@ -2928,7 +2929,7 @@ export function DebtorReportClient() {
         <StatCard label="Kontrak Aktif" value={isLoading ? "-" : data?.active_contracts ?? 0} />
         <StatCard label="Kontrak Selesai" value={isLoading ? "-" : data?.closed_contracts ?? 0} />
       </div>
-    </div>
+    </DashboardPageShell>
   );
 }
 
@@ -2965,7 +2966,7 @@ export function DebtorNpfReportClient() {
   }, [showToast]);
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Laporan NPF"
         subtitle="Rasio NPF berdasarkan outstanding kontrak aktif."
@@ -2986,7 +2987,7 @@ export function DebtorNpfReportClient() {
         />
       </div>
       <div className="grid gap-6 xl:grid-cols-2">
-        <TableCard className="!w-full">
+        <TableCard>
           <SetupDataTable className="min-w-[560px]">
             <SetupDataTableHead>
               <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
@@ -3019,7 +3020,7 @@ export function DebtorNpfReportClient() {
             </SetupDataTableBody>
           </SetupDataTable>
         </TableCard>
-        <TableCard className="!w-full">
+        <TableCard>
           <SetupDataTable className="min-w-[520px]">
             <SetupDataTableHead>
               <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
@@ -3049,7 +3050,7 @@ export function DebtorNpfReportClient() {
           </SetupDataTable>
         </TableCard>
       </div>
-      <TableCard className="!w-full">
+      <TableCard>
         <SetupDataTable className="min-w-[960px]">
           <SetupDataTableHead>
             <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
@@ -3086,7 +3087,7 @@ export function DebtorNpfReportClient() {
           </SetupDataTableBody>
         </SetupDataTable>
       </TableCard>
-    </div>
+    </DashboardPageShell>
   );
 }
 
@@ -3125,14 +3126,14 @@ export function DebtorMarketingReportClient() {
   }, [showToast]);
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Laporan Aktivitas Marketing"
         subtitle="Ringkasan aktivitas marketing debitur."
         icon={<BarChart3 />}
       />
       <div className="grid gap-6 xl:grid-cols-2">
-        <TableCard className="!w-full">
+        <TableCard>
           <SetupDataTable className="min-w-[560px]">
             <SetupDataTableHead>
               <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
@@ -3165,7 +3166,7 @@ export function DebtorMarketingReportClient() {
             </SetupDataTableBody>
           </SetupDataTable>
         </TableCard>
-        <TableCard className="!w-full">
+        <TableCard>
           <SetupDataTable className="min-w-[720px]">
             <SetupDataTableHead>
               <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
@@ -3199,6 +3200,6 @@ export function DebtorMarketingReportClient() {
           </SetupDataTable>
         </TableCard>
       </div>
-    </div>
+    </DashboardPageShell>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, FileText, Send } from "lucide-react";
 import BasicDateInput from "@/components/ui/BasicDateInput";
@@ -7,6 +8,9 @@ import FileUploadField from "@/components/ui/FileUploadField";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import PhysicalStorageSelect from "@/components/manajemen-surat/PhysicalStorageSelect";
+import TenggatWaktuModal, {
+  type TenggatWaktuPayload,
+} from "@/components/surat/TenggatWaktuModal";
 import SetupSelect from "@/components/ui/SetupSelect";
 import SetupTextInput from "@/components/ui/SetupTextInput";
 import SetupTextarea from "@/components/ui/SetupTextarea";
@@ -55,6 +59,7 @@ export default function InputMemorandumPage() {
   const [formData, setFormData] = useState(INITIAL_FORM_DATA);
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeadlineModalOpen, setIsDeadlineModalOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [divisionOptions, setDivisionOptions] = useState<DivisionOption[]>([]);
   const [storageOptions, setStorageOptions] = useState<Storage[]>([]);
@@ -234,10 +239,11 @@ export default function InputMemorandumPage() {
       return;
     }
 
-    void submitMemorandum();
+    setIsDeadlineModalOpen(true);
   };
 
   const handleReset = () => {
+    setIsDeadlineModalOpen(false);
     setFormData({
       ...INITIAL_FORM_DATA,
       pembuatMemo: user?.name ?? "",
@@ -246,10 +252,11 @@ export default function InputMemorandumPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const submitMemorandum = async () => {
+  const submitMemorandum = async (deadline?: TenggatWaktuPayload) => {
     if (!ensureCapability(MEMORANDUM_MENU_URL, "create")) return;
 
     setIsLoading(true);
+    setIsDeadlineModalOpen(false);
 
     try {
       const memoDate = toApiDateTime(formData.tanggalMemo);
@@ -263,6 +270,10 @@ export default function InputMemorandumPage() {
         received_date: memoDate,
         memo_number: formData.noMemo.trim(),
         description: formData.keteranganMemo.trim(),
+        due_date: deadline?.tenggatWaktu
+          ? toApiDateTime(deadline.tenggatWaktu)
+          : undefined,
+        note: deadline?.keteranganTenggat,
         file: file ?? undefined,
       });
 
@@ -283,7 +294,7 @@ export default function InputMemorandumPage() {
     .map((item) => item.name);
 
   return (
-    <div className="max-w-7xl mx-auto animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Input Memorandum"
         subtitle="Buat dan distribusikan memorandum internal"
@@ -595,6 +606,14 @@ export default function InputMemorandumPage() {
           </div>
         </form>
       </div>
-    </div>
+      <TenggatWaktuModal
+        isOpen={isDeadlineModalOpen}
+        title="Tenggat Tindak Lanjut Memorandum"
+        subtitle="Atur batas waktu disposisi awal jika memorandum perlu tindak lanjut."
+        disposisi={selectedTargetDivisionNames}
+        onSkip={() => void submitMemorandum()}
+        onSave={(deadline) => void submitMemorandum(deadline)}
+      />
+    </DashboardPageShell>
   );
 }

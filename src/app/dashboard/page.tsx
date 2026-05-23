@@ -1,11 +1,12 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import DashboardOverviewClient from "@/components/dashboard/DashboardOverviewClient";
 
 export default function DashboardPage() {
   return (
-    <div className="space-y-8">
+    <DashboardPageShell spacing="lg" animated={false}>
       <DashboardOverviewClient />
-    </div>
+    </DashboardPageShell>
   );
 }

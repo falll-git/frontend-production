@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import { useEffect, useState } from "react";
 import {
   AlertTriangle,
@@ -81,7 +82,7 @@ export default function LaporanArsipDigitalPage() {
       .join(" / ") || null;
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in">
+    <DashboardPageShell>
       <FeatureHeader
         title="Laporan Arsip Digital"
         subtitle="Ringkasan dokumen, akses/disposisi, dan peminjaman fisik arsip digital."
@@ -240,6 +241,6 @@ export default function LaporanArsipDigitalPage() {
           </div>
         </Panel>
       </div>
-    </div>
+    </DashboardPageShell>
   );
 }

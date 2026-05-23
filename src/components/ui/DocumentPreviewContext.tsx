@@ -12,6 +12,7 @@ import {
 import Image from "next/image";
 import {
   Download,
+  ExternalLink,
   FileText,
   Image as ImageIcon,
   Minus,
@@ -20,9 +21,12 @@ import {
 
 import NewtonsCradleLoader from "@/components/ui/NewtonsCradleLoader";
 import SetupModalCloseButton from "@/components/ui/SetupModalCloseButton";
-import { detectDocumentFileType } from "@/lib/utils/file";
+import {
+  detectDocumentFileType,
+  type DocumentFileType,
+} from "@/lib/utils/file";
 
-export type DocumentPreviewFileType = "pdf" | "image" | "other";
+export type DocumentPreviewFileType = DocumentFileType;
 
 export interface DocumentPreviewState {
   fileUrl: string;
@@ -188,6 +192,21 @@ function DocumentPreview({
     document.body.removeChild(link);
   };
 
+  const handleOpenInNewTab = () => {
+    window.open(fileUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const documentTypeLabel =
+    fileType === "pdf"
+      ? "Dokumen PDF"
+      : fileType === "image"
+        ? "Gambar Dokumen"
+        : fileType === "presentation"
+          ? "Presentasi PowerPoint"
+          : fileType === "office"
+            ? "Dokumen Office"
+            : "Dokumen";
+
   if (!isOpen) return null;
 
   return (
@@ -211,13 +230,7 @@ function DocumentPreview({
             </div>
             <div>
               <h3 className="text-lg font-bold text-gray-800">{fileName}</h3>
-              <p className="text-sm text-gray-500">
-                {fileType === "pdf"
-                  ? "Dokumen PDF"
-                  : fileType === "image"
-                    ? "Gambar Dokumen"
-                    : "Dokumen"}
-              </p>
+              <p className="text-sm text-gray-500">{documentTypeLabel}</p>
             </div>
           </div>
 
@@ -306,11 +319,29 @@ function DocumentPreview({
               <FileText className="h-9 w-9 text-slate-900" />
               <div>
                 <p className="text-base font-semibold text-gray-800">
-                  Preview file ini tidak tersedia di browser.
+                  Preview inline belum tersedia untuk format ini.
                 </p>
                 <p className="mt-1 text-sm text-gray-500">
-                  Gunakan tombol unduh untuk membuka file di aplikasi yang sesuai.
+                  File tetap bisa dibuka atau diunduh sesuai izin akses.
                 </p>
+              </div>
+              <div className="flex flex-wrap justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleOpenInNewTab}
+                  className="flex items-center gap-2 rounded-lg border border-[#157ec3] px-4 py-2 text-sm font-semibold text-[#157ec3] transition-colors hover:bg-[#e6f2fa]"
+                >
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                  <span>Buka File</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  className="flex items-center gap-2 rounded-lg bg-[#157ec3] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#0d5a8f]"
+                >
+                  <Download className="h-4 w-4" aria-hidden="true" />
+                  <span>Unduh</span>
+                </button>
               </div>
             </div>
           )}

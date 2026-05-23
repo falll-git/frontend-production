@@ -1,5 +1,6 @@
 "use client";
 
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Edit2, Save, ToggleLeft, ToggleRight, Trash2, type LucideIcon } from "lucide-react";
@@ -419,7 +420,7 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
   const tableColSpan = config.columns.length + 2;
 
   return (
-    <div className="mx-auto max-w-7xl animate-fade-in space-y-6">
+    <DashboardPageShell spacing="md">
       <FeatureHeader
         title={config.title}
         subtitle={config.subtitle}
@@ -727,6 +728,6 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
         onConfirm={() => void confirmDelete()}
         isLoading={isDeleting}
       />
-    </div>
+    </DashboardPageShell>
   );
 }

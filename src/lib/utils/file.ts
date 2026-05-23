@@ -3,7 +3,12 @@ import {
   DOCUMENT_UPLOAD_MAX_SIZE_LABEL,
 } from "@/lib/upload-limits";
 
-export type DocumentFileType = "pdf" | "image" | "other";
+export type DocumentFileType =
+  | "pdf"
+  | "image"
+  | "presentation"
+  | "office"
+  | "other";
 
 const PERSURATAN_MAX_FILE_SIZE_BYTES = DOCUMENT_UPLOAD_MAX_SIZE_BYTES;
 const DIGITAL_ARCHIVE_MAX_FILE_SIZE_BYTES = DOCUMENT_UPLOAD_MAX_SIZE_BYTES;
@@ -311,6 +316,15 @@ export function detectDocumentFileType(
     )
   ) {
     return "image";
+  }
+  if (fallbackExtension && ["ppt", "pptx"].includes(fallbackExtension)) {
+    return "presentation";
+  }
+  if (
+    fallbackExtension &&
+    ["doc", "docx", "xls", "xlsx"].includes(fallbackExtension)
+  ) {
+    return "office";
   }
 
   return "other";

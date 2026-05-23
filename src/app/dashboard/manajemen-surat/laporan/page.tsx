@@ -1,3 +1,5 @@
+import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
+
 import { Mail } from "lucide-react";
 
 import LaporanPersuratanClient from "@/components/manajemen-surat/LaporanPersuratanClient";
@@ -9,7 +11,7 @@ export const metadata = {
 
 export default function LaporanPersuratanPage() {
   return (
-    <div className="animate-fade-in max-w-7xl mx-auto">
+    <DashboardPageShell>
       <FeatureHeader
         title="Laporan Persuratan"
         subtitle="Rekap surat masuk, surat keluar, dan memorandum internal."
@@ -17,6 +19,6 @@ export default function LaporanPersuratanPage() {
       />
 
       <LaporanPersuratanClient />
-    </div>
+    </DashboardPageShell>
   );
 }
