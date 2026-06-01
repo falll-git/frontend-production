@@ -46,12 +46,24 @@ function formatStorageSize(bytes: number, fallbackGb: number) {
 
 function formatPrice(value: number, currency: string) {
   const normalizedCurrency = currency.trim().toUpperCase();
+  if (normalizedCurrency === "IDR") {
+    return `Rp ${new Intl.NumberFormat("id-ID", {
+      maximumFractionDigits: 0,
+      minimumFractionDigits: 0,
+    }).format(value)}`;
+  }
+
   const prefix = normalizedCurrency === "USD" ? "$" : `${normalizedCurrency} `;
   const locale = normalizedCurrency === "USD" ? "en-US" : "id-ID";
   return `${prefix}${new Intl.NumberFormat(locale, {
-    minimumFractionDigits: 4,
-    maximumFractionDigits: 4,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value)}`;
+}
+
+function formatRate(value: number, currency: string) {
+  if (value <= 0) return "Gratis";
+  return `${formatPrice(value, currency)}/GB/bulan`;
 }
 
 function getStatusTone(status: StorageUsageStatusKey): SetupStatusTone {
@@ -387,22 +399,45 @@ export default function StorageOverviewWidget({
             </div>
           </div>
 
-          <div className="mt-auto translate-y-[-56px] rounded-lg border border-gray-200 bg-white p-4">
+          <div className="mt-5 rounded-lg border border-gray-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Estimasi Kelebihan
+              Estimasi Tagihan Bulan Ini
             </p>
             <div className="mt-2 flex items-end justify-between gap-3">
               <div>
                 <p className="text-2xl font-bold text-gray-900">
-                  {formatPrice(data.usage.estimated_overage_cost, data.config.currency)}
+                  {formatPrice(data.billing.estimated_cost, data.config.currency)}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {formatPrice(data.config.overage_price_per_gb, data.config.currency)}
-                  /GB setelah {formatGb(data.config.free_quota_gb)}
+                  Gratis sampai {formatGb(data.config.free_quota_gb)}
                 </p>
               </div>
               <Database className="h-8 w-8 text-gray-900" aria-hidden="true" />
             </div>
+
+            <div className="mt-4 space-y-2 border-t border-gray-100 pt-3">
+              {(data.billing.tier_breakdown.length > 0
+                ? data.billing.tier_breakdown
+                : data.config.pricing_tiers
+              ).map((tier) => (
+                <div
+                  key={`${tier.from_gb}-${tier.to_gb ?? "up"}`}
+                  className="flex items-center justify-between gap-3 text-xs"
+                >
+                  <span className="font-semibold text-gray-600">{tier.label}</span>
+                  <span className="text-right font-bold text-gray-900">
+                    {formatRate(tier.price_per_gb, data.config.currency)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {data.billing.manual_review_required ? (
+              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                Pemakaian melewati {formatGb(data.billing.manual_review_threshold_gb)}.
+                Sisa {formatGb(data.billing.unpriced_gb)} perlu review manual.
+              </div>
+            ) : null}
           </div>
         </div>
 
