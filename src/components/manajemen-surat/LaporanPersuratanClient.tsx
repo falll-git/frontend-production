@@ -29,7 +29,6 @@ import {
   Inbox,
   Mail,
   PlayCircle,
-  SearchX,
   Send,
   Shield,
   Trash2,
@@ -55,6 +54,7 @@ import BasicDateInput from "@/components/ui/BasicDateInput";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 import FileUploadField from "@/components/ui/FileUploadField";
 import Pagination from "@/components/ui/Pagination";
+import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupViewButton from "@/components/ui/SetupViewButton";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupSelect from "@/components/ui/SetupSelect";
@@ -106,6 +106,10 @@ import { correspondenceService } from "@/services/correspondence.service";
 import { divisionService } from "@/services/division.service";
 import { letterPriorityService } from "@/services/letter-priority.service";
 import { memorandumService } from "@/services/memorandum.service";
+import {
+  createParameterMasterService,
+  type ParameterMasterRecord,
+} from "@/services/parameter-master.service";
 import { storageService } from "@/services/storage.service";
 import { suratKeluarService } from "@/services/surat-keluar.service";
 import { suratMasukService } from "@/services/surat-masuk.service";
@@ -131,6 +135,9 @@ const PERSURATAN_DATA_SCOPE_MENU_URLS = [
   LAPORAN_PERSURATAN_MENU_URL,
   CETAK_PERSURATAN_MENU_URL,
 ];
+const mailDeliveryMediaService = createParameterMasterService(
+  "/mail-delivery-media",
+);
 
 const REPORT_SCOPE_OPTIONS: Array<{
   value: CorrespondenceReportScope;
@@ -302,9 +309,11 @@ function toDateInputValue(value: string | undefined | null) {
 function normalizeDeliveryMediaValue(value: string | undefined | null) {
   const normalized = (value ?? "").trim().toLowerCase();
   if (!normalized) return "";
-  if (normalized.includes("langsung")) return "langsung";
-  if (["email", "kurir", "pos"].includes(normalized)) return normalized;
-  return normalized;
+  if (normalized.includes("langsung")) return "LANGSUNG";
+  if (["email", "kurir", "pos"].includes(normalized)) {
+    return normalized.toUpperCase();
+  }
+  return normalized.toUpperCase();
 }
 
 function toLocalDateKey(value: Date | string) {
@@ -723,30 +732,24 @@ const TABLE_EMPTY_TEXT_CLASS = "text-sm text-gray-400";
 
 function SelectionState() {
   return (
-    <div className="rounded-lg border border-dashed border-blue-200 bg-white p-8 text-center shadow-sm">
-      <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-slate-900">
-        <Mail className="h-8 w-8" aria-hidden="true" />
-      </div>
-      <h3 className="text-lg font-semibold text-gray-900">
-        Pilih kategori persuratan
-      </h3>
-      <p className="mt-2 text-sm text-gray-500">
-        Klik salah satu kartu di atas untuk menampilkan daftar surat atau
-        memorandum.
-      </p>
-    </div>
+    <SetupEmptyState
+      title="Pilih kategori persuratan"
+      description="Klik salah satu kartu di atas untuk menampilkan daftar surat atau memorandum."
+      icon={Mail}
+      variant="panel"
+    />
   );
 }
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-      <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-gray-300">
-        <SearchX className="h-8 w-8" aria-hidden="true" />
-      </div>
-      <p className="text-lg font-medium text-gray-900">
-        Tidak ada data yang sesuai filter
-      </p>
+    <div className="px-4 py-8">
+      <SetupEmptyState
+        title="Tidak ada data yang sesuai filter"
+        description="Coba ubah kata kunci, tipe surat, atau filter periode."
+        isFiltered
+        variant="table"
+      />
     </div>
   );
 }
@@ -851,7 +854,8 @@ function DocumentSection({
         value={
           <SetupViewButton
             onClick={onPreview}
-            title={hasFile ? "View dokumen" : "File belum tersedia"}
+            title={hasFile ? "Preview dokumen" : "File belum tersedia"}
+            label="Preview"
             disabled={!hasFile}
           />
         }
@@ -1010,6 +1014,7 @@ function EditCorrespondenceModal({
   letterPriorities,
   divisions,
   storageOptions,
+  deliveryMediaOptions,
   isOptionsLoading,
   isSubmitting,
   onClose,
@@ -1019,6 +1024,7 @@ function EditCorrespondenceModal({
   letterPriorities: LetterPriority[];
   divisions: Division[];
   storageOptions: Storage[];
+  deliveryMediaOptions: ParameterMasterRecord[];
   isOptionsLoading: boolean;
   isSubmitting: boolean;
   onClose: () => void;
@@ -1200,7 +1206,7 @@ function EditCorrespondenceModal({
     >
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div
-        className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl min-w-0 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-6 py-4">
@@ -1375,10 +1381,11 @@ function EditCorrespondenceModal({
                     required
                   >
                     <option value="">Pilih media</option>
-                    <option value="email">Email</option>
-                    <option value="kurir">Kurir</option>
-                    <option value="langsung">Langsung / Tangan</option>
-                    <option value="pos">Pos</option>
+                    {deliveryMediaOptions.map((media) => (
+                      <option key={media.id} value={String(media.code ?? "")}>
+                        {String(media.name ?? media.code ?? "-")}
+                      </option>
+                    ))}
                   </SetupSelect>
                 </div>
                 <div>
@@ -1788,6 +1795,9 @@ export default function LaporanPersuratanClient() {
   );
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [storageOptions, setStorageOptions] = useState<Storage[]>([]);
+  const [deliveryMediaOptions, setDeliveryMediaOptions] = useState<
+    ParameterMasterRecord[]
+  >([]);
   const [isEditOptionsLoading, setIsEditOptionsLoading] = useState(false);
   const [suratMasukRecords, setSuratMasukRecords] = useState<
     SuratMasukRecord[]
@@ -2953,9 +2963,12 @@ export default function LaporanPersuratanClient() {
           return;
         }
 
-        const [rows, storageRows] = await Promise.all([
+        const [rows, storageRows, deliveryMediaRows] = await Promise.all([
           letterPriorityService.getAll(),
           storageRowsPromise,
+          kind === "surat-keluar"
+            ? mailDeliveryMediaService.getAll({ is_active: true })
+            : Promise.resolve([]),
         ]);
         setLetterPriorities(
           rows
@@ -2971,6 +2984,7 @@ export default function LaporanPersuratanClient() {
               ),
             ),
         );
+        setDeliveryMediaOptions(deliveryMediaRows);
       } catch (error) {
         showToast(
           error instanceof Error
@@ -4471,6 +4485,7 @@ export default function LaporanPersuratanClient() {
           letterPriorities={letterPriorities}
           divisions={divisions}
           storageOptions={storageOptions}
+          deliveryMediaOptions={deliveryMediaOptions}
           isOptionsLoading={isEditOptionsLoading}
           isSubmitting={isUpdatingCorrespondence}
           onClose={() => {

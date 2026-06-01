@@ -18,6 +18,7 @@ import {
   SetupDataTableCell,
   SetupDataTableCol,
   SetupDataTableColGroup,
+  SetupDataTableEmptyRow,
   SetupDataTableHead,
   SetupDataTableHeaderCell,
   SetupDataTableRow,
@@ -32,7 +33,6 @@ import {
   SETUP_PAGE_MODERN_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
-  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
   SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
@@ -440,7 +440,7 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
       </div>
 
       <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} mx-auto max-w-[1280px]`}>
-        <div className="overflow-x-auto">
+        <div className="w-full min-w-0 max-w-full overflow-x-auto [contain:inline-size]">
           <SetupDataTable
             className={`${SETUP_PAGE_MODERN_TABLE_CLASS} ${config.tableMinWidthClassName ?? "min-w-[920px]"}`}
           >
@@ -565,27 +565,31 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
               ))}
 
               {isFetching ? (
-                <SetupDataTableRow>
-                  <SetupDataTableCell
-                    colSpan={tableColSpan}
-                    className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
-                  >
-                    Memuat data {config.entityLabel}...
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
+                <SetupDataTableEmptyRow colSpan={tableColSpan}>
+                  Memuat data {config.entityLabel}...
+                </SetupDataTableEmptyRow>
               ) : null}
 
               {!isFetching && filtered.length === 0 ? (
-                <SetupDataTableRow>
-                  <SetupDataTableCell
-                    colSpan={tableColSpan}
-                    className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
-                  >
-                    {query.trim()
-                      ? `Tidak ada ${config.entityLabel} yang cocok dengan pencarian.`
-                      : getSetupPageEmptyStateCopy(config.entityLabel)}
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
+                <SetupDataTableEmptyRow
+                  colSpan={tableColSpan}
+                  tone="parameter"
+                  isFiltered={Boolean(query.trim())}
+                  description={
+                    query.trim()
+                      ? "Coba ubah kata kunci pencarian."
+                      : "Tambahkan parameter agar pilihan ini tersedia di modul terkait."
+                  }
+                  action={
+                    !query.trim() && canCreate ? (
+                      <SetupAddButton label={config.addLabel} onClick={openCreate} />
+                    ) : undefined
+                  }
+                >
+                  {query.trim()
+                    ? `Tidak ada ${config.entityLabel} yang cocok dengan pencarian.`
+                    : getSetupPageEmptyStateCopy(config.entityLabel)}
+                </SetupDataTableEmptyRow>
               ) : null}
             </SetupDataTableBody>
           </SetupDataTable>

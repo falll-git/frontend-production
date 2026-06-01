@@ -6,7 +6,7 @@ export type DebtorMarketingKind =
   | "action-plans"
   | "visit-results"
   | "handling-steps";
-export type DebtorImportType = "MASTER" | "COLLECTIBILITY" | "SLIK" | "RESTRIK";
+export type DebtorImportType = "SLIK" | "RESTRIK" | "IDEB";
 
 export type DebtorFileMeta = {
   name: string | null;
@@ -55,6 +55,62 @@ export type DebtorCollectibilitySummary = {
   created_at?: string | null;
 };
 
+export type DebtorContractSlikSnapshot = {
+  id: string;
+  debtor_id: string;
+  contract_id: string;
+  period_month: string;
+  facility_number: string;
+  debtor_number: string | null;
+  credit_nature_code: string | null;
+  credit_type_code: string | null;
+  financing_scheme_code: string | null;
+  initial_akad_number: string | null;
+  initial_akad_date: string | null;
+  final_akad_number: string | null;
+  final_akad_date: string | null;
+  new_or_extension_code: string | null;
+  credit_start_date: string | null;
+  start_date: string | null;
+  due_date: string | null;
+  debtor_category_code: string | null;
+  usage_type_code: string | null;
+  usage_orientation_code: string | null;
+  economic_sector_code: string | null;
+  project_location_city_code: string | null;
+  project_value: number | null;
+  currency_code: string | null;
+  interest_rate: number | null;
+  interest_type_code: string | null;
+  government_program_code: string | null;
+  takeover_from: string | null;
+  source_of_funds_code: string | null;
+  initial_plafond: number | null;
+  plafond: number | null;
+  current_month_disbursement: number | null;
+  penalty: number | null;
+  baki_debet: number | null;
+  original_currency_amount: number | null;
+  collectibility_code: string | null;
+  default_date: string | null;
+  default_reason_code: string | null;
+  principal_arrears: number | null;
+  margin_arrears: number | null;
+  days_past_due: number | null;
+  arrears_frequency: number | null;
+  restructuring_frequency: number | null;
+  initial_restructuring_date: string | null;
+  final_restructuring_date: string | null;
+  restructuring_method_code: string | null;
+  condition_code: string | null;
+  condition_date: string | null;
+  description: string | null;
+  branch_code: string | null;
+  operation_code: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 export type DebtorContract = {
   id: string;
   no_kontrak: string;
@@ -82,6 +138,8 @@ export type DebtorContract = {
   marketing_user: DebtorUserSummary | null;
   latest_collectibility: DebtorCollectibilitySummary | null;
   collectibilities: DebtorCollectibilitySummary[];
+  latest_slik_snapshot: DebtorContractSlikSnapshot | null;
+  slik_snapshots: DebtorContractSlikSnapshot[];
   created_at: string | null;
   updated_at: string | null;
 };
@@ -96,10 +154,17 @@ export type DebtorRecord = {
   branch_id: string | null;
   marketing_user_id: string | null;
   financing_number: string | null;
+  customer_type: "INDIVIDUAL" | "LEGAL_ENTITY" | string | null;
+  customer_type_label: string | null;
+  slik_segment: string | null;
+  slik_status_code: string | null;
+  slik_operation_code: string | null;
   status: DebtorStatus;
   description: string | null;
   branch: DebtorBranchSummary | null;
   marketing_user: DebtorUserSummary | null;
+  individual_profile: DebtorIndividualProfile | null;
+  legal_entity_profile: DebtorLegalEntityProfile | null;
   latest_contract: DebtorContract | null;
   contracts: DebtorContract[];
   contracts_count: number;
@@ -118,8 +183,47 @@ export type DebtorDocument = {
   description: string | null;
   file: DebtorFileMeta | null;
   document_checklist: DebtorParameterSummary | null;
+  debtor?: DebtorRecord | null;
   contract: DebtorContract | null;
   uploaded_by: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type DebtorCollateral = {
+  id: string;
+  debtor_id: string | null;
+  contract_id: string | null;
+  collateral_number: string;
+  facility_number: string | null;
+  facility_segment_code: string | null;
+  collateral_status_code: string | null;
+  collateral_type: string | null;
+  rating: string | null;
+  rating_agency_code: string | null;
+  binding_type_code: string | null;
+  binding_date: string | null;
+  owner_name: string | null;
+  proof_number: string | null;
+  address: string | null;
+  location_city_code: string | null;
+  market_value: number | null;
+  appraisal_value: number | null;
+  reporter_appraisal_date: string | null;
+  independent_appraisal_value: number | null;
+  independent_appraiser_name: string | null;
+  independent_appraisal_date: string | null;
+  paripasu_status: string | null;
+  paripasu_percentage: number | null;
+  joint_credit_status: string | null;
+  insured_status: string | null;
+  description: string | null;
+  branch_code: string | null;
+  operation_code: string | null;
+  period_month: string | null;
+  last_import_period_month: string | null;
+  debtor: DebtorRecord | null;
+  contract: Pick<DebtorContract, "id" | "debtor_id" | "no_kontrak" | "status"> | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -225,6 +329,29 @@ export type DebtorWorkflowIdebUpload = {
   created_at: string | null;
 };
 
+export type DebtorRestructuringRecord = {
+  id: string;
+  import_job_id: string | null;
+  debtor_id: string | null;
+  contract_id: string | null;
+  period_month: string;
+  restructuring_date: string | null;
+  restructuring_type: string | null;
+  reason: string | null;
+  plafond_after: number | null;
+  outstanding_after: number | null;
+  tenor_after: number | null;
+  new_due_date: string | null;
+  collectibility_before: string | null;
+  collectibility_after: string | null;
+  status: string;
+  description: string | null;
+  raw_data: Record<string, unknown> | null;
+  contract: Pick<DebtorContract, "id" | "debtor_id" | "no_kontrak" | "status"> | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 export type DebtorWorkflowPrint = {
   id: string;
   template_id: string | null;
@@ -246,12 +373,92 @@ export type DebtorWarningLetter = {
   letter_type: string;
   issued_at: string | null;
   sent_at: string | null;
+  delivery_status: string;
   status: string;
+  description: string | null;
   notes: string | null;
   file: DebtorFileMeta | null;
+  debtor: DebtorRecord | null;
   contract: DebtorContract | null;
   created_at: string | null;
   updated_at: string | null;
+};
+
+export type DebtorIndividualProfile = {
+  id?: string;
+  debtor_id?: string;
+  identity_type_code?: string | null;
+  name_as_identity?: string | null;
+  full_name?: string | null;
+  education_degree_code?: string | null;
+  gender?: string | null;
+  birth_place?: string | null;
+  birth_date?: string | null;
+  tax_number?: string | null;
+  address_detail?: string | null;
+  village?: string | null;
+  district?: string | null;
+  city_code?: string | null;
+  postal_code?: string | null;
+  phone?: string | null;
+  mobile_phone?: string | null;
+  email?: string | null;
+  domicile_country_code?: string | null;
+  occupation_code?: string | null;
+  workplace?: string | null;
+  workplace_business_field_code?: string | null;
+  workplace_address?: string | null;
+  annual_gross_income?: number | null;
+  income_source_code?: string | null;
+  dependent_count?: number | null;
+  relationship_with_reporter_code?: string | null;
+  debtor_group_code?: string | null;
+  marital_status_code?: string | null;
+  spouse_identity_number?: string | null;
+  spouse_name?: string | null;
+  spouse_birth_date?: string | null;
+  separate_assets_agreement?: string | null;
+  violates_bmpk?: string | null;
+  exceeds_bmpk?: string | null;
+  mother_maiden_name?: string | null;
+  branch_code?: string | null;
+  operation_code?: string | null;
+  status_code?: string | null;
+};
+
+export type DebtorLegalEntityProfile = {
+  id?: string;
+  debtor_id?: string;
+  business_identity_number?: string | null;
+  business_name?: string | null;
+  legal_form_code?: string | null;
+  establishment_place?: string | null;
+  establishment_deed_number?: string | null;
+  establishment_deed_date?: string | null;
+  latest_amendment_deed_number?: string | null;
+  latest_amendment_deed_date?: string | null;
+  phone?: string | null;
+  mobile_phone?: string | null;
+  email?: string | null;
+  address_detail?: string | null;
+  village?: string | null;
+  district?: string | null;
+  city_code?: string | null;
+  postal_code?: string | null;
+  domicile_country_code?: string | null;
+  business_field_code?: string | null;
+  relationship_with_reporter_code?: string | null;
+  violates_bmpk?: string | null;
+  exceeds_bmpk?: string | null;
+  go_public?: string | null;
+  debtor_group_code?: string | null;
+  rating?: string | null;
+  rating_agency?: string | null;
+  rating_date?: string | null;
+  debtor_group_name?: string | null;
+  branch_code?: string | null;
+  operation_code?: string | null;
+  status_code?: string | null;
 };
 
 export type DebtorWorkflowLegalProgress = {
@@ -337,6 +544,8 @@ export type DebtorWorkflow = {
   contracts: DebtorContract[];
   collectibilities: DebtorWorkflowCollectibility[];
   documents: DebtorDocument[];
+  collaterals: DebtorCollateral[];
+  restructuring_records: DebtorRestructuringRecord[];
   document_checklist_status: DebtorDocumentChecklistStatus[];
   marketing: {
     action_plans: DebtorMarketingActivity[];
@@ -364,13 +573,26 @@ export type DebtorImportJob = {
   id: string;
   type: DebtorImportType | string;
   status: string;
+  import_segment: string | null;
+  cif_status: string | null;
+  period_month: string | null;
   file: DebtorFileMeta | null;
+  files: DebtorFileMeta[];
   total_rows: number;
   success_rows: number;
   failed_rows: number;
-  error_summary: string | null;
+  error_summary: unknown;
+  processing_summary: unknown;
   started_at: string | null;
   completed_at: string | null;
+  segments?: Array<{
+    id?: string;
+    segment?: string;
+    file_name?: string;
+    declared_rows?: number;
+    actual_rows?: number;
+    status?: string;
+  }>;
   records: unknown[];
   created_at: string | null;
   updated_at: string | null;
@@ -440,7 +662,14 @@ export type DebtorMarketingReportActivity = {
   target_date: string | null;
   debtor: DebtorRecord | null;
   contract: DebtorContract | null;
+  action_plan: string | null;
+  visit_address: string | null;
+  visit_result: string | null;
+  conclusion: string | null;
+  handling_step: string | null;
+  handling_result: string | null;
   notes: string | null;
+  file: DebtorFileMeta | null;
   created_at: string | null;
 };
 
@@ -455,7 +684,12 @@ export type DebtorListQuery = {
   search?: string;
   branch_id?: string;
   marketing_user_id?: string;
+  customer_type?: string;
   status?: string;
+  period_month?: string;
+  collectibility_level?: string;
+  collateral_type?: string;
+  link_status?: string;
   sort_by?: string;
   sort_order?: "asc" | "desc";
 };
@@ -469,6 +703,9 @@ export type DebtorPayload = {
   branch_id?: string | null;
   marketing_user_id?: string | null;
   financing_number?: string | null;
+  customer_type?: string | null;
+  individual_profile?: Partial<DebtorIndividualProfile> | null;
+  legal_entity_profile?: Partial<DebtorLegalEntityProfile> | null;
   status?: string;
   description?: string | null;
 };
@@ -520,8 +757,21 @@ export type DebtorMarketingPayload = {
   file?: File | null;
 };
 
+export type DebtorWarningLetterPayload = {
+  debtor_id: string;
+  contract_id?: string | null;
+  letter_type: string;
+  issued_at: string;
+  sent_at?: string | null;
+  delivery_status?: string;
+  description?: string | null;
+  file?: File | null;
+};
+
 export type DebtorImportPayload = {
-  file: File;
+  file?: File | null;
+  files?: File[];
+  import_segment?: "D01" | "D02" | "F01" | "A01" | string | null;
   debtor_id?: string | null;
   contract_id?: string | null;
   period_month?: string | null;

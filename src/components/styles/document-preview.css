@@ -9,6 +9,7 @@
   justify-content: center;
   padding: 20px;
   animation: fadeIn 0.2s ease-out;
+  overflow: hidden;
 }
 
 .doc-preview-overlay.closing {
@@ -18,10 +19,11 @@
 .doc-preview-container {
   background: white;
   border-radius: 20px;
-  width: 100%;
+  width: min(100%, 1000px);
   max-width: 1000px;
-  height: 90vh;
-  max-height: 900px;
+  height: min(90dvh, 900px);
+  max-height: calc(100dvh - 40px);
+  min-width: 0;
   display: flex;
   flex-direction: column;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
@@ -35,6 +37,7 @@
 
 .doc-preview-header {
   display: flex;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
@@ -45,6 +48,8 @@
 
 .doc-preview-content {
   flex: 1;
+  min-height: 0;
+  min-width: 0;
   position: relative;
   overflow: hidden;
   background: #f8fafc;
@@ -86,13 +91,24 @@
   z-index: 10;
 }
 
+.doc-preview-header > div {
+  min-width: 0;
+}
+
+.doc-preview-header h3 {
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
 @media (max-width: 768px) {
   .doc-preview-overlay {
     padding: 10px;
   }
 
   .doc-preview-container {
-    height: 95vh;
+    width: 100%;
+    height: calc(100dvh - 20px);
+    max-height: calc(100dvh - 20px);
     border-radius: 16px;
   }
 
@@ -108,6 +124,20 @@
 
   .doc-preview-header > div:last-child {
     width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
     justify-content: flex-end;
+  }
+
+  .doc-preview-header h3 {
+    font-size: 1rem;
+  }
+
+  .doc-preview-content {
+    min-height: 0;
+  }
+
+  .doc-preview-image-container {
+    padding: 12px;
   }
 }

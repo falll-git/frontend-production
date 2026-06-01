@@ -40,12 +40,18 @@ const DOMAIN_ALLOWED_FILE_EXTENSIONS = new Set([
   ...PERSURATAN_ALLOWED_FILE_EXTENSIONS,
   "txt",
   "csv",
+  "json",
+  "zip",
 ]);
 const DOMAIN_ALLOWED_FILE_MIME_TYPES = new Set([
   ...PERSURATAN_ALLOWED_FILE_MIME_TYPES,
   "text/plain",
   "text/csv",
   "application/csv",
+  "application/json",
+  "text/json",
+  "application/zip",
+  "application/x-zip-compressed",
 ]);
 
 const MIME_EXTENSION_MAP: Record<string, string> = {
@@ -65,6 +71,8 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
   "image/webp": "webp",
   "image/bmp": "bmp",
   "image/svg+xml": "svg",
+  "application/json": "json",
+  "text/json": "json",
 };
 
 function normalizeFileNameBase(value: string) {
@@ -111,6 +119,7 @@ function inferMimeTypeFromFileName(fileName?: string | null): string | null {
   if (normalized.endsWith(".webp")) return "image/webp";
   if (normalized.endsWith(".bmp")) return "image/bmp";
   if (normalized.endsWith(".svg")) return "image/svg+xml";
+  if (normalized.endsWith(".zip")) return "application/zip";
 
   return null;
 }
@@ -210,7 +219,7 @@ export function validateDomainUploadFile(file: File): string | null {
     return null;
   }
 
-  return "Format file harus PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, CSV, JPG, JPEG, atau PNG.";
+  return "Format file harus PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT, CSV, JSON, ZIP, JPG, JPEG, atau PNG.";
 }
 
 export function isValidFileUrl(url?: string | null): url is string {

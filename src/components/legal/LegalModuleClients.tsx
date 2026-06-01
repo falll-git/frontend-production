@@ -10,14 +10,12 @@ import {
   FileArchive,
   FileCheck2,
   FileText,
-  FolderInput,
   Landmark,
   Pencil,
   Printer,
   Save,
   ShieldCheck,
   Trash2,
-  Upload,
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
@@ -25,7 +23,11 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { MAX_TABLE_PAGE_SIZE, SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import { formatDateOnly } from "@/lib/utils/date";
-import { toPreviewableFileUrl, validateDomainUploadFile } from "@/lib/utils/file";
+import {
+  deriveDocumentFileName,
+  toPreviewableFileUrl,
+  validateDomainUploadFile,
+} from "@/lib/utils/file";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import BasicDateInput from "@/components/ui/BasicDateInput";
 import DashboardModal from "@/components/ui/DashboardModal";
@@ -34,6 +36,7 @@ import FeatureHeader from "@/components/ui/FeatureHeader";
 import FileUploadField from "@/components/ui/FileUploadField";
 import Pagination from "@/components/ui/Pagination";
 import ProtectedLink from "@/components/rbac/ProtectedLink";
+import { useDocumentPreviewContext } from "@/components/ui/DocumentPreviewContext";
 import SetupActionMenu from "@/components/ui/SetupActionMenu";
 import SetupAddButton from "@/components/ui/SetupAddButton";
 import {
@@ -47,6 +50,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableRow,
 } from "@/components/ui/SetupDataTable";
+import SearchableSelect from "@/components/ui/SearchableSelect";
+import SetupFormSection from "@/components/ui/SetupFormSection";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupSelect from "@/components/ui/SetupSelect";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
@@ -61,6 +66,7 @@ import {
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
   SETUP_PAGE_TABLE_CARD_CLASS,
+  SETUP_PAGE_TABLE_SCROLL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import {
   createParameterMasterService,
@@ -77,8 +83,6 @@ import type {
   LegalDepositPayload,
   LegalDepositTransactionPayload,
   LegalDocumentType,
-  LegalIdebPayload,
-  LegalIdebUpload,
   LegalInsurancePayload,
   LegalKjppPayload,
   LegalPrintHistory,
@@ -125,17 +129,6 @@ type PrintFormState = {
   contract_id: string;
   template_id: string;
   numbering_template_id: string;
-  generated_number: string;
-  file: File | null;
-};
-
-type IdebFormState = {
-  debtor_id: string;
-  contract_id: string;
-  month: string;
-  year: string;
-  status: string;
-  summary: string;
   file: File | null;
 };
 
@@ -205,21 +198,15 @@ const DOCUMENT_TYPE_OPTIONS: Array<{ value: LegalDocumentType; label: string }> 
   { value: "AKAD", label: "Dokumen Akad" },
   { value: "HAFTSHEET", label: "Haftsheet" },
   { value: "SURAT_PERINGATAN", label: "Surat Peringatan" },
-  { value: "FORMULIR_ASURANSI", label: "Formulir Asuransi" },
+  { value: "SURAT_PENGANTAR", label: "Surat Pengantar" },
   { value: "SKL", label: "Surat Keterangan Lunas" },
   { value: "SAMSAT", label: "Surat Samsat" },
+  { value: "DOKUMEN_LAINNYA", label: "Dokumen Lainnya" },
 ];
 
 const TEMPLATE_STATUS_OPTIONS: Option[] = [
   { value: "true", label: "Aktif" },
   { value: "false", label: "Nonaktif" },
-];
-
-const IDEB_STATUS_OPTIONS: Option[] = [
-  { value: "PENDING", label: "Menunggu" },
-  { value: "TERUPLOAD", label: "Terupload" },
-  { value: "SELESAI", label: "Selesai" },
-  { value: "GAGAL", label: "Gagal" },
 ];
 
 const NOTARY_STATUS_OPTIONS: Option[] = [
@@ -265,6 +252,7 @@ const DEPOSIT_TRANSACTION_ACTION_OPTIONS: Option[] = [
 const thirdPartyService = createParameterMasterService("/third-parties");
 const depositTypeService = createParameterMasterService("/deposit-types");
 const numberingTemplateService = createParameterMasterService("/numbering-templates");
+const legalProcessTypeService = createParameterMasterService("/legal-process-types");
 
 function normalizeDisplay(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") return "-";
@@ -303,6 +291,14 @@ function getRecordText(record: ParameterMasterRecord | null | undefined, ...keys
   return "";
 }
 
+function recordCategory(record: ParameterMasterRecord) {
+  return getRecordText(record, "category").toUpperCase();
+}
+
+function recordDocumentType(record: ParameterMasterRecord) {
+  return getRecordText(record, "document_type", "documentType").toUpperCase();
+}
+
 function toParameterOptions(records: ParameterMasterRecord[]) {
   return records.map<Option>((record) => {
     const code = getRecordText(record, "code", "kode", "document_type");
@@ -328,6 +324,35 @@ function toContractOptions(contracts: DebtorContract[]) {
   }));
 }
 
+function toLegalProcessOptions(
+  records: ParameterMasterRecord[],
+  category: string,
+) {
+  return records
+    .filter((record) => recordCategory(record) === category)
+    .map<Option>((record) => {
+      const code = getRecordText(record, "code", "kode");
+      const name = getRecordText(record, "name", "label", "nama") || code || record.id;
+      return {
+        value: name,
+        label: code && code !== name ? `${code} - ${name}` : name,
+      };
+    });
+}
+
+async function loadContractSearchOptions(query: string) {
+  const result = await debiturService.getContractsPage({
+    page: 1,
+    limit: 20,
+    search: query,
+    status: "ACTIVE",
+    sort_by: "no_kontrak",
+    sort_order: "asc",
+  });
+
+  return toContractOptions(result.items);
+}
+
 function documentTypeLabel(type: string | null | undefined) {
   return DOCUMENT_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? normalizeDisplay(type);
 }
@@ -350,9 +375,28 @@ function statusLabel(status: string | null | undefined) {
     .join(" ");
 }
 
-function openFile(url: string | null | undefined) {
-  if (!url || typeof window === "undefined") return;
-  window.open(toPreviewableFileUrl(url) ?? url, "_blank", "noopener,noreferrer");
+type OpenDocumentPreview = (fileUrl: string, fileName: string) => void;
+
+function openFile(
+  url: string | null | undefined,
+  fileName?: string | null,
+  openPreview?: OpenDocumentPreview,
+) {
+  const previewableUrl = toPreviewableFileUrl(url, fileName);
+  if (!previewableUrl) return;
+
+  const displayName = deriveDocumentFileName(
+    fileName || previewableUrl,
+    "dokumen-legal",
+  );
+
+  if (openPreview) {
+    openPreview(previewableUrl, displayName);
+    return;
+  }
+
+  if (typeof window === "undefined") return;
+  window.open(previewableUrl, "_blank", "noopener,noreferrer");
 }
 
 function FieldLabel({ children, required = false }: { children: string; required?: boolean }) {
@@ -404,7 +448,7 @@ function TextareaField({
   required?: boolean;
 }) {
   return (
-    <div className="md:col-span-2">
+    <div className="md:col-span-full">
       <FieldLabel required={required}>{label}</FieldLabel>
       <SetupTextarea rows={4} value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
@@ -419,6 +463,10 @@ function SelectField({
   required = false,
   includeEmpty = true,
   emptyLabel,
+  disabled = false,
+  searchable = false,
+  loadOptions,
+  searchPlaceholder,
 }: {
   label: string;
   value: string;
@@ -427,18 +475,40 @@ function SelectField({
   required?: boolean;
   includeEmpty?: boolean;
   emptyLabel?: string;
+  disabled?: boolean;
+  searchable?: boolean;
+  loadOptions?: (query: string) => Promise<Option[]>;
+  searchPlaceholder?: string;
 }) {
+  const placeholder = emptyLabel ?? `Pilih ${label.toLowerCase()}`;
+
   return (
     <div>
       <FieldLabel required={required}>{label}</FieldLabel>
-      <SetupSelect value={value} onChange={(event) => onChange(event.target.value)}>
-        {includeEmpty ? <option value="">{emptyLabel ?? `Pilih ${label.toLowerCase()}`}</option> : null}
+      {searchable ? (
+        <SearchableSelect
+          value={value}
+          options={options}
+          loadOptions={loadOptions}
+          disabled={disabled}
+          required={required}
+          clearable={includeEmpty}
+          onChange={(nextValue) => onChange(nextValue)}
+          placeholder={placeholder}
+          searchPlaceholder={searchPlaceholder ?? `Cari ${label.toLowerCase()}...`}
+          emptyLabel={`${label} tidak ditemukan`}
+          loadingLabel={`Memuat ${label.toLowerCase()}...`}
+        />
+      ) : (
+      <SetupSelect value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
+        {includeEmpty ? <option value="">{placeholder}</option> : null}
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
       </SetupSelect>
+      )}
     </div>
   );
 }
@@ -497,7 +567,11 @@ function ModalFooter({
 }
 
 function TableCard({ children }: { children: React.ReactNode }) {
-  return <div className={SETUP_PAGE_TABLE_CARD_CLASS}>{children}</div>;
+  return (
+    <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
+      <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>{children}</div>
+    </div>
+  );
 }
 
 function SearchCard({
@@ -540,7 +614,7 @@ function StatCard({
     <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">{label}</p>
-        <Icon className="h-5 w-5 text-gray-900" aria-hidden="true" />
+        <Icon className="h-6 w-6 shrink-0 text-slate-600" aria-hidden="true" />
       </div>
       <p className="text-3xl font-bold text-gray-900">{value}</p>
     </div>
@@ -560,42 +634,35 @@ function buildLegalFlowSteps(summary: LegalSummaryReport | null, isLoading: bool
     },
     {
       label: "Cetak Dokumen",
-      description: "Akad, haftsheet, surat peringatan, formulir, SKL, dan Samsat.",
+      description: "Akad, haftsheet, surat peringatan, surat pengantar, SKL, Samsat, dan dokumen lainnya.",
       href: "/dashboard/legal/cetak/akad",
       value: value(summary?.prints),
       icon: Printer,
     },
     {
-      label: "Upload IDEB",
-      description: "File IDEB debitur tersimpan dan terhubung ke kontrak.",
-      href: "/dashboard/legal/upload-ideb",
-      value: value(summary?.ideb),
-      icon: FolderInput,
-    },
-    {
-      label: "PHK3 Notaris",
+      label: "Pihak Ketiga Notaris",
       description: "Pantau akta, nomor akta, tanggal terima, dan selesai.",
       href: "/dashboard/legal/progress/notaris",
       value: value(summary?.notary),
       icon: Landmark,
     },
     {
-      label: "PHK3 Asuransi",
+      label: "Pihak Ketiga Asuransi",
       description: "Pantau polis, periode, nilai pertanggungan, dan status.",
       href: "/dashboard/legal/progress/asuransi",
       value: value(summary?.insurance),
       icon: ShieldCheck,
     },
     {
-      label: "PHK3 KJPP",
+      label: "Pihak Ketiga KJPP",
       description: "Pantau penilaian agunan, laporan, dan nilai taksasi.",
       href: "/dashboard/legal/progress/kjpp",
       value: value(summary?.kjpp),
       icon: Building2,
     },
     {
-      label: "Claim Asuransi",
-      description: "Tracking pengajuan, approval, pencairan, atau penolakan claim.",
+      label: "Klaim Asuransi",
+      description: "Tracking pengajuan, approval, pencairan, atau penolakan klaim.",
       href: "/dashboard/legal/progress/klaim",
       value: value(summary?.claims),
       icon: FileCheck2,
@@ -613,7 +680,7 @@ function buildLegalFlowSteps(summary: LegalSummaryReport | null, isLoading: bool
 function LegalFlowBoard({
   steps,
   title = "Flow Operasional Legal",
-  subtitle = "Urutan kerja legal mengikuti proses dokumen, IDEB, PHK3, claim, dan dana titipan.",
+  subtitle = "Urutan kerja legal mengikuti proses dokumen, pihak ketiga, klaim, dan dana titipan.",
 }: {
   steps: LegalFlowStep[];
   title?: string;
@@ -636,11 +703,14 @@ function LegalFlowBoard({
             <ProtectedLink
               key={step.href}
               href={step.href}
-              className="group rounded-lg border border-gray-200 bg-gray-50/60 p-4 transition hover:border-[rgba(21,126,195,0.42)] hover:bg-white hover:shadow-sm"
+              className="group rounded-lg border border-gray-200 bg-white p-4 transition hover:border-[rgba(21,126,195,0.42)] hover:bg-gray-50 hover:shadow-sm"
             >
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <Icon className="h-5 w-5 text-gray-900" aria-hidden="true" />
+                  <Icon
+                    className="h-6 w-6 shrink-0 text-slate-600 transition-colors group-hover:text-[#157ec3]"
+                    aria-hidden="true"
+                  />
                   <span className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
                     {String(index + 1).padStart(2, "0")}
                   </span>
@@ -686,6 +756,7 @@ function useLegalLookups({ templates = false, insurance = false } = {}) {
   const [thirdParties, setThirdParties] = useState<ParameterMasterRecord[]>([]);
   const [depositTypes, setDepositTypes] = useState<ParameterMasterRecord[]>([]);
   const [numberingTemplates, setNumberingTemplates] = useState<ParameterMasterRecord[]>([]);
+  const [legalProcessTypes, setLegalProcessTypes] = useState<ParameterMasterRecord[]>([]);
   const [legalTemplates, setLegalTemplates] = useState<LegalTemplate[]>([]);
   const [insuranceProgress, setInsuranceProgress] = useState<LegalProgressRecord[]>([]);
 
@@ -696,14 +767,28 @@ function useLegalLookups({ templates = false, insurance = false } = {}) {
       thirdPartyRows,
       depositTypeRows,
       numberingTemplateRows,
+      legalProcessTypeRows,
       templateRows,
       insuranceRows,
     ] = await Promise.all([
-      debiturService.getAllContracts(),
-      debiturService.getAllDebtors(),
-      thirdPartyService.getAll(),
-      depositTypeService.getAll(),
-      numberingTemplateService.getAll({ module: "LEGAL" }),
+      debiturService.getContractsPage({
+        page: 1,
+        limit: 20,
+        status: "ACTIVE",
+        sort_by: "no_kontrak",
+        sort_order: "asc",
+      }),
+      debiturService.getDebtorsPage({
+        page: 1,
+        limit: 20,
+        status: "ACTIVE",
+        sort_by: "name",
+        sort_order: "asc",
+      }),
+      thirdPartyService.getAll({ is_active: true }),
+      depositTypeService.getAll({ is_active: true }),
+      numberingTemplateService.getAll({ module: "LEGAL", is_active: true }),
+      legalProcessTypeService.getAll({ is_active: true }),
       templates ? legalService.getAllTemplates() : Promise.resolve([]),
       insurance
         ? legalService.getInsurancePage({ page: 1, limit: MAX_TABLE_PAGE_SIZE }).then((page) => page.items)
@@ -711,11 +796,12 @@ function useLegalLookups({ templates = false, insurance = false } = {}) {
     ]);
 
     return {
-      contractRows,
-      debtorRows,
+        contractRows: contractRows.items,
+        debtorRows: debtorRows.items,
       thirdPartyRows,
       depositTypeRows,
       numberingTemplateRows,
+      legalProcessTypeRows,
       templateRows,
       insuranceRows,
     };
@@ -729,6 +815,7 @@ function useLegalLookups({ templates = false, insurance = false } = {}) {
       setThirdParties(result.thirdPartyRows);
       setDepositTypes(result.depositTypeRows);
       setNumberingTemplates(result.numberingTemplateRows);
+      setLegalProcessTypes(result.legalProcessTypeRows);
       setLegalTemplates(result.templateRows);
       setInsuranceProgress(result.insuranceRows);
     } catch (error) {
@@ -747,6 +834,7 @@ function useLegalLookups({ templates = false, insurance = false } = {}) {
         setThirdParties(result.thirdPartyRows);
         setDepositTypes(result.depositTypeRows);
         setNumberingTemplates(result.numberingTemplateRows);
+        setLegalProcessTypes(result.legalProcessTypeRows);
         setLegalTemplates(result.templateRows);
         setInsuranceProgress(result.insuranceRows);
       })
@@ -765,15 +853,15 @@ function useLegalLookups({ templates = false, insurance = false } = {}) {
   }, [fetchLookups, showToast]);
 
   const notaryOptions = useMemo(
-    () => toParameterOptions(thirdParties.filter((item) => getRecordText(item, "category") === "NOTARY")),
+    () => toParameterOptions(thirdParties.filter((item) => recordCategory(item) === "NOTARY")),
     [thirdParties],
   );
   const insuranceOptions = useMemo(
-    () => toParameterOptions(thirdParties.filter((item) => getRecordText(item, "category") === "INSURANCE")),
+    () => toParameterOptions(thirdParties.filter((item) => recordCategory(item) === "INSURANCE")),
     [thirdParties],
   );
   const kjppOptions = useMemo(
-    () => toParameterOptions(thirdParties.filter((item) => getRecordText(item, "category") === "KJPP")),
+    () => toParameterOptions(thirdParties.filter((item) => recordCategory(item) === "KJPP")),
     [thirdParties],
   );
 
@@ -783,6 +871,7 @@ function useLegalLookups({ templates = false, insurance = false } = {}) {
     thirdParties,
     depositTypes,
     numberingTemplates,
+    legalProcessTypes,
     legalTemplates,
     insuranceProgress,
     contractOptions: toContractOptions(contracts),
@@ -793,6 +882,22 @@ function useLegalLookups({ templates = false, insurance = false } = {}) {
     kjppOptions,
     depositTypeOptions: toParameterOptions(depositTypes),
     numberingTemplateOptions: toParameterOptions(numberingTemplates),
+    notaryProcessOptions: toLegalProcessOptions(
+      legalProcessTypes,
+      "NOTARY_DEED",
+    ),
+    insuranceProcessOptions: toLegalProcessOptions(
+      legalProcessTypes,
+      "INSURANCE_TYPE",
+    ),
+    kjppProcessOptions: toLegalProcessOptions(
+      legalProcessTypes,
+      "KJPP_APPRAISAL",
+    ),
+    claimTypeOptions: toLegalProcessOptions(
+      legalProcessTypes,
+      "INSURANCE_CLAIM",
+    ),
     reloadLookups: load,
   };
 }
@@ -861,10 +966,9 @@ export function LegalOverviewClient() {
   const cards = [
     { label: "Template", value: summary?.templates ?? 0, icon: FileArchive, href: "/dashboard/legal/template-dokumen" },
     { label: "Cetak Dokumen", value: summary?.prints ?? 0, icon: Printer, href: "/dashboard/legal/cetak/akad" },
-    { label: "Upload IDEB", value: summary?.ideb ?? 0, icon: Upload, href: "/dashboard/legal/upload-ideb" },
     { label: "Progress Notaris", value: summary?.notary ?? 0, icon: Landmark, href: "/dashboard/legal/progress/notaris" },
     { label: "Progress Asuransi", value: summary?.insurance ?? 0, icon: ShieldCheck, href: "/dashboard/legal/progress/asuransi" },
-    { label: "Claim", value: summary?.claims ?? 0, icon: FileCheck2, href: "/dashboard/legal/progress/klaim" },
+    { label: "Klaim", value: summary?.claims ?? 0, icon: FileCheck2, href: "/dashboard/legal/progress/klaim" },
     { label: "Dana Titipan", value: summary?.deposits ?? 0, icon: Banknote, href: "/dashboard/legal/titipan/asuransi" },
   ];
 
@@ -872,7 +976,7 @@ export function LegalOverviewClient() {
     <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Manajemen Legal"
-        subtitle="Template, dokumen legal, IDEB, PHK3, dana titipan, claim, dan laporan legal."
+        subtitle="Template, dokumen legal, pihak ketiga, dana titipan, klaim, dan laporan legal."
         icon={<Landmark />}
       />
       <LegalFlowBoard steps={flowSteps} />
@@ -996,7 +1100,7 @@ export function LegalTemplateClient() {
     <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Template Dokumen Legal"
-        subtitle="Master template dokumen legal untuk cetak akad, surat, IDEB, dan dokumen pendukung."
+        subtitle="Master template dokumen legal untuk cetak akad, surat, SKL, Samsat, dan dokumen pendukung."
         icon={<FileArchive />}
         actions={canCreate ? <SetupAddButton label="Tambah Template" onClick={openCreate} /> : null}
       />
@@ -1058,7 +1162,20 @@ export function LegalTemplateClient() {
               </SetupDataTableRow>
             ))}
             {isLoading ? <SetupDataTableEmptyRow colSpan={7}>Memuat template legal...</SetupDataTableEmptyRow> : null}
-            {!isLoading && items.length === 0 ? <SetupDataTableEmptyRow colSpan={7}>Belum ada template legal.</SetupDataTableEmptyRow> : null}
+            {!isLoading && items.length === 0 ? (
+              <SetupDataTableEmptyRow
+                colSpan={7}
+                tone="legal"
+                description="Buat template sebelum mencetak akad, surat, SKL, Samsat, atau dokumen legal lainnya."
+                action={
+                  canCreate ? (
+                    <SetupAddButton label="Tambah Template" onClick={openCreate} />
+                  ) : undefined
+                }
+              >
+                Belum ada template legal.
+              </SetupDataTableEmptyRow>
+            ) : null}
           </SetupDataTableBody>
         </SetupDataTable>
         <Pagination page={meta.page} lastPage={meta.lastPage} total={meta.total} limit={meta.limit} isLoading={isLoading} onPageChange={setPage} />
@@ -1069,31 +1186,34 @@ export function LegalTemplateClient() {
         onClose={closeModal}
         closeDisabled={isSaving}
         maxWidth="3xl"
-        bodyClassName="grid max-h-[70vh] grid-cols-1 gap-4 overflow-y-auto p-6 md:grid-cols-2"
+        bodyClassName="max-h-[70vh] space-y-4 overflow-y-auto p-6"
         footer={<ModalFooter onClose={closeModal} onSave={() => void save()} isSaving={isSaving} />}
       >
-        <SelectField
-          label="Jenis Dokumen"
-          value={form.template_type}
-          options={DOCUMENT_TYPE_OPTIONS}
-          includeEmpty={false}
-          required
-          onChange={(value) => setForm((prev) => ({ ...prev, template_type: value as LegalDocumentType }))}
-        />
-        <TextField label="Versi" value={form.version} type="number" required onChange={(value) => setForm((prev) => ({ ...prev, version: value }))} />
-        <TextField label="Judul" value={form.title} required onChange={(value) => setForm((prev) => ({ ...prev, title: value }))} />
-        <SelectField label="Status" value={form.is_active} options={TEMPLATE_STATUS_OPTIONS} includeEmpty={false} onChange={(value) => setForm((prev) => ({ ...prev, is_active: value }))} />
-        <TextareaField label="Isi Template" value={form.content_template} onChange={(value) => setForm((prev) => ({ ...prev, content_template: value }))} />
-        <FileUploadField
-          id="legal-template-file"
-          className="md:col-span-2"
-          required={false}
-          label="File Template"
-          file={form.file}
-          validateFile={validateDomainUploadFile}
-          onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
-          onClear={() => setForm((prev) => ({ ...prev, file: null }))}
-        />
+        <SetupFormSection title="Identitas Template">
+          <SelectField
+            label="Jenis Dokumen"
+            value={form.template_type}
+            options={DOCUMENT_TYPE_OPTIONS}
+            includeEmpty={false}
+            required
+            onChange={(value) => setForm((prev) => ({ ...prev, template_type: value as LegalDocumentType }))}
+          />
+          <TextField label="Versi" value={form.version} type="number" required onChange={(value) => setForm((prev) => ({ ...prev, version: value }))} />
+          <TextField label="Judul" value={form.title} required onChange={(value) => setForm((prev) => ({ ...prev, title: value }))} />
+          <SelectField label="Status" value={form.is_active} options={TEMPLATE_STATUS_OPTIONS} includeEmpty={false} onChange={(value) => setForm((prev) => ({ ...prev, is_active: value }))} />
+        </SetupFormSection>
+        <SetupFormSection title="Konten dan File" contentClassName="md:grid-cols-1">
+          <TextareaField label="Isi Template" value={form.content_template} onChange={(value) => setForm((prev) => ({ ...prev, content_template: value }))} />
+          <FileUploadField
+            id="legal-template-file"
+            required={false}
+            label="File Template"
+            file={form.file}
+            validateFile={validateDomainUploadFile}
+            onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
+            onClear={() => setForm((prev) => ({ ...prev, file: null }))}
+          />
+        </SetupFormSection>
       </DashboardModal>
       <DeleteConfirmModal
         isOpen={Boolean(deleteTarget)}
@@ -1113,7 +1233,6 @@ function emptyPrintForm(): PrintFormState {
     contract_id: "",
     template_id: "",
     numbering_template_id: "",
-    generated_number: "",
     file: null,
   };
 }
@@ -1122,15 +1241,15 @@ function buildPrintPayload(form: PrintFormState, documentType: LegalDocumentType
   return {
     document_type: documentType,
     contract_id: form.contract_id,
-    template_id: form.template_id || null,
+    template_id: form.template_id,
     numbering_template_id: form.numbering_template_id || null,
-    generated_number: form.generated_number || null,
     payload_snapshot: {},
     file: form.file,
   };
 }
 
 export function LegalPrintClient({ documentType, title }: { documentType: LegalDocumentType; title: string }) {
+  const { openPreview } = useDocumentPreviewContext();
   const pathname = usePathname() ?? "";
   const { showToast } = useAppToast();
   const { hasCapability, ensureCapability } = useProtectedAction();
@@ -1151,6 +1270,15 @@ export function LegalPrintClient({ documentType, title }: { documentType: LegalD
         .filter((item) => item.template_type === documentType && item.is_active)
         .map<Option>((item) => ({ value: item.id, label: `${item.title} v${item.version}` })),
     [documentType, lookups.legalTemplates],
+  );
+  const numberingTemplateOptions = useMemo(
+    () =>
+      toParameterOptions(
+        lookups.numberingTemplates.filter(
+          (item) => recordDocumentType(item) === documentType,
+        ),
+      ),
+    [documentType, lookups.numberingTemplates],
   );
 
   const load = useCallback(async () => {
@@ -1189,6 +1317,14 @@ export function LegalPrintClient({ documentType, title }: { documentType: LegalD
   const save = async () => {
     if (!form.contract_id) {
       showToast("Kontrak wajib dipilih", "warning");
+      return;
+    }
+    if (!form.template_id) {
+      showToast("Template dokumen wajib dipilih", "warning");
+      return;
+    }
+    if (!form.file) {
+      showToast("File dokumen wajib diunggah untuk tahap ini", "warning");
       return;
     }
     setIsSaving(true);
@@ -1246,9 +1382,15 @@ export function LegalPrintClient({ documentType, title }: { documentType: LegalD
                     <button
                       type="button"
                       className="uiverse-modal-button uiverse-modal-button--neutral min-h-[36px] px-3 text-sm"
-                      onClick={() => openFile(item.generated_file?.url)}
+                      onClick={() =>
+                        openFile(
+                          item.generated_file?.url,
+                          item.generated_file?.name,
+                          openPreview,
+                        )
+                      }
                     >
-                      View
+                      Preview
                     </button>
                   ) : (
                     "-"
@@ -1257,7 +1399,20 @@ export function LegalPrintClient({ documentType, title }: { documentType: LegalD
               </SetupDataTableRow>
             ))}
             {isLoading ? <SetupDataTableEmptyRow colSpan={6}>Memuat dokumen legal...</SetupDataTableEmptyRow> : null}
-            {!isLoading && items.length === 0 ? <SetupDataTableEmptyRow colSpan={6}>Belum ada dokumen legal.</SetupDataTableEmptyRow> : null}
+            {!isLoading && items.length === 0 ? (
+              <SetupDataTableEmptyRow
+                colSpan={6}
+                tone="legal"
+                description="Cetak atau upload dokumen untuk kontrak debitur agar histori legal tersimpan."
+                action={
+                  canCreate ? (
+                    <SetupAddButton label="Cetak Dokumen" onClick={openCreate} />
+                  ) : undefined
+                }
+              >
+                Belum ada dokumen legal.
+              </SetupDataTableEmptyRow>
+            ) : null}
           </SetupDataTableBody>
         </SetupDataTable>
         <Pagination page={meta.page} lastPage={meta.lastPage} total={meta.total} limit={meta.limit} isLoading={isLoading} onPageChange={setPage} />
@@ -1268,187 +1423,28 @@ export function LegalPrintClient({ documentType, title }: { documentType: LegalD
         onClose={closeModal}
         closeDisabled={isSaving}
         maxWidth="3xl"
-        bodyClassName="grid max-h-[70vh] grid-cols-1 gap-4 overflow-y-auto p-6 md:grid-cols-2"
+        bodyClassName="max-h-[70vh] space-y-4 overflow-y-auto p-6"
         footer={<ModalFooter onClose={closeModal} onSave={() => void save()} isSaving={isSaving} saveLabel="Cetak" />}
       >
-        <SelectField label="Kontrak" value={form.contract_id} options={lookups.contractOptions} required onChange={(value) => setForm((prev) => ({ ...prev, contract_id: value }))} />
-        <SelectField label="Template Dokumen" value={form.template_id} options={templateOptions} emptyLabel="Pakai template aktif default" onChange={(value) => setForm((prev) => ({ ...prev, template_id: value }))} />
-        <SelectField label="Template Penomoran" value={form.numbering_template_id} options={lookups.numberingTemplateOptions} emptyLabel="Pakai setup penomoran aktif" onChange={(value) => setForm((prev) => ({ ...prev, numbering_template_id: value }))} />
-        <TextField label="Nomor Manual" value={form.generated_number} placeholder="Opsional" onChange={(value) => setForm((prev) => ({ ...prev, generated_number: value }))} />
-        <FileUploadField
-          id="legal-print-file"
-          className="md:col-span-2"
-          required={false}
-          label="File Dokumen"
-          file={form.file}
-          validateFile={validateDomainUploadFile}
-          onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
-          onClear={() => setForm((prev) => ({ ...prev, file: null }))}
-        />
-      </DashboardModal>
-    </DashboardPageShell>
-  );
-}
-
-function emptyIdebForm(): IdebFormState {
-  return {
-    debtor_id: "",
-    contract_id: "",
-    month: String(new Date().getMonth() + 1),
-    year: String(new Date().getFullYear()),
-    status: "PENDING",
-    summary: "",
-    file: null,
-  };
-}
-
-function buildIdebPayload(form: IdebFormState): LegalIdebPayload {
-  if (!form.file) throw new Error("File IDEB wajib dipilih");
-  return {
-    debtor_id: form.debtor_id || null,
-    contract_id: form.contract_id || null,
-    month: toNumberInput(form.month),
-    year: toNumberInput(form.year),
-    status: form.status,
-    result_summary: form.summary ? { catatan: form.summary } : {},
-    file: form.file,
-  };
-}
-
-export function LegalIdebClient() {
-  const pathname = usePathname() ?? "";
-  const { showToast } = useAppToast();
-  const { hasCapability, ensureCapability } = useProtectedAction();
-  const lookups = useLegalLookups();
-  const canCreate = hasCapability(pathname, "create");
-  const [items, setItems] = useState<LegalIdebUpload[]>([]);
-  const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [form, setForm] = useState<IdebFormState>(() => emptyIdebForm());
-
-  const filteredContractOptions = useMemo(
-    () => toContractOptions(form.debtor_id ? lookups.contracts.filter((item) => item.debtor_id === form.debtor_id) : lookups.contracts),
-    [form.debtor_id, lookups.contracts],
-  );
-
-  const load = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const result = await legalService.getIdebPage({ page, limit: SETUP_TABLE_PAGE_SIZE, search });
-      setItems(result.items);
-      setMeta(result.meta);
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Gagal memuat upload IDEB", "error");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [page, search, showToast]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const openCreate = () => {
-    if (!ensureCapability(pathname, "create")) return;
-    setForm(emptyIdebForm());
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setForm(emptyIdebForm());
-  };
-
-  const save = async () => {
-    setIsSaving(true);
-    try {
-      await legalService.createIdeb(buildIdebPayload(form));
-      showToast("Upload IDEB tersimpan", "success");
-      closeModal();
-      await load();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Gagal upload IDEB", "error");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <DashboardPageShell spacing="md">
-      <FeatureHeader title="Upload IDEB" subtitle="Simpan file IDEB dan hubungkan dengan debitur atau kontrak." icon={<FolderInput />} actions={canCreate ? <SetupAddButton label="Upload IDEB" onClick={openCreate} /> : null} />
-      <SearchCard search={search} onSearch={(value) => { setPage(1); setSearch(value); }} placeholder="Cari status atau nama file..." />
-      <TableCard>
-        <SetupDataTable className="min-w-[900px]">
-          <SetupDataTableColGroup>
-            <SetupDataTableCol className="w-[56px]" />
-            <SetupDataTableCol className="w-[220px]" />
-            <SetupDataTableCol className="w-[220px]" />
-            <SetupDataTableCol className="w-[100px]" />
-            <SetupDataTableCol className="w-[120px]" />
-            <SetupDataTableCol className="w-[180px]" />
-            <SetupDataTableCol className="w-[100px]" />
-          </SetupDataTableColGroup>
-          <SetupDataTableHead>
-            <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Debitur</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Periode</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Status</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Dibuat</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>File</SetupDataTableHeaderCell>
-            </SetupDataTableRow>
-          </SetupDataTableHead>
-          <SetupDataTableBody>
-            {items.map((item, index) => (
-              <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>{(meta.page - 1) * meta.limit + index + 1}</SetupDataTableCell>
-                <SetupDataTableCell>{item.debtor?.name ?? "-"}</SetupDataTableCell>
-                <SetupDataTableCell>{item.contract?.no_kontrak ?? "-"}</SetupDataTableCell>
-                <SetupDataTableCell>{String(item.month).padStart(2, "0")}/{item.year}</SetupDataTableCell>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}><SetupStatusBadge status={statusLabel(item.status)} /></SetupDataTableCell>
-                <SetupDataTableCell>{formatDateOnly(item.created_at)}</SetupDataTableCell>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                  {item.file?.url ? (
-                    <button type="button" className="uiverse-modal-button uiverse-modal-button--neutral min-h-[36px] px-3 text-sm" onClick={() => openFile(item.file?.url)}>View</button>
-                  ) : "-"}
-                </SetupDataTableCell>
-              </SetupDataTableRow>
-            ))}
-            {isLoading ? <SetupDataTableEmptyRow colSpan={7}>Memuat upload IDEB...</SetupDataTableEmptyRow> : null}
-            {!isLoading && items.length === 0 ? <SetupDataTableEmptyRow colSpan={7}>Belum ada upload IDEB.</SetupDataTableEmptyRow> : null}
-          </SetupDataTableBody>
-        </SetupDataTable>
-        <Pagination page={meta.page} lastPage={meta.lastPage} total={meta.total} limit={meta.limit} isLoading={isLoading} onPageChange={setPage} />
-      </TableCard>
-      <DashboardModal
-        isOpen={isModalOpen}
-        title="Upload IDEB"
-        onClose={closeModal}
-        closeDisabled={isSaving}
-        maxWidth="3xl"
-        bodyClassName="grid max-h-[70vh] grid-cols-1 gap-4 overflow-y-auto p-6 md:grid-cols-2"
-        footer={<ModalFooter onClose={closeModal} onSave={() => void save()} isSaving={isSaving} saveLabel="Upload" />}
-      >
-        <SelectField label="Debitur" value={form.debtor_id} options={lookups.debtorOptions} emptyLabel="Opsional" onChange={(value) => setForm((prev) => ({ ...prev, debtor_id: value, contract_id: "" }))} />
-        <SelectField label="Kontrak" value={form.contract_id} options={filteredContractOptions} emptyLabel="Opsional" onChange={(value) => setForm((prev) => ({ ...prev, contract_id: value }))} />
-        <TextField label="Bulan" value={form.month} type="number" required onChange={(value) => setForm((prev) => ({ ...prev, month: value }))} />
-        <TextField label="Tahun" value={form.year} type="number" required onChange={(value) => setForm((prev) => ({ ...prev, year: value }))} />
-        <SelectField label="Status" value={form.status} options={IDEB_STATUS_OPTIONS} includeEmpty={false} onChange={(value) => setForm((prev) => ({ ...prev, status: value }))} />
-        <TextareaField label="Ringkasan" value={form.summary} onChange={(value) => setForm((prev) => ({ ...prev, summary: value }))} />
-        <FileUploadField
-          id="legal-ideb-file"
-          className="md:col-span-2"
-          label="File IDEB"
-          file={form.file}
-          validateFile={validateDomainUploadFile}
-          onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
-          onClear={() => setForm((prev) => ({ ...prev, file: null }))}
-        />
+        <SetupFormSection title="Sumber Dokumen">
+          <SelectField label="Kontrak" value={form.contract_id} options={lookups.contractOptions} required searchable loadOptions={loadContractSearchOptions} searchPlaceholder="Cari nomor kontrak atau nama debitur..." onChange={(value) => setForm((prev) => ({ ...prev, contract_id: value }))} />
+          <SelectField label="Template Dokumen" value={form.template_id} options={templateOptions} required emptyLabel="Pilih template dokumen" onChange={(value) => setForm((prev) => ({ ...prev, template_id: value }))} />
+          <SelectField label="Template Penomoran" value={form.numbering_template_id} options={numberingTemplateOptions} emptyLabel="Pakai setup penomoran aktif" onChange={(value) => setForm((prev) => ({ ...prev, numbering_template_id: value }))} />
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            Nomor dokumen dibuat otomatis dari Template Penomoran legal yang aktif.
+          </div>
+        </SetupFormSection>
+        <SetupFormSection title="File Pendukung" contentClassName="md:grid-cols-1">
+          <FileUploadField
+            id="legal-print-file"
+            required
+            label="File Dokumen"
+            file={form.file}
+            validateFile={validateDomainUploadFile}
+            onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
+            onClear={() => setForm((prev) => ({ ...prev, file: null }))}
+          />
+        </SetupFormSection>
       </DashboardModal>
     </DashboardPageShell>
   );
@@ -1568,6 +1564,7 @@ function buildInsurancePayload(form: ProgressFormState): LegalInsurancePayload {
 }
 
 export function LegalProgressClient({ type }: { type: LegalProgressType }) {
+  const { openPreview } = useDocumentPreviewContext();
   const pathname = usePathname() ?? "";
   const { showToast } = useAppToast();
   const { hasCapability, ensureCapability } = useProtectedAction();
@@ -1575,7 +1572,7 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
   const isKjpp = type === "kjpp";
   const config = isNotary
     ? {
-        title: "Progress PHK3 Notaris",
+        title: "Progress Pihak Ketiga Notaris",
         subtitle: "Pantau progress pengurusan akta dan dokumen notaris.",
         icon: <Landmark />,
         typeLabel: "Jenis Akta",
@@ -1583,14 +1580,14 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
       }
     : isKjpp
       ? {
-          title: "Progress PHK3 KJPP",
+          title: "Progress Pihak Ketiga KJPP",
           subtitle: "Pantau progress penilaian agunan dan laporan KJPP.",
           icon: <Building2 />,
           typeLabel: "Jenis Penilaian",
           dateLabel: "Tanggal Terima",
         }
       : {
-          title: "Progress PHK3 Asuransi",
+          title: "Progress Pihak Ketiga Asuransi",
           subtitle: "Pantau polis, masa berlaku, dan status asuransi.",
           icon: <ShieldCheck />,
           typeLabel: "Jenis Asuransi",
@@ -1718,6 +1715,11 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
     : isKjpp
       ? lookups.kjppOptions
       : lookups.insuranceOptions;
+  const processTypeOptions = isNotary
+    ? lookups.notaryProcessOptions
+    : isKjpp
+      ? lookups.kjppProcessOptions
+      : lookups.insuranceProcessOptions;
   const statusOptions = isNotary
     ? NOTARY_STATUS_OPTIONS
     : isKjpp
@@ -1776,16 +1778,17 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
                     items={[
                       {
                         key: "detail",
-                        label: "Detail",
+                        label: "Lihat",
                         icon: Eye,
                         onClick: () => setDetailTarget(item),
                       },
                       {
                         key: "file",
-                        label: "File",
+                        label: "Preview",
                         icon: FileArchive,
                         disabled: !item.file?.url,
-                        onClick: () => openFile(item.file?.url),
+                        onClick: () =>
+                          openFile(item.file?.url, item.file?.name, openPreview),
                       },
                       {
                         key: "edit",
@@ -1808,7 +1811,20 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
               </SetupDataTableRow>
             ))}
             {isLoading ? <SetupDataTableEmptyRow colSpan={8}>Memuat progress legal...</SetupDataTableEmptyRow> : null}
-            {!isLoading && items.length === 0 ? <SetupDataTableEmptyRow colSpan={8}>Belum ada progress legal.</SetupDataTableEmptyRow> : null}
+            {!isLoading && items.length === 0 ? (
+              <SetupDataTableEmptyRow
+                colSpan={8}
+                tone="legal"
+                description="Catat progress pihak ketiga berdasarkan kontrak supaya muncul di detail debitur."
+                action={
+                  canCreate ? (
+                    <SetupAddButton label="Tambah Progress" onClick={openCreate} />
+                  ) : undefined
+                }
+              >
+                Belum ada progress legal.
+              </SetupDataTableEmptyRow>
+            ) : null}
           </SetupDataTableBody>
         </SetupDataTable>
         <Pagination page={meta.page} lastPage={meta.lastPage} total={meta.total} limit={meta.limit} isLoading={isLoading} onPageChange={setPage} />
@@ -1819,47 +1835,52 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
         onClose={closeModal}
         closeDisabled={isSaving}
         maxWidth="3xl"
-        bodyClassName="grid max-h-[70vh] grid-cols-1 gap-4 overflow-y-auto p-6 md:grid-cols-2"
+        bodyClassName="max-h-[70vh] space-y-4 overflow-y-auto p-6"
         footer={<ModalFooter onClose={closeModal} onSave={() => void save()} isSaving={isSaving} />}
       >
-        <SelectField label="Kontrak" value={form.contract_id} options={lookups.contractOptions} required onChange={(value) => setForm((prev) => ({ ...prev, contract_id: value }))} />
-        <SelectField label="Pihak Ketiga" value={form.third_party_id} options={thirdPartyOptions} required onChange={(value) => setForm((prev) => ({ ...prev, third_party_id: value }))} />
-        <TextField label={config.typeLabel} value={form.main_type} required onChange={(value) => setForm((prev) => ({ ...prev, main_type: value }))} />
-        <SelectField label="Status" value={form.status} options={statusOptions} includeEmpty={false} onChange={(value) => setForm((prev) => ({ ...prev, status: value }))} />
-        {isNotary || isKjpp ? (
-          <>
-            <DateField label={config.dateLabel} value={form.received_at} required onChange={(value) => setForm((prev) => ({ ...prev, received_at: value }))} />
-            <DateField label="Estimasi Selesai" value={form.estimated_completed_at} onChange={(value) => setForm((prev) => ({ ...prev, estimated_completed_at: value }))} />
-            <DateField label="Tanggal Selesai" value={form.completed_at} onChange={(value) => setForm((prev) => ({ ...prev, completed_at: value }))} />
-            {isKjpp ? (
-              <>
-                <TextField label="Nomor Laporan" value={form.report_number} onChange={(value) => setForm((prev) => ({ ...prev, report_number: value }))} />
-                <TextField label="Objek Jaminan" value={form.collateral_object} onChange={(value) => setForm((prev) => ({ ...prev, collateral_object: value }))} />
-                <TextField label="Nilai Taksasi" value={form.appraisal_value} type="number" onChange={(value) => setForm((prev) => ({ ...prev, appraisal_value: value }))} />
-              </>
-            ) : (
-              <TextField label="Nomor Akta" value={form.deed_number} onChange={(value) => setForm((prev) => ({ ...prev, deed_number: value }))} />
-            )}
-          </>
-        ) : (
-          <>
-            <TextField label="Nilai Pertanggungan" value={form.coverage_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, coverage_amount: value }))} />
-            <DateField label="Mulai Polis" value={form.period_start} required onChange={(value) => setForm((prev) => ({ ...prev, period_start: value }))} />
-            <DateField label="Akhir Polis" value={form.period_end} onChange={(value) => setForm((prev) => ({ ...prev, period_end: value }))} />
-            <TextField label="Nomor Polis" value={form.policy_number} onChange={(value) => setForm((prev) => ({ ...prev, policy_number: value }))} />
-          </>
-        )}
-        <TextareaField label="Catatan" value={form.notes} onChange={(value) => setForm((prev) => ({ ...prev, notes: value }))} />
-        <FileUploadField
-          id={`legal-progress-${type}-file`}
-          className="md:col-span-2"
-          required={false}
-          label="File Pendukung"
-          file={form.file}
-          validateFile={validateDomainUploadFile}
-          onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
-          onClear={() => setForm((prev) => ({ ...prev, file: null }))}
-        />
+        <SetupFormSection title="Kontrak dan Pihak Ketiga">
+          <SelectField label="Kontrak" value={form.contract_id} options={lookups.contractOptions} required searchable loadOptions={loadContractSearchOptions} searchPlaceholder="Cari nomor kontrak atau nama debitur..." onChange={(value) => setForm((prev) => ({ ...prev, contract_id: value }))} />
+          <SelectField label="Pihak Ketiga" value={form.third_party_id} options={thirdPartyOptions} required searchable searchPlaceholder="Cari nama pihak ketiga..." onChange={(value) => setForm((prev) => ({ ...prev, third_party_id: value }))} />
+          <SelectField label={config.typeLabel} value={form.main_type} options={processTypeOptions} required onChange={(value) => setForm((prev) => ({ ...prev, main_type: value }))} />
+          <SelectField label="Status" value={form.status} options={statusOptions} includeEmpty={false} onChange={(value) => setForm((prev) => ({ ...prev, status: value }))} />
+        </SetupFormSection>
+        <SetupFormSection title={isNotary || isKjpp ? "Progress Dokumen" : "Informasi Polis"}>
+          {isNotary || isKjpp ? (
+            <>
+              <DateField label={config.dateLabel} value={form.received_at} required onChange={(value) => setForm((prev) => ({ ...prev, received_at: value }))} />
+              <DateField label="Estimasi Selesai" value={form.estimated_completed_at} onChange={(value) => setForm((prev) => ({ ...prev, estimated_completed_at: value }))} />
+              <DateField label="Tanggal Selesai" value={form.completed_at} onChange={(value) => setForm((prev) => ({ ...prev, completed_at: value }))} />
+              {isKjpp ? (
+                <>
+                  <TextField label="Nomor Laporan" value={form.report_number} onChange={(value) => setForm((prev) => ({ ...prev, report_number: value }))} />
+                  <TextField label="Objek Jaminan" value={form.collateral_object} onChange={(value) => setForm((prev) => ({ ...prev, collateral_object: value }))} />
+                  <TextField label="Nilai Taksasi" value={form.appraisal_value} type="number" onChange={(value) => setForm((prev) => ({ ...prev, appraisal_value: value }))} />
+                </>
+              ) : (
+                <TextField label="Nomor Akta" value={form.deed_number} onChange={(value) => setForm((prev) => ({ ...prev, deed_number: value }))} />
+              )}
+            </>
+          ) : (
+            <>
+              <TextField label="Nilai Pertanggungan" value={form.coverage_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, coverage_amount: value }))} />
+              <DateField label="Mulai Polis" value={form.period_start} required onChange={(value) => setForm((prev) => ({ ...prev, period_start: value }))} />
+              <DateField label="Akhir Polis" value={form.period_end} onChange={(value) => setForm((prev) => ({ ...prev, period_end: value }))} />
+              <TextField label="Nomor Polis" value={form.policy_number} onChange={(value) => setForm((prev) => ({ ...prev, policy_number: value }))} />
+            </>
+          )}
+        </SetupFormSection>
+        <SetupFormSection title="Catatan dan File" contentClassName="md:grid-cols-1">
+          <TextareaField label="Catatan" value={form.notes} onChange={(value) => setForm((prev) => ({ ...prev, notes: value }))} />
+          <FileUploadField
+            id={`legal-progress-${type}-file`}
+            required={false}
+            label="File Pendukung"
+            file={form.file}
+            validateFile={validateDomainUploadFile}
+            onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
+            onClear={() => setForm((prev) => ({ ...prev, file: null }))}
+          />
+        </SetupFormSection>
       </DashboardModal>
       <DashboardModal
         isOpen={Boolean(detailTarget)}
@@ -1939,9 +1960,15 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
                     <button
                       type="button"
                       className="uiverse-modal-button uiverse-modal-button--neutral min-h-[36px] px-3 text-sm"
-                      onClick={() => openFile(detailTarget.file?.url)}
+                      onClick={() =>
+                        openFile(
+                          detailTarget.file?.url,
+                          detailTarget.file?.name,
+                          openPreview,
+                        )
+                      }
                     >
-                      View
+                      Preview
                     </button>
                   ) : (
                     "-"
@@ -2020,6 +2047,7 @@ function buildClaimPayload(form: ClaimFormState): LegalClaimPayload {
 }
 
 export function LegalClaimClient() {
+  const { openPreview } = useDocumentPreviewContext();
   const pathname = usePathname() ?? "";
   const { showToast } = useAppToast();
   const { hasCapability, ensureCapability } = useProtectedAction();
@@ -2122,7 +2150,7 @@ export function LegalClaimClient() {
 
   return (
     <DashboardPageShell spacing="md">
-      <FeatureHeader title="Claim Asuransi" subtitle="Kelola proses klaim asuransi untuk kontrak debitur." icon={<FileCheck2 />} actions={canCreate ? <SetupAddButton label="Tambah Claim" onClick={openCreate} /> : null} />
+      <FeatureHeader title="Klaim Asuransi" subtitle="Kelola proses klaim asuransi untuk kontrak debitur." icon={<FileCheck2 />} actions={canCreate ? <SetupAddButton label="Tambah Klaim" onClick={openCreate} /> : null} />
       <SearchCard search={search} onSearch={(value) => { setPage(1); setSearch(value); }} />
       <TableCard>
         <SetupDataTable className="min-w-[1080px]">
@@ -2131,7 +2159,7 @@ export function LegalClaimClient() {
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Debitur</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Jenis Claim</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Jenis Klaim</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Nominal</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Status</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Tanggal</SetupDataTableHeaderCell>
@@ -2151,7 +2179,14 @@ export function LegalClaimClient() {
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
                   <SetupActionMenu
                     items={[
-                      { key: "view", label: "View", icon: FileText, disabled: !item.file?.url, onClick: () => openFile(item.file?.url) },
+                      {
+                        key: "view",
+                        label: "Preview",
+                        icon: FileText,
+                        disabled: !item.file?.url,
+                        onClick: () =>
+                          openFile(item.file?.url, item.file?.name, openPreview),
+                      },
                       { key: "edit", label: "Ubah", icon: Pencil, disabled: !canUpdate, onClick: () => openEdit(item) },
                       { key: "delete", label: "Hapus", icon: Trash2, tone: "red", disabled: !canDelete, onClick: () => setDeleteTarget(item) },
                     ]}
@@ -2159,40 +2194,59 @@ export function LegalClaimClient() {
                 </SetupDataTableCell>
               </SetupDataTableRow>
             ))}
-            {isLoading ? <SetupDataTableEmptyRow colSpan={8}>Memuat claim legal...</SetupDataTableEmptyRow> : null}
-            {!isLoading && items.length === 0 ? <SetupDataTableEmptyRow colSpan={8}>Belum ada claim legal.</SetupDataTableEmptyRow> : null}
+            {isLoading ? <SetupDataTableEmptyRow colSpan={8}>Memuat klaim legal...</SetupDataTableEmptyRow> : null}
+            {!isLoading && items.length === 0 ? (
+              <SetupDataTableEmptyRow
+                colSpan={8}
+                tone="legal"
+                description="Input klaim asuransi yang terkait kontrak dan progress asuransi."
+                action={
+                  canCreate ? (
+                    <SetupAddButton label="Tambah Klaim" onClick={openCreate} />
+                  ) : undefined
+                }
+              >
+                Belum ada klaim legal.
+              </SetupDataTableEmptyRow>
+            ) : null}
           </SetupDataTableBody>
         </SetupDataTable>
         <Pagination page={meta.page} lastPage={meta.lastPage} total={meta.total} limit={meta.limit} isLoading={isLoading} onPageChange={setPage} />
       </TableCard>
       <DashboardModal
         isOpen={isModalOpen}
-        title={selected ? "Ubah Claim Asuransi" : "Tambah Claim Asuransi"}
+        title={selected ? "Ubah Klaim Asuransi" : "Tambah Klaim Asuransi"}
         onClose={closeModal}
         closeDisabled={isSaving}
         maxWidth="4xl"
-        bodyClassName="grid max-h-[70vh] grid-cols-1 gap-4 overflow-y-auto p-6 md:grid-cols-2"
+        bodyClassName="max-h-[70vh] space-y-4 overflow-y-auto p-6"
         footer={<ModalFooter onClose={closeModal} onSave={() => void save()} isSaving={isSaving} />}
       >
-        <SelectField label="Kontrak" value={form.contract_id} options={lookups.contractOptions} required onChange={(value) => setForm((prev) => ({ ...prev, contract_id: value, insurance_progress_id: "" }))} />
-        <SelectField label="Progress Asuransi" value={form.insurance_progress_id} options={insuranceOptions} emptyLabel="Opsional" onChange={(value) => setForm((prev) => ({ ...prev, insurance_progress_id: value }))} />
-        <TextField label="Nomor Polis" value={form.policy_number} onChange={(value) => setForm((prev) => ({ ...prev, policy_number: value }))} />
-        <TextField label="Jenis Claim" value={form.claim_type} required onChange={(value) => setForm((prev) => ({ ...prev, claim_type: value }))} />
-        <TextField label="Nominal Claim" value={form.claim_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, claim_amount: value }))} />
-        <DateField label="Tanggal Pengajuan" value={form.submitted_at} required onChange={(value) => setForm((prev) => ({ ...prev, submitted_at: value }))} />
-        <SelectField label="Status" value={form.status} options={CLAIM_STATUS_OPTIONS} includeEmpty={false} onChange={(value) => setForm((prev) => ({ ...prev, status: value }))} />
-        <TextField label="Nominal Disetujui" value={form.approved_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, approved_amount: value }))} />
-        <TextField label="Nominal Cair" value={form.disbursed_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, disbursed_amount: value }))} />
-        <DateField label="Tanggal Cair" value={form.disbursed_at} onChange={(value) => setForm((prev) => ({ ...prev, disbursed_at: value }))} />
-        <TextareaField label="Alasan Ditolak" value={form.rejection_reason} onChange={(value) => setForm((prev) => ({ ...prev, rejection_reason: value }))} />
-        <TextareaField label="Catatan" value={form.notes} onChange={(value) => setForm((prev) => ({ ...prev, notes: value }))} />
-        <FileUploadField id="legal-claim-file" className="md:col-span-2" required={false} label="File Claim" file={form.file} validateFile={validateDomainUploadFile} onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))} onClear={() => setForm((prev) => ({ ...prev, file: null }))} />
+        <SetupFormSection title="Kontrak dan Klaim">
+          <SelectField label="Kontrak" value={form.contract_id} options={lookups.contractOptions} required searchable loadOptions={loadContractSearchOptions} searchPlaceholder="Cari nomor kontrak atau nama debitur..." onChange={(value) => setForm((prev) => ({ ...prev, contract_id: value, insurance_progress_id: "" }))} />
+          <SelectField label="Progress Asuransi" value={form.insurance_progress_id} options={insuranceOptions} emptyLabel="Opsional" onChange={(value) => setForm((prev) => ({ ...prev, insurance_progress_id: value }))} />
+          <TextField label="Nomor Polis" value={form.policy_number} onChange={(value) => setForm((prev) => ({ ...prev, policy_number: value }))} />
+          <SelectField label="Jenis Klaim" value={form.claim_type} options={lookups.claimTypeOptions} required onChange={(value) => setForm((prev) => ({ ...prev, claim_type: value }))} />
+          <TextField label="Nominal Klaim" value={form.claim_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, claim_amount: value }))} />
+          <DateField label="Tanggal Pengajuan" value={form.submitted_at} required onChange={(value) => setForm((prev) => ({ ...prev, submitted_at: value }))} />
+        </SetupFormSection>
+        <SetupFormSection title="Status dan Realisasi">
+          <SelectField label="Status" value={form.status} options={CLAIM_STATUS_OPTIONS} includeEmpty={false} onChange={(value) => setForm((prev) => ({ ...prev, status: value }))} />
+          <TextField label="Nominal Disetujui" value={form.approved_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, approved_amount: value }))} />
+          <TextField label="Nominal Cair" value={form.disbursed_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, disbursed_amount: value }))} />
+          <DateField label="Tanggal Cair" value={form.disbursed_at} onChange={(value) => setForm((prev) => ({ ...prev, disbursed_at: value }))} />
+        </SetupFormSection>
+        <SetupFormSection title="Catatan dan File" contentClassName="md:grid-cols-1">
+          <TextareaField label="Alasan Ditolak" value={form.rejection_reason} onChange={(value) => setForm((prev) => ({ ...prev, rejection_reason: value }))} />
+          <TextareaField label="Catatan" value={form.notes} onChange={(value) => setForm((prev) => ({ ...prev, notes: value }))} />
+          <FileUploadField id="legal-claim-file" required={false} label="File Klaim" file={form.file} validateFile={validateDomainUploadFile} onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))} onClear={() => setForm((prev) => ({ ...prev, file: null }))} />
+        </SetupFormSection>
       </DashboardModal>
       <DeleteConfirmModal
         isOpen={Boolean(deleteTarget)}
-        title="Hapus claim legal?"
+        title="Hapus klaim legal?"
         itemName={deleteTarget?.claim_type ?? ""}
-        entityLabel="claim legal"
+        entityLabel="klaim legal"
         isLoading={isSaving}
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => void remove()}
@@ -2234,7 +2288,7 @@ function buildDepositPayload(form: DepositFormState, type: string): LegalDeposit
     type,
     contract_id: form.contract_id,
     deposit_type_id: form.deposit_type_id || null,
-    third_party_id: form.third_party_id || null,
+    third_party_id: type === "ANGSURAN" ? null : form.third_party_id || null,
     nominal: toNumberInput(form.nominal),
     paid_amount: toNumberInput(form.paid_amount),
     processed_amount: toNumberInput(form.processed_amount),
@@ -2269,6 +2323,19 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
     amount: "0",
     notes: "",
   }));
+  const depositTypeOptions = useMemo(
+    () =>
+      toParameterOptions(
+        lookups.depositTypes.filter((item) => recordCategory(item) === type),
+      ),
+    [lookups.depositTypes, type],
+  );
+  const thirdPartyOptions = useMemo(() => {
+    if (type === "NOTARIS") return lookups.notaryOptions;
+    if (type === "ASURANSI") return lookups.insuranceOptions;
+    return [];
+  }, [lookups.insuranceOptions, lookups.notaryOptions, type]);
+  const canUseThirdParty = type !== "ANGSURAN";
 
   const load = useCallback(async () => {
     try {
@@ -2302,7 +2369,10 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
   const openEdit = (item: LegalDeposit) => {
     if (!ensureCapability(pathname, "update")) return;
     setSelected(item);
-    setForm(depositToForm(item));
+    setForm({
+      ...depositToForm(item),
+      third_party_id: canUseThirdParty ? item.third_party_id ?? "" : "",
+    });
     setIsModalOpen(true);
   };
 
@@ -2414,7 +2484,20 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
               </SetupDataTableRow>
             ))}
             {isLoading ? <SetupDataTableEmptyRow colSpan={9}>Memuat dana titipan...</SetupDataTableEmptyRow> : null}
-            {!isLoading && items.length === 0 ? <SetupDataTableEmptyRow colSpan={9}>Belum ada dana titipan.</SetupDataTableEmptyRow> : null}
+            {!isLoading && items.length === 0 ? (
+              <SetupDataTableEmptyRow
+                colSpan={9}
+                tone="legal"
+                description="Input titipan berdasarkan kontrak agar saldo dan transaksi bisa dipantau."
+                action={
+                  canCreate ? (
+                    <SetupAddButton label="Tambah Titipan" onClick={openCreate} />
+                  ) : undefined
+                }
+              >
+                Belum ada dana titipan.
+              </SetupDataTableEmptyRow>
+            ) : null}
           </SetupDataTableBody>
         </SetupDataTable>
         <Pagination page={meta.page} lastPage={meta.lastPage} total={meta.total} limit={meta.limit} isLoading={isLoading} onPageChange={setPage} />
@@ -2425,18 +2508,28 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
         onClose={closeModal}
         closeDisabled={isSaving}
         maxWidth="3xl"
-        bodyClassName="grid max-h-[70vh] grid-cols-1 gap-4 overflow-y-auto p-6 md:grid-cols-2"
+        bodyClassName="max-h-[70vh] space-y-4 overflow-y-auto p-6"
         footer={<ModalFooter onClose={closeModal} onSave={() => void save()} isSaving={isSaving} />}
       >
-        <SelectField label="Kontrak" value={form.contract_id} options={lookups.contractOptions} required onChange={(value) => setForm((prev) => ({ ...prev, contract_id: value }))} />
-        <SelectField label="Jenis Titipan" value={form.deposit_type_id} options={lookups.depositTypeOptions} emptyLabel="Opsional" onChange={(value) => setForm((prev) => ({ ...prev, deposit_type_id: value }))} />
-        <SelectField label="Pihak Ketiga" value={form.third_party_id} options={lookups.thirdPartyOptions} emptyLabel="Opsional" onChange={(value) => setForm((prev) => ({ ...prev, third_party_id: value }))} />
-        <SelectField label="Status" value={form.status} options={DEPOSIT_STATUS_OPTIONS} includeEmpty={false} onChange={(value) => setForm((prev) => ({ ...prev, status: value }))} />
-        <TextField label="Nominal" value={form.nominal} type="number" required onChange={(value) => setForm((prev) => ({ ...prev, nominal: value }))} />
-        <TextField label="Terbayar" value={form.paid_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, paid_amount: value }))} />
-        <TextField label="Diproses" value={form.processed_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, processed_amount: value }))} />
-        <TextField label="Sisa Manual" value={form.remaining_amount} type="number" placeholder="Opsional" onChange={(value) => setForm((prev) => ({ ...prev, remaining_amount: value }))} />
-        <TextareaField label="Catatan" value={form.notes} onChange={(value) => setForm((prev) => ({ ...prev, notes: value }))} />
+        <SetupFormSection title="Relasi Titipan">
+          <SelectField label="Kontrak" value={form.contract_id} options={lookups.contractOptions} required searchable loadOptions={loadContractSearchOptions} searchPlaceholder="Cari nomor kontrak atau nama debitur..." onChange={(value) => setForm((prev) => ({ ...prev, contract_id: value }))} />
+          <SelectField label="Jenis Titipan" value={form.deposit_type_id} options={depositTypeOptions} emptyLabel="Opsional" onChange={(value) => setForm((prev) => ({ ...prev, deposit_type_id: value }))} />
+          {canUseThirdParty ? (
+            <SelectField label="Pihak Ketiga" value={form.third_party_id} options={thirdPartyOptions} emptyLabel="Opsional" searchable searchPlaceholder="Cari nama pihak ketiga..." onChange={(value) => setForm((prev) => ({ ...prev, third_party_id: value }))} />
+          ) : (
+            <SelectField label="Pihak Ketiga" value="" options={[]} emptyLabel="Tidak dipakai untuk titipan angsuran" disabled onChange={() => undefined} />
+          )}
+          <SelectField label="Status" value={form.status} options={DEPOSIT_STATUS_OPTIONS} includeEmpty={false} onChange={(value) => setForm((prev) => ({ ...prev, status: value }))} />
+        </SetupFormSection>
+        <SetupFormSection title="Nominal">
+          <TextField label="Nominal" value={form.nominal} type="number" required onChange={(value) => setForm((prev) => ({ ...prev, nominal: value }))} />
+          <TextField label="Terbayar" value={form.paid_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, paid_amount: value }))} />
+          <TextField label="Diproses" value={form.processed_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, processed_amount: value }))} />
+          <TextField label="Sisa Manual" value={form.remaining_amount} type="number" placeholder="Opsional" onChange={(value) => setForm((prev) => ({ ...prev, remaining_amount: value }))} />
+        </SetupFormSection>
+        <SetupFormSection title="Catatan" contentClassName="md:grid-cols-1">
+          <TextareaField label="Catatan" value={form.notes} onChange={(value) => setForm((prev) => ({ ...prev, notes: value }))} />
+        </SetupFormSection>
       </DashboardModal>
       <DashboardModal
         isOpen={Boolean(transactionTarget)}
@@ -2445,13 +2538,15 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
         onClose={() => setTransactionTarget(null)}
         closeDisabled={isSaving}
         maxWidth="2xl"
-        bodyClassName="grid grid-cols-1 gap-4 p-6 md:grid-cols-2"
+        bodyClassName="p-6"
         footer={<ModalFooter onClose={() => setTransactionTarget(null)} onSave={() => void saveTransaction()} isSaving={isSaving} />}
       >
-        <DateField label="Tanggal Transaksi" value={transactionForm.transaction_date} required onChange={(value) => setTransactionForm((prev) => ({ ...prev, transaction_date: value }))} />
-        <SelectField label="Aksi" value={transactionForm.action} options={DEPOSIT_TRANSACTION_ACTION_OPTIONS} includeEmpty={false} onChange={(value) => setTransactionForm((prev) => ({ ...prev, action: value }))} />
-        <TextField label="Nominal" value={transactionForm.amount} type="number" required onChange={(value) => setTransactionForm((prev) => ({ ...prev, amount: value }))} />
-        <TextareaField label="Catatan" value={transactionForm.notes} onChange={(value) => setTransactionForm((prev) => ({ ...prev, notes: value }))} />
+        <SetupFormSection title="Detail Transaksi">
+          <DateField label="Tanggal Transaksi" value={transactionForm.transaction_date} required onChange={(value) => setTransactionForm((prev) => ({ ...prev, transaction_date: value }))} />
+          <SelectField label="Aksi" value={transactionForm.action} options={DEPOSIT_TRANSACTION_ACTION_OPTIONS} includeEmpty={false} onChange={(value) => setTransactionForm((prev) => ({ ...prev, action: value }))} />
+          <TextField label="Nominal" value={transactionForm.amount} type="number" required onChange={(value) => setTransactionForm((prev) => ({ ...prev, amount: value }))} />
+          <TextareaField label="Catatan" value={transactionForm.notes} onChange={(value) => setTransactionForm((prev) => ({ ...prev, notes: value }))} />
+        </SetupFormSection>
       </DashboardModal>
       <DeleteConfirmModal
         isOpen={Boolean(deleteTarget)}
@@ -2494,20 +2589,19 @@ export function LegalReportClient() {
 
   return (
     <DashboardPageShell spacing="md">
-      <FeatureHeader title="Laporan Legal" subtitle="Ringkasan aktivitas legal, PHK3, dana titipan, dan claim." icon={<ClipboardList />} />
+      <FeatureHeader title="Laporan Legal" subtitle="Ringkasan aktivitas legal, pihak ketiga, dana titipan, dan klaim." icon={<ClipboardList />} />
       <LegalFlowBoard
         steps={flowSteps}
         title="Cakupan Laporan Legal"
-        subtitle="Ringkasan ini membaca data real dari template, cetak dokumen, IDEB, PHK3, claim, dan titipan."
+        subtitle="Ringkasan ini membaca data real dari template, cetak dokumen, pihak ketiga, klaim, dan titipan."
       />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Template" value={isLoading ? "-" : data?.templates ?? 0} icon={FileArchive} />
         <StatCard label="Cetak Dokumen" value={isLoading ? "-" : data?.prints ?? 0} icon={Printer} />
-        <StatCard label="Upload IDEB" value={isLoading ? "-" : data?.ideb ?? 0} icon={Upload} />
         <StatCard label="Progress Notaris" value={isLoading ? "-" : data?.notary ?? 0} icon={Landmark} />
         <StatCard label="Progress Asuransi" value={isLoading ? "-" : data?.insurance ?? 0} icon={ShieldCheck} />
         <StatCard label="Progress KJPP" value={isLoading ? "-" : data?.kjpp ?? 0} icon={Building2} />
-        <StatCard label="Claim" value={isLoading ? "-" : data?.claims ?? 0} icon={FileCheck2} />
+        <StatCard label="Klaim" value={isLoading ? "-" : data?.claims ?? 0} icon={FileCheck2} />
         <StatCard label="Dana Titipan" value={isLoading ? "-" : data?.deposits ?? 0} icon={Banknote} />
       </div>
     </DashboardPageShell>
@@ -2568,12 +2662,12 @@ export function LegalThirdPartyDocumentsReportClient() {
     ...(data?.notary ?? []).map((item) => ({ module: "Notaris", ...item })),
     ...(data?.insurance ?? []).map((item) => ({ module: "Asuransi", ...item })),
     ...(data?.kjpp ?? []).map((item) => ({ module: "KJPP", ...item })),
-    ...(data?.claims ?? []).map((item) => ({ module: "Claim", ...item })),
+    ...(data?.claims ?? []).map((item) => ({ module: "Klaim", ...item })),
   ];
 
   return (
     <DashboardPageShell spacing="md">
-      <FeatureHeader title="Laporan Pihak Ketiga Dokumen" subtitle="Rekap progress dokumen notaris, asuransi, KJPP, dan claim." icon={<ClipboardList />} />
+      <FeatureHeader title="Laporan Pihak Ketiga Dokumen" subtitle="Rekap progress dokumen notaris, asuransi, KJPP, dan klaim." icon={<ClipboardList />} />
       <TableCard>
         <SetupDataTable className="min-w-[720px]">
           <SetupDataTableHead>
@@ -2596,7 +2690,15 @@ export function LegalThirdPartyDocumentsReportClient() {
               </SetupDataTableRow>
             ))}
             {isLoading ? <SetupDataTableEmptyRow colSpan={5}>Memuat laporan pihak ketiga...</SetupDataTableEmptyRow> : null}
-            {!isLoading && rows.length === 0 ? <SetupDataTableEmptyRow colSpan={5}>Belum ada laporan pihak ketiga.</SetupDataTableEmptyRow> : null}
+            {!isLoading && rows.length === 0 ? (
+              <SetupDataTableEmptyRow
+                colSpan={5}
+                tone="legal"
+                description="Laporan akan terisi dari progress notaris, asuransi, KJPP, dan klaim."
+              >
+                Belum ada laporan pihak ketiga.
+              </SetupDataTableEmptyRow>
+            ) : null}
           </SetupDataTableBody>
         </SetupDataTable>
       </TableCard>
@@ -2657,7 +2759,15 @@ export function LegalThirdPartyDepositFundsReportClient() {
               </SetupDataTableRow>
             ))}
             {isLoading ? <SetupDataTableEmptyRow colSpan={7}>Memuat laporan dana titipan...</SetupDataTableEmptyRow> : null}
-            {!isLoading && rows.length === 0 ? <SetupDataTableEmptyRow colSpan={7}>Belum ada laporan dana titipan.</SetupDataTableEmptyRow> : null}
+            {!isLoading && rows.length === 0 ? (
+              <SetupDataTableEmptyRow
+                colSpan={7}
+                tone="legal"
+                description="Laporan akan terisi dari data titipan asuransi, notaris, dan angsuran."
+              >
+                Belum ada laporan dana titipan.
+              </SetupDataTableEmptyRow>
+            ) : null}
           </SetupDataTableBody>
         </SetupDataTable>
       </TableCard>

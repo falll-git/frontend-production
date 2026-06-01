@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import StorageSummaryCard from "@/components/arsip/StorageSummaryCard";
 import Pagination from "@/components/ui/Pagination";
 import SetupExcelButton from "@/components/ui/SetupExcelButton";
+import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
 import { exportDokumenPerKantor } from "@/lib/export-arsip";
@@ -134,7 +135,7 @@ export default function LemariGridModal({
       <div
         role="dialog"
         aria-modal="true"
-        className="flex max-h-[85vh] w-[96vw] max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-sm"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl min-w-0 flex-col overflow-hidden rounded-lg bg-white shadow-sm"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start justify-between border-b border-gray-100 bg-gray-50/50 px-5 py-4">
@@ -173,22 +174,23 @@ export default function LemariGridModal({
               </p>
             </div>
           ) : hasNoData ? (
-            <div className="flex min-h-[300px] flex-col items-center justify-center px-6 text-center">
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-gray-300">
-                <FolderOpen className="h-7 w-7" aria-hidden="true" />
-              </div>
-              <p className="text-base font-medium text-gray-700">
-                Belum ada lemari
-              </p>
+            <div className="flex min-h-[300px] items-center justify-center px-6">
+              <SetupEmptyState
+                title="Belum ada lemari"
+                description="Lemari arsip kantor ini akan tampil setelah data penyimpanan tersedia."
+                icon={FolderOpen}
+                variant="table"
+              />
             </div>
           ) : hasNoFilteredData ? (
-            <div className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-gray-300">
-                <SearchX className="h-7 w-7" aria-hidden="true" />
-              </div>
-              <p className="text-base font-medium text-gray-700">
-                Tidak ada lemari yang sesuai
-              </p>
+            <div className="flex min-h-[260px] items-center justify-center px-6">
+              <SetupEmptyState
+                title="Tidak ada lemari yang sesuai"
+                description="Coba ubah kata kunci pencarian."
+                icon={SearchX}
+                isFiltered
+                variant="table"
+              />
             </div>
           ) : isLoading && lemariPage.length === 0 ? (
             <div className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">

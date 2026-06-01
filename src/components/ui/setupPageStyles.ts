@@ -56,9 +56,10 @@ export const SETUP_PAGE_SEARCH_INPUT_CLASS =
   "h-11 w-full rounded-lg border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 outline-none transition placeholder:text-gray-400 focus:border-[#1773B0] focus:ring-3 focus:ring-[#1773B0]/10";
 
 export const SETUP_PAGE_TABLE_CARD_CLASS =
-  "w-full max-w-full overflow-x-auto rounded-lg border border-gray-300 bg-white shadow-sm";
+  "w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm";
 
-export const SETUP_PAGE_TABLE_SCROLL_CLASS = "max-w-full overflow-x-auto";
+export const SETUP_PAGE_TABLE_SCROLL_CLASS =
+  "w-full min-w-0 max-w-full overflow-x-auto [contain:inline-size]";
 
 export const SETUP_PAGE_TABLE_CLASS =
   "min-w-full table-auto divide-y-2 divide-gray-200 text-sm";

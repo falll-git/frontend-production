@@ -1,4 +1,6 @@
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+const serverActionsEncryptionKey =
+  process.env.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY || "";
 const backendApiUrl = publicApiUrl.startsWith("http") ? publicApiUrl : "";
 const isProduction = process.env.NODE_ENV === "production";
 const backendOrigin = (() => {
@@ -13,12 +15,27 @@ if (isProduction && !backendApiUrl) {
   throw new Error("NEXT_PUBLIC_API_URL wajib diisi dengan URL backend production.");
 }
 
+if (isProduction && !serverActionsEncryptionKey.trim()) {
+  throw new Error(
+    "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY wajib diisi di production agar Server Action stabil antar build dan PM2 instance.",
+  );
+}
+
 const scriptSource = [
   "script-src",
   "'self'",
   "'unsafe-inline'",
   ...(isProduction ? [] : ["'unsafe-eval'"]),
 ].join(" ");
+
+const devConnectSources = isProduction
+  ? []
+  : [
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "ws://localhost:3000",
+      "ws://127.0.0.1:3000",
+    ];
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -29,12 +46,13 @@ const contentSecurityPolicy = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  `connect-src 'self'${backendOrigin ? ` ${backendOrigin}` : ""}`,
+  `connect-src 'self'${backendOrigin ? ` ${backendOrigin}` : ""}${devConnectSources.length ? ` ${devConnectSources.join(" ")}` : ""}`,
   `frame-src 'self' blob: data:${backendOrigin ? ` ${backendOrigin}` : ""}`,
 ].join("; ");
 
 const nextConfig = {
   reactStrictMode: true,
+  allowedDevOrigins: ["localhost", "127.0.0.1"],
   poweredByHeader: false,
   compress: true,
   async rewrites() {
@@ -50,7 +68,7 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: "/:path*",
+        source: "/((?!api(?:/|$)).*)",
         headers: [
           {
             key: "Content-Security-Policy",

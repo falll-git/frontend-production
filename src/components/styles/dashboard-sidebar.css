@@ -45,10 +45,6 @@
   color: #ffffff;
 }
 
-.sidebar-arsip-group .sidebar-submenu-item {
-  font-weight: 700;
-}
-
 .sidebar-menu-item.rbac-disabled,
 .sidebar-submenu-item.rbac-disabled {
   opacity: 0.45;
@@ -59,11 +55,6 @@
 .sidebar-submenu-item.rbac-disabled:hover {
   background: transparent;
   color: rgba(255, 255, 255, 0.6);
-}
-
-.feature-blocked-link,
-.feature-blocked-link * {
-  cursor: not-allowed !important;
 }
 
 .sidebar-nav::-webkit-scrollbar {

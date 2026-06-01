@@ -10,5 +10,5 @@ export default function SetupTextarea({
   className,
   ...props
 }: SetupTextareaProps) {
-  return <textarea className={joinClasses("textarea", className)} {...props} />;
+  return <textarea className={joinClasses("app-textarea", className)} {...props} />;
 }

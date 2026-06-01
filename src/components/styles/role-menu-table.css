@@ -1,27 +1,80 @@
 .role-menu-table-card {
-  width: fit-content !important;
+  width: 100% !important;
   max-width: 100%;
 }
 
 .role-menu-table-scroll {
-  width: fit-content;
+  width: 100%;
   max-width: 100%;
+  overflow-x: auto;
 }
 
 .role-menu-permission-table {
-  width: 850px !important;
-  min-width: 850px !important;
+  width: 760px !important;
+  min-width: 760px !important;
 }
 
 .role-menu-permission-table th.role-menu-name-cell {
-  text-align: center !important;
+  text-align: left !important;
 }
 
 .role-menu-permission-table td.role-menu-name-cell,
 .role-menu-permission-table td.role-menu-name-cell * {
-  text-align: center !important;
+  text-align: left !important;
 }
 
-.role-menu-permission-table td.role-menu-name-cell .flex {
-  justify-content: center !important;
+.role-menu-permission-table td.role-menu-name-cell .role-menu-name-content {
+  justify-content: flex-start !important;
+  padding-left: calc(var(--role-menu-depth, 0) * 14px);
+}
+
+.role-menu-filter-card .app-input,
+.role-menu-filter-card .app-select {
+  min-height: 40px;
+}
+
+@media (min-width: 1024px) {
+  .role-menu-permission-table th.role-menu-name-cell,
+  .role-menu-permission-table td.role-menu-name-cell {
+    position: sticky;
+    left: 0;
+    z-index: 12;
+    background: #ffffff;
+    box-shadow: 1px 0 0 rgba(148, 163, 184, 0.22);
+  }
+
+  .role-menu-permission-table th.role-menu-name-cell {
+    z-index: 32;
+  }
+
+  .role-menu-permission-table tr.bg-slate-50\/90 td.role-menu-name-cell {
+    background: #f8fafc;
+  }
+}
+
+@media (max-width: 1023px) {
+  .role-menu-table-card,
+  .role-menu-table-scroll {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+
+  .role-menu-permission-table {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .role-menu-permission-table td.role-menu-name-cell,
+  .role-menu-permission-table td.role-menu-name-cell * {
+    text-align: left !important;
+  }
+
+  .role-menu-permission-table td.role-menu-name-cell .flex {
+    justify-content: flex-start !important;
+  }
+
+  .role-menu-permission-table td.role-menu-name-cell .role-menu-name-content {
+    padding-left: 0;
+  }
 }

@@ -1,12 +1,10 @@
 import * as React from "react";
 
-function cn(...inputs: Array<string | false | null | undefined>) {
-  return inputs.filter(Boolean).join(" ");
-}
+import { cn } from "@/lib/utils";
 
 const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("card", className)} {...props} />
+    <div ref={ref} className={cn("app-card", className)} {...props} />
   ),
 );
 Card.displayName = "Card";

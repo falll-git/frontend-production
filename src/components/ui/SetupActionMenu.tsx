@@ -33,7 +33,7 @@ type SetupActionMenuProps = {
 };
 
 const ACTION_ICON_BUTTON_CLASS =
-  "inline-flex size-8 flex-shrink-0 items-center justify-center border border-gray-200 bg-white transition-colors focus:z-10 focus:outline-none focus:ring-2 focus:ring-[rgba(21,126,195,0.16)] focus:ring-offset-2 disabled:pointer-events-auto disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-9 w-full flex-shrink-0 items-center justify-start gap-2 bg-white px-3 text-sm font-medium transition-colors focus:z-10 focus:outline-none focus:ring-2 focus:ring-[rgba(21,126,195,0.16)] disabled:pointer-events-auto disabled:cursor-not-allowed disabled:opacity-50";
 
 const ACTION_MORE_BUTTON_CLASS =
   "inline-flex size-8 items-center justify-center rounded-lg border border-[rgba(21,126,195,0.42)] bg-white text-gray-600 shadow-sm transition-colors hover:border-[rgba(21,126,195,0.65)] hover:bg-[rgba(21,126,195,0.06)] hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-[rgba(21,126,195,0.16)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
@@ -42,12 +42,16 @@ const ACTION_TONE_CLASS: Record<SetupActionTone, string> = {
   blue: "text-gray-700 hover:bg-blue-50 hover:text-gray-900",
   emerald: "text-gray-700 hover:bg-emerald-50 hover:text-gray-900",
   amber: "text-gray-700 hover:bg-amber-50 hover:text-gray-900",
-  red: "text-gray-700 hover:bg-red-50 hover:text-gray-900",
+  red: "text-red-700 hover:bg-red-50 hover:text-red-800 focus:ring-red-100 [&>svg]:text-red-600",
   gray: "text-gray-600 hover:bg-gray-50 hover:text-gray-800",
 };
 
 function getMenuWidth(itemCount: number) {
-  return Math.max(36, itemCount * 36);
+  return itemCount > 0 ? 168 : 36;
+}
+
+function getMenuHeight(itemCount: number) {
+  return Math.max(42, itemCount * 36 + 10);
 }
 
 function getGroupedActionButtonClass(
@@ -57,8 +61,8 @@ function getGroupedActionButtonClass(
 ) {
   return [
     ACTION_ICON_BUTTON_CLASS,
-    index === 0 ? "rounded-s-sm" : "-ms-px",
-    index === total - 1 ? "rounded-e-sm" : "",
+    index === 0 ? "rounded-t-md" : "",
+    index === total - 1 ? "rounded-b-md" : "",
     ACTION_TONE_CLASS[tone],
   ]
     .filter(Boolean)
@@ -68,11 +72,11 @@ function getGroupedActionButtonClass(
 function getActionMenuPosition(
   trigger: HTMLButtonElement,
   menuWidth: number,
+  menuHeight: number,
 ): ActionMenuPosition {
   const rect = trigger.getBoundingClientRect();
   const gutter = 12;
   const gap = 8;
-  const menuHeight = 36;
   const maxLeft = window.innerWidth - menuWidth - gutter;
   const left = Math.max(gutter, Math.min(rect.right - menuWidth, maxLeft));
   const bottomTop = rect.bottom + gap;
@@ -92,6 +96,7 @@ export default function SetupActionMenu({
   const menuId = useId();
   const activeItems = items.filter((item) => !item.disabled);
   const menuWidth = getMenuWidth(activeItems.length);
+  const menuHeight = getMenuHeight(activeItems.length);
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<ActionMenuPosition | null>(null);
 
@@ -109,7 +114,7 @@ export default function SetupActionMenu({
     window.dispatchEvent(
       new CustomEvent("setup-action-menu-open", { detail: menuId }),
     );
-    setPosition(getActionMenuPosition(event.currentTarget, menuWidth));
+    setPosition(getActionMenuPosition(event.currentTarget, menuWidth, menuHeight));
     setIsOpen(true);
   };
 
@@ -171,6 +176,7 @@ export default function SetupActionMenu({
         disabled={activeItems.length === 0}
         aria-haspopup="menu"
         aria-expanded={isOpen}
+        aria-label={label}
         title={label}
       >
         <MoreHorizontal className="size-4" aria-hidden="true" />
@@ -189,7 +195,7 @@ export default function SetupActionMenu({
               }}
             >
               <div
-                className="inline-flex rounded-sm bg-white shadow-lg ring-1 ring-black/5"
+                className="flex w-full flex-col rounded-lg bg-white p-1.5 shadow-lg ring-1 ring-black/5"
                 role="menu"
                 aria-label={menuLabel}
               >
@@ -210,6 +216,7 @@ export default function SetupActionMenu({
                         closeMenu();
                         void item.onClick();
                       }}
+                      aria-label={item.label}
                       title={item.label}
                     >
                       <Icon
@@ -217,7 +224,7 @@ export default function SetupActionMenu({
                         aria-hidden="true"
                         strokeWidth={1.5}
                       />
-                      <span className="sr-only">{item.label}</span>
+                      <span className="truncate">{item.label}</span>
                     </button>
                   );
                 })}

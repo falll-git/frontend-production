@@ -34,9 +34,14 @@ const api = axios.create({
 });
 
 let accessToken: string | null = null;
+let refreshAccessTokenPromise: Promise<string> | null = null;
+let authFailureRedirecting = false;
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
+  if (token) {
+    authFailureRedirecting = false;
+  }
 }
 
 export function getAccessToken(): string | null {
@@ -61,6 +66,45 @@ function extractAuthToken(payload: unknown): string | null {
   }
 
   return null;
+}
+
+function handleAuthFailureRedirect() {
+  if (authFailureRedirecting) return;
+
+  authFailureRedirecting = true;
+  setAccessToken(null);
+  clearAuthBrowserStorage();
+
+  if (typeof window !== "undefined") {
+    window.location.href = "/";
+  }
+}
+
+function refreshAccessToken(): Promise<string> {
+  if (refreshAccessTokenPromise) return refreshAccessTokenPromise;
+
+  refreshAccessTokenPromise = axios
+    .post(
+      `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
+      { remember: hasPersistedAuthSession() },
+      { withCredentials: true },
+    )
+    .then((res) => {
+      if (hasFailedApiFlag(res.data)) {
+        throw new Error(getApiMessage(res.data) ?? "Refresh gagal diproses");
+      }
+
+      const newToken = extractAuthToken(res.data);
+      if (!newToken) throw new Error("Refresh failed");
+
+      setAccessToken(newToken);
+      return newToken;
+    })
+    .finally(() => {
+      refreshAccessTokenPromise = null;
+    });
+
+  return refreshAccessTokenPromise;
 }
 
 api.interceptors.request.use((config) => {
@@ -107,28 +151,12 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const res = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
-          { remember: hasPersistedAuthSession() },
-          { withCredentials: true },
-        );
-
-        if (hasFailedApiFlag(res.data)) {
-          throw new Error(getApiMessage(res.data) ?? "Refresh gagal diproses");
-        }
-
-        const newToken = extractAuthToken(res.data);
-        if (!newToken) throw new Error("Refresh failed");
-
-        setAccessToken(newToken);
-
+        const newToken = await refreshAccessToken();
         originalRequest.headers = originalRequest.headers ?? {};
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
       } catch {
-        setAccessToken(null);
-        clearAuthBrowserStorage();
-        window.location.href = "/";
+        handleAuthFailureRedirect();
         return Promise.reject(error);
       }
     }

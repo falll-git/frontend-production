@@ -1,14 +1,15 @@
 import type { PaginationMeta } from "@/types/api.types";
-import type { DebtorContract, DebtorFileMeta, DebtorRecord } from "@/types/debitur.types";
+import type { DebtorContract, DebtorFileMeta } from "@/types/debitur.types";
 import type { ParameterMasterRecord } from "@/services/parameter-master.service";
 
 export type LegalDocumentType =
   | "AKAD"
   | "HAFTSHEET"
   | "SURAT_PERINGATAN"
-  | "FORMULIR_ASURANSI"
+  | "SURAT_PENGANTAR"
   | "SKL"
-  | "SAMSAT";
+  | "SAMSAT"
+  | "DOKUMEN_LAINNYA";
 
 export type LegalPageResult<T> = {
   items: T[];
@@ -53,20 +54,6 @@ export type LegalPrintHistory = {
   numbering_template: ParameterMasterRecord | null;
   contract: DebtorContract | null;
   printed_at: string | null;
-  created_at: string | null;
-};
-
-export type LegalIdebUpload = {
-  id: string;
-  debtor_id: string | null;
-  contract_id: string | null;
-  month: number;
-  year: number;
-  status: string;
-  result_summary: Record<string, unknown> | null;
-  file: DebtorFileMeta | null;
-  debtor: DebtorRecord | null;
-  contract: DebtorContract | null;
   created_at: string | null;
 };
 
@@ -151,7 +138,6 @@ export type LegalDepositTransaction = {
 export type LegalSummaryReport = {
   templates: number;
   prints: number;
-  ideb: number;
   notary: number;
   insurance: number;
   kjpp: number;
@@ -186,23 +172,12 @@ export type LegalTemplatePayload = {
 };
 
 export type LegalPrintPayload = {
-  template_id?: string | null;
+  template_id: string;
   numbering_template_id?: string | null;
   contract_id: string;
   document_type: LegalDocumentType | string;
   payload_snapshot?: Record<string, unknown>;
-  generated_number?: string | null;
   file?: File | null;
-};
-
-export type LegalIdebPayload = {
-  debtor_id?: string | null;
-  contract_id?: string | null;
-  month: number;
-  year: number;
-  status?: string;
-  result_summary?: Record<string, unknown>;
-  file: File;
 };
 
 export type LegalNotaryPayload = {

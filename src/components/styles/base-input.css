@@ -1,4 +1,4 @@
-.input {
+.app-input {
   width: 100%;
   padding: 11px 14px;
   border: 1px solid #e5e7eb;
@@ -9,20 +9,20 @@
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-.input:focus,
-.input:focus-visible {
+.app-input:focus,
+.app-input:focus-visible {
   outline: none;
   border-color: #1773b0;
   background: white;
   box-shadow: 0 0 0 4px rgba(23, 115, 176, 0.1);
 }
 
-.input:disabled {
+.app-input:disabled {
   background: #f1f5f9;
   cursor: not-allowed;
   color: #94a3b8;
 }
 
-.input-with-icon {
+.app-input-with-icon {
   padding-left: 44px;
 }

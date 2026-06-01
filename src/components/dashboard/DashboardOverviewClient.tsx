@@ -9,15 +9,19 @@ import {
   type ReactNode,
 } from "react";
 import {
+  Activity,
   ArrowRight,
   BarChart3,
   FolderArchive,
   Grid2x2,
   Mail,
   Scale,
+  TrendingDown,
+  Users,
 } from "lucide-react";
 
 import { useAuth } from "@/components/auth/AuthProvider";
+import DashboardModal from "@/components/ui/DashboardModal";
 import LaporanAktivitasMarketingSection from "@/components/dashboard/LaporanAktivitasMarketingSection";
 import LaporanNPFSection from "@/components/dashboard/LaporanNPFSection";
 import LaporanPihakKetigaSection from "@/components/dashboard/LaporanPihakKetigaSection";
@@ -35,17 +39,9 @@ type DashboardCardTone = {
 
 const MODULE_REPORT_COMPONENT_PREFIX = "dashboard.module_report.";
 const STORAGE_USAGE_COMPONENT_KEY = "dashboard.storage_usage";
-const REPORT_ALL_FEATURE = "report_all";
-const REPORT_ALL_REQUIRED_WIDGET_KEYS = new Set([
-  "dashboard.module_report.debtor",
-  "dashboard.module_report.legal",
-  "dashboard.report.third_party_documents",
-  "dashboard.report.third_party_deposit_funds",
-  "dashboard.report.npf",
-  "dashboard.report.marketing_activity",
-]);
 type DashboardReportSectionProps = {
   widget: DashboardMenuNode;
+  showTitle?: boolean;
 };
 const DASHBOARD_REPORT_SECTION_RENDERERS: Record<
   string,
@@ -62,6 +58,7 @@ const DASHBOARD_REPORT_SECTION_ORDER: Record<string, number> = {
   "dashboard.report.npf": 30,
   "dashboard.report.marketing_activity": 40,
 };
+const DASHBOARD_MODAL_REPORT_KEYS = new Set<string>();
 
 function hexToRgb(value: string): string | null {
   const hex = value.replace("#", "").trim();
@@ -91,6 +88,7 @@ function DashboardWidgetCard({
   badge,
   accentColor,
   buttonText = "Lihat Detail",
+  className = "",
 }: {
   title: string;
   icon: ReactNode;
@@ -99,13 +97,14 @@ function DashboardWidgetCard({
   badge?: string;
   accentColor: string;
   buttonText?: string;
+  className?: string;
 }) {
   const accentRgb = hexToRgb(accentColor) ?? "21, 126, 195";
 
   return (
     <ProtectedLink
       href={href}
-      className="uiverse-card"
+      className={["uiverse-card", className].filter(Boolean).join(" ")}
       style={
         {
           "--card-accent": accentColor,
@@ -151,7 +150,54 @@ function DashboardModuleReportCard({
       accentColor={tone.accentColor}
       icon={tone.icon}
       buttonText="Akses Laporan"
+      className="uiverse-card--module-report"
     />
+  );
+}
+
+function DashboardReportShortcutCard({
+  widget,
+  tone,
+  onOpen,
+}: {
+  widget: DashboardMenuNode;
+  tone: DashboardCardTone;
+  onOpen: (widget: DashboardMenuNode) => void;
+}) {
+  const accentRgb = hexToRgb(tone.accentColor) ?? "21, 126, 195";
+
+  return (
+    <button
+      type="button"
+      className="uiverse-card text-left"
+      aria-label={`Buka ${widget.name}`}
+      style={
+        {
+          "--card-accent": tone.accentColor,
+          "--card-accent-rgb": accentRgb,
+        } as CSSProperties
+      }
+      onClick={() => onOpen(widget)}
+    >
+      <div className="uiverse-card-shine" aria-hidden="true" />
+      <div className="uiverse-card-glow" aria-hidden="true" />
+      <div className="uiverse-card-content">
+        <div className="uiverse-card-badge">Dashboard</div>
+        <div className="uiverse-card-image">
+          <div className="text-white">{tone.icon}</div>
+        </div>
+        <div className="uiverse-card-text">
+          <p className="uiverse-card-title">{widget.name}</p>
+          <p className="uiverse-card-description">{getWidgetSubtitle(widget)}</p>
+        </div>
+        <div className="uiverse-card-footer">
+          <div className="uiverse-card-price">Buka Laporan</div>
+          <div className="uiverse-card-button">
+            <ArrowRight size={16} />
+          </div>
+        </div>
+      </div>
+    </button>
   );
 }
 
@@ -169,7 +215,7 @@ function DashboardSkeletonModules({ count = 4 }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {Array.from({ length: count }).map((_, index) => (
-        <div key={index} className="skeleton-card">
+        <div key={index} className="skeleton-card skeleton-card--module-report">
           <div className="flex items-start justify-between">
             <div className="flex-1 space-y-3">
               <DashboardSkeletonLine width="60%" height="14px" />
@@ -216,12 +262,22 @@ function getWidgetTone(widget: DashboardMenuNode): DashboardCardTone {
     case "dashboard.module_report.debtor":
       return {
         accentColor: "#0f766e",
-        icon: <BarChart3 className="h-8 w-8" aria-hidden="true" />,
+        icon: <Users className="h-8 w-8" aria-hidden="true" />,
       };
     case "dashboard.module_report.legal":
       return {
-        accentColor: "#2563eb",
+        accentColor: "#d97706",
         icon: <Scale className="h-8 w-8" aria-hidden="true" />,
+      };
+    case "dashboard.report.npf":
+      return {
+        accentColor: "#dc2626",
+        icon: <TrendingDown className="h-8 w-8" aria-hidden="true" />,
+      };
+    case "dashboard.report.marketing_activity":
+      return {
+        accentColor: "#0f766e",
+        icon: <Activity className="h-8 w-8" aria-hidden="true" />,
       };
     default:
       return {
@@ -241,6 +297,10 @@ function getWidgetSubtitle(widget: DashboardMenuNode): string {
       return "Debitur dan pembiayaan";
     case "dashboard.module_report.legal":
       return "Legal dan pihak ketiga";
+    case "dashboard.report.npf":
+      return "Rasio NPF, kolektibilitas, dan tren pembiayaan";
+    case "dashboard.report.marketing_activity":
+      return "Action plan, kunjungan, dan langkah penanganan";
     default:
       break;
   }
@@ -261,6 +321,12 @@ function isDashboardReportSectionWidget(widget: DashboardMenuNode): boolean {
   );
 }
 
+function isDashboardModalReportWidget(widget: DashboardMenuNode): boolean {
+  return Boolean(
+    widget.component_key && DASHBOARD_MODAL_REPORT_KEYS.has(widget.component_key),
+  );
+}
+
 function isStorageUsageWidget(widget: DashboardMenuNode): boolean {
   return widget.component_key === STORAGE_USAGE_COMPONENT_KEY;
 }
@@ -275,13 +341,6 @@ function canRenderDashboardWidget(widget: DashboardMenuNode): boolean {
   }
 
   if (isStorageUsageWidget(widget)) return true;
-
-  if (
-    widget.component_key &&
-    REPORT_ALL_REQUIRED_WIDGET_KEYS.has(widget.component_key)
-  ) {
-    return Boolean(widget.role_permissions?.features?.includes(REPORT_ALL_FEATURE));
-  }
 
   return true;
 }
@@ -300,6 +359,8 @@ export default function DashboardOverviewClient() {
   const [dashboardWidgets, setDashboardWidgets] = useState<DashboardMenuNode[]>(
     [],
   );
+  const [activeReportWidget, setActiveReportWidget] =
+    useState<DashboardMenuNode | null>(null);
 
   useEffect(() => {
     if (status !== "authenticated") {
@@ -344,6 +405,19 @@ export default function DashboardOverviewClient() {
     () =>
       widgetCards
         .filter(isDashboardReportSectionWidget)
+        .filter((widget) => !isDashboardModalReportWidget(widget))
+        .sort(
+          (left, right) =>
+            getDashboardReportSectionOrder(left) -
+              getDashboardReportSectionOrder(right) ||
+            left.name.localeCompare(right.name, "id-ID"),
+        ),
+    [widgetCards],
+  );
+  const modalReportCards = useMemo(
+    () =>
+      widgetCards
+        .filter(isDashboardModalReportWidget)
         .sort(
           (left, right) =>
             getDashboardReportSectionOrder(left) -
@@ -358,10 +432,16 @@ export default function DashboardOverviewClient() {
         (widget) =>
           !isModuleReportWidget(widget) &&
           !isDashboardReportSectionWidget(widget) &&
+          !isDashboardModalReportWidget(widget) &&
           !isStorageUsageWidget(widget),
       ),
     [widgetCards],
   );
+  const activeReportComponentKey = activeReportWidget?.component_key ?? "";
+  const ActiveReportSection =
+    activeReportComponentKey.length > 0
+      ? DASHBOARD_REPORT_SECTION_RENDERERS[activeReportComponentKey]
+      : null;
 
   if (status === "loading") {
     return (
@@ -444,6 +524,25 @@ export default function DashboardOverviewClient() {
         </div>
       ) : null}
 
+      {!isWidgetLoading && modalReportCards.length > 0 ? (
+        <div className="mt-8 animate-fade-in">
+          <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-800">
+            <BarChart3 className="h-6 w-6 text-gray-600" aria-hidden="true" />
+            Shortcut Laporan
+          </h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {modalReportCards.map((widget) => (
+              <DashboardReportShortcutCard
+                key={widget.id}
+                widget={widget}
+                tone={getWidgetTone(widget)}
+                onOpen={setActiveReportWidget}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {!isWidgetLoading && secondaryReportCards.length > 0 ? (
         <div className="mt-8 animate-fade-in">
           <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-800">
@@ -469,6 +568,21 @@ export default function DashboardOverviewClient() {
           </div>
         </div>
       ) : null}
+
+      <DashboardModal
+        isOpen={Boolean(activeReportWidget && ActiveReportSection)}
+        title={activeReportWidget?.name ?? "Laporan"}
+        description={
+          activeReportWidget ? getWidgetSubtitle(activeReportWidget) : undefined
+        }
+        onClose={() => setActiveReportWidget(null)}
+        maxWidth="5xl"
+        bodyClassName="bg-slate-50 p-3 sm:p-4 lg:p-5"
+      >
+        {activeReportWidget && ActiveReportSection ? (
+          <ActiveReportSection widget={activeReportWidget} showTitle={false} />
+        ) : null}
+      </DashboardModal>
     </>
   );
 }

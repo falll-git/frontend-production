@@ -14,7 +14,7 @@ export default function SetupTextInput({
   return (
     <input
       type={type}
-      className={joinClasses("input", className)}
+      className={joinClasses("app-input", className)}
       {...props}
     />
   );

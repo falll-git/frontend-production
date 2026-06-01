@@ -1,10 +1,14 @@
 import "./globals.css";
+import "@/components/styles/index.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { AppToastProvider } from "@/components/ui/AppToastProvider";
 
 export const metadata = {
   title: "Ruwang Arsip - Sistem Manajemen Arsip Digital",
   description: "Sistem Manajemen Arsip Digital Terpadu",
+  icons: {
+    icon: "/branding/logo-ruwang-arsip.png",
+  },
 };
 
 export default function RootLayout({

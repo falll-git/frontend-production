@@ -9,6 +9,7 @@ type SetupViewButtonProps = Omit<
 > & {
   onClick: MouseEventHandler<HTMLButtonElement>;
   label?: string;
+  iconOnly?: boolean;
 };
 
 const VIEW_BUTTON_CLASS =
@@ -16,10 +17,11 @@ const VIEW_BUTTON_CLASS =
 
 export default function SetupViewButton({
   onClick,
-  title = "View dokumen",
+  title = "Lihat detail",
   className = "",
   disabled = false,
-  label = "View",
+  label = "Lihat Detail",
+  iconOnly = false,
   type = "button",
   ...props
 }: SetupViewButtonProps) {
@@ -34,7 +36,11 @@ export default function SetupViewButton({
       {...props}
     >
       <Eye className="h-4 w-4" aria-hidden="true" />
-      <span className="whitespace-nowrap">{label}</span>
+      {iconOnly ? (
+        <span className="sr-only">{label}</span>
+      ) : (
+        <span className="whitespace-nowrap">{label}</span>
+      )}
     </button>
   );
 }

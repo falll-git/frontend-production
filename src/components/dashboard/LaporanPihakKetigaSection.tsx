@@ -37,19 +37,23 @@ const kategoriMeta: Record<
   {
     icon: LucideIcon;
     label: string;
+    accentColor: string;
   }
 > = {
   NOTARIS: {
     icon: Scale,
     label: "Notaris",
+    accentColor: "#157ec3",
   },
   ASURANSI: {
     icon: Shield,
     label: "Asuransi",
+    accentColor: "#0f766e",
   },
   KJPP: {
     icon: Building2,
     label: "KJPP",
+    accentColor: "#7c3aed",
   },
 };
 
@@ -218,10 +222,18 @@ export default function LaporanPihakKetigaSection({
             >
               <div className="mb-6 flex items-start gap-4">
                 <div className="flex min-w-0 flex-1 items-center gap-4">
-                  <CategoryIcon
-                    className="h-8 w-8 shrink-0 text-slate-900"
-                    aria-hidden="true"
-                  />
+                  <div
+                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg transition-transform group-hover:scale-110"
+                    style={{
+                      background: `linear-gradient(135deg, ${meta.accentColor} 0%, ${meta.accentColor}cc 100%)`,
+                      boxShadow: `0 16px 28px ${meta.accentColor}2b`,
+                    }}
+                  >
+                    <CategoryIcon
+                      className="h-7 w-7"
+                      aria-hidden="true"
+                    />
+                  </div>
                   <div className="min-w-0">
                     <p className="text-lg font-bold text-gray-900">
                       {meta.label}

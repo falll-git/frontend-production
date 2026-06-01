@@ -9,7 +9,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableCell,
   SetupDataTableColGroup,
-  SetupDataTableCol
+  SetupDataTableCol,
+  SetupDataTableEmptyRow,
 } from "@/components/ui/SetupDataTable";
 import {
   Fragment,
@@ -30,7 +31,6 @@ import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
 import {
   getSetupPageEmptyStateCopy,
-  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
   SETUP_PAGE_TABLE_CARD_CLASS,
 } from "@/components/ui/setupPageStyles";
@@ -54,6 +54,7 @@ type FlatMenu = {
 
 type PermKey = "can_read" | "can_create" | "can_update" | "can_delete";
 type FeatureKey = string;
+type PermissionFilter = "all" | "active" | "unset" | "changed" | "feature";
 
 type FeatureOption = {
   key: FeatureKey;
@@ -83,22 +84,32 @@ type MenuGroup = {
 const SECTION_CARD_CLASS =
   SETUP_PAGE_TABLE_CARD_CLASS;
 const PERM_HEADER_CLASS =
-  "w-[66px] px-2 py-3 text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-600 whitespace-nowrap";
-const PERM_CELL_CLASS = "w-[66px] px-2 py-3 text-center align-middle";
+  "w-[58px] px-1.5 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-600 whitespace-nowrap";
+const PERM_CELL_CLASS = "w-[58px] px-1.5 py-2 text-center align-middle";
 const FEATURE_HEADER_CLASS =
-  "w-[190px] px-2 py-3 text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-600 whitespace-nowrap";
-const FEATURE_CELL_CLASS = "w-[190px] px-2 py-3 align-middle";
+  "w-[160px] px-2 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-600 whitespace-nowrap";
+const FEATURE_CELL_CLASS = "w-[160px] px-2 py-2 align-middle";
 const MENU_HEADER_CLASS =
-  "px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.08em] text-gray-600 whitespace-nowrap";
+  "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-600 whitespace-nowrap";
 const MENU_CELL_CLASS =
-  "px-4 py-3 text-center align-middle text-sm text-gray-900";
+  "px-3 py-2 text-left align-middle text-sm text-gray-900";
 const GROUP_ROW_CLASS = "border-y border-gray-200 bg-slate-50/90";
 const PERMISSION_TABLE_CLASS =
-  "role-menu-permission-table w-[850px] min-w-[850px] table-fixed divide-y-2 divide-gray-200";
+  "role-menu-permission-table w-[760px] min-w-[760px] table-fixed divide-y-2 divide-gray-200";
 const FEATURE_BADGE_CLASS =
-  "inline-flex max-w-[124px] items-center justify-center rounded-full bg-blue-100 px-2.5 py-0.5 text-sm font-semibold text-blue-700";
+  "inline-flex max-w-[104px] items-center justify-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700";
 const FEATURE_BUTTON_CLASS =
-  "inline-flex size-8 items-center justify-center rounded-lg border border-[rgba(21,126,195,0.42)] bg-white text-slate-900 shadow-sm transition hover:border-[rgba(21,126,195,0.66)] hover:bg-[rgba(21,126,195,0.06)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400";
+  "inline-flex size-7 items-center justify-center rounded-lg border border-[rgba(21,126,195,0.36)] bg-white text-slate-900 shadow-sm transition hover:border-[rgba(21,126,195,0.66)] hover:bg-[rgba(21,126,195,0.06)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400";
+const PERMISSION_FILTER_OPTIONS: Array<{
+  key: PermissionFilter;
+  label: string;
+}> = [
+  { key: "all", label: "Semua" },
+  { key: "active", label: "Aktif" },
+  { key: "unset", label: "Belum Diatur" },
+  { key: "changed", label: "Berubah" },
+  { key: "feature", label: "Ada Fitur" },
+];
 const RBAC_REFRESH_EVENT = "ruang-arsip:rbac-refresh";
 const RBAC_REFRESH_STORAGE_KEY = "ruang-arsip.rbac-refresh-at";
 const REPORT_ALL_FEATURE = "report_all";
@@ -215,6 +226,19 @@ function isPermissionEmpty(permission: PermissionFlags): boolean {
     permission.can_delete ||
     permission.features.length > 0
   );
+}
+
+function permissionMatchesFilter(
+  filter: PermissionFilter,
+  current: PermissionFlags,
+  initial: PermissionFlags,
+  support: PermissionSupport,
+): boolean {
+  if (filter === "all") return true;
+  if (filter === "active") return !isPermissionEmpty(current);
+  if (filter === "unset") return isPermissionEmpty(current);
+  if (filter === "changed") return !permissionsEqual(current, initial);
+  return support.features.length > 0;
 }
 
 function mergeRoleMenuPermissions(
@@ -460,6 +484,8 @@ export default function SetupRoleMenuPage() {
     {},
   );
   const [query, setQuery] = useState("");
+  const [permissionFilter, setPermissionFilter] =
+    useState<PermissionFilter>("all");
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isPermissionsLoading, setIsPermissionsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -566,14 +592,28 @@ export default function SetupRoleMenuPage() {
 
   const filteredFlat = useMemo(() => {
     const keyword = query.trim().toLowerCase();
-    if (!keyword) return flatMenus;
+    if (!keyword && permissionFilter === "all") return flatMenus;
 
     const matchedIds = new Set<string>();
     const visibleIds = new Set<string>();
 
     for (const row of flatMenus) {
       const haystack = `${row.menu.name} ${row.menu.url}`.toLowerCase();
-      if (haystack.includes(keyword)) {
+      const current =
+        draftPermissions[row.menu.id] ?? createEmptyPermission();
+      const initial =
+        initialPermissions[row.menu.id] ?? createEmptyPermission();
+      const support =
+        supportByMenuId.get(row.menu.id) ?? getPermissionSupport(row);
+      const keywordMatches = !keyword || haystack.includes(keyword);
+      const permissionMatches = permissionMatchesFilter(
+        permissionFilter,
+        current,
+        initial,
+        support,
+      );
+
+      if (keywordMatches && permissionMatches) {
         matchedIds.add(row.menu.id);
         visibleIds.add(row.menu.id);
         row.ancestryIds.forEach((ancestorId) => visibleIds.add(ancestorId));
@@ -587,7 +627,14 @@ export default function SetupRoleMenuPage() {
     }
 
     return flatMenus.filter((row) => visibleIds.has(row.menu.id));
-  }, [flatMenus, query]);
+  }, [
+    draftPermissions,
+    flatMenus,
+    initialPermissions,
+    permissionFilter,
+    query,
+    supportByMenuId,
+  ]);
 
   const groupedMenus = useMemo(() => {
     const grouped = new Map<string, MenuGroup>();
@@ -804,43 +851,65 @@ export default function SetupRoleMenuPage() {
         actions={null}
       />
 
-      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} max-w-[1280px]`}>
-        <SetupSearchInput
-          label="Cari Menu"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={
-            selectedRoleId
-              ? "Cari nama menu atau route..."
-              : "Pilih role dulu untuk mulai mencari menu"
-          }
-          disabled={!selectedRoleId || isBusy}
-        />
+      <div
+        className={`${SETUP_PAGE_SEARCH_CARD_CLASS} role-menu-filter-card max-w-[1280px]`}
+      >
+        <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_minmax(220px,320px)] lg:items-end">
+          <SetupSearchInput
+            label="Cari Menu"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={
+              selectedRoleId
+                ? "Cari nama menu atau route..."
+                : "Pilih role dulu untuk mulai mencari menu"
+            }
+            disabled={!selectedRoleId || isBusy}
+          />
 
-        <label
-          htmlFor="role-menu-role-select"
-          className="mt-3 block w-full max-w-[320px]"
-        >
-          <span className="text-sm font-medium text-gray-700">
-            Pilih Role
-          </span>
+          <label htmlFor="role-menu-role-select" className="block w-full">
+            <span className="text-sm font-medium text-gray-700">
+              Pilih Role
+            </span>
 
-          <SetupSelect
-            id="role-menu-role-select"
-            name="role-menu-role-select"
-            value={selectedRoleId}
-            onChange={(event) => setSelectedRoleId(event.target.value)}
-            className="mt-0.5"
-            disabled={isBusy}
-          >
-            <option value="">Pilih role</option>
-            {roles.map((role) => (
-              <option key={role.id} value={role.id}>
-                {role.name}
-              </option>
-            ))}
-          </SetupSelect>
-        </label>
+            <SetupSelect
+              id="role-menu-role-select"
+              name="role-menu-role-select"
+              value={selectedRoleId}
+              onChange={(event) => setSelectedRoleId(event.target.value)}
+              className="mt-0.5"
+              disabled={isBusy}
+            >
+              <option value="">Pilih role</option>
+              {roles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
+            </SetupSelect>
+          </label>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2" aria-label="Filter akses menu">
+          {PERMISSION_FILTER_OPTIONS.map((option) => {
+            const isActive = permissionFilter === option.key;
+            return (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setPermissionFilter(option.key)}
+                disabled={!selectedRoleId || isBusy}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                  isActive
+                    ? "border-[#157ec3] bg-[#157ec3] text-white shadow-sm"
+                    : "border-gray-200 bg-white text-gray-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                } disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className={`${SECTION_CARD_CLASS} role-menu-table-card`}>
@@ -848,12 +917,12 @@ export default function SetupRoleMenuPage() {
         <div className="role-menu-table-scroll overflow-x-auto">
           <SetupDataTable className={PERMISSION_TABLE_CLASS}>
             <SetupDataTableColGroup>
-              <SetupDataTableCol className="w-[396px]" />
-              <SetupDataTableCol className="w-[66px]" />
-              <SetupDataTableCol className="w-[66px]" />
-              <SetupDataTableCol className="w-[66px]" />
-              <SetupDataTableCol className="w-[66px]" />
-              <SetupDataTableCol className="w-[190px]" />
+              <SetupDataTableCol className="w-[368px]" />
+              <SetupDataTableCol className="w-[58px]" />
+              <SetupDataTableCol className="w-[58px]" />
+              <SetupDataTableCol className="w-[58px]" />
+              <SetupDataTableCol className="w-[58px]" />
+              <SetupDataTableCol className="w-[160px]" />
             </SetupDataTableColGroup>
             <SetupDataTableHead className="sticky top-0 z-20 bg-white shadow-[0_1px_0_rgba(15,23,42,0.08)] ltr:text-left rtl:text-right">
               <SetupDataTableRow>
@@ -871,27 +940,21 @@ export default function SetupRoleMenuPage() {
             </SetupDataTableHead>
             <SetupDataTableBody className="divide-y divide-gray-200">
               {isPageLoading && (
-                <SetupDataTableRow>
-                  <SetupDataTableCell colSpan={6} className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}>
-                    Memuat daftar menu...
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
+                <SetupDataTableEmptyRow colSpan={6}>
+                  Memuat daftar menu...
+                </SetupDataTableEmptyRow>
               )}
 
               {!isPageLoading && !selectedRoleId && (
-                <SetupDataTableRow>
-                  <SetupDataTableCell colSpan={6} className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}>
-                    Pilih role untuk melihat akses menu.
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
+                <SetupDataTableEmptyRow colSpan={6}>
+                  Pilih role untuk melihat akses menu.
+                </SetupDataTableEmptyRow>
               )}
 
               {!isPageLoading && selectedRoleId && isPermissionsLoading && (
-                <SetupDataTableRow>
-                  <SetupDataTableCell colSpan={6} className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}>
-                    Memuat akses menu untuk role terpilih...
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
+                <SetupDataTableEmptyRow colSpan={6}>
+                  Memuat akses menu untuk role terpilih...
+                </SetupDataTableEmptyRow>
               )}
 
               {!isPageLoading &&
@@ -902,11 +965,11 @@ export default function SetupRoleMenuPage() {
                     <Fragment key={group.key}>
                       <SetupDataTableRow className={GROUP_ROW_CLASS}>
                         <SetupDataTableCell
-                          className="role-menu-name-cell px-4 py-3 text-sm font-bold text-gray-950"
+                          className="role-menu-name-cell px-3 py-2 text-sm font-bold text-gray-950"
                         >
                           {group.label}
                         </SetupDataTableCell>
-                        <SetupDataTableCell colSpan={5} className="px-3 py-3" />
+                        <SetupDataTableCell colSpan={5} className="px-2 py-2" />
                       </SetupDataTableRow>
 
                       {group.rows.map((row) => {
@@ -944,7 +1007,7 @@ export default function SetupRoleMenuPage() {
                                   }
                                   disabled={disabled}
                                   ariaLabel={`${row.menu.name} - ${label}`}
-                                  size={20}
+                                  size={18}
                                   className={
                                     isUnsupported
                                       ? "uiverse-checkbox--unavailable"
@@ -1006,7 +1069,7 @@ export default function SetupRoleMenuPage() {
                                     }
                                   >
                                     <Settings2
-                                      className="h-4 w-4"
+                                      className="h-3.5 w-3.5"
                                       aria-hidden="true"
                                     />
                                     <span className="sr-only">Atur fitur</span>
@@ -1024,8 +1087,13 @@ export default function SetupRoleMenuPage() {
                           >
                             <SetupDataTableCell
                               className={`${MENU_CELL_CLASS} role-menu-name-cell`}
+                              style={
+                                {
+                                  ["--role-menu-depth"]: row.depth,
+                                } as CSSProperties
+                              }
                             >
-                              <div className="flex min-w-0 items-center justify-center text-center">
+                              <div className="role-menu-name-content flex min-w-0 items-center text-left">
                                 <p
                                   className="truncate font-semibold text-gray-900"
                                   title={row.menu.name}
@@ -1050,14 +1118,11 @@ export default function SetupRoleMenuPage() {
                 selectedRoleId &&
                 !isPermissionsLoading &&
                 groupedMenus.length === 0 && (
-                  <SetupDataTableRow>
-                    <SetupDataTableCell
-                      colSpan={6}
-                      className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
-                    >
-                      {getSetupPageEmptyStateCopy("menu")}
-                    </SetupDataTableCell>
-                  </SetupDataTableRow>
+                  <SetupDataTableEmptyRow colSpan={6}>
+                    {query.trim() || permissionFilter !== "all"
+                      ? "Tidak ada menu yang cocok dengan filter."
+                      : getSetupPageEmptyStateCopy("menu")}
+                  </SetupDataTableEmptyRow>
                 )}
             </SetupDataTableBody>
           </SetupDataTable>

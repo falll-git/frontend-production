@@ -47,8 +47,8 @@ export default function DashboardModal({
   onClose,
   closeDisabled = false,
   maxWidth = "2xl",
-  bodyClassName = "p-6",
-  footerClassName = "flex flex-col justify-end gap-3 border-t border-gray-100 bg-gray-50 p-6 sm:flex-row",
+  bodyClassName = "p-4 sm:p-5",
+  footerClassName = "flex flex-col flex-wrap justify-end gap-2 border-t border-gray-100 bg-gray-50 p-4 sm:flex-row sm:p-5",
   ariaLabel,
 }: DashboardModalProps) {
   if (!isOpen) return null;
@@ -60,20 +60,20 @@ export default function DashboardModal({
   return (
     <div
       data-dashboard-overlay="true"
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/55 p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black/55 p-2 sm:p-4"
       onClick={handleOverlayClick}
       role="presentation"
     >
       <section
-        className={`w-full ${MAX_WIDTH_CLASS[maxWidth]} overflow-hidden rounded-lg bg-white shadow-2xl`}
+        className={`dashboard-modal flex max-h-[calc(100dvh-1rem)] w-full ${MAX_WIDTH_CLASS[maxWidth]} min-w-0 flex-col overflow-hidden rounded-lg bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]`}
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel ?? title}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-gray-100 p-6">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+        <header className="dashboard-modal__header flex shrink-0 items-start justify-between gap-4 border-b border-gray-100 p-4 sm:p-5">
+          <div className="min-w-0">
+            <h2 className="break-words text-lg font-bold text-gray-900 sm:text-xl">{title}</h2>
             {description ? (
               <p className="mt-1 text-sm leading-6 text-gray-500">
                 {description}
@@ -88,9 +88,13 @@ export default function DashboardModal({
           />
         </header>
 
-        <div className={bodyClassName}>{children}</div>
+        <div className={`dashboard-modal__body min-h-0 flex-1 overflow-y-auto ${bodyClassName}`}>
+          {children}
+        </div>
 
-        {footer ? <footer className={footerClassName}>{footer}</footer> : null}
+        {footer ? (
+          <footer className={`dashboard-modal__footer shrink-0 ${footerClassName}`}>{footer}</footer>
+        ) : null}
       </section>
     </div>
   );

@@ -9,7 +9,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableCell,
   SetupDataTableColGroup,
-  SetupDataTableCol
+  SetupDataTableCol,
+  SetupDataTableEmptyRow,
 } from "@/components/ui/SetupDataTable";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -40,7 +41,6 @@ import {
   SETUP_PAGE_MODERN_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
-  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
   SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
@@ -434,25 +434,15 @@ export default function SetupTempatPenyimpananPage() {
                 ))}
 
                 {isLoading && (
-                  <SetupDataTableRow>
-                    <SetupDataTableCell
-                      colSpan={8}
-                      className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
-                    >
-                      Memuat data tempat penyimpanan...
-                    </SetupDataTableCell>
-                  </SetupDataTableRow>
+                  <SetupDataTableEmptyRow colSpan={8}>
+                    Memuat data tempat penyimpanan...
+                  </SetupDataTableEmptyRow>
                 )}
 
                 {!isLoading && filtered.length === 0 && (
-                  <SetupDataTableRow>
-                    <SetupDataTableCell
-                      colSpan={8}
-                      className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
-                    >
-                      {getSetupPageEmptyStateCopy("tempat penyimpanan")}
-                    </SetupDataTableCell>
-                  </SetupDataTableRow>
+                  <SetupDataTableEmptyRow colSpan={8}>
+                    {getSetupPageEmptyStateCopy("tempat penyimpanan")}
+                  </SetupDataTableEmptyRow>
                 )}
               </SetupDataTableBody>
           </SetupDataTable>

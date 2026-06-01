@@ -1,4 +1,4 @@
-.card {
+.app-card {
   background: white;
   border-radius: 8px;
   box-shadow: none;
@@ -8,6 +8,6 @@
     background-color 0.16s ease;
 }
 
-.card:hover {
+.app-card:hover {
   border-color: #cbd5e1;
 }

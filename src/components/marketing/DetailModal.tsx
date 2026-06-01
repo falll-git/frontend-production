@@ -98,7 +98,7 @@ export default function DetailModal({
       <div
         role="dialog"
         aria-modal="true"
-        className="flex max-h-[85vh] w-[94vw] max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-sm"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl min-w-0 flex-col overflow-hidden rounded-lg bg-white shadow-sm"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 border-b border-gray-100 bg-gray-50/50 px-5 py-4">

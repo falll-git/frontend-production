@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowUpDown, Search, SearchX, X } from "lucide-react";
 
@@ -9,6 +9,15 @@ import type {
   KolektibilitasNasabahItem,
   NpfKolektibilitasLevel,
 } from "@/lib/types";
+import {
+  SetupDataTable,
+  SetupDataTableBody,
+  SetupDataTableCell,
+  SetupDataTableHead,
+  SetupDataTableHeaderCell,
+  SetupDataTableRow,
+} from "@/components/ui/SetupDataTable";
+import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import { formatNumber, formatRupiah } from "@/lib/utils/laporan";
 
 type SortOption =
@@ -47,15 +56,34 @@ function getShortLabel(label: string) {
 export default function KolektibilitasTable({
   rows,
   nasabah,
+  selectedKol: controlledSelectedKol,
+  onSelectedKolChange,
 }: {
   rows: KolektibilitasItem[];
   nasabah: KolektibilitasNasabahItem[];
+  selectedKol?: NpfKolektibilitasLevel | null;
+  onSelectedKolChange?: (kol: NpfKolektibilitasLevel | null) => void;
 }) {
-  const [selectedKol, setSelectedKol] = useState<NpfKolektibilitasLevel | null>(
-    null,
-  );
+  const [internalSelectedKol, setInternalSelectedKol] =
+    useState<NpfKolektibilitasLevel | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOption, setSortOption] = useState<SortOption>("OUTSTANDING_DESC");
+  const selectedKol =
+    controlledSelectedKol === undefined
+      ? internalSelectedKol
+      : controlledSelectedKol;
+
+  const updateSelectedKol = useCallback(
+    (nextKol: NpfKolektibilitasLevel | null) => {
+      if (onSelectedKolChange) {
+        onSelectedKolChange(nextKol);
+        return;
+      }
+
+      setInternalSelectedKol(nextKol);
+    },
+    [onSelectedKolChange],
+  );
 
   const totalOutstanding = useMemo(
     () => rows.reduce((total, item) => total + item.outstandingPokok, 0),
@@ -127,7 +155,7 @@ export default function KolektibilitasTable({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setSelectedKol(null);
+        updateSelectedKol(null);
       }
     };
 
@@ -138,45 +166,45 @@ export default function KolektibilitasTable({
       document.body.style.overflow = initialOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [selectedKol]);
+  }, [selectedKol, updateSelectedKol]);
 
   const openModal = (kol: NpfKolektibilitasLevel) => {
-    setSelectedKol(kol);
+    updateSelectedKol(kol);
     setSearchTerm("");
     setSortOption("OUTSTANDING_DESC");
   };
 
   const closeModal = () => {
-    setSelectedKol(null);
+    updateSelectedKol(null);
   };
 
   return (
     <>
       <div className="overflow-hidden rounded-xl border border-gray-200">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[40rem] text-sm">
-            <thead className="border-b bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
+        <div className="overflow-visible lg:overflow-x-auto">
+          <SetupDataTable className="text-sm">
+            <SetupDataTableHead className="border-b bg-gray-50">
+              <SetupDataTableRow>
+                <SetupDataTableHeaderCell className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
                   No
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Kolektibilitas
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Nasabah
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Outstanding
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
                   %
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
+                </SetupDataTableHeaderCell>
+              </SetupDataTableRow>
+            </SetupDataTableHead>
+            <SetupDataTableBody className="divide-y divide-gray-100">
               {tableRows.map((item, index) => (
-                <tr
+                <SetupDataTableRow
                   key={item.level}
                   role="button"
                   tabIndex={0}
@@ -189,10 +217,10 @@ export default function KolektibilitasTable({
                   }}
                   className="cursor-pointer transition-colors hover:bg-gray-50"
                 >
-                  <td className="px-4 py-3 text-center text-sm text-gray-500">
+                  <SetupDataTableCell className="px-4 py-3 text-center text-sm text-gray-500">
                     {index + 1}
-                  </td>
-                  <td className="px-4 py-3">
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <span
                         className="inline-block h-3 w-3 rounded-full"
@@ -205,23 +233,23 @@ export default function KolektibilitasTable({
                         Kol {item.level}
                       </span>
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-center text-sm text-gray-700">
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className="px-4 py-3 text-center text-sm text-gray-700">
                     {formatNumber(item.jumlahNasabah)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700">
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className="px-4 py-3 text-right text-sm text-gray-700">
                     {formatRupiah(item.outstandingPokok)}
-                  </td>
-                  <td
+                  </SetupDataTableCell>
+                  <SetupDataTableCell
                     className="px-4 py-3 text-right text-sm font-semibold"
                     style={{ color: item.color }}
                   >
                     {formatPercentage(item.percentage)}%
-                  </td>
-                </tr>
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
               ))}
-            </tbody>
-          </table>
+            </SetupDataTableBody>
+          </SetupDataTable>
         </div>
       </div>
 
@@ -233,18 +261,18 @@ export default function KolektibilitasTable({
               onClick={closeModal}
             >
               <div
-                className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl animate-scale-in"
+                className="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl min-w-0 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl animate-scale-in"
                 onClick={(event) => event.stopPropagation()}
               >
-                <div className="border-b border-gray-100 px-6 py-5">
+                <div className="shrink-0 border-b border-gray-100 px-4 py-4 sm:px-6 sm:py-5">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
                       <span
                         className="h-3 w-3 rounded-full"
                         style={{ backgroundColor: selectedRow.color }}
                         aria-hidden="true"
                       />
-                      <h3 className="text-xl font-bold text-gray-900">
+                      <h3 className="min-w-0 break-words text-base font-bold text-gray-900 sm:text-xl">
                         Nasabah Kol {selectedRow.level} -{" "}
                         {selectedRow.shortLabel}
                       </h3>
@@ -260,7 +288,7 @@ export default function KolektibilitasTable({
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
                   <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_240px] md:items-end">
                     <div>
                       <div className="relative">
@@ -274,7 +302,7 @@ export default function KolektibilitasTable({
                           onChange={(event) =>
                             setSearchTerm(event.target.value)
                           }
-                          className="input input-with-icon"
+                          className="app-input app-input-with-icon"
                           placeholder="Cari nama nasabah..."
                         />
                       </div>
@@ -291,7 +319,7 @@ export default function KolektibilitasTable({
                           onChange={(event) =>
                             setSortOption(event.target.value as SortOption)
                           }
-                          className="select input-with-icon"
+                          className="app-select app-input-with-icon"
                         >
                           {sortOptions.map((option) => (
                             <option key={option.value} value={option.value}>
@@ -305,55 +333,56 @@ export default function KolektibilitasTable({
 
                   <div className="overflow-hidden rounded-xl border border-gray-200">
                     {visibleNasabah.length > 0 ? (
-                      <div className="overflow-x-auto">
-                        <table className="w-full min-w-[45rem] text-sm">
-                          <thead className="border-b bg-gray-50">
-                            <tr>
-                              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                      <div className="overflow-visible lg:overflow-x-auto">
+                        <SetupDataTable className="text-sm">
+                          <SetupDataTableHead className="border-b bg-gray-50">
+                            <SetupDataTableRow>
+                              <SetupDataTableHeaderCell className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                                 Nama Nasabah
-                              </th>
-                              <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                              </SetupDataTableHeaderCell>
+                              <SetupDataTableHeaderCell className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                                 No Kontrak
-                              </th>
-                              <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                              </SetupDataTableHeaderCell>
+                              <SetupDataTableHeaderCell className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
                                 Outstanding
-                              </th>
-                              <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
+                              </SetupDataTableHeaderCell>
+                              <SetupDataTableHeaderCell className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
                                 Sisa Bulan
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
+                              </SetupDataTableHeaderCell>
+                            </SetupDataTableRow>
+                          </SetupDataTableHead>
+                          <SetupDataTableBody className="divide-y divide-gray-100">
                             {visibleNasabah.map((item) => (
-                              <tr
+                              <SetupDataTableRow
                                 key={item.noKontrak}
                                 className="transition-colors hover:bg-gray-50"
                               >
-                                <td className="px-6 py-4 text-sm font-semibold text-gray-900">
+                                <SetupDataTableCell className="px-6 py-4 text-sm font-semibold text-gray-900">
                                   {item.nama}
-                                </td>
-                                <td className="px-6 py-4 text-sm font-medium text-gray-800">
+                                </SetupDataTableCell>
+                                <SetupDataTableCell className="px-6 py-4 text-sm font-medium text-gray-800">
                                   {item.noKontrak}
-                                </td>
-                                <td className="px-6 py-4 text-right text-sm text-gray-700">
+                                </SetupDataTableCell>
+                                <SetupDataTableCell className="px-6 py-4 text-right text-sm text-gray-700">
                                   {formatRupiah(item.outstandingPokok)}
-                                </td>
-                                <td className="px-6 py-4 text-center text-sm text-gray-700">
+                                </SetupDataTableCell>
+                                <SetupDataTableCell className="px-6 py-4 text-center text-sm text-gray-700">
                                   {item.sisaBulan} bulan
-                                </td>
-                              </tr>
+                                </SetupDataTableCell>
+                              </SetupDataTableRow>
                             ))}
-                          </tbody>
-                        </table>
+                          </SetupDataTableBody>
+                        </SetupDataTable>
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-                        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-50 text-gray-300">
-                          <SearchX className="h-8 w-8" aria-hidden="true" />
-                        </div>
-                        <p className="text-lg font-medium text-gray-900">
-                          Tidak ada nasabah yang sesuai
-                        </p>
+                      <div className="flex items-center justify-center px-6 py-16">
+                        <SetupEmptyState
+                          title="Tidak ada nasabah yang sesuai"
+                          description="Coba ubah kata kunci atau urutan data."
+                          icon={SearchX}
+                          isFiltered
+                          variant="table"
+                        />
                       </div>
                     )}
                   </div>

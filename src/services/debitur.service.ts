@@ -12,9 +12,11 @@ import {
 } from "@/services/api.utils";
 import type {
   DebtorBranchSummary,
+  DebtorCollateral,
   DebtorCollectibilitySummary,
   DebtorContract,
   DebtorContractPayload,
+  DebtorContractSlikSnapshot,
   DebtorDocument,
   DebtorDocumentChecklistStatus,
   DebtorDocumentPayload,
@@ -24,6 +26,8 @@ import type {
   DebtorImportJob,
   DebtorImportPayload,
   DebtorImportType,
+  DebtorIndividualProfile,
+  DebtorLegalEntityProfile,
   DebtorListQuery,
   DebtorMarketingActivity,
   DebtorMarketingKind,
@@ -42,8 +46,10 @@ import type {
   DebtorPayload,
   DebtorRecord,
   DebtorReportSummary,
+  DebtorRestructuringRecord,
   DebtorUserSummary,
   DebtorWarningLetter,
+  DebtorWarningLetterPayload,
   DebtorWorkflow,
   DebtorWorkflowClaim,
   DebtorWorkflowCollectibility,
@@ -137,6 +143,93 @@ function mapParameter(record: unknown): DebtorParameterSummary | null {
   };
 }
 
+function mapIndividualProfile(record: unknown): DebtorIndividualProfile | null {
+  const profile = asRecord(record);
+  if (!profile) return null;
+
+  return {
+    id: nullableString(profile, "id") ?? undefined,
+    debtor_id: nullableString(profile, "debtor_id", "debtorId") ?? undefined,
+    identity_type_code: nullableString(profile, "identity_type_code", "identityTypeCode"),
+    name_as_identity: nullableString(profile, "name_as_identity", "nameAsIdentity"),
+    full_name: nullableString(profile, "full_name", "fullName"),
+    education_degree_code: nullableString(profile, "education_degree_code", "educationDegreeCode"),
+    gender: nullableString(profile, "gender"),
+    birth_place: nullableString(profile, "birth_place", "birthPlace"),
+    birth_date: normalizeDate(profile.birth_date),
+    tax_number: nullableString(profile, "tax_number", "taxNumber"),
+    address_detail: nullableString(profile, "address_detail", "addressDetail"),
+    village: nullableString(profile, "village"),
+    district: nullableString(profile, "district"),
+    city_code: nullableString(profile, "city_code", "cityCode"),
+    postal_code: nullableString(profile, "postal_code", "postalCode"),
+    phone: nullableString(profile, "phone"),
+    mobile_phone: nullableString(profile, "mobile_phone", "mobilePhone"),
+    email: nullableString(profile, "email"),
+    domicile_country_code: nullableString(profile, "domicile_country_code", "domicileCountryCode"),
+    occupation_code: nullableString(profile, "occupation_code", "occupationCode"),
+    workplace: nullableString(profile, "workplace"),
+    workplace_business_field_code: nullableString(profile, "workplace_business_field_code", "workplaceBusinessFieldCode"),
+    workplace_address: nullableString(profile, "workplace_address", "workplaceAddress"),
+    annual_gross_income: readNumber(profile, "annual_gross_income", "annualGrossIncome"),
+    income_source_code: nullableString(profile, "income_source_code", "incomeSourceCode"),
+    dependent_count: readNumber(profile, "dependent_count", "dependentCount"),
+    relationship_with_reporter_code: nullableString(profile, "relationship_with_reporter_code", "relationshipWithReporterCode"),
+    debtor_group_code: nullableString(profile, "debtor_group_code", "debtorGroupCode"),
+    marital_status_code: nullableString(profile, "marital_status_code", "maritalStatusCode"),
+    spouse_identity_number: nullableString(profile, "spouse_identity_number", "spouseIdentityNumber"),
+    spouse_name: nullableString(profile, "spouse_name", "spouseName"),
+    spouse_birth_date: normalizeDate(profile.spouse_birth_date),
+    separate_assets_agreement: nullableString(profile, "separate_assets_agreement", "separateAssetsAgreement"),
+    violates_bmpk: nullableString(profile, "violates_bmpk", "violatesBmpk"),
+    exceeds_bmpk: nullableString(profile, "exceeds_bmpk", "exceedsBmpk"),
+    mother_maiden_name: nullableString(profile, "mother_maiden_name", "motherMaidenName"),
+    branch_code: nullableString(profile, "branch_code", "branchCode"),
+    operation_code: nullableString(profile, "operation_code", "operationCode"),
+    status_code: nullableString(profile, "status_code", "statusCode"),
+  };
+}
+
+function mapLegalEntityProfile(record: unknown): DebtorLegalEntityProfile | null {
+  const profile = asRecord(record);
+  if (!profile) return null;
+
+  return {
+    id: nullableString(profile, "id") ?? undefined,
+    debtor_id: nullableString(profile, "debtor_id", "debtorId") ?? undefined,
+    business_identity_number: nullableString(profile, "business_identity_number", "businessIdentityNumber"),
+    business_name: nullableString(profile, "business_name", "businessName"),
+    legal_form_code: nullableString(profile, "legal_form_code", "legalFormCode"),
+    establishment_place: nullableString(profile, "establishment_place", "establishmentPlace"),
+    establishment_deed_number: nullableString(profile, "establishment_deed_number", "establishmentDeedNumber"),
+    establishment_deed_date: normalizeDate(profile.establishment_deed_date),
+    latest_amendment_deed_number: nullableString(profile, "latest_amendment_deed_number", "latestAmendmentDeedNumber"),
+    latest_amendment_deed_date: normalizeDate(profile.latest_amendment_deed_date),
+    phone: nullableString(profile, "phone"),
+    mobile_phone: nullableString(profile, "mobile_phone", "mobilePhone"),
+    email: nullableString(profile, "email"),
+    address_detail: nullableString(profile, "address_detail", "addressDetail"),
+    village: nullableString(profile, "village"),
+    district: nullableString(profile, "district"),
+    city_code: nullableString(profile, "city_code", "cityCode"),
+    postal_code: nullableString(profile, "postal_code", "postalCode"),
+    domicile_country_code: nullableString(profile, "domicile_country_code", "domicileCountryCode"),
+    business_field_code: nullableString(profile, "business_field_code", "businessFieldCode"),
+    relationship_with_reporter_code: nullableString(profile, "relationship_with_reporter_code", "relationshipWithReporterCode"),
+    violates_bmpk: nullableString(profile, "violates_bmpk", "violatesBmpk"),
+    exceeds_bmpk: nullableString(profile, "exceeds_bmpk", "exceedsBmpk"),
+    go_public: nullableString(profile, "go_public", "goPublic"),
+    debtor_group_code: nullableString(profile, "debtor_group_code", "debtorGroupCode"),
+    rating: nullableString(profile, "rating"),
+    rating_agency: nullableString(profile, "rating_agency", "ratingAgency"),
+    rating_date: normalizeDate(profile.rating_date),
+    debtor_group_name: nullableString(profile, "debtor_group_name", "debtorGroupName"),
+    branch_code: nullableString(profile, "branch_code", "branchCode"),
+    operation_code: nullableString(profile, "operation_code", "operationCode"),
+    status_code: nullableString(profile, "status_code", "statusCode"),
+  };
+}
+
 function mapCollectibility(record: unknown): DebtorCollectibilitySummary | null {
   const item = asRecord(record);
   if (!item) return null;
@@ -159,6 +252,115 @@ function mapCollectibility(record: unknown): DebtorCollectibilitySummary | null 
   };
 }
 
+function mapContractSlikSnapshot(record: unknown): DebtorContractSlikSnapshot | null {
+  const item = asRecord(record);
+  if (!item) return null;
+  const id = readString(item, "id");
+  const debtorId = readString(item, "debtor_id", "debtorId");
+  const contractId = readString(item, "contract_id", "contractId");
+  const periodMonth = readString(item, "period_month", "periodMonth");
+  const facilityNumber = readString(item, "facility_number", "facilityNumber");
+  if (!id || !debtorId || !contractId || !periodMonth || !facilityNumber) {
+    return null;
+  }
+
+  return {
+    id,
+    debtor_id: debtorId,
+    contract_id: contractId,
+    period_month: periodMonth,
+    facility_number: facilityNumber,
+    debtor_number: nullableString(item, "debtor_number", "debtorNumber"),
+    credit_nature_code: nullableString(item, "credit_nature_code", "creditNatureCode"),
+    credit_type_code: nullableString(item, "credit_type_code", "creditTypeCode"),
+    financing_scheme_code: nullableString(
+      item,
+      "financing_scheme_code",
+      "financingSchemeCode",
+    ),
+    initial_akad_number: nullableString(item, "initial_akad_number", "initialAkadNumber"),
+    initial_akad_date: normalizeDate(item.initial_akad_date),
+    final_akad_number: nullableString(item, "final_akad_number", "finalAkadNumber"),
+    final_akad_date: normalizeDate(item.final_akad_date),
+    new_or_extension_code: nullableString(
+      item,
+      "new_or_extension_code",
+      "newOrExtensionCode",
+    ),
+    credit_start_date: normalizeDate(item.credit_start_date),
+    start_date: normalizeDate(item.start_date),
+    due_date: normalizeDate(item.due_date),
+    debtor_category_code: nullableString(
+      item,
+      "debtor_category_code",
+      "debtorCategoryCode",
+    ),
+    usage_type_code: nullableString(item, "usage_type_code", "usageTypeCode"),
+    usage_orientation_code: nullableString(
+      item,
+      "usage_orientation_code",
+      "usageOrientationCode",
+    ),
+    economic_sector_code: nullableString(item, "economic_sector_code", "economicSectorCode"),
+    project_location_city_code: nullableString(
+      item,
+      "project_location_city_code",
+      "projectLocationCityCode",
+    ),
+    project_value: readNumber(item, "project_value", "projectValue"),
+    currency_code: nullableString(item, "currency_code", "currencyCode"),
+    interest_rate: readNumber(item, "interest_rate", "interestRate"),
+    interest_type_code: nullableString(item, "interest_type_code", "interestTypeCode"),
+    government_program_code: nullableString(
+      item,
+      "government_program_code",
+      "governmentProgramCode",
+    ),
+    takeover_from: nullableString(item, "takeover_from", "takeoverFrom"),
+    source_of_funds_code: nullableString(item, "source_of_funds_code", "sourceOfFundsCode"),
+    initial_plafond: readNumber(item, "initial_plafond", "initialPlafond"),
+    plafond: readNumber(item, "plafond"),
+    current_month_disbursement: readNumber(
+      item,
+      "current_month_disbursement",
+      "currentMonthDisbursement",
+    ),
+    penalty: readNumber(item, "penalty"),
+    baki_debet: readNumber(item, "baki_debet", "bakiDebet"),
+    original_currency_amount: readNumber(
+      item,
+      "original_currency_amount",
+      "originalCurrencyAmount",
+    ),
+    collectibility_code: nullableString(item, "collectibility_code", "collectibilityCode"),
+    default_date: normalizeDate(item.default_date),
+    default_reason_code: nullableString(item, "default_reason_code", "defaultReasonCode"),
+    principal_arrears: readNumber(item, "principal_arrears", "principalArrears"),
+    margin_arrears: readNumber(item, "margin_arrears", "marginArrears"),
+    days_past_due: readNumber(item, "days_past_due", "daysPastDue"),
+    arrears_frequency: readNumber(item, "arrears_frequency", "arrearsFrequency"),
+    restructuring_frequency: readNumber(
+      item,
+      "restructuring_frequency",
+      "restructuringFrequency",
+    ),
+    initial_restructuring_date: normalizeDate(item.initial_restructuring_date),
+    final_restructuring_date: normalizeDate(item.final_restructuring_date),
+    restructuring_method_code: nullableString(
+      item,
+      "restructuring_method_code",
+      "restructuringMethodCode",
+    ),
+    condition_code: nullableString(item, "condition_code", "conditionCode"),
+    condition_date: normalizeDate(item.condition_date),
+    description: nullableString(item, "description"),
+    branch_code: nullableString(item, "branch_code", "branchCode"),
+    operation_code: nullableString(item, "operation_code", "operationCode"),
+    created_at: nullableString(item, "created_at", "createdAt"),
+    updated_at: nullableString(item, "updated_at", "updatedAt"),
+  };
+}
+
 function mapContract(record: unknown, includeNestedDebtor = true): DebtorContract | null {
   const contract = asRecord(record);
   if (!contract) return null;
@@ -174,6 +376,13 @@ function mapContract(record: unknown, includeNestedDebtor = true): DebtorContrac
     : [];
   const latestCollectibility =
     mapCollectibility(contract.latest_collectibility) ?? collectibilities[0] ?? null;
+  const slikSnapshots = Array.isArray(contract.slik_snapshots)
+    ? contract.slik_snapshots
+        .map((item) => mapContractSlikSnapshot(item))
+        .filter((item): item is DebtorContractSlikSnapshot => item !== null)
+    : [];
+  const latestSlikSnapshot =
+    mapContractSlikSnapshot(contract.latest_slik_snapshot) ?? slikSnapshots[0] ?? null;
 
   return {
     id,
@@ -206,6 +415,8 @@ function mapContract(record: unknown, includeNestedDebtor = true): DebtorContrac
     marketing_user: mapUser(contract.marketing_user),
     latest_collectibility: latestCollectibility,
     collectibilities,
+    latest_slik_snapshot: latestSlikSnapshot,
+    slik_snapshots: slikSnapshots,
     created_at: nullableString(contract, "created_at", "createdAt"),
     updated_at: nullableString(contract, "updated_at", "updatedAt"),
   };
@@ -234,10 +445,17 @@ function mapDebtor(record: unknown, includeContracts = true): DebtorRecord | nul
     branch_id: nullableString(debtor, "branch_id", "branchId"),
     marketing_user_id: nullableString(debtor, "marketing_user_id", "marketingUserId"),
     financing_number: nullableString(debtor, "financing_number", "financingNumber"),
+    customer_type: nullableString(debtor, "customer_type", "customerType"),
+    customer_type_label: nullableString(debtor, "customer_type_label", "customerTypeLabel"),
+    slik_segment: nullableString(debtor, "slik_segment", "slikSegment"),
+    slik_status_code: nullableString(debtor, "slik_status_code", "slikStatusCode"),
+    slik_operation_code: nullableString(debtor, "slik_operation_code", "slikOperationCode"),
     status: readString(debtor, "status") ?? "ACTIVE",
     description: nullableString(debtor, "description"),
     branch: mapBranch(debtor.branch),
     marketing_user: mapUser(debtor.marketing_user),
+    individual_profile: mapIndividualProfile(debtor.individual_profile),
+    legal_entity_profile: mapLegalEntityProfile(debtor.legal_entity_profile),
     latest_contract: mapContract(debtor.latest_contract, false) ?? contracts[0] ?? null,
     contracts,
     contracts_count: readNumber(debtor, "contracts_count", "contractsCount") ?? contracts.length,
@@ -269,8 +487,83 @@ function mapDocument(record: unknown): DebtorDocument | null {
     description: nullableString(item, "description"),
     file: mapFile(item.file),
     document_checklist: mapParameter(item.document_checklist),
+    debtor: mapDebtor(item.debtor, false),
     contract: mapContract(item.contract),
     uploaded_by: nullableString(item, "uploaded_by", "uploadedBy"),
+    created_at: nullableString(item, "created_at", "createdAt"),
+    updated_at: nullableString(item, "updated_at", "updatedAt"),
+  };
+}
+
+function mapCollateral(record: unknown): DebtorCollateral | null {
+  const item = asRecord(record);
+  if (!item) return null;
+  const id = readString(item, "id");
+  const collateralNumber = readString(
+    item,
+    "collateral_number",
+    "collateralNumber",
+  );
+  if (!id || !collateralNumber) return null;
+
+  return {
+    id,
+    debtor_id: nullableString(item, "debtor_id", "debtorId"),
+    contract_id: nullableString(item, "contract_id", "contractId"),
+    collateral_number: collateralNumber,
+    facility_number: nullableString(item, "facility_number", "facilityNumber"),
+    facility_segment_code: nullableString(
+      item,
+      "facility_segment_code",
+      "facilitySegmentCode",
+    ),
+    collateral_status_code: nullableString(
+      item,
+      "collateral_status_code",
+      "collateralStatusCode",
+    ),
+    collateral_type: nullableString(item, "collateral_type", "collateralType"),
+    rating: nullableString(item, "rating"),
+    rating_agency_code: nullableString(item, "rating_agency_code", "ratingAgencyCode"),
+    binding_type_code: nullableString(item, "binding_type_code", "bindingTypeCode"),
+    binding_date: normalizeDate(item.binding_date),
+    owner_name: nullableString(item, "owner_name", "ownerName"),
+    proof_number: nullableString(item, "proof_number", "proofNumber"),
+    address: nullableString(item, "address"),
+    location_city_code: nullableString(item, "location_city_code", "locationCityCode"),
+    market_value: readNumber(item, "market_value", "marketValue"),
+    appraisal_value: readNumber(item, "appraisal_value", "appraisalValue"),
+    reporter_appraisal_date: normalizeDate(item.reporter_appraisal_date),
+    independent_appraisal_value: readNumber(
+      item,
+      "independent_appraisal_value",
+      "independentAppraisalValue",
+    ),
+    independent_appraiser_name: nullableString(
+      item,
+      "independent_appraiser_name",
+      "independentAppraiserName",
+    ),
+    independent_appraisal_date: normalizeDate(item.independent_appraisal_date),
+    paripasu_status: nullableString(item, "paripasu_status", "paripasuStatus"),
+    paripasu_percentage: readNumber(
+      item,
+      "paripasu_percentage",
+      "paripasuPercentage",
+    ),
+    joint_credit_status: nullableString(item, "joint_credit_status", "jointCreditStatus"),
+    insured_status: nullableString(item, "insured_status", "insuredStatus"),
+    description: nullableString(item, "description"),
+    branch_code: nullableString(item, "branch_code", "branchCode"),
+    operation_code: nullableString(item, "operation_code", "operationCode"),
+    period_month: nullableString(item, "period_month", "periodMonth"),
+    last_import_period_month: nullableString(
+      item,
+      "last_import_period_month",
+      "lastImportPeriodMonth",
+    ),
+    debtor: mapDebtor(item.debtor, false),
+    contract: mapContract(item.contract, false),
     created_at: nullableString(item, "created_at", "createdAt"),
     updated_at: nullableString(item, "updated_at", "updatedAt"),
   };
@@ -388,13 +681,21 @@ function mapImportJob(record: unknown): DebtorImportJob | null {
     id,
     type: readString(job, "type") ?? "",
     status: readString(job, "status") ?? "PENDING",
+    import_segment: nullableString(job, "import_segment", "importSegment"),
+    cif_status: nullableString(job, "cif_status", "cifStatus"),
+    period_month: nullableString(job, "period_month", "periodMonth"),
     file: mapFile(job.file),
+    files: Array.isArray(job.files)
+      ? job.files.map((file) => mapFile(file)).filter((file): file is NonNullable<ReturnType<typeof mapFile>> => file !== null)
+      : [],
     total_rows: numberValue(job, "total_rows"),
     success_rows: numberValue(job, "success_rows"),
     failed_rows: numberValue(job, "failed_rows"),
-    error_summary: nullableString(job, "error_summary", "errorSummary"),
+    error_summary: job.error_summary ?? job.errorSummary ?? null,
+    processing_summary: job.processing_summary ?? job.processingSummary ?? null,
     started_at: nullableString(job, "started_at", "startedAt"),
     completed_at: nullableString(job, "completed_at", "completedAt"),
+    segments: Array.isArray(job.segments) ? job.segments : [],
     records: Array.isArray(job.records) ? job.records : [],
     created_at: nullableString(job, "created_at", "createdAt"),
     updated_at: nullableString(job, "updated_at", "updatedAt"),
@@ -473,6 +774,45 @@ function mapIdebUpload(record: unknown): DebtorWorkflowIdebUpload | null {
   };
 }
 
+function mapRestructuringRecord(record: unknown): DebtorRestructuringRecord | null {
+  const item = asRecord(record);
+  if (!item) return null;
+  const id = readString(item, "id");
+  const periodMonth = readString(item, "period_month", "periodMonth");
+  if (!id || !periodMonth) return null;
+
+  return {
+    id,
+    import_job_id: nullableString(item, "import_job_id", "importJobId"),
+    debtor_id: nullableString(item, "debtor_id", "debtorId"),
+    contract_id: nullableString(item, "contract_id", "contractId"),
+    period_month: periodMonth,
+    restructuring_date: nullableString(item, "restructuring_date", "restructuringDate"),
+    restructuring_type: nullableString(item, "restructuring_type", "restructuringType"),
+    reason: nullableString(item, "reason"),
+    plafond_after: readNumber(item, "plafond_after", "plafondAfter"),
+    outstanding_after: readNumber(item, "outstanding_after", "outstandingAfter"),
+    tenor_after: readNumber(item, "tenor_after", "tenorAfter"),
+    new_due_date: nullableString(item, "new_due_date", "newDueDate"),
+    collectibility_before: nullableString(
+      item,
+      "collectibility_before",
+      "collectibilityBefore",
+    ),
+    collectibility_after: nullableString(
+      item,
+      "collectibility_after",
+      "collectibilityAfter",
+    ),
+    status: readString(item, "status") ?? "AKTIF",
+    description: nullableString(item, "description"),
+    raw_data: asRecord(item.raw_data) ?? null,
+    contract: mapContract(item.contract, false),
+    created_at: nullableString(item, "created_at", "createdAt"),
+    updated_at: nullableString(item, "updated_at", "updatedAt"),
+  };
+}
+
 function mapLegalPrint(record: unknown): DebtorWorkflowPrint | null {
   const item = asRecord(record);
   if (!item) return null;
@@ -513,9 +853,16 @@ function mapWarningLetter(record: unknown): DebtorWarningLetter | null {
     letter_type: readString(item, "letter_type", "letterType") ?? "-",
     issued_at: normalizeDate(item.issued_at),
     sent_at: normalizeDate(item.sent_at),
-    status: readString(item, "status") ?? "PENDING",
-    notes: nullableString(item, "notes"),
+    delivery_status:
+      readString(item, "delivery_status", "deliveryStatus", "status") ??
+      "BELUM_DIKIRIM",
+    status:
+      readString(item, "delivery_status", "deliveryStatus", "status") ??
+      "BELUM_DIKIRIM",
+    description: nullableString(item, "description", "notes"),
+    notes: nullableString(item, "description", "notes"),
     file: mapFile(item.file),
+    debtor: mapDebtor(item.debtor, false),
     contract: mapContract(item.contract, false),
     created_at: nullableString(item, "created_at", "createdAt"),
     updated_at: nullableString(item, "updated_at", "updatedAt"),
@@ -670,6 +1017,16 @@ function mapWorkflow(payload: unknown): DebtorWorkflow | null {
           .map((item) => mapDocument(item))
           .filter((item): item is DebtorDocument => item !== null)
       : [],
+    collaterals: Array.isArray(record.collaterals)
+      ? record.collaterals
+          .map((item) => mapCollateral(item))
+          .filter((item): item is DebtorCollateral => item !== null)
+      : [],
+    restructuring_records: Array.isArray(record.restructuring_records)
+      ? record.restructuring_records
+          .map((item) => mapRestructuringRecord(item))
+          .filter((item): item is DebtorRestructuringRecord => item !== null)
+      : [],
     document_checklist_status: Array.isArray(record.document_checklist_status)
       ? record.document_checklist_status
           .map((item) => mapDocumentChecklistStatus(item))
@@ -781,7 +1138,12 @@ function buildQuery(query: DebtorListQuery = {}) {
       search: query.search,
       branch_id: query.branch_id,
       marketing_user_id: query.marketing_user_id,
+      customer_type: query.customer_type,
       status: query.status,
+      period_month: query.period_month,
+      collectibility_level: query.collectibility_level,
+      collateral_type: query.collateral_type,
+      link_status: query.link_status,
       sort_by: query.sort_by,
       sort_order: query.sort_order,
     }).filter(([, value]) => value !== undefined && value !== null && value !== ""),
@@ -790,16 +1152,30 @@ function buildQuery(query: DebtorListQuery = {}) {
 
 function mapEndpoint(type: DebtorImportType) {
   switch (type) {
-    case "COLLECTIBILITY":
-      return "/debtor-imports/collectibility";
+    case "IDEB":
+      return "/debtor-imports/ideb";
     case "SLIK":
       return "/debtor-imports/slik";
     case "RESTRIK":
       return "/debtor-imports/restrik";
-    case "MASTER":
     default:
-      return "/debtor-imports/master";
+      return "/debtor-imports/slik";
   }
+}
+
+function toImportFormData(payload: DebtorImportPayload) {
+  const formData = new FormData();
+  const files = payload.files?.length ? payload.files : payload.file ? [payload.file] : [];
+  files.forEach((file) => formData.append("files", file));
+  if (payload.import_segment) formData.append("import_segment", payload.import_segment);
+  if (payload.debtor_id) formData.append("debtor_id", payload.debtor_id);
+  if (payload.contract_id) formData.append("contract_id", payload.contract_id);
+  if (payload.period_month) formData.append("period_month", payload.period_month);
+  if (payload.raw_reference) formData.append("raw_reference", payload.raw_reference);
+  if (payload.total_rows !== undefined) {
+    formData.append("total_rows", String(payload.total_rows));
+  }
+  return formData;
 }
 
 export const debiturService = {
@@ -901,6 +1277,17 @@ export const debiturService = {
     }
 
     return all;
+  },
+
+  getCollateralsPage: async (
+    query: DebtorListQuery = {},
+  ): Promise<DebtorPageResult<DebtorCollateral>> => {
+    const params = buildQuery(query);
+    const res = await api.get("/debtors/collaterals", { params });
+    return mapPage(res.data, mapCollateral, {
+      page: Number(params.page),
+      limit: Number(params.limit),
+    });
   },
 
   getContractById: async (id: string): Promise<DebtorContract> => {
@@ -1005,6 +1392,55 @@ export const debiturService = {
     await api.delete(`/debtor-marketing/${kind}/${id}`);
   },
 
+  getWarningLettersPage: async (
+    query: DebtorListQuery & {
+      debtor_id?: string;
+      contract_id?: string;
+      delivery_status?: string;
+      letter_type?: string;
+    } = {},
+  ): Promise<DebtorPageResult<DebtorWarningLetter>> => {
+    const params = buildQuery(query);
+    if (query.debtor_id) params.debtor_id = query.debtor_id;
+    if (query.contract_id) params.contract_id = query.contract_id;
+    if (query.delivery_status) params.delivery_status = query.delivery_status;
+    if (query.letter_type) params.letter_type = query.letter_type;
+    const res = await api.get("/debtor-warning-letters", { params });
+    return mapPage(res.data, mapWarningLetter, {
+      page: Number(params.page),
+      limit: Number(params.limit),
+    });
+  },
+
+  createWarningLetter: async (
+    payload: DebtorWarningLetterPayload,
+  ): Promise<DebtorWarningLetter> => {
+    const body = payload.file ? toMultipartFormData(payload) : payload;
+    const res = await api.post("/debtor-warning-letters", body);
+    const mapped = mapWarningLetter(extractRecord(res.data));
+    if (!mapped) {
+      throw new Error("Respons create surat peringatan dari server tidak valid");
+    }
+    return mapped;
+  },
+
+  updateWarningLetter: async (
+    id: string,
+    payload: DebtorWarningLetterPayload,
+  ): Promise<DebtorWarningLetter> => {
+    const body = payload.file ? toMultipartFormData(payload) : payload;
+    const res = await api.put(`/debtor-warning-letters/${id}`, body);
+    const mapped = mapWarningLetter(extractRecord(res.data));
+    if (!mapped) {
+      throw new Error("Respons update surat peringatan dari server tidak valid");
+    }
+    return mapped;
+  },
+
+  removeWarningLetter: async (id: string): Promise<void> => {
+    await api.delete(`/debtor-warning-letters/${id}`);
+  },
+
   getImportJobs: async (
     query: DebtorListQuery & { type?: DebtorImportType | string } = {},
   ): Promise<DebtorPageResult<DebtorImportJob>> => {
@@ -1021,7 +1457,7 @@ export const debiturService = {
     type: DebtorImportType,
     payload: DebtorImportPayload,
   ): Promise<DebtorImportJob> => {
-    const res = await api.post(mapEndpoint(type), toMultipartFormData(payload));
+    const res = await api.post(mapEndpoint(type), toImportFormData(payload));
     const mapped = mapImportJob(extractRecord(res.data));
     if (!mapped) throw new Error("Respons import dari server tidak valid");
     return mapped;
@@ -1096,7 +1532,15 @@ export const debiturService = {
   },
 
   getMarketingReport: async (
-    query: { from_date?: string; to_date?: string } = {},
+    query: {
+      from_date?: string;
+      to_date?: string;
+      activity_kind?: string;
+      status?: string;
+      search?: string;
+      sort?: string;
+      limit?: number;
+    } = {},
   ): Promise<DebtorMarketingReport> => {
     const res = await api.get("/debtor-reports/marketing-activity", {
       params: Object.fromEntries(
@@ -1122,7 +1566,14 @@ export const debiturService = {
             target_date: normalizeDate(item.target_date),
             debtor: mapDebtor(item.debtor, false),
             contract: mapContract(item.contract, false),
+            action_plan: nullableString(item, "action_plan", "actionPlan"),
+            visit_address: nullableString(item, "visit_address", "visitAddress"),
+            visit_result: nullableString(item, "visit_result", "visitResult"),
+            conclusion: nullableString(item, "conclusion"),
+            handling_step: nullableString(item, "handling_step", "handlingStep"),
+            handling_result: nullableString(item, "handling_result", "handlingResult"),
             notes: nullableString(item, "notes"),
+            file: mapFile(item.file),
             created_at: nullableString(item, "created_at", "createdAt"),
           }))
       : [];

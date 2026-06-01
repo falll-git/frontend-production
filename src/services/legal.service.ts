@@ -25,8 +25,6 @@ import type {
   LegalDepositPayload,
   LegalDepositTransaction,
   LegalDepositTransactionPayload,
-  LegalIdebPayload,
-  LegalIdebUpload,
   LegalInsurancePayload,
   LegalKjppPayload,
   LegalListQuery,
@@ -120,10 +118,17 @@ function mapDebtor(record: unknown): DebtorRecord | null {
     branch_id: nullableString(debtor, "branch_id", "branchId"),
     marketing_user_id: nullableString(debtor, "marketing_user_id", "marketingUserId"),
     financing_number: nullableString(debtor, "financing_number", "financingNumber"),
+    customer_type: nullableString(debtor, "customer_type", "customerType"),
+    customer_type_label: nullableString(debtor, "customer_type_label", "customerTypeLabel"),
+    slik_segment: nullableString(debtor, "slik_segment", "slikSegment"),
+    slik_status_code: nullableString(debtor, "slik_status_code", "slikStatusCode"),
+    slik_operation_code: nullableString(debtor, "slik_operation_code", "slikOperationCode"),
     status: readString(debtor, "status") ?? "ACTIVE",
     description: nullableString(debtor, "description"),
     branch: null,
     marketing_user: null,
+    individual_profile: null,
+    legal_entity_profile: null,
     latest_contract: null,
     contracts: [],
     contracts_count: 0,
@@ -167,6 +172,8 @@ function mapContract(record: unknown): DebtorContract | null {
     marketing_user: null,
     latest_collectibility: null,
     collectibilities: [],
+    latest_slik_snapshot: null,
+    slik_snapshots: [],
     created_at: nullableString(contract, "created_at", "createdAt"),
     updated_at: nullableString(contract, "updated_at", "updatedAt"),
   };
@@ -208,25 +215,6 @@ function mapPrint(record: unknown): LegalPrintHistory | null {
     numbering_template: mapParameter(item.numbering_template),
     contract: mapContract(item.contract),
     printed_at: nullableString(item, "printed_at", "printedAt"),
-    created_at: nullableString(item, "created_at", "createdAt"),
-  };
-}
-
-function mapIdeb(record: unknown): LegalIdebUpload | null {
-  const item = asRecord(record);
-  const id = item ? readString(item, "id") : null;
-  if (!item || !id) return null;
-  return {
-    id,
-    debtor_id: nullableString(item, "debtor_id", "debtorId"),
-    contract_id: nullableString(item, "contract_id", "contractId"),
-    month: numberValue(item, "month"),
-    year: numberValue(item, "year"),
-    status: readString(item, "status") ?? "PENDING",
-    result_summary: asRecord(item.result_summary),
-    file: mapFile(item.file),
-    debtor: mapDebtor(item.debtor),
-    contract: mapContract(item.contract),
     created_at: nullableString(item, "created_at", "createdAt"),
   };
 }
@@ -434,20 +422,6 @@ export const legalService = {
     if (!mapped) throw new Error("Respons cetak dokumen legal dari server tidak valid");
     return mapped;
   },
-  getIdebPage: async (query: LegalListQuery = {}) => {
-    const params = buildParams(query);
-    const res = await api.get("/legal/ideb", { params });
-    return mapPage(res.data, mapIdeb, {
-      page: Number(params.page),
-      limit: Number(params.limit),
-    });
-  },
-  createIdeb: async (payload: LegalIdebPayload) => {
-    const res = await api.post("/legal/ideb", toMultipartFormData(payload));
-    const mapped = mapIdeb(extractRecord(res.data));
-    if (!mapped) throw new Error("Respons upload IDEB dari server tidak valid");
-    return mapped;
-  },
   getNotaryPage: async (query: LegalListQuery = {}) => {
     const params = buildParams(query);
     const res = await api.get("/legal/progress/notary", { params });
@@ -583,7 +557,6 @@ export const legalService = {
     return {
       templates: numberValue(record, "templates"),
       prints: numberValue(record, "prints"),
-      ideb: numberValue(record, "ideb"),
       notary: numberValue(record, "notary"),
       insurance: numberValue(record, "insurance"),
       kjpp: numberValue(record, "kjpp"),

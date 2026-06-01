@@ -206,6 +206,7 @@ function DocumentPreview({
           : fileType === "office"
             ? "Dokumen Office"
             : "Dokumen";
+  const canPreviewInline = fileType === "pdf" || fileType === "image";
 
   if (!isOpen) return null;
 
@@ -278,7 +279,7 @@ function DocumentPreview({
         </div>
 
         <div className="doc-preview-content">
-          {isLoading && fileType !== "other" ? (
+          {isLoading && canPreviewInline ? (
             <div className="doc-preview-loading">
               <NewtonsCradleLoader
                 size={56}

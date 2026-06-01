@@ -938,10 +938,10 @@ export default function ListDokumenPage() {
                         : undefined
                     }
                     disabled={!selectedDoc.fileUrl}
-                    label="View"
+                    label="Preview"
                     title={
                       selectedDoc.fileUrl
-                        ? "View dokumen"
+                        ? "Preview dokumen"
                         : "File dokumen belum tersedia"
                     }
                   />

@@ -4,8 +4,8 @@ type DashboardPageShellVariant = "wide" | "form";
 type DashboardPageShellSpacing = "none" | "md" | "lg";
 
 const VARIANT_CLASS = {
-  wide: "mx-auto w-full max-w-[1600px] min-w-0",
-  form: "mx-auto w-full max-w-5xl min-w-0",
+  wide: "mx-auto w-full max-w-[1600px] min-w-0 overflow-x-clip",
+  form: "mx-auto w-full max-w-5xl min-w-0 overflow-x-clip",
 } satisfies Record<DashboardPageShellVariant, string>;
 
 const SPACING_CLASS = {

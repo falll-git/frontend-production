@@ -21,6 +21,7 @@ import { useArsipDigitalMasterData } from "@/components/arsip-digital/ArsipDigit
 import { useArsipDigitalWorkflow } from "@/components/arsip-digital/ArsipDigitalWorkflowProvider";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import SetupExcelButton from "@/components/ui/SetupExcelButton";
+import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import {
   SETUP_PAGE_SEARCH_CARD_CLASS,
@@ -312,12 +313,13 @@ export default function TempatPenyimpananPage() {
 
       {!errorMessage && !isLoadingKantor && paginationMeta.total === 0 ? (
         <div className="mt-6 rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-gray-300">
-            <SearchX className="h-7 w-7" aria-hidden="true" />
-          </div>
-          <p className="text-base font-medium text-gray-700">
-            Tidak ada kantor yang sesuai pencarian
-          </p>
+          <SetupEmptyState
+            title="Tidak ada kantor yang sesuai pencarian"
+            description="Coba ubah kata kunci pencarian kantor."
+            icon={SearchX}
+            isFiltered
+            variant="table"
+          />
         </div>
       ) : null}
 

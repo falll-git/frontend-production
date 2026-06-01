@@ -13,16 +13,10 @@ import {
   SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_TABLE_CLASS,
 } from "@/components/ui/setupPageStyles";
-
-function cn(...classes: Array<string | false | null | undefined>) {
-  const tokens = classes
-    .filter(Boolean)
-    .join(" ")
-    .split(/\s+/)
-    .filter(Boolean);
-
-  return Array.from(new Set(tokens)).join(" ");
-}
+import { cn } from "@/lib/utils";
+import SetupEmptyState from "@/components/ui/SetupEmptyState";
+import SetupState from "@/components/ui/SetupState";
+import type { LucideIcon } from "lucide-react";
 
 function getTextContent(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") {
@@ -252,20 +246,61 @@ export function SetupDataTableCol(props: ComponentPropsWithoutRef<"col">) {
 
 type SetupDataTableEmptyRowProps = ComponentPropsWithoutRef<"td"> & {
   colSpan: number;
+  state?: "empty" | "loading" | "error";
+  description?: ReactNode;
+  action?: ReactNode;
+  secondaryAction?: ReactNode;
+  icon?: LucideIcon | null;
+  tone?: "neutral" | "debitur" | "legal" | "import" | "parameter";
+  isFiltered?: boolean;
 };
 
 export function SetupDataTableEmptyRow({
   className,
   children,
+  state,
+  description,
+  action,
+  secondaryAction,
+  icon,
+  tone = "neutral",
+  isFiltered = false,
   ...props
 }: SetupDataTableEmptyRowProps) {
+  const text = getTextContent(children);
+  const inferredState =
+    state ??
+    (text.toLowerCase().startsWith("memuat")
+      ? "loading"
+      : text.toLowerCase().startsWith("gagal")
+        ? "error"
+        : "empty");
+
   return (
     <SetupDataTableRow>
       <SetupDataTableCell
         className={cn(SETUP_PAGE_MODERN_EMPTY_CELL_CLASS, className)}
         {...props}
       >
-        {children}
+        {inferredState === "empty" ? (
+          <SetupEmptyState
+            title={children}
+            description={description}
+            action={action}
+            secondaryAction={secondaryAction}
+            icon={icon}
+            tone={tone}
+            isFiltered={isFiltered}
+            variant="table"
+          />
+        ) : (
+          <SetupState
+            variant={inferredState}
+            title={children}
+            description={description}
+            compact
+          />
+        )}
       </SetupDataTableCell>
     </SetupDataTableRow>
   );

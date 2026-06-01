@@ -91,17 +91,17 @@ export default function SuratMasukDisposisiModal({
   return (
     <div
       data-dashboard-overlay="true"
-      className="fixed inset-0 z-60 flex items-center justify-center p-4 animate-fade-in"
+      className="fixed inset-0 z-60 flex items-center justify-center overflow-hidden p-3 animate-fade-in sm:p-4"
       style={{
         background: "rgba(15, 23, 42, 0.42)",
       }}
       onClick={onClose}
     >
       <div
-        className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-lg"
+        className="relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl min-w-0 flex-col overflow-hidden rounded-lg bg-white shadow-lg sm:max-h-[calc(100dvh-2rem)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-5">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5">
           <div className="flex min-w-0 items-center gap-4">
             <Inbox className="h-9 w-9 shrink-0 text-slate-900" aria-hidden="true" />
             <div className="min-w-0">
@@ -120,7 +120,7 @@ export default function SuratMasukDisposisiModal({
           />
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-slate-50 px-6 py-6">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-4 py-4 sm:px-6 sm:py-6">
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
             <div className="space-y-5">
               <DispositionSectionPanel

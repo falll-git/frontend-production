@@ -100,7 +100,7 @@ function ToastItemComponent({
     <div
       role="alert"
       className={[
-        "w-[min(380px,calc(100vw-2rem))] rounded-md border p-4 shadow-sm",
+        "w-[min(380px,calc(100dvw-2rem))] rounded-md border p-4 shadow-sm",
         "transition-all duration-200 ease-out",
         isLeaving
           ? "translate-x-4 opacity-0"

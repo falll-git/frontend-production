@@ -130,6 +130,11 @@ export function getMenuTitleForPath(
   pathname: string,
 ): string | null {
   const normalizedPath = normalizePath(pathname);
+
+  if (/^\/dashboard\/informasi-debitur\/[0-9a-f-]{36}$/i.test(normalizedPath)) {
+    return "Detail Debitur";
+  }
+
   let bestTitle: string | null = null;
   let bestLength = -1;
 

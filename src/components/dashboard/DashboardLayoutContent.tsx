@@ -182,7 +182,7 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const selector = '.modal-overlay, [data-dashboard-overlay="true"]';
+    const selector = '[data-dashboard-overlay="true"]';
     const updateOverlayState = () => {
       setIsOverlayOpen(Boolean(document.querySelector(selector)));
     };
@@ -264,8 +264,8 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
   };
   const mainStyle: CSSProperties = {
     marginLeft: shouldOffsetMain ? `${sidebarWidth}px` : "0px",
-    width: shouldOffsetMain ? `calc(100vw - ${sidebarWidth}px)` : "100%",
-    maxWidth: shouldOffsetMain ? `calc(100vw - ${sidebarWidth}px)` : "100%",
+    width: shouldOffsetMain ? "auto" : "100%",
+    maxWidth: "100%",
     minWidth: 0,
   };
 
@@ -395,9 +395,9 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
         </div>
       </aside>
 
-      <main className="min-w-0 transition-all duration-300" style={mainStyle}>
+      <main className="w-full min-w-0 max-w-full transition-all duration-300" style={mainStyle}>
         <header
-          className={`sticky top-0 z-40 flex min-w-0 items-center justify-between gap-3 border-b border-gray-100 px-4 py-4 transition-all duration-300 transform lg:px-6 ${
+          className={`sticky top-0 z-40 flex min-w-0 max-w-full items-center justify-between gap-2 border-b border-gray-100 px-3 py-3 transition-all duration-300 transform sm:gap-3 sm:px-4 sm:py-4 lg:px-6 ${
             headerVisible && !isPreviewOpen && !isFocusMode && !isOverlayOpen
               ? "translate-y-0 opacity-100"
               : "-translate-y-full opacity-0 pointer-events-none"
@@ -407,7 +407,7 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
             backdropFilter: "blur(12px)",
           }}
         >
-          <div className="flex min-w-0 items-center gap-2 lg:gap-4">
+          <div className="flex min-w-0 flex-1 items-center gap-2 lg:gap-4">
             <button
               onClick={() => {
                 updateSidebarOpen(true);
@@ -432,13 +432,13 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
                 <Menu className="h-7 w-7" aria-hidden="true" />
               )}
             </button>
-            <div className="min-w-0">
-              <h2 className="truncate text-lg font-bold text-gray-800">
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-base font-bold text-gray-800 sm:text-lg">
                 {pageTitle}
               </h2>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <Notification />
             <div
               className="hidden sm:flex items-center rounded-full border text-sm shadow-sm overflow-hidden"
@@ -475,7 +475,7 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
             </div>
 
             <div
-              className="sm:hidden flex items-center gap-2 px-3 py-2 rounded-full border text-sm shadow-sm"
+              className="sm:hidden flex items-center gap-1.5 rounded-full border px-2.5 py-2 text-xs shadow-sm"
               style={{
                 background:
                   "linear-gradient(135deg, rgba(21, 126, 195, 0.1) 0%, rgba(13, 90, 143, 0.06) 100%)",
@@ -494,7 +494,7 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
           </div>
         </header>
 
-        <div className="w-full min-w-0 p-4 lg:p-6">{children}</div>
+        <div className="w-full min-w-0 max-w-full p-3 sm:p-4 lg:p-6">{children}</div>
       </main>
     </div>
   );

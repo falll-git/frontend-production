@@ -1,7 +1,7 @@
 "use client";
 
 import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { RotateCcw, Save, UploadCloud } from "lucide-react";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import { useArsipDigitalMasterData } from "@/components/arsip-digital/ArsipDigitalMasterDataProvider";
@@ -12,6 +12,9 @@ import RelatedUsersPicker from "@/components/arsip-digital/input-dokumen/Related
 import SystemGeneratedCodeField from "@/components/arsip-digital/input-dokumen/SystemGeneratedCodeField";
 import FileUploadField from "@/components/ui/FileUploadField";
 import FeatureHeader from "@/components/ui/FeatureHeader";
+import SearchableSelect, {
+  type SearchableSelectOption,
+} from "@/components/ui/SearchableSelect";
 import SetupSelect from "@/components/ui/SetupSelect";
 import SetupTextInput from "@/components/ui/SetupTextInput";
 import SetupTextarea from "@/components/ui/SetupTextarea";
@@ -80,9 +83,7 @@ export default function InputDokumenPage() {
   const [dragOver, setDragOver] = useState(false);
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
-  const [debtors, setDebtors] = useState<DebtorRecord[]>([]);
   const [isOwnershipLoading, setIsOwnershipLoading] = useState(true);
-  const [isDebtorLoading, setIsDebtorLoading] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -129,55 +130,12 @@ export default function InputDokumenPage() {
   }, [showToast]);
 
   useEffect(() => {
-    let ignore = false;
-
     if (!canReadDebtors) {
-      setDebtors([]);
       setFormData((prev) =>
         prev.debtorId ? { ...prev, debtorId: "" } : prev,
       );
-      return () => {
-        ignore = true;
-      };
     }
-
-    async function loadDebtorOptions() {
-      setIsDebtorLoading(true);
-      try {
-        const rows = await debiturService.getAllDebtors({
-          status: "ACTIVE",
-          sort_by: "name",
-          sort_order: "asc",
-        });
-
-        if (ignore) return;
-
-        setDebtors(
-          rows
-            .filter((item) => item.status !== "INACTIVE")
-            .sort((left, right) => left.name.localeCompare(right.name)),
-        );
-      } catch (error) {
-        if (!ignore) {
-          setDebtors([]);
-          showToast(
-            error instanceof Error
-              ? error.message
-              : "Gagal memuat data debitur.",
-            "error",
-          );
-        }
-      } finally {
-        if (!ignore) setIsDebtorLoading(false);
-      }
-    }
-
-    void loadDebtorOptions();
-
-    return () => {
-      ignore = true;
-    };
-  }, [canReadDebtors, showToast]);
+  }, [canReadDebtors]);
 
   const tempatPenyimpananList = useMemo(() => {
     return tempatPenyimpanan
@@ -205,6 +163,42 @@ export default function InputDokumenPage() {
   const selectedOwnerUser = useMemo(
     () => users.find((item) => item.id === formData.ownerUserId) ?? null,
     [formData.ownerUserId, users],
+  );
+
+  const ownerUserOptions = useMemo<SearchableSelectOption[]>(
+    () =>
+      users.map((item) => ({
+        value: item.id,
+        label: `${item.name} (${item.username})`,
+        description: item.division_name ?? undefined,
+      })),
+    [users],
+  );
+
+  const loadDebtorOptions = useCallback(
+    async (query: string): Promise<SearchableSelectOption[]> => {
+      if (!canReadDebtors) return [];
+
+      const result = await debiturService.getDebtorsPage({
+        page: 1,
+        limit: 20,
+        search: query,
+        status: "ACTIVE",
+        sort_by: "name",
+        sort_order: "asc",
+      });
+
+      return result.items
+        .filter((item: DebtorRecord) => item.status !== "INACTIVE")
+        .map((item: DebtorRecord) => ({
+          value: item.id,
+          label: item.debtor_number
+            ? `${item.debtor_number} - ${item.name}`
+            : item.name,
+          description: item.branch?.name ?? undefined,
+        }));
+    },
+    [canReadDebtors],
   );
 
   const handleChange = (
@@ -357,16 +351,16 @@ export default function InputDokumenPage() {
 
       <form
         onSubmit={handleSubmit}
-        className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm md:p-8"
+        className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm md:p-6"
       >
-        <div className="space-y-8">
-          <section className="space-y-6">
+        <div className="space-y-6">
+          <section className="space-y-4">
             <InputDokumenSectionTitle
               title="Informasi Arsip"
               description="Tentukan lokasi penyimpanan fisik, jenis dokumen, dan status akses dokumen."
             />
 
-            <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
               <div>
                 <label
                   htmlFor="tempatPenyimpanan"
@@ -444,13 +438,13 @@ export default function InputDokumenPage() {
 
           <div className="border-t border-gray-100" />
 
-          <section className="space-y-6">
+          <section className="space-y-4">
             <InputDokumenSectionTitle
               title="Kepemilikan dan Akses"
               description="Pilih PIC jika dokumen ini milik user lain. User terkait bisa melihat dokumen tanpa pengajuan akses."
             />
 
-            <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
               <div>
                 <label
                   htmlFor="ownerUserId"
@@ -458,24 +452,21 @@ export default function InputDokumenPage() {
                 >
                   PIC Dokumen
                 </label>
-                <SetupSelect
+                <SearchableSelect
                   id="ownerUserId"
                   name="ownerUserId"
                   value={formData.ownerUserId}
-                  onChange={(event) => handleOwnerUserChange(event.target.value)}
-                  disabled={!canCreateDokumen || isLoading || isOwnershipLoading}
-                >
-                  <option value="">
-                    {isOwnershipLoading
+                  options={ownerUserOptions}
+                  onChange={(value) => handleOwnerUserChange(value)}
+                  placeholder={
+                    isOwnershipLoading
                       ? "Memuat user..."
-                      : "Ikuti akun penginput"}
-                  </option>
-                  {users.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name} ({item.username})
-                    </option>
-                  ))}
-                </SetupSelect>
+                      : "Ikuti akun penginput"
+                  }
+                  searchPlaceholder="Cari nama, username, atau divisi..."
+                  emptyLabel="User tidak ditemukan"
+                  disabled={!canCreateDokumen || isLoading || isOwnershipLoading}
+                />
                 <p className="mt-2 text-xs text-slate-500">
                   Kosongkan jika dokumen milik akun yang sedang menginput.
                 </p>
@@ -529,7 +520,7 @@ export default function InputDokumenPage() {
 
           <div className="border-t border-gray-100" />
 
-          <section className="space-y-6">
+          <section className="space-y-4">
             <InputDokumenSectionTitle
               title="Detail Dokumen"
               description="Isi identitas dokumen yang akan tampil di daftar arsip digital."
@@ -580,26 +571,20 @@ export default function InputDokumenPage() {
                 >
                   Debitur Terkait
                 </label>
-                <SetupSelect
+                <SearchableSelect
                   id="debtorId"
                   name="debtorId"
                   value={formData.debtorId}
-                  onChange={handleChange}
-                  disabled={!canCreateDokumen || isLoading || isDebtorLoading}
-                >
-                  <option value="">
-                    {isDebtorLoading
-                      ? "Memuat debitur..."
-                      : "Tidak dikaitkan dengan debitur"}
-                  </option>
-                  {debtors.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                      {item.debtor_number ? ` (${item.debtor_number})` : ""}
-                      {item.branch?.name ? ` - ${item.branch.name}` : ""}
-                    </option>
-                  ))}
-                </SetupSelect>
+                  loadOptions={loadDebtorOptions}
+                  onChange={(value) =>
+                    setFormData((prev) => ({ ...prev, debtorId: value }))
+                  }
+                  placeholder="Tidak dikaitkan dengan debitur"
+                  searchPlaceholder="Cari nama atau nomor debitur..."
+                  emptyLabel="Debitur tidak ditemukan"
+                  loadingLabel="Memuat debitur..."
+                  disabled={!canCreateDokumen || isLoading}
+                />
               </div>
             ) : null}
           </section>
@@ -631,7 +616,7 @@ export default function InputDokumenPage() {
             onDrop={handleDrop}
           />
 
-          <div className="border-t border-gray-100 pt-6 flex flex-col justify-end gap-3 sm:flex-row">
+          <div className="flex flex-col justify-end gap-3 border-t border-gray-100 pt-5 sm:flex-row">
             <button
               type="button"
               className="uiverse-modal-button uiverse-modal-button--neutral"

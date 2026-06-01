@@ -337,7 +337,7 @@ export default function HistorisDisposisiPage() {
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Tgl Aksi</SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Status</SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                  <span className="sr-only">View</span>
+                  <span className="sr-only">Lihat dokumen</span>
                 </SetupDataTableHeaderCell>
               </SetupDataTableRow>
             </SetupDataTableHead>
@@ -405,11 +405,12 @@ export default function HistorisDisposisiPage() {
                             onClick={() =>
                               openPreview(
                                 item.document!.fileUrl!,
-                                item.document!.namaDokumen,
+                                item.document!.fileName ||
+                                  item.document!.namaDokumen,
                               )
                             }
-                            title="View dokumen"
-                            label="View"
+                            title="Preview dokumen"
+                            label="Preview"
                           />
                         </div>
                       ) : (
@@ -466,10 +467,12 @@ export default function HistorisDisposisiPage() {
                   onClick={() =>
                     openPreview(
                       selectedItem.document!.fileUrl!,
-                      selectedItem.document!.namaDokumen,
+                      selectedItem.document!.fileName ||
+                        selectedItem.document!.namaDokumen,
                     )
                   }
-                  title="View dokumen"
+                  title="Preview dokumen"
+                  label="Preview"
                 />
               ) : null}
             </>

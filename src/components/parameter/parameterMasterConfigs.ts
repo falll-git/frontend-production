@@ -5,10 +5,14 @@ import {
   ClipboardCheck,
   FileCheck2,
   FileSignature,
+  Landmark,
   ListChecks,
   ReceiptText,
+  RefreshCw,
+  Send,
   ShieldCheck,
   Tags,
+  Workflow,
 } from "lucide-react";
 
 import type { ParameterMasterPageConfig } from "@/components/parameter/ParameterMasterPage";
@@ -47,6 +51,26 @@ const resetPeriodOptions = [
   { label: "Bulanan", value: "MONTHLY" },
   { label: "Tahunan", value: "YEARLY" },
   { label: "Tidak Reset", value: "NEVER" },
+];
+
+const depositTypeCategoryOptions = [
+  { label: "Notaris", value: "NOTARIS" },
+  { label: "Asuransi", value: "ASURANSI" },
+  { label: "Angsuran", value: "ANGSURAN" },
+];
+
+const mailDeliveryMediaOptions = [
+  { label: "Email", value: "EMAIL" },
+  { label: "Pos", value: "POS" },
+  { label: "Kurir", value: "KURIR" },
+  { label: "Langsung", value: "LANGSUNG" },
+];
+
+const legalProcessCategoryOptions = [
+  { label: "Notaris", value: "NOTARY_DEED" },
+  { label: "Asuransi", value: "INSURANCE_TYPE" },
+  { label: "KJPP", value: "KJPP_APPRAISAL" },
+  { label: "Klaim Asuransi", value: "INSURANCE_CLAIM" },
 ];
 
 function simpleCodeNameConfig(
@@ -164,6 +188,48 @@ export const contractTypeParameterConfig = simpleCodeNameConfig({
   searchPlaceholder: "Cari kode, nama, atau keterangan akad...",
 });
 
+export const mailDeliveryMediaParameterConfig = simpleCodeNameConfig({
+  title: "Setup Media Pengiriman Surat",
+  subtitle: "Kelola media pengiriman yang bisa dipilih pada Surat Keluar.",
+  entityLabel: "media pengiriman surat",
+  endpoint: "/mail-delivery-media",
+  icon: Send,
+  addLabel: "Tambah Media",
+  searchPlaceholder: "Cari kode, nama, atau keterangan media...",
+  fields: [
+    {
+      key: "code",
+      label: "Kode Media",
+      type: "select",
+      required: true,
+      options: mailDeliveryMediaOptions,
+    },
+    { key: "name", label: "Nama Media", required: true, placeholder: "Masukkan nama media" },
+    DESCRIPTION_FIELD,
+    STATUS_FIELD,
+  ],
+});
+
+export const collateralTypeParameterConfig = simpleCodeNameConfig({
+  title: "Setup Jenis Agunan",
+  subtitle: "Kelola label/filter jenis agunan untuk data A01 dan jaminan debitur.",
+  entityLabel: "jenis agunan",
+  endpoint: "/collateral-types",
+  icon: Landmark,
+  addLabel: "Tambah Jenis Agunan",
+  searchPlaceholder: "Cari kode, nama, atau keterangan agunan...",
+});
+
+export const restructuringTypeParameterConfig = simpleCodeNameConfig({
+  title: "Setup Jenis Restrukturisasi",
+  subtitle: "Kelola jenis restrukturisasi untuk import dan riwayat restrukturisasi debitur.",
+  entityLabel: "jenis restrukturisasi",
+  endpoint: "/restructuring-types",
+  icon: RefreshCw,
+  addLabel: "Tambah Jenis Restrukturisasi",
+  searchPlaceholder: "Cari kode, nama, atau keterangan restrukturisasi...",
+});
+
 export const documentChecklistParameterConfig: ParameterMasterPageConfig = {
   title: "Setup Checklist Dokumen",
   subtitle: "Kelola daftar dokumen wajib atau opsional untuk kebutuhan proses.",
@@ -236,7 +302,7 @@ export const depositTypeParameterConfig = simpleCodeNameConfig({
   fields: [
     { key: "code", label: "Kode", required: true, placeholder: "Masukkan kode" },
     { key: "name", label: "Nama Titipan", required: true, placeholder: "Masukkan nama titipan" },
-    { key: "category", label: "Kategori", placeholder: "Masukkan kategori" },
+    { key: "category", label: "Kategori", type: "select", required: true, options: depositTypeCategoryOptions },
     DESCRIPTION_FIELD,
     STATUS_FIELD,
   ],
@@ -246,6 +312,36 @@ export const depositTypeParameterConfig = simpleCodeNameConfig({
     { key: "description", label: "Keterangan", className: "min-w-[240px] max-w-[320px] truncate text-gray-600" },
     { key: "is_active", label: "Status", type: "status", widthClassName: "w-[120px]" },
   ],
+});
+
+export const legalProcessTypeParameterConfig = simpleCodeNameConfig({
+  title: "Setup Jenis Proses Legal",
+  subtitle: "Kelola jenis proses untuk progress notaris, asuransi, KJPP, dan klaim.",
+  entityLabel: "jenis proses legal",
+  endpoint: "/legal-process-types",
+  icon: Workflow,
+  addLabel: "Tambah Proses Legal",
+  searchPlaceholder: "Cari kode, nama, kategori, atau keterangan proses...",
+  fields: [
+    { key: "code", label: "Kode", required: true, placeholder: "Masukkan kode" },
+    { key: "name", label: "Nama Proses", required: true, placeholder: "Masukkan nama proses" },
+    {
+      key: "category",
+      label: "Kategori",
+      type: "select",
+      required: true,
+      options: legalProcessCategoryOptions,
+    },
+    DESCRIPTION_FIELD,
+    STATUS_FIELD,
+  ],
+  columns: [
+    ...CODE_NAME_COLUMNS,
+    { key: "category", label: "Kategori", widthClassName: "w-[180px]" },
+    { key: "description", label: "Keterangan", className: "min-w-[240px] max-w-[320px] truncate text-gray-600" },
+    { key: "is_active", label: "Status", type: "status", widthClassName: "w-[120px]" },
+  ],
+  tableMinWidthClassName: "min-w-[980px]",
 });
 
 function thirdPartyConfig(

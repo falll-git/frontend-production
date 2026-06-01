@@ -19,7 +19,8 @@ function DefaultAuthBrandPanel() {
           height={1024}
           priority
           unoptimized
-          className="h-auto w-full max-w-[405px] object-contain"
+          className="h-auto w-full object-contain"
+          style={{ maxWidth: 405 }}
         />
 
         <div className="my-2 flex items-center justify-center">
@@ -37,7 +38,8 @@ function DefaultAuthBrandPanel() {
           height={4846}
           priority
           unoptimized
-          className="h-auto w-full max-w-[355px] object-contain"
+          className="h-auto w-full object-contain"
+          style={{ maxWidth: 355 }}
         />
       </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { Cell, Label, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { useEffect, useRef, useState } from "react";
+import { Cell, Label, Pie, PieChart, Tooltip } from "recharts";
 
 export interface DonutNPFChartItem {
   kol: number;
@@ -32,11 +33,38 @@ function formatRupiah(value: number) {
 export default function DonutNPFChart({
   data,
   ratio,
+  onSegmentClick,
 }: {
   data: DonutNPFChartItem[];
   ratio: number;
+  onSegmentClick?: (kol: number) => void;
 }) {
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const [chartWidth, setChartWidth] = useState(0);
   const hasChartData = data.some((item) => item.outstandingPokok > 0);
+
+  useEffect(() => {
+    const node = chartContainerRef.current;
+    if (!node) return undefined;
+
+    const updateWidth = () => {
+      const nextWidth = Math.floor(node.getBoundingClientRect().width);
+      if (nextWidth <= 0) return;
+      setChartWidth((current) =>
+        current === nextWidth ? current : nextWidth,
+      );
+    };
+
+    updateWidth();
+    const frame = window.requestAnimationFrame(updateWidth);
+    const resizeObserver = new ResizeObserver(updateWidth);
+    resizeObserver.observe(node);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   if (!hasChartData) {
     return (
@@ -48,9 +76,12 @@ export default function DonutNPFChart({
 
   return (
     <div className="flex justify-center">
-      <div className="h-[300px] min-h-[300px] w-full min-w-[1px] max-w-[360px]">
-        <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-          <PieChart>
+      <div
+        ref={chartContainerRef}
+        className="flex h-[300px] min-h-[300px] w-full min-w-[1px] max-w-[360px] justify-center"
+      >
+        {chartWidth > 0 ? (
+          <PieChart width={Math.min(chartWidth, 360)} height={300}>
             <Pie
               data={data}
               dataKey="outstandingPokok"
@@ -63,6 +94,12 @@ export default function DonutNPFChart({
               isAnimationActive={false}
               stroke="#ffffff"
               strokeWidth={4}
+              cursor={onSegmentClick ? "pointer" : undefined}
+              onClick={(entry) => {
+                if (!onSegmentClick) return;
+                const item = entry as Partial<DonutNPFChartItem>;
+                if (typeof item.kol === "number") onSegmentClick(item.kol);
+              }}
             >
               <Label
                 content={({ viewBox }) => {
@@ -95,7 +132,11 @@ export default function DonutNPFChart({
                 }}
               />
               {data.map((item) => (
-                <Cell key={item.kol} fill={item.color} />
+                <Cell
+                  key={item.kol}
+                  fill={item.color}
+                  cursor={onSegmentClick ? "pointer" : undefined}
+                />
               ))}
             </Pie>
             <Tooltip
@@ -109,7 +150,7 @@ export default function DonutNPFChart({
               }}
             />
           </PieChart>
-        </ResponsiveContainer>
+        ) : null}
       </div>
     </div>
   );

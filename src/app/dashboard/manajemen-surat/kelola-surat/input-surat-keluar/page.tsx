@@ -25,10 +25,17 @@ import { letterPriorityService } from "@/services/letter-priority.service";
 import { toApiDateTime } from "@/services/api.utils";
 import { storageService } from "@/services/storage.service";
 import { suratKeluarService } from "@/services/surat-keluar.service";
+import {
+  createParameterMasterService,
+  type ParameterMasterRecord,
+} from "@/services/parameter-master.service";
 import type { Storage } from "@/types/master.types";
 
 const SURAT_KELUAR_MENU_URL =
   "/dashboard/manajemen-surat/kelola-surat/input-surat-keluar";
+const mailDeliveryMediaService = createParameterMasterService(
+  "/mail-delivery-media",
+);
 
 type SuratKeluarFormState = {
   namaPenerima: string;
@@ -74,6 +81,9 @@ export default function InputSuratKeluarPage() {
     { id: string; name: string }[]
   >([]);
   const [storageOptions, setStorageOptions] = useState<Storage[]>([]);
+  const [deliveryMediaOptions, setDeliveryMediaOptions] = useState<
+    ParameterMasterRecord[]
+  >([]);
   const [isMasterLoading, setIsMasterLoading] = useState(true);
 
   useEffect(() => {
@@ -83,9 +93,10 @@ export default function InputSuratKeluarPage() {
       setIsMasterLoading(true);
 
       try {
-        const [priorities, storages] = await Promise.all([
+        const [priorities, storages, deliveryMedia] = await Promise.all([
           letterPriorityService.getAll(),
           storageService.getAll(),
+          mailDeliveryMediaService.getAll({ is_active: true }),
         ]);
         if (!ignore) {
           setLetterPriorities(
@@ -100,6 +111,7 @@ export default function InputSuratKeluarPage() {
                 ),
               ),
           );
+          setDeliveryMediaOptions(deliveryMedia);
         }
       } catch (error) {
         if (!ignore) {
@@ -372,13 +384,17 @@ export default function InputSuratKeluarPage() {
                   name="mediaPengiriman"
                   value={formData.mediaPengiriman}
                   onChange={handleChange}
+                  disabled={isMasterLoading}
                   required
                 >
-                  <option value="">Pilih Media</option>
-                  <option value="email">Email</option>
-                  <option value="kurir">Kurir</option>
-                  <option value="langsung">Langsung / Tangan</option>
-                  <option value="pos">Pos</option>
+                  <option value="">
+                    {isMasterLoading ? "Memuat Media..." : "Pilih Media"}
+                  </option>
+                  {deliveryMediaOptions.map((media) => (
+                    <option key={media.id} value={String(media.code ?? "")}>
+                      {String(media.name ?? media.code ?? "-")}
+                    </option>
+                  ))}
                 </SetupSelect>
                 <p className="mt-2 text-xs text-slate-500">
                   Pilih cara surat ini dikirim.

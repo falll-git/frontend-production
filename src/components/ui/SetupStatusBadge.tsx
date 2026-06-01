@@ -26,23 +26,29 @@ type SetupStatusBadgeProps = {
   tone?: SetupStatusTone;
   icon?: LucideIcon | null;
   showIcon?: boolean;
+  size?: "sm" | "md";
   wrap?: boolean;
   className?: string;
   textClassName?: string;
 };
 
 const BASE_BADGE_CLASS =
-  "inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-sm font-medium";
+  "inline-flex items-center justify-center rounded-full border font-medium";
+
+const SIZE_CLASS = {
+  sm: "px-2 py-0.5 text-xs",
+  md: "px-2.5 py-0.5 text-sm",
+};
 
 const TONE_CLASS: Record<SetupStatusTone, string> = {
-  emerald: "bg-emerald-100 text-emerald-700",
-  amber: "bg-amber-100 text-amber-700",
-  red: "bg-red-100 text-red-700",
-  blue: "bg-blue-100 text-blue-700",
-  violet: "bg-violet-100 text-violet-700",
-  sky: "bg-sky-100 text-sky-700",
-  slate: "bg-slate-100 text-slate-700",
-  gray: "bg-gray-100 text-gray-700",
+  emerald: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  amber: "border-amber-200 bg-amber-50 text-amber-700",
+  red: "border-red-200 bg-red-50 text-red-700",
+  blue: "border-blue-200 bg-blue-50 text-blue-700",
+  violet: "border-violet-200 bg-violet-50 text-violet-700",
+  sky: "border-sky-200 bg-sky-50 text-sky-700",
+  slate: "border-slate-200 bg-slate-50 text-slate-700",
+  gray: "border-gray-200 bg-gray-50 text-gray-700",
 };
 
 const TONE_ICON: Record<SetupStatusTone, LucideIcon> = {
@@ -56,14 +62,18 @@ const TONE_ICON: Record<SetupStatusTone, LucideIcon> = {
   gray: Clock3,
 };
 
-function getStatusConfig(status: string) {
+function getBadgeClass(tone: SetupStatusTone, size: "sm" | "md") {
+  return `${BASE_BADGE_CLASS} ${SIZE_CLASS[size]} ${TONE_CLASS[tone]}`;
+}
+
+function getStatusConfig(status: string, size: "sm" | "md") {
   const normalized = status.trim().toLowerCase();
 
   if (normalized === "urutan") {
     return {
       icon: null,
       className:
-        "inline-flex h-9 min-w-9 items-center justify-center rounded-full bg-sky-100 px-2 text-sm font-bold text-sky-700",
+        "inline-flex h-8 min-w-8 items-center justify-center rounded-full border border-sky-200 bg-sky-50 px-2 text-xs font-bold text-sky-700",
     };
   }
 
@@ -76,66 +86,76 @@ function getStatusConfig(status: string) {
     case "input baru":
     case "baru":
     case "selesai":
+    case "completed":
+    case "complete":
+    case "done":
     case "aman":
     case "ya":
       return {
         icon: CheckCircle2,
-        className: `${BASE_BADGE_CLASS} ${TONE_CLASS.emerald}`,
+        className: getBadgeClass("emerald", size),
       };
     case "nonaktif":
     case "ditolak":
     case "hapus":
     case "gagal":
+    case "failed":
     case "tidak":
       return {
         icon: XCircle,
-        className: `${BASE_BADGE_CLASS} ${TONE_CLASS.red}`,
+        className: getBadgeClass("red", size),
       };
     case "dipinjam":
     case "sudah diserahkan":
     case "penyerahan":
     case "perhatian":
+    case "jatuh tempo":
+    case "due soon":
       return {
         icon: Clock3,
-        className: `${BASE_BADGE_CLASS} ${TONE_CLASS.amber}`,
+        className: getBadgeClass("amber", size),
       };
     case "terlambat":
     case "melewati batas":
+    case "overdue":
       return {
         icon: AlertTriangle,
-        className: `${BASE_BADGE_CLASS} ${TONE_CLASS.red}`,
+        className: getBadgeClass("red", size),
       };
     case "diajukan":
     case "persetujuan":
     case "menunggu":
     case "menunggu persetujuan":
+    case "pending":
     case "diteruskan":
     case "belum diterapkan":
       return {
         icon: Clock3,
-        className: `${BASE_BADGE_CLASS} ${TONE_CLASS.blue}`,
+        className: getBadgeClass("blue", size),
       };
     case "pengembalian":
     case "perubahan data":
       return {
         icon: normalized === "perubahan data" ? Pencil : CheckCircle2,
-        className: `${BASE_BADGE_CLASS} ${TONE_CLASS.violet}`,
+        className: getBadgeClass("violet", size),
       };
     case "pindah lokasi":
     case "belum didukung":
       return {
         icon: normalized === "belum didukung" ? AlertTriangle : ArrowRightLeft,
-        className: `${BASE_BADGE_CLASS} ${TONE_CLASS.amber}`,
+        className: getBadgeClass("amber", size),
       };
     case "dalam proses":
+    case "in progress":
+    case "processing":
       return {
         icon: LoaderCircle,
-        className: `${BASE_BADGE_CLASS} ${TONE_CLASS.violet}`,
+        className: getBadgeClass("violet", size),
       };
     default:
       return {
         icon: Clock3,
-        className: `${BASE_BADGE_CLASS} ${TONE_CLASS.gray}`,
+        className: getBadgeClass("gray", size),
       };
   }
 }
@@ -146,6 +166,7 @@ export default function SetupStatusBadge({
   tone,
   icon,
   showIcon = true,
+  size = "sm",
   wrap = false,
   className = "",
   textClassName = "",
@@ -153,9 +174,9 @@ export default function SetupStatusBadge({
   const config = tone
     ? {
         icon: TONE_ICON[tone],
-        className: `${BASE_BADGE_CLASS} ${TONE_CLASS[tone]}`,
+        className: getBadgeClass(tone, size),
       }
-    : getStatusConfig(status);
+    : getStatusConfig(status, size);
 
   const Icon = showIcon ? icon === undefined ? config.icon : icon : null;
 
@@ -163,7 +184,7 @@ export default function SetupStatusBadge({
     <span className={`${config.className} ${className}`.trim()}>
       {Icon ? (
         <Icon
-          className="-ms-1 me-1.5 size-4"
+          className={`-ms-0.5 me-1 ${size === "md" ? "size-4" : "size-3.5"}`}
           aria-hidden="true"
           strokeWidth={1.5}
         />

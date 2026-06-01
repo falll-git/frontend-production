@@ -19,6 +19,7 @@ import RakGridModal from "@/components/arsip/RakGridModal";
 import StorageSummaryCard from "@/components/arsip/StorageSummaryCard";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import Pagination from "@/components/ui/Pagination";
+import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import { SETUP_PAGE_SEARCH_CARD_CLASS } from "@/components/ui/setupPageStyles";
 import { DEFAULT_PAGINATION_META } from "@/lib/pagination";
@@ -235,12 +236,13 @@ export default function KantorLemariPage() {
 
       {!errorMessage && !isLoading && paginationMeta.total === 0 ? (
         <div className="mt-6 rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-gray-300">
-            <SearchX className="h-7 w-7" aria-hidden="true" />
-          </div>
-          <p className="text-base font-medium text-gray-700">
-            Tidak ada lemari yang sesuai pencarian
-          </p>
+          <SetupEmptyState
+            title="Tidak ada lemari yang sesuai pencarian"
+            description="Coba ubah kata kunci pencarian lemari."
+            icon={SearchX}
+            isFiltered
+            variant="table"
+          />
         </div>
       ) : null}
 

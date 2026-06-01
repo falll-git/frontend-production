@@ -10,6 +10,7 @@ import {
 import { Document, Page, pdfjs } from "react-pdf";
 
 import Pagination from "@/components/ui/Pagination";
+import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupViewButton from "@/components/ui/SetupViewButton";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupSelect from "@/components/ui/SetupSelect";
@@ -295,11 +296,9 @@ function MiniPdfPreview({
 
   if (!isValidFileUrl(fileUrl)) {
     return (
-      <div className="flex min-h-[560px] items-center justify-center rounded-lg bg-[#f4f6fb] px-6 text-center">
+      <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-[#f4f6fb] px-4 text-center md:min-h-[560px] md:px-6">
         <div>
-          <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm">
-            <FileText className="h-7 w-7 text-gray-400" aria-hidden="true" />
-          </div>
+          <FileText className="mx-auto mb-3 h-7 w-7 text-gray-400" aria-hidden="true" />
           <p className="text-base font-semibold text-gray-900">
             File dokumen belum tersedia
           </p>
@@ -311,7 +310,7 @@ function MiniPdfPreview({
   if (fileType === "image") {
     return (
       <div className="rounded-lg bg-[#f4f6fb] p-4">
-        <div className="h-[68vh] min-h-[560px] max-h-[760px] overflow-y-auto overflow-x-hidden rounded-lg bg-[#eef2f7] p-4">
+        <div className="h-[min(68dvh,760px)] min-h-[320px] overflow-y-auto overflow-x-hidden rounded-lg bg-[#eef2f7] p-3 md:min-h-[560px] md:p-4">
           <div className="mx-auto w-full max-w-[620px] rounded-lg bg-white p-3 shadow-sm ring-1 ring-gray-200">
             <img
               src={fileUrl}
@@ -329,11 +328,9 @@ function MiniPdfPreview({
   }
 
   return (
-    <div className="flex min-h-[560px] items-center justify-center rounded-lg bg-[#f4f6fb] px-6 text-center">
+    <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-[#f4f6fb] px-4 text-center md:min-h-[560px] md:px-6">
       <div className="max-w-sm">
-        <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm">
-          <FileText className="h-7 w-7 text-gray-400" aria-hidden="true" />
-        </div>
+        <FileText className="mx-auto mb-3 h-7 w-7 text-gray-400" aria-hidden="true" />
         <p className="text-base font-semibold text-gray-900">
           Preview belum tersedia untuk format ini
         </p>
@@ -371,7 +368,7 @@ function PdfDocumentPreview({
 
   return (
     <div className="rounded-lg bg-[#f4f6fb] p-4">
-      <div className="h-[68vh] min-h-[560px] max-h-[760px] overflow-y-auto overflow-x-hidden rounded-lg bg-[#eef2f7] p-4">
+      <div className="h-[min(68dvh,760px)] min-h-[320px] overflow-y-auto overflow-x-hidden rounded-lg bg-[#eef2f7] p-3 md:min-h-[560px] md:p-4">
         <div
           ref={containerRef}
           className="mx-auto flex w-full max-w-[620px] min-w-0 flex-col gap-4"
@@ -386,7 +383,7 @@ function PdfDocumentPreview({
           <Document
             file={fileUrl}
             loading={
-              <div className="flex min-h-[560px] items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
+              <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-gray-200 md:min-h-[560px]">
                 <div className="flex flex-col items-center gap-3 text-gray-500">
                   <LoaderCircle className="h-8 w-8 animate-spin text-primary-600" />
                   <p className="text-sm font-medium">Memuat preview dokumen...</p>
@@ -401,11 +398,9 @@ function PdfDocumentPreview({
               setHasError(true);
             }}
             error={
-              <div className="flex min-h-[560px] items-center justify-center rounded-lg bg-white px-6 text-center shadow-sm ring-1 ring-gray-200">
+              <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-white px-4 text-center shadow-sm ring-1 ring-gray-200 md:min-h-[560px] md:px-6">
                 <div>
-                  <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100">
-                    <FileText className="h-7 w-7 text-gray-400" aria-hidden="true" />
-                  </div>
+                  <FileText className="mx-auto mb-3 h-7 w-7 text-gray-400" aria-hidden="true" />
                   <p className="text-base font-semibold text-gray-900">
                     Preview dokumen belum bisa ditampilkan
                   </p>
@@ -421,7 +416,7 @@ function PdfDocumentPreview({
                   renderTextLayer={false}
                   renderAnnotationLayer={false}
                   loading={
-                    <div className="flex min-h-[560px] items-center justify-center">
+                    <div className="flex min-h-[320px] items-center justify-center md:min-h-[560px]">
                       <LoaderCircle className="h-7 w-7 animate-spin text-primary-600" />
                     </div>
                   }
@@ -1067,17 +1062,14 @@ export default function CetakDokumenClient() {
               </div>
             </>
           ) : (
-            <div className="flex min-h-[340px] flex-col items-center justify-center px-6 text-center">
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100">
-                <SearchX className="h-8 w-8 text-gray-400" aria-hidden="true" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                Tidak ada dokumen yang sesuai
-              </h3>
-              <p className="mt-1 max-w-md text-sm text-gray-500">
-                Ubah kata kunci pencarian atau ganti jenis dokumen untuk melihat
-                data lain.
-              </p>
+            <div className="flex min-h-[340px] items-center justify-center px-6">
+              <SetupEmptyState
+                title="Tidak ada dokumen yang sesuai"
+                description="Ubah kata kunci pencarian atau ganti jenis dokumen untuk melihat data lain."
+                icon={SearchX}
+                isFiltered
+                variant="table"
+              />
             </div>
           )}
         </section>
@@ -1098,9 +1090,10 @@ export default function CetakDokumenClient() {
                   className="w-full justify-center"
                   title={
                     selectedRecordHasFile
-                      ? "View dokumen"
+                      ? "Preview dokumen"
                       : "File belum tersedia"
                   }
+                  label="Preview"
                   disabled={!selectedRecordHasFile}
                 />
                 <button
@@ -1122,20 +1115,13 @@ export default function CetakDokumenClient() {
               </div>
             </>
           ) : (
-            <div className="flex min-h-[560px] flex-col items-center justify-center px-6 text-center">
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100">
-                <FileText
-                  className="h-8 w-8 text-gray-400"
-                  aria-hidden="true"
-                />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                Belum ada dokumen terpilih
-              </h3>
-              <p className="mt-1 max-w-sm text-sm text-gray-500">
-                Pilih salah satu dokumen untuk melihat preview dan mencetak
-                file.
-              </p>
+            <div className="flex min-h-[320px] items-center justify-center px-4 md:min-h-[560px] md:px-6">
+              <SetupEmptyState
+                title="Belum ada dokumen terpilih"
+                description="Pilih salah satu dokumen untuk melihat preview dan mencetak file."
+                icon={FileText}
+                variant="table"
+              />
             </div>
           )}
         </section>

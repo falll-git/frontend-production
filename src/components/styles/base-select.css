@@ -1,4 +1,4 @@
-.select {
+.app-select {
   width: 100%;
   padding: 11px 44px 11px 14px;
   border: 1px solid #e5e7eb;
@@ -15,19 +15,24 @@
   background-size: 18px;
 }
 
-.select.input-with-icon {
+.app-select.app-input-with-icon {
   padding-left: 44px;
 }
 
-.select:focus,
-.select:focus-visible {
+.app-select.searchable-select-trigger {
+  background-image: none;
+  cursor: pointer;
+}
+
+.app-select:focus,
+.app-select:focus-visible {
   outline: none;
   border-color: #1773b0;
   background-color: white;
   box-shadow: 0 0 0 4px rgba(23, 115, 176, 0.1);
 }
 
-.select:disabled {
+.app-select:disabled {
   background-color: white;
   cursor: not-allowed;
   color: #6b7280;

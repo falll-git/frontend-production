@@ -11,6 +11,14 @@ import {
 import DonutNPFChart from "@/components/charts/DonutNPFChart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import KolektibilitasTable from "@/components/dashboard/KolektibilitasTable";
+import {
+  SetupDataTable,
+  SetupDataTableBody,
+  SetupDataTableCell,
+  SetupDataTableHead,
+  SetupDataTableHeaderCell,
+  SetupDataTableRow,
+} from "@/components/ui/SetupDataTable";
 import SetupSelect from "@/components/ui/SetupSelect";
 import SetupStatusBadge, {
   type SetupStatusTone,
@@ -142,13 +150,17 @@ function mapRiwayat(report: DebtorNpfReport | null): RiwayatNPF[] {
 
 export default function LaporanNPFSection({
   widget,
+  showTitle = true,
 }: {
   widget?: DashboardMenuNode;
+  showTitle?: boolean;
 }) {
   const [riwayatRange, setRiwayatRange] = useState<RiwayatRange>(6);
   const [report, setReport] = useState<DebtorNpfReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedKol, setSelectedKol] =
+    useState<NpfKolektibilitasLevel | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -207,6 +219,9 @@ export default function LaporanNPFSection({
     kolektibilitasData.some(
       (item) => item.jumlahNasabah > 0 || item.outstandingPokok > 0,
     ) || riwayatNPFData.length > 0;
+  const hasChartData = kolektibilitasData.some(
+    (item) => item.outstandingPokok > 0,
+  );
   const visibleRiwayat = [...riwayatNPFData]
     .sort((left, right) => {
       if (left.tahun !== right.tahun) {
@@ -265,12 +280,14 @@ export default function LaporanNPFSection({
 
   return (
     <section className="animate-fade-in">
-      <div className="mb-4">
-        <h2 className="flex items-center gap-2 text-xl font-bold text-gray-800">
-          <TrendingDown className="h-6 w-6 text-gray-600" aria-hidden="true" />
-          {widget?.name ?? "Laporan NPF"}
-        </h2>
-      </div>
+      {showTitle ? (
+        <div className="mb-4">
+          <h2 className="flex items-center gap-2 text-xl font-bold text-gray-800">
+            <TrendingDown className="h-6 w-6 text-gray-600" aria-hidden="true" />
+            {widget?.name ?? "Laporan NPF"}
+          </h2>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
@@ -278,21 +295,44 @@ export default function LaporanNPFSection({
             <CardTitle>Distribusi Kolektibilitas</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 pt-0">
-            <DonutNPFChart
-              data={kolektibilitasData.map((item) => {
-                const kol = item.kol as keyof typeof npfKolektibilitasColors;
+            {hasChartData ? (
+              <>
+                <DonutNPFChart
+                  data={kolektibilitasData.map((item) => {
+                    const kol = item.kol as keyof typeof npfKolektibilitasColors;
 
-                return {
-                  ...item,
-                  color: npfKolektibilitasColors[kol] ?? "#64748b",
-                };
-              })}
-              ratio={currentRatio}
-            />
-            <KolektibilitasTable
-              rows={kolektibilitasData}
-              nasabah={nasabahKolektibilitasData}
-            />
+                    return {
+                      ...item,
+                      color: npfKolektibilitasColors[kol] ?? "#64748b",
+                    };
+                  })}
+                  ratio={currentRatio}
+                  onSegmentClick={(kol) =>
+                    setSelectedKol(kol as NpfKolektibilitasLevel)
+                  }
+                />
+                <KolektibilitasTable
+                  rows={kolektibilitasData}
+                  nasabah={nasabahKolektibilitasData}
+                  selectedKol={selectedKol}
+                  onSelectedKolChange={setSelectedKol}
+                />
+              </>
+            ) : (
+              <div className="flex min-h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 px-6 py-10 text-center">
+                <p className="text-sm font-semibold text-gray-700">
+                  {isLoading
+                    ? "Memuat distribusi kolektibilitas..."
+                    : errorMessage
+                      ? "Data NPF belum dapat dimuat"
+                      : "Belum ada distribusi kolektibilitas"}
+                </p>
+                <p className="mt-1 max-w-md text-sm text-gray-500">
+                  Donut NPF akan tampil otomatis setelah data outstanding dan
+                  kolektibilitas tersedia dari import pembiayaan.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -300,8 +340,11 @@ export default function LaporanNPFSection({
           <CardHeader>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-slate-900">
-                  <TrendingDown className="h-5 w-5" aria-hidden="true" />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600 shadow-sm shadow-blue-500/10">
+                  <TrendingDown
+                    className="h-5 w-5"
+                    aria-hidden="true"
+                  />
                 </div>
                 <div className="flex min-h-11 items-center">
                   <CardTitle>Ringkasan NPF</CardTitle>
@@ -382,46 +425,46 @@ export default function LaporanNPFSection({
                     riwayatRange === 12 ? "max-h-[22.5rem] overflow-y-auto" : undefined
                   }
                 >
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  <SetupDataTable className="text-sm">
+                    <SetupDataTableHead className="bg-gray-50">
+                      <SetupDataTableRow>
+                        <SetupDataTableHeaderCell className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                           Bulan Tahun
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
                           Rasio NPF
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
+                        </SetupDataTableHeaderCell>
+                      </SetupDataTableRow>
+                    </SetupDataTableHead>
+                    <SetupDataTableBody className="divide-y divide-gray-100">
                       {visibleRiwayat.length > 0 ? (
                         visibleRiwayat.map((item) => (
-                        <tr
+                        <SetupDataTableRow
                           key={`${item.tahun}-${item.bulan}`}
                           className="transition-colors hover:bg-gray-50"
                         >
-                          <td className="px-4 py-3 text-gray-700">
+                          <SetupDataTableCell className="px-4 py-3 text-gray-700">
                             {item.namaBulan} {item.tahun}
-                          </td>
-                          <td
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
                             className={`px-4 py-3 text-right font-semibold ${getRatioTone(item.rasioNPF)}`}
                           >
                             {formatRatio(item.rasioNPF)}%
-                          </td>
-                        </tr>
+                          </SetupDataTableCell>
+                        </SetupDataTableRow>
                         ))
                       ) : (
-                        <tr>
-                          <td
+                        <SetupDataTableRow>
+                          <SetupDataTableCell
                             colSpan={2}
                             className="px-4 py-8 text-center text-sm text-gray-500"
                           >
                             Belum ada riwayat NPF
-                          </td>
-                        </tr>
+                          </SetupDataTableCell>
+                        </SetupDataTableRow>
                       )}
-                    </tbody>
-                  </table>
+                    </SetupDataTableBody>
+                  </SetupDataTable>
                 </div>
               </div>
             </div>
