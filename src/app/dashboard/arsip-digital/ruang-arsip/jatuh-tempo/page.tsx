@@ -9,7 +9,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableCell,
   SetupDataTableColGroup,
-  SetupDataTableCol
+  SetupDataTableCol,
+  SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -42,7 +43,6 @@ import {
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
   SETUP_PAGE_BACK_BUTTON_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
   SETUP_PAGE_WIDTH_2XL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { useClientPagination } from "@/hooks/useClientPagination";
@@ -236,15 +236,14 @@ export default function JatuhTempoPage() {
         />
       </div>
 
-      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} mx-auto max-w-[1280px]`}>
+      <SetupTableCard variant="workflow" className="mx-auto max-w-[1280px]">
         <div className="border-b border-gray-100 p-4">
           <p className="text-sm text-gray-600">
             Menampilkan{" "}
             <span className="font-semibold">{sortedRows.length}</span> data
           </p>
         </div>
-        <div className="overflow-x-auto">
-          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+          <SetupDataTable variant="workflow" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
             <SetupDataTableColGroup>
               {JATUH_TEMPO_TABLE_COLUMN_WIDTHS.map((width, index) => (
                 <SetupDataTableCol
@@ -336,7 +335,6 @@ export default function JatuhTempoPage() {
               )}
             </SetupDataTableBody>
           </SetupDataTable>
-        </div>
         <Pagination
           page={paginationMeta.page}
           lastPage={paginationMeta.lastPage}
@@ -344,7 +342,7 @@ export default function JatuhTempoPage() {
           limit={paginationMeta.limit}
           onPageChange={setPage}
         />
-      </div>
+      </SetupTableCard>
     </DashboardPageShell>
   );
 }

@@ -9,7 +9,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableCell,
   SetupDataTableColGroup,
-  SetupDataTableCol
+  SetupDataTableCol,
+  SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import {
   useEffect,
@@ -59,7 +60,6 @@ import {
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
   SETUP_PAGE_SEARCH_LABEL_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
   SETUP_PAGE_WIDTH_2XL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -680,9 +680,8 @@ export default function ListDokumenPage() {
         </div>
       </div>
 
-      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} mx-auto max-w-[1280px]`}>
-        <div className="overflow-x-auto">
-          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+      <SetupTableCard variant="document" className="mx-auto max-w-[1280px]">
+          <SetupDataTable variant="document" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
             <SetupDataTableColGroup>
               {LIST_DOKUMEN_TABLE_COLUMN_WIDTHS.map((width, index) => (
                 <SetupDataTableCol
@@ -833,7 +832,6 @@ export default function ListDokumenPage() {
               )}
             </SetupDataTableBody>
           </SetupDataTable>
-        </div>
         <Pagination
           page={paginationMeta.page}
           lastPage={paginationMeta.lastPage}
@@ -841,7 +839,7 @@ export default function ListDokumenPage() {
           limit={paginationMeta.limit}
           onPageChange={setPage}
         />
-      </div>
+      </SetupTableCard>
 
       {showDetail && selectedDoc ? (
         <DashboardModal
@@ -1062,9 +1060,8 @@ export default function ListDokumenPage() {
                   title="Riwayat Peminjaman"
                   description="Catatan peminjaman yang pernah terkait dengan dokumen ini."
                 />
-                <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
-                  <div className="overflow-x-auto">
-                    <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+                <SetupTableCard variant="nested">
+                          <SetupDataTable variant="nested" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
                       <SetupDataTableHead className="ltr:text-left rtl:text-right">
                         <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                           <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
@@ -1100,8 +1097,7 @@ export default function ListDokumenPage() {
                         ))}
                       </SetupDataTableBody>
                     </SetupDataTable>
-                  </div>
-                </div>
+                </SetupTableCard>
               </section>
             ) : null}
           </div>

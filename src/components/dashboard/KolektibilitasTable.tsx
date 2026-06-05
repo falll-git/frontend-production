@@ -16,6 +16,10 @@ import {
   SetupDataTableHead,
   SetupDataTableHeaderCell,
   SetupDataTableRow,
+  SetupTableCode,
+  SetupTableMoney,
+  SetupTableNumber,
+  SetupTablePrimaryText,
 } from "@/components/ui/SetupDataTable";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import { formatNumber, formatRupiah } from "@/lib/utils/laporan";
@@ -182,7 +186,7 @@ export default function KolektibilitasTable({
     <>
       <div className="overflow-hidden rounded-xl border border-gray-200">
         <div className="overflow-visible lg:overflow-x-auto">
-          <SetupDataTable className="text-sm">
+          <SetupDataTable variant="portfolio" density="compact" className="text-sm">
             <SetupDataTableHead className="border-b bg-gray-50">
               <SetupDataTableRow>
                 <SetupDataTableHeaderCell className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -235,10 +239,10 @@ export default function KolektibilitasTable({
                     </div>
                   </SetupDataTableCell>
                   <SetupDataTableCell className="px-4 py-3 text-center text-sm text-gray-700">
-                    {formatNumber(item.jumlahNasabah)}
+                    <SetupTableNumber>{formatNumber(item.jumlahNasabah)}</SetupTableNumber>
                   </SetupDataTableCell>
                   <SetupDataTableCell className="px-4 py-3 text-right text-sm text-gray-700">
-                    {formatRupiah(item.outstandingPokok)}
+                    <SetupTableMoney>{formatRupiah(item.outstandingPokok)}</SetupTableMoney>
                   </SetupDataTableCell>
                   <SetupDataTableCell
                     className="px-4 py-3 text-right text-sm font-semibold"
@@ -334,7 +338,7 @@ export default function KolektibilitasTable({
                   <div className="overflow-hidden rounded-xl border border-gray-200">
                     {visibleNasabah.length > 0 ? (
                       <div className="overflow-visible lg:overflow-x-auto">
-                        <SetupDataTable className="text-sm">
+                        <SetupDataTable variant="portfolio" density="compact" className="text-sm">
                           <SetupDataTableHead className="border-b bg-gray-50">
                             <SetupDataTableRow>
                               <SetupDataTableHeaderCell className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -358,16 +362,16 @@ export default function KolektibilitasTable({
                                 className="transition-colors hover:bg-gray-50"
                               >
                                 <SetupDataTableCell className="px-6 py-4 text-sm font-semibold text-gray-900">
-                                  {item.nama}
+                                  <SetupTablePrimaryText>{item.nama}</SetupTablePrimaryText>
                                 </SetupDataTableCell>
                                 <SetupDataTableCell className="px-6 py-4 text-sm font-medium text-gray-800">
-                                  {item.noKontrak}
+                                  <SetupTableCode>{item.noKontrak}</SetupTableCode>
                                 </SetupDataTableCell>
                                 <SetupDataTableCell className="px-6 py-4 text-right text-sm text-gray-700">
-                                  {formatRupiah(item.outstandingPokok)}
+                                  <SetupTableMoney>{formatRupiah(item.outstandingPokok)}</SetupTableMoney>
                                 </SetupDataTableCell>
                                 <SetupDataTableCell className="px-6 py-4 text-center text-sm text-gray-700">
-                                  {item.sisaBulan} bulan
+                                  <SetupTableNumber>{item.sisaBulan} bulan</SetupTableNumber>
                                 </SetupDataTableCell>
                               </SetupDataTableRow>
                             ))}

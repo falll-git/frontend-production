@@ -12,11 +12,30 @@ import {
   SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
   SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_TABLE_CLASS,
+  SETUP_PAGE_TABLE_CARD_CLASS,
+  SETUP_PAGE_TABLE_SCROLL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { cn } from "@/lib/utils";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupState from "@/components/ui/SetupState";
 import type { LucideIcon } from "lucide-react";
+
+export type SetupTableVariant =
+  | "default"
+  | "crud"
+  | "document"
+  | "workflow"
+  | "portfolio"
+  | "nested"
+  | "report"
+  | "matrix";
+
+export type SetupTableDensity = "compact" | "normal" | "comfortable";
+
+type SetupDataTableProps = ComponentPropsWithoutRef<"table"> & {
+  variant?: SetupTableVariant;
+  density?: SetupTableDensity;
+};
 
 function getTextContent(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") {
@@ -146,17 +165,23 @@ function applyMobileLabels(children: ReactNode, labels: string[]): ReactNode {
 export function SetupDataTable({
   className,
   children,
+  variant = "default",
+  density = "normal",
   ...props
-}: ComponentPropsWithoutRef<"table">) {
+}: SetupDataTableProps) {
   const headerLabels = getTableHeaderLabels(children);
 
   return (
     <table
       className={cn(
         "setup-responsive-table",
+        `setup-responsive-table--${variant}`,
+        `setup-responsive-table--density-${density}`,
         SETUP_PAGE_MODERN_TABLE_CLASS,
         className,
       )}
+      data-table-variant={variant}
+      data-table-density={density}
       {...props}
     >
       {applyMobileLabels(children, headerLabels)}
@@ -242,6 +267,144 @@ export function SetupDataTableColGroup(
 
 export function SetupDataTableCol(props: ComponentPropsWithoutRef<"col">) {
   return <col {...props} />;
+}
+
+type SetupTableCardProps = ComponentPropsWithoutRef<"div"> & {
+  variant?: SetupTableVariant;
+  scroll?: boolean;
+  scrollClassName?: string;
+};
+
+export function SetupTableScroll({
+  className,
+  ...props
+}: ComponentPropsWithoutRef<"div">) {
+  return (
+    <div
+      className={cn("setup-table-scroll", SETUP_PAGE_TABLE_SCROLL_CLASS, className)}
+      {...props}
+    />
+  );
+}
+
+export function SetupTableCard({
+  className,
+  children,
+  variant = "default",
+  scroll = true,
+  scrollClassName,
+  ...props
+}: SetupTableCardProps) {
+  return (
+    <div
+      className={cn(
+        "setup-table-card",
+        `setup-table-card--${variant}`,
+        SETUP_PAGE_TABLE_CARD_CLASS,
+        className,
+      )}
+      data-table-card-variant={variant}
+      {...props}
+    >
+      {scroll ? (
+        <SetupTableScroll className={scrollClassName}>
+          {children}
+        </SetupTableScroll>
+      ) : (
+        children
+      )}
+    </div>
+  );
+}
+
+type SetupTableTextProps = ComponentPropsWithoutRef<"span"> & {
+  as?: "span" | "p" | "div";
+};
+
+export function SetupTableCode({
+  className,
+  children,
+  title,
+  as: Component = "span",
+  ...props
+}: SetupTableTextProps) {
+  const inferredTitle = title ?? (getTextContent(children) || undefined);
+
+  return (
+    <Component
+      className={cn("setup-table-code", className)}
+      title={inferredTitle}
+      {...props}
+    >
+      {children}
+    </Component>
+  );
+}
+
+export function SetupTablePrimaryText({
+  className,
+  children,
+  title,
+  as: Component = "p",
+  ...props
+}: SetupTableTextProps) {
+  const inferredTitle = title ?? (getTextContent(children) || undefined);
+
+  return (
+    <Component
+      className={cn("setup-table-primary-text", className)}
+      title={inferredTitle}
+      {...props}
+    >
+      {children}
+    </Component>
+  );
+}
+
+export function SetupTableSecondaryText({
+  className,
+  children,
+  title,
+  as: Component = "p",
+  ...props
+}: SetupTableTextProps) {
+  const inferredTitle = title ?? (getTextContent(children) || undefined);
+
+  return (
+    <Component
+      className={cn("setup-table-secondary-text", className)}
+      title={inferredTitle}
+      {...props}
+    >
+      {children}
+    </Component>
+  );
+}
+
+export function SetupTableNumber({
+  className,
+  children,
+  as: Component = "span",
+  ...props
+}: SetupTableTextProps) {
+  return (
+    <Component className={cn("setup-table-number", className)} {...props}>
+      {children}
+    </Component>
+  );
+}
+
+export function SetupTableMoney({
+  className,
+  children,
+  as: Component = "span",
+  ...props
+}: SetupTableTextProps) {
+  return (
+    <Component className={cn("setup-table-money", className)} {...props}>
+      {children}
+    </Component>
+  );
 }
 
 type SetupDataTableEmptyRowProps = ComponentPropsWithoutRef<"td"> & {

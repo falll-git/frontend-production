@@ -9,7 +9,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableCell,
   SetupDataTableColGroup,
-  SetupDataTableCol
+  SetupDataTableCol,
+  SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -38,7 +39,6 @@ import {
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
   SETUP_PAGE_SEARCH_LABEL_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { useClientPagination } from "@/hooks/useClientPagination";
 import { useArsipDigitalWorkflow } from "@/components/arsip-digital/ArsipDigitalWorkflowProvider";
@@ -325,9 +325,8 @@ export default function HistorisPenyimpananPage() {
         </div>
       </div>
 
-      <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
-        <div className="overflow-x-auto">
-          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+      <SetupTableCard variant="report">
+          <SetupDataTable variant="report" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
             <SetupDataTableColGroup>
               {HISTORIS_PENYIMPANAN_TABLE_COLUMN_WIDTHS.map((width, index) => (
                 <SetupDataTableCol
@@ -424,7 +423,6 @@ export default function HistorisPenyimpananPage() {
               ) : null}
             </SetupDataTableBody>
           </SetupDataTable>
-        </div>
         <Pagination
           page={paginationMeta.page}
           lastPage={paginationMeta.lastPage}
@@ -432,7 +430,7 @@ export default function HistorisPenyimpananPage() {
           limit={paginationMeta.limit}
           onPageChange={setPage}
         />
-      </div>
+      </SetupTableCard>
     </DashboardPageShell>
   );
 }

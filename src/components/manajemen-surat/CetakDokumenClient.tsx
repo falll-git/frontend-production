@@ -790,7 +790,7 @@ export default function CetakDokumenClient() {
           ) : filteredRecords.length > 0 ? (
             <>
               <div className="overflow-x-auto">
-                <SetupDataTable>
+                <SetupDataTable variant="document" density="compact">
                   <SetupDataTableColGroup>
                     <SetupDataTableCol style={{ width: "56px" }} />
                     {activeKind === "memorandum" ? (

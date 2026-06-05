@@ -9,7 +9,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableCell,
   SetupDataTableColGroup,
-  SetupDataTableCol
+  SetupDataTableCol,
+  SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { AlertTriangle, Check, CheckCircle2, Inbox, X } from "lucide-react";
@@ -37,7 +38,6 @@ import {
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
 } from "@/components/ui/setupPageStyles";
 
 const PERMINTAAN_DISPOSISI_TABLE_COLUMN_WIDTHS = [
@@ -276,9 +276,8 @@ export default function PermintaanDisposisiPage() {
         </div>
       </div>
 
-      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} mb-8`}>
-        <div className="overflow-x-auto">
-          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+      <SetupTableCard variant="workflow" className="mb-8">
+          <SetupDataTable variant="workflow" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
             <SetupDataTableColGroup>
               {PERMINTAAN_DISPOSISI_TABLE_COLUMN_WIDTHS.map((width, index) => (
                 <SetupDataTableCol
@@ -387,7 +386,6 @@ export default function PermintaanDisposisiPage() {
               )}
             </SetupDataTableBody>
           </SetupDataTable>
-        </div>
         <Pagination
           page={paginationMeta.page}
           lastPage={paginationMeta.lastPage}
@@ -395,7 +393,7 @@ export default function PermintaanDisposisiPage() {
           limit={paginationMeta.limit}
           onPageChange={setPage}
         />
-      </div>
+      </SetupTableCard>
 
       {showModal && selectedItem && actionType ? (
         <DashboardModal

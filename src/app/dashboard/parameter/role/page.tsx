@@ -9,7 +9,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableCell,
   SetupDataTableColGroup,
-  SetupDataTableCol
+  SetupDataTableCol,
+  SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -42,7 +43,6 @@ import {
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
   SETUP_PAGE_WIDTH_SM_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { roleService } from "@/services/role.service";
@@ -59,9 +59,6 @@ const EMPTY_FORM: FormState = {
 function normalizeRoleName(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
-
-const SECTION_CARD_CLASS =
-  SETUP_PAGE_TABLE_CARD_CLASS;
 
 export default function SetupRolePage() {
   const { showToast } = useAppToast();
@@ -242,9 +239,8 @@ export default function SetupRolePage() {
         />
       </div>
 
-      <div className={`${SECTION_CARD_CLASS} mx-auto max-w-[720px]`}>
-        <div className="overflow-visible">
-          <SetupDataTable className={SETUP_PAGE_MODERN_TABLE_CLASS}>
+      <SetupTableCard variant="crud" className="mx-auto max-w-[720px]">
+          <SetupDataTable variant="crud" density="compact" className={SETUP_PAGE_MODERN_TABLE_CLASS}>
             <SetupDataTableColGroup>
               <SetupDataTableCol className="w-[56px]" />
               <SetupDataTableCol />
@@ -328,7 +324,6 @@ export default function SetupRolePage() {
               )}
             </SetupDataTableBody>
           </SetupDataTable>
-        </div>
         <Pagination
           page={paginationMeta.page}
           lastPage={paginationMeta.lastPage}
@@ -337,7 +332,7 @@ export default function SetupRolePage() {
           isLoading={isFetching}
           onPageChange={setPage}
         />
-      </div>
+      </SetupTableCard>
 
       <DashboardModal
         isOpen={isModalOpen}

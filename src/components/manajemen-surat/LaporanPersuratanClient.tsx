@@ -6,7 +6,9 @@ import {
   SetupDataTableBody,
   SetupDataTableRow,
   SetupDataTableHeaderCell,
-  SetupDataTableCell
+  SetupDataTableCell,
+  SetupTableCard,
+  SetupTableScroll,
 } from "@/components/ui/SetupDataTable";
 import {
   useCallback,
@@ -84,7 +86,6 @@ import {
   SETUP_PAGE_SEGMENTED_BUTTON_BASE_CLASS,
   SETUP_PAGE_SEGMENTED_BUTTON_INACTIVE_CLASS,
   SETUP_PAGE_SEGMENTED_GROUP_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
   SETUP_PAGE_TABLE_HEAD_CLASS,
   SETUP_PAGE_TABLE_ROW_CLASS,
 } from "@/components/ui/setupPageStyles";
@@ -1645,7 +1646,7 @@ function ReportSectionShell({
       : REPORT_SCOPE_OPTIONS;
 
   return (
-    <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
+    <SetupTableCard variant="report" scroll={false}>
       <div className={SETUP_PAGE_PANEL_HEADER_CLASS}>
         <div className="flex items-start gap-4">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center text-slate-900">
@@ -1763,8 +1764,8 @@ function ReportSectionShell({
         </div>
       </div>
 
-      <div className="overflow-x-auto">{children}</div>
-    </div>
+      <SetupTableScroll>{children}</SetupTableScroll>
+    </SetupTableCard>
   );
 }
 
@@ -3422,7 +3423,7 @@ export default function LaporanPersuratanClient() {
                 </div>
               ) : filteredSuratMasuk.length > 0 ? (
                 <>
-                <SetupDataTable className={REPORT_TABLE_CLASS}>
+                <SetupDataTable variant="report" density="compact" className={REPORT_TABLE_CLASS}>
                   <SetupDataTableHead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
                     <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                       <SetupDataTableHeaderCell className={REPORT_NUMBER_HEADER_CELL_CLASS}>
@@ -3652,7 +3653,7 @@ export default function LaporanPersuratanClient() {
                 </div>
               ) : filteredSuratKeluar.length > 0 ? (
                 <>
-                <SetupDataTable className={REPORT_TABLE_CLASS}>
+                <SetupDataTable variant="report" density="compact" className={REPORT_TABLE_CLASS}>
                   <SetupDataTableHead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
                     <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                       <SetupDataTableHeaderCell className={REPORT_NUMBER_HEADER_CELL_CLASS}>
@@ -3837,7 +3838,7 @@ export default function LaporanPersuratanClient() {
                 </div>
               ) : filteredMemorandum.length > 0 ? (
                 <>
-                <SetupDataTable className={REPORT_TABLE_CLASS}>
+                <SetupDataTable variant="report" density="compact" className={REPORT_TABLE_CLASS}>
                   <SetupDataTableHead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
                     <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                       <SetupDataTableHeaderCell className={REPORT_NUMBER_HEADER_CELL_CLASS}>

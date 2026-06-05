@@ -56,73 +56,36 @@ export const SETUP_PAGE_SEARCH_INPUT_CLASS =
   "h-11 w-full rounded-lg border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 outline-none transition placeholder:text-gray-400 focus:border-[#1773B0] focus:ring-3 focus:ring-[#1773B0]/10";
 
 export const SETUP_PAGE_TABLE_CARD_CLASS =
-  "w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm";
+  "w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm";
 
 export const SETUP_PAGE_TABLE_SCROLL_CLASS =
-  "w-full min-w-0 max-w-full overflow-x-auto [contain:inline-size]";
-
-export const SETUP_PAGE_TABLE_CLASS =
-  "min-w-full table-auto divide-y-2 divide-gray-200 text-sm";
+  "w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain [contain:inline-size]";
 
 export const SETUP_PAGE_TABLE_HEAD_CLASS = "text-center";
 
-export const SETUP_PAGE_TABLE_BODY_CLASS = "divide-y divide-gray-200";
-
-export const SETUP_PAGE_TABLE_HEADER_CELL_CLASS =
-  "px-3 py-3 !text-left align-middle text-xs font-semibold uppercase tracking-[0.08em] text-gray-600 whitespace-nowrap";
-
 export const SETUP_PAGE_TABLE_ROW_CLASS =
-  "h-[64px] text-gray-900 transition-colors hover:bg-gray-50";
-
-export const SETUP_PAGE_TABLE_CELL_CLASS =
-  "px-3 py-3 !text-left align-middle";
-
-export const SETUP_PAGE_COMPACT_ROW_CLASS =
-  "h-[58px] text-gray-900 transition-colors hover:bg-gray-50";
-
-export const SETUP_PAGE_COMPACT_CELL_CLASS =
-  "px-3 py-2.5 !text-left align-middle";
-
-export const SETUP_PAGE_NUMBER_HEADER_CELL_CLASS =
-  `${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-16`;
-
-export const SETUP_PAGE_NUMBER_CELL_CLASS =
-  `${SETUP_PAGE_TABLE_CELL_CLASS} w-16 text-sm text-gray-500 tabular-nums`;
-
-export const SETUP_PAGE_ACTION_HEADER_CELL_CLASS =
-  `${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-24 !text-center`;
-
-export const SETUP_PAGE_ACTION_CELL_CLASS =
-  `${SETUP_PAGE_TABLE_CELL_CLASS} w-24 !text-center`;
-
-export const SETUP_PAGE_STATUS_HEADER_CELL_CLASS =
-  `${SETUP_PAGE_TABLE_HEADER_CELL_CLASS} w-28 !text-center`;
-
-export const SETUP_PAGE_STATUS_CELL_CLASS =
-  `${SETUP_PAGE_TABLE_CELL_CLASS} w-28 !text-center`;
-
-export const SETUP_PAGE_EMPTY_STATE_CELL_CLASS =
-  "h-32 px-3 text-center align-middle text-sm text-gray-500";
+  "h-[58px] border-b border-slate-100 text-slate-900 transition-colors hover:bg-slate-50/70";
 
 export const SETUP_PAGE_MODERN_TABLE_CLASS =
-  "w-full table-auto divide-y-2 divide-gray-200";
+  "w-full table-auto border-separate border-spacing-0 text-sm";
 
 export const SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS =
-  "*:font-medium *:text-gray-900";
+  "bg-slate-50/90 *:font-semibold *:text-slate-600";
 
-export const SETUP_PAGE_MODERN_TABLE_ROW_CLASS = "*:text-gray-900";
+export const SETUP_PAGE_MODERN_TABLE_ROW_CLASS =
+  "border-b border-slate-100 transition-colors hover:bg-slate-50/70 *:text-slate-800";
 
 export const SETUP_PAGE_MODERN_HEADER_CELL_CLASS =
-  "px-2.5 py-2 align-middle whitespace-nowrap text-left text-xs uppercase tracking-wide text-gray-600";
+  "px-3 py-2.5 align-middle whitespace-nowrap border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-[0.04em] text-slate-500";
 
 export const SETUP_PAGE_MODERN_CELL_CLASS =
-  "px-2.5 py-2 align-middle text-sm";
+  "px-3 py-2.5 align-middle text-sm leading-5 text-slate-700";
 
 export const SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS =
-  "w-14 px-2.5 py-2 align-middle whitespace-nowrap text-center text-xs uppercase tracking-wide text-gray-500";
+  "w-14 px-3 py-2.5 align-middle whitespace-nowrap border-b border-slate-200 text-center text-xs font-semibold uppercase tracking-[0.04em] text-slate-500";
 
 export const SETUP_PAGE_MODERN_NUMBER_CELL_CLASS =
-  "w-14 px-2.5 py-2 text-center align-middle text-sm tabular-nums text-gray-900";
+  "w-14 px-3 py-2.5 text-center align-middle text-sm tabular-nums text-slate-500";
 
 export const SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS =
   `${SETUP_PAGE_MODERN_HEADER_CELL_CLASS} text-center`;
@@ -131,7 +94,7 @@ export const SETUP_PAGE_MODERN_CENTER_CELL_CLASS =
   `${SETUP_PAGE_MODERN_CELL_CLASS} text-center`;
 
 export const SETUP_PAGE_MODERN_EMPTY_CELL_CLASS =
-  "px-3 py-10 text-center text-sm font-medium text-gray-500";
+  "px-3 py-10 text-center text-sm font-medium text-slate-500";
 
 export function getSetupPageEmptyStateCopy(entityLabel: string) {
   return `Belum ada data ${entityLabel}.`;

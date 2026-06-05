@@ -12,6 +12,7 @@ import {
 } from "@/services/api.utils";
 import type { ParameterMasterRecord } from "@/services/parameter-master.service";
 import type {
+  DebtorCollateral,
   DebtorContract,
   DebtorFileMeta,
   DebtorParameterSummary,
@@ -28,6 +29,7 @@ import type {
   LegalInsurancePayload,
   LegalKjppPayload,
   LegalListQuery,
+  LegalDocumentContext,
   LegalPageResult,
   LegalPrintHistory,
   LegalPrintPayload,
@@ -179,6 +181,85 @@ function mapContract(record: unknown): DebtorContract | null {
   };
 }
 
+function mapReferenceFields(record: AnyRecord, categories: string[]) {
+  return Object.fromEntries(
+    categories.flatMap((category) => [
+      [`${category}_label`, nullableString(record, `${category}_label`, `${category}Label`)],
+      [`${category}_display`, nullableString(record, `${category}_display`, `${category}Display`)],
+    ]),
+  );
+}
+
+function mapCollateral(record: unknown): DebtorCollateral | null {
+  const item = asRecord(record);
+  if (!item) return null;
+  const id = readString(item, "id");
+  const collateralNumber = readString(item, "collateral_number", "collateralNumber");
+  if (!id || !collateralNumber) return null;
+
+  return {
+    id,
+    debtor_id: nullableString(item, "debtor_id", "debtorId"),
+    contract_id: nullableString(item, "contract_id", "contractId"),
+    collateral_number: collateralNumber,
+    ...mapReferenceFields(item, [
+      "facility_segment",
+      "collateral_status",
+      "collateral_type",
+      "rating_agency",
+      "binding_type",
+      "location_city",
+      "paripasu_status",
+      "joint_credit_status",
+      "insured_status",
+      "operation",
+    ]),
+    facility_number: nullableString(item, "facility_number", "facilityNumber"),
+    facility_segment_code: nullableString(item, "facility_segment_code", "facilitySegmentCode"),
+    collateral_status_code: nullableString(item, "collateral_status_code", "collateralStatusCode"),
+    collateral_type: nullableString(item, "collateral_type", "collateralType"),
+    rating: nullableString(item, "rating"),
+    rating_agency_code: nullableString(item, "rating_agency_code", "ratingAgencyCode"),
+    binding_type_code: nullableString(item, "binding_type_code", "bindingTypeCode"),
+    binding_date: normalizeDate(item.binding_date),
+    owner_name: nullableString(item, "owner_name", "ownerName"),
+    proof_number: nullableString(item, "proof_number", "proofNumber"),
+    address: nullableString(item, "address"),
+    location_city_code: nullableString(item, "location_city_code", "locationCityCode"),
+    market_value: readNumber(item, "market_value", "marketValue"),
+    appraisal_value: readNumber(item, "appraisal_value", "appraisalValue"),
+    reporter_appraisal_date: normalizeDate(item.reporter_appraisal_date),
+    independent_appraisal_value: readNumber(
+      item,
+      "independent_appraisal_value",
+      "independentAppraisalValue",
+    ),
+    independent_appraiser_name: nullableString(
+      item,
+      "independent_appraiser_name",
+      "independentAppraiserName",
+    ),
+    independent_appraisal_date: normalizeDate(item.independent_appraisal_date),
+    paripasu_status: nullableString(item, "paripasu_status", "paripasuStatus"),
+    paripasu_percentage: readNumber(item, "paripasu_percentage", "paripasuPercentage"),
+    joint_credit_status: nullableString(item, "joint_credit_status", "jointCreditStatus"),
+    insured_status: nullableString(item, "insured_status", "insuredStatus"),
+    description: nullableString(item, "description"),
+    branch_code: nullableString(item, "branch_code", "branchCode"),
+    operation_code: nullableString(item, "operation_code", "operationCode"),
+    period_month: nullableString(item, "period_month", "periodMonth"),
+    last_import_period_month: nullableString(
+      item,
+      "last_import_period_month",
+      "lastImportPeriodMonth",
+    ),
+    debtor: mapDebtor(item.debtor),
+    contract: mapContract(item.contract),
+    created_at: nullableString(item, "created_at", "createdAt"),
+    updated_at: nullableString(item, "updated_at", "updatedAt"),
+  };
+}
+
 function mapTemplate(record: unknown): LegalTemplate | null {
   const item = asRecord(record);
   const id = item ? readString(item, "id") : null;
@@ -228,6 +309,7 @@ function mapProgress(record: unknown): LegalProgressRecord | null {
   return {
     id,
     contract_id: contractId,
+    collateral_id: nullableString(item, "collateral_id", "collateralId"),
     third_party_id: thirdPartyId,
     deed_type: nullableString(item, "deed_type", "deedType"),
     received_at: nullableString(item, "received_at", "receivedAt"),
@@ -247,6 +329,7 @@ function mapProgress(record: unknown): LegalProgressRecord | null {
     notes: nullableString(item, "notes"),
     file: mapFile(item.file),
     contract: mapContract(item.contract),
+    collateral: mapCollateral(item.collateral),
     third_party: mapParameter(item.third_party),
     created_at: nullableString(item, "created_at", "createdAt"),
     updated_at: nullableString(item, "updated_at", "updatedAt"),
@@ -261,6 +344,7 @@ function mapClaim(record: unknown): LegalClaim | null {
   return {
     id,
     contract_id: contractId,
+    collateral_id: nullableString(item, "collateral_id", "collateralId"),
     insurance_progress_id: nullableString(item, "insurance_progress_id", "insuranceProgressId"),
     policy_number: nullableString(item, "policy_number", "policyNumber"),
     claim_type: readString(item, "claim_type", "claimType") ?? "-",
@@ -274,6 +358,7 @@ function mapClaim(record: unknown): LegalClaim | null {
     notes: nullableString(item, "notes"),
     file: mapFile(item.file),
     contract: mapContract(item.contract),
+    collateral: mapCollateral(item.collateral),
     insurance_progress: mapProgress(item.insurance_progress),
     created_at: nullableString(item, "created_at", "createdAt"),
     updated_at: nullableString(item, "updated_at", "updatedAt"),
@@ -327,6 +412,33 @@ function mapDeposit(record: unknown): LegalDeposit | null {
   };
 }
 
+function mapPrintContext(payload: unknown): LegalDocumentContext {
+  const record = asRecord(extractRecord(payload)) ?? {};
+  const values = asRecord(record.values) ?? {};
+  const context = asRecord(record.context) ?? {};
+  return {
+    placeholders: Array.isArray(record.placeholders)
+      ? record.placeholders.filter((item): item is string => typeof item === "string")
+      : [],
+    values: Object.fromEntries(
+      Object.entries(values).map(([key, value]) => [
+        key,
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean" ||
+        value === null ||
+        value === undefined
+          ? value
+          : String(value),
+      ]),
+    ),
+    missing_fields: Array.isArray(record.missing_fields)
+      ? record.missing_fields.filter((item): item is string => typeof item === "string")
+      : [],
+    context,
+  };
+}
+
 function mapPage<T>(
   payload: unknown,
   mapper: (record: unknown) => T | null,
@@ -355,6 +467,7 @@ function buildParams(query: LegalListQuery = {}) {
       document_type: query.document_type,
       template_type: query.template_type,
       contract_id: query.contract_id,
+      collateral_id: query.collateral_id,
       third_party_id: query.third_party_id,
       type: query.type,
       deposit_id: query.deposit_id,
@@ -415,6 +528,14 @@ export const legalService = {
       page: Number(params.page),
       limit: Number(params.limit),
     });
+  },
+  getPrintContext: async (query: Pick<LegalListQuery, "contract_id" | "collateral_id"> & {
+    document_type: string;
+  }) => {
+    const res = await api.get("/legal/print-documents/context", {
+      params: buildParams(query),
+    });
+    return mapPrintContext(res.data);
   },
   createPrint: async (payload: LegalPrintPayload) => {
     const res = await api.post("/legal/print-documents", multipartBody(payload));

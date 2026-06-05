@@ -9,7 +9,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableCell,
   SetupDataTableColGroup,
-  SetupDataTableCol
+  SetupDataTableCol,
+  SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, BookOpen, FileText, Send } from "lucide-react";
@@ -40,7 +41,6 @@ import {
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
 } from "@/components/ui/setupPageStyles";
 
 const REQUEST_PEMINJAMAN_MENU_URL =
@@ -267,9 +267,8 @@ export default function RequestPeminjamanPage() {
         </div>
       </div>
 
-      <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
-        <div className="overflow-x-auto">
-          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+      <SetupTableCard variant="workflow">
+          <SetupDataTable variant="workflow" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
             <SetupDataTableColGroup>
               {REQUEST_PEMINJAMAN_TABLE_COLUMN_WIDTHS.map((width, index) => (
                 <SetupDataTableCol
@@ -385,7 +384,6 @@ export default function RequestPeminjamanPage() {
               ) : null}
             </SetupDataTableBody>
           </SetupDataTable>
-        </div>
         <Pagination
           page={paginationMeta.page}
           lastPage={paginationMeta.lastPage}
@@ -393,7 +391,7 @@ export default function RequestPeminjamanPage() {
           limit={paginationMeta.limit}
           onPageChange={setPage}
         />
-      </div>
+      </SetupTableCard>
 
       {showModal ? (
         <DashboardModal

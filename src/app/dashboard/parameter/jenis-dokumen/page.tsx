@@ -9,7 +9,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableCell,
   SetupDataTableColGroup,
-  SetupDataTableCol
+  SetupDataTableCol,
+  SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -48,7 +49,6 @@ import {
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
   SETUP_PAGE_WIDTH_LG_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { documentTypeService } from "@/services/document-type.service";
@@ -285,9 +285,8 @@ export default function SetupJenisDokumenPage() {
         />
       </div>
 
-      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} mx-auto max-w-[1120px]`}>
-        <div className="overflow-x-auto">
-          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS} min-w-[820px]`}>
+      <SetupTableCard variant="crud" className="mx-auto max-w-[1120px]">
+          <SetupDataTable variant="crud" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS} min-w-[820px]`}>
               <SetupDataTableColGroup>
                 <SetupDataTableCol className="w-[56px]" />
                 <SetupDataTableCol className="w-[112px]" />
@@ -401,7 +400,6 @@ export default function SetupJenisDokumenPage() {
                 )}
               </SetupDataTableBody>
           </SetupDataTable>
-        </div>
         <Pagination
           page={paginationMeta.page}
           lastPage={paginationMeta.lastPage}
@@ -410,7 +408,7 @@ export default function SetupJenisDokumenPage() {
           isLoading={isLoading}
           onPageChange={setPage}
         />
-      </div>
+      </SetupTableCard>
 
       <DashboardModal
         isOpen={isModalOpen}

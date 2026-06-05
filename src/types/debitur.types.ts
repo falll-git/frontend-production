@@ -2,6 +2,11 @@ import type { PaginationMeta } from "@/types/api.types";
 
 export type DebtorStatus = "ACTIVE" | "INACTIVE" | string;
 export type DebtorContractStatus = "ACTIVE" | "CLOSED" | "INACTIVE" | string;
+export type SlikReferenceFields = {
+  [key: `${string}_label`]: string | null | undefined;
+} & {
+  [key: `${string}_display`]: string | null | undefined;
+};
 export type DebtorMarketingKind =
   | "action-plans"
   | "visit-results"
@@ -55,7 +60,7 @@ export type DebtorCollectibilitySummary = {
   created_at?: string | null;
 };
 
-export type DebtorContractSlikSnapshot = {
+export type DebtorContractSlikSnapshot = SlikReferenceFields & {
   id: string;
   debtor_id: string;
   contract_id: string;
@@ -144,7 +149,7 @@ export type DebtorContract = {
   updated_at: string | null;
 };
 
-export type DebtorRecord = {
+export type DebtorRecord = SlikReferenceFields & {
   id: string;
   debtor_number: string | null;
   identity_number: string | null;
@@ -168,7 +173,11 @@ export type DebtorRecord = {
   latest_contract: DebtorContract | null;
   contracts: DebtorContract[];
   contracts_count: number;
+  collaterals_count?: number;
   documents_count: number;
+  total_outstanding?: number;
+  latest_slik_period_month?: string | null;
+  latest_collectibility_display?: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -190,7 +199,7 @@ export type DebtorDocument = {
   updated_at: string | null;
 };
 
-export type DebtorCollateral = {
+export type DebtorCollateral = SlikReferenceFields & {
   id: string;
   debtor_id: string | null;
   contract_id: string | null;
@@ -384,7 +393,7 @@ export type DebtorWarningLetter = {
   updated_at: string | null;
 };
 
-export type DebtorIndividualProfile = {
+export type DebtorIndividualProfile = SlikReferenceFields & {
   id?: string;
   debtor_id?: string;
   identity_type_code?: string | null;
@@ -426,7 +435,7 @@ export type DebtorIndividualProfile = {
   status_code?: string | null;
 };
 
-export type DebtorLegalEntityProfile = {
+export type DebtorLegalEntityProfile = SlikReferenceFields & {
   id?: string;
   debtor_id?: string;
   business_identity_number?: string | null;
@@ -464,6 +473,7 @@ export type DebtorLegalEntityProfile = {
 export type DebtorWorkflowLegalProgress = {
   id: string;
   contract_id: string;
+  collateral_id: string | null;
   third_party_id: string | null;
   deed_type?: string | null;
   received_at?: string | null;
@@ -483,6 +493,7 @@ export type DebtorWorkflowLegalProgress = {
   notes: string | null;
   file: DebtorFileMeta | null;
   contract: DebtorContract | null;
+  collateral: DebtorCollateral | null;
   third_party: DebtorParameterSummary | null;
   created_at: string | null;
   updated_at: string | null;
@@ -491,6 +502,7 @@ export type DebtorWorkflowLegalProgress = {
 export type DebtorWorkflowClaim = {
   id: string;
   contract_id: string;
+  collateral_id: string | null;
   insurance_progress_id: string | null;
   policy_number: string | null;
   claim_type: string;
@@ -504,6 +516,7 @@ export type DebtorWorkflowClaim = {
   notes: string | null;
   file: DebtorFileMeta | null;
   contract: DebtorContract | null;
+  collateral: DebtorCollateral | null;
   insurance_progress: DebtorWorkflowLegalProgress | null;
   created_at: string | null;
   updated_at: string | null;
@@ -687,6 +700,8 @@ export type DebtorListQuery = {
   customer_type?: string;
   status?: string;
   period_month?: string;
+  debtor_id?: string;
+  contract_id?: string;
   collectibility_level?: string;
   collateral_type?: string;
   link_status?: string;

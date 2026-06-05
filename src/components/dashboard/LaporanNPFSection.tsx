@@ -425,7 +425,7 @@ export default function LaporanNPFSection({
                     riwayatRange === 12 ? "max-h-[22.5rem] overflow-y-auto" : undefined
                   }
                 >
-                  <SetupDataTable className="text-sm">
+                  <SetupDataTable variant="report" density="compact" className="text-sm">
                     <SetupDataTableHead className="bg-gray-50">
                       <SetupDataTableRow>
                         <SetupDataTableHeaderCell className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">

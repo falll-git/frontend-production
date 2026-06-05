@@ -9,7 +9,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableCell,
   SetupDataTableColGroup,
-  SetupDataTableCol
+  SetupDataTableCol,
+  SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Send, FileText } from "lucide-react";
@@ -33,8 +34,6 @@ import {
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
-  SETUP_PAGE_TABLE_SCROLL_CLASS,
   SETUP_PAGE_WIDTH_2XL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
@@ -264,9 +263,8 @@ export default function PengajuanDisposisiPage() {
         </div>
       </div>
 
-      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} ${SETUP_PAGE_WIDTH_2XL_CLASS}`}>
-        <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+      <SetupTableCard variant="workflow" className={SETUP_PAGE_WIDTH_2XL_CLASS}>
+          <SetupDataTable variant="workflow" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
             <SetupDataTableColGroup>
               {PENGAJUAN_TABLE_COLUMN_WIDTHS.map((width, index) => (
                 <SetupDataTableCol
@@ -401,7 +399,6 @@ export default function PengajuanDisposisiPage() {
               )}
             </SetupDataTableBody>
           </SetupDataTable>
-        </div>
         <Pagination
           page={paginationMeta.page}
           lastPage={paginationMeta.lastPage}
@@ -410,7 +407,7 @@ export default function PengajuanDisposisiPage() {
           isLoading={isDocsLoading}
           onPageChange={setPage}
         />
-      </div>
+      </SetupTableCard>
 
       <DashboardModal
         isOpen={showModal}

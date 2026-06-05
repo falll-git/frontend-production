@@ -79,6 +79,20 @@ function asRecord(value: unknown): UnknownRecord | null {
   return isRecord(value) ? value : null;
 }
 
+function toCamelCase(value: string) {
+  return value.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+}
+
+function mapReferenceFields(record: UnknownRecord, names: string[]): Record<string, string | null> {
+  return names.reduce<Record<string, string | null>>((fields, name) => {
+    const labelKey = `${name}_label`;
+    const displayKey = `${name}_display`;
+    fields[labelKey] = nullableString(record, labelKey, toCamelCase(labelKey));
+    fields[displayKey] = nullableString(record, displayKey, toCamelCase(displayKey));
+    return fields;
+  }, {});
+}
+
 function mapFile(record: unknown): DebtorFileMeta | null {
   const file = asRecord(record);
   if (!file) return null;
@@ -150,6 +164,23 @@ function mapIndividualProfile(record: unknown): DebtorIndividualProfile | null {
   return {
     id: nullableString(profile, "id") ?? undefined,
     debtor_id: nullableString(profile, "debtor_id", "debtorId") ?? undefined,
+    ...mapReferenceFields(profile, [
+      "identity_type",
+      "education_degree",
+      "gender",
+      "city",
+      "domicile_country",
+      "occupation",
+      "workplace_business_field",
+      "income_source",
+      "relationship_with_reporter",
+      "debtor_group",
+      "marital_status",
+      "separate_assets_agreement",
+      "violates_bmpk",
+      "exceeds_bmpk",
+      "operation",
+    ]),
     identity_type_code: nullableString(profile, "identity_type_code", "identityTypeCode"),
     name_as_identity: nullableString(profile, "name_as_identity", "nameAsIdentity"),
     full_name: nullableString(profile, "full_name", "fullName"),
@@ -197,6 +228,19 @@ function mapLegalEntityProfile(record: unknown): DebtorLegalEntityProfile | null
   return {
     id: nullableString(profile, "id") ?? undefined,
     debtor_id: nullableString(profile, "debtor_id", "debtorId") ?? undefined,
+    ...mapReferenceFields(profile, [
+      "legal_form",
+      "city",
+      "domicile_country",
+      "business_field",
+      "relationship_with_reporter",
+      "violates_bmpk",
+      "exceeds_bmpk",
+      "go_public",
+      "debtor_group",
+      "rating_agency",
+      "operation",
+    ]),
     business_identity_number: nullableString(profile, "business_identity_number", "businessIdentityNumber"),
     business_name: nullableString(profile, "business_name", "businessName"),
     legal_form_code: nullableString(profile, "legal_form_code", "legalFormCode"),
@@ -270,6 +314,24 @@ function mapContractSlikSnapshot(record: unknown): DebtorContractSlikSnapshot | 
     contract_id: contractId,
     period_month: periodMonth,
     facility_number: facilityNumber,
+    ...mapReferenceFields(item, [
+      "credit_nature",
+      "credit_type",
+      "financing_scheme",
+      "debtor_category",
+      "usage_type",
+      "usage_orientation",
+      "economic_sector",
+      "project_location_city",
+      "currency",
+      "interest_type",
+      "government_program",
+      "collectibility",
+      "default_reason",
+      "restructuring_method",
+      "condition",
+      "operation",
+    ]),
     debtor_number: nullableString(item, "debtor_number", "debtorNumber"),
     credit_nature_code: nullableString(item, "credit_nature_code", "creditNatureCode"),
     credit_type_code: nullableString(item, "credit_type_code", "creditTypeCode"),
@@ -437,6 +499,7 @@ function mapDebtor(record: unknown, includeContracts = true): DebtorRecord | nul
 
   return {
     id,
+    ...mapReferenceFields(debtor, ["slik_operation"]),
     debtor_number: nullableString(debtor, "debtor_number", "debtorNumber"),
     identity_number: nullableString(debtor, "identity_number", "identityNumber"),
     name,
@@ -459,7 +522,19 @@ function mapDebtor(record: unknown, includeContracts = true): DebtorRecord | nul
     latest_contract: mapContract(debtor.latest_contract, false) ?? contracts[0] ?? null,
     contracts,
     contracts_count: readNumber(debtor, "contracts_count", "contractsCount") ?? contracts.length,
+    collaterals_count: readNumber(debtor, "collaterals_count", "collateralsCount") ?? 0,
     documents_count: readNumber(debtor, "documents_count", "documentsCount") ?? 0,
+    total_outstanding: numberValue(debtor, "total_outstanding"),
+    latest_slik_period_month: nullableString(
+      debtor,
+      "latest_slik_period_month",
+      "latestSlikPeriodMonth",
+    ),
+    latest_collectibility_display: nullableString(
+      debtor,
+      "latest_collectibility_display",
+      "latestCollectibilityDisplay",
+    ),
     created_at: nullableString(debtor, "created_at", "createdAt"),
     updated_at: nullableString(debtor, "updated_at", "updatedAt"),
   };
@@ -511,6 +586,18 @@ function mapCollateral(record: unknown): DebtorCollateral | null {
     debtor_id: nullableString(item, "debtor_id", "debtorId"),
     contract_id: nullableString(item, "contract_id", "contractId"),
     collateral_number: collateralNumber,
+    ...mapReferenceFields(item, [
+      "facility_segment",
+      "collateral_status",
+      "collateral_type",
+      "rating_agency",
+      "binding_type",
+      "location_city",
+      "paripasu_status",
+      "joint_credit_status",
+      "insured_status",
+      "operation",
+    ]),
     facility_number: nullableString(item, "facility_number", "facilityNumber"),
     facility_segment_code: nullableString(
       item,
@@ -879,6 +966,7 @@ function mapWorkflowProgress(record: unknown): DebtorWorkflowLegalProgress | nul
   return {
     id,
     contract_id: contractId,
+    collateral_id: nullableString(item, "collateral_id", "collateralId"),
     third_party_id: nullableString(item, "third_party_id", "thirdPartyId"),
     deed_type: nullableString(item, "deed_type", "deedType"),
     received_at: normalizeDate(item.received_at),
@@ -898,6 +986,7 @@ function mapWorkflowProgress(record: unknown): DebtorWorkflowLegalProgress | nul
     notes: nullableString(item, "notes"),
     file: mapFile(item.file),
     contract: mapContract(item.contract, false),
+    collateral: mapCollateral(item.collateral),
     third_party: mapParameter(item.third_party),
     created_at: nullableString(item, "created_at", "createdAt"),
     updated_at: nullableString(item, "updated_at", "updatedAt"),
@@ -914,6 +1003,7 @@ function mapWorkflowClaim(record: unknown): DebtorWorkflowClaim | null {
   return {
     id,
     contract_id: contractId,
+    collateral_id: nullableString(item, "collateral_id", "collateralId"),
     insurance_progress_id: nullableString(
       item,
       "insurance_progress_id",
@@ -931,6 +1021,7 @@ function mapWorkflowClaim(record: unknown): DebtorWorkflowClaim | null {
     notes: nullableString(item, "notes"),
     file: mapFile(item.file),
     contract: mapContract(item.contract, false),
+    collateral: mapCollateral(item.collateral),
     insurance_progress: mapWorkflowProgress(item.insurance_progress),
     created_at: nullableString(item, "created_at", "createdAt"),
     updated_at: nullableString(item, "updated_at", "updatedAt"),
@@ -1141,6 +1232,8 @@ function buildQuery(query: DebtorListQuery = {}) {
       customer_type: query.customer_type,
       status: query.status,
       period_month: query.period_month,
+      debtor_id: query.debtor_id,
+      contract_id: query.contract_id,
       collectibility_level: query.collectibility_level,
       collateral_type: query.collateral_type,
       link_status: query.link_status,

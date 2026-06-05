@@ -11,6 +11,8 @@ import {
   SetupDataTableColGroup,
   SetupDataTableCol,
   SetupDataTableEmptyRow,
+  SetupTableCard,
+  SetupTableScroll,
 } from "@/components/ui/SetupDataTable";
 import {
   Fragment,
@@ -32,7 +34,6 @@ import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
 import {
   getSetupPageEmptyStateCopy,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { menuService } from "@/services/menu.service";
 import {
@@ -81,8 +82,6 @@ type MenuGroup = {
   rows: FlatMenu[];
 };
 
-const SECTION_CARD_CLASS =
-  SETUP_PAGE_TABLE_CARD_CLASS;
 const PERM_HEADER_CLASS =
   "w-[58px] px-1.5 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-600 whitespace-nowrap";
 const PERM_CELL_CLASS = "w-[58px] px-1.5 py-2 text-center align-middle";
@@ -912,10 +911,9 @@ export default function SetupRoleMenuPage() {
         </div>
       </div>
 
-      <div className={`${SECTION_CARD_CLASS} role-menu-table-card`}>
-
-        <div className="role-menu-table-scroll overflow-x-auto">
-          <SetupDataTable className={PERMISSION_TABLE_CLASS}>
+      <SetupTableCard variant="matrix" scroll={false} className="role-menu-table-card">
+        <SetupTableScroll className="role-menu-table-scroll">
+          <SetupDataTable variant="matrix" density="compact" className={PERMISSION_TABLE_CLASS}>
             <SetupDataTableColGroup>
               <SetupDataTableCol className="w-[368px]" />
               <SetupDataTableCol className="w-[58px]" />
@@ -1126,7 +1124,7 @@ export default function SetupRoleMenuPage() {
                 )}
             </SetupDataTableBody>
           </SetupDataTable>
-        </div>
+        </SetupTableScroll>
 
         <div className="sticky bottom-0 z-10 border-t border-gray-100 bg-gray-50/95 px-6 py-4 backdrop-blur">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center">
@@ -1169,7 +1167,7 @@ export default function SetupRoleMenuPage() {
             </button>
           </div>
         </div>
-      </div>
+      </SetupTableCard>
 
       {featureModalRow && featureModalSupport && (
         <DashboardModal

@@ -8,7 +8,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableCell,
   SetupDataTableColGroup,
-  SetupDataTableCol
+  SetupDataTableCol,
+  SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useEffect, useState } from "react";
 import { ArrowLeft, FolderOpen, SearchX } from "lucide-react";
@@ -28,8 +29,6 @@ import {
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
-  SETUP_PAGE_TABLE_SCROLL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { DEFAULT_PAGINATION_META, SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import type { Dokumen, Lemari, Rak } from "@/lib/types";
@@ -208,9 +207,8 @@ export default function DokumenModal({
             </div>
           ) : (
             <div className="space-y-4 px-5 py-4">
-              <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
-                <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-                  <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+              <SetupTableCard variant="nested">
+                  <SetupDataTable variant="nested" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
                     <SetupDataTableColGroup>
                       {DOCUMENT_TABLE_COLUMN_WIDTHS.map((width, index) => (
                         <SetupDataTableCol
@@ -303,8 +301,7 @@ export default function DokumenModal({
                       ))}
                     </SetupDataTableBody>
                   </SetupDataTable>
-                </div>
-              </div>
+              </SetupTableCard>
 
               <Pagination
                 page={paginationMeta.page}

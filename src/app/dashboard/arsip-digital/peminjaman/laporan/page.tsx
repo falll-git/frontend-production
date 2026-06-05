@@ -9,7 +9,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableCell,
   SetupDataTableColGroup,
-  SetupDataTableCol
+  SetupDataTableCol,
+  SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -43,7 +44,6 @@ import {
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
   SETUP_PAGE_SEARCH_LABEL_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
 } from "@/components/ui/setupPageStyles";
 import type { LoanStatusKey } from "@/types/arsip.types";
 import type { Peminjaman } from "@/types/arsip.types";
@@ -431,7 +431,7 @@ export default function LaporanPeminjamanPage() {
         </div>
       </div>
 
-      <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
+      <SetupTableCard variant="report">
         <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 p-4">
           <p className="text-sm font-medium text-gray-600">
             Menampilkan{" "}
@@ -439,8 +439,7 @@ export default function LaporanPeminjamanPage() {
             data
           </p>
         </div>
-        <div className="overflow-x-auto">
-          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+          <SetupDataTable variant="report" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
             <SetupDataTableColGroup>
               {LAPORAN_PEMINJAMAN_TABLE_COLUMN_WIDTHS.map((width, index) => (
                 <SetupDataTableCol
@@ -543,7 +542,6 @@ export default function LaporanPeminjamanPage() {
               ) : null}
             </SetupDataTableBody>
           </SetupDataTable>
-        </div>
         <Pagination
           page={paginationMeta.page}
           lastPage={paginationMeta.lastPage}
@@ -551,7 +549,7 @@ export default function LaporanPeminjamanPage() {
           limit={paginationMeta.limit}
           onPageChange={setCurrentPage}
         />
-      </div>
+      </SetupTableCard>
     </DashboardPageShell>
   );
 }

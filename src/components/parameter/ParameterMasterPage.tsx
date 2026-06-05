@@ -22,6 +22,7 @@ import {
   SetupDataTableHead,
   SetupDataTableHeaderCell,
   SetupDataTableRow,
+  SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupSelect from "@/components/ui/SetupSelect";
@@ -40,7 +41,6 @@ import {
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
   SETUP_PAGE_WIDTH_XL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
@@ -439,9 +439,10 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
         />
       </div>
 
-      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} mx-auto max-w-[1280px]`}>
-        <div className="w-full min-w-0 max-w-full overflow-x-auto [contain:inline-size]">
+      <SetupTableCard variant="crud" className="mx-auto max-w-[1280px]">
           <SetupDataTable
+            variant="crud"
+            density="compact"
             className={`${SETUP_PAGE_MODERN_TABLE_CLASS} ${config.tableMinWidthClassName ?? "min-w-[920px]"}`}
           >
             <SetupDataTableColGroup>
@@ -593,7 +594,6 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
               ) : null}
             </SetupDataTableBody>
           </SetupDataTable>
-        </div>
         <Pagination
           page={paginationMeta.page}
           lastPage={paginationMeta.lastPage}
@@ -602,7 +602,7 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
           isLoading={isFetching}
           onPageChange={setPage}
         />
-      </div>
+      </SetupTableCard>
 
       <DashboardModal
         isOpen={isModalOpen}

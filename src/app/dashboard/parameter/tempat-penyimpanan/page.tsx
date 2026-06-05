@@ -11,6 +11,7 @@ import {
   SetupDataTableColGroup,
   SetupDataTableCol,
   SetupDataTableEmptyRow,
+  SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -48,7 +49,6 @@ import {
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
   SETUP_PAGE_WIDTH_XL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { storageService } from "@/services/storage.service";
@@ -321,9 +321,8 @@ export default function SetupTempatPenyimpananPage() {
         />
       </div>
 
-      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} mx-auto max-w-[1280px]`}>
-        <div className="overflow-x-auto">
-          <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS} min-w-[1080px]`}>
+      <SetupTableCard variant="crud" className="mx-auto max-w-[1280px]">
+          <SetupDataTable variant="crud" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS} min-w-[1080px]`}>
               <SetupDataTableColGroup>
                 <SetupDataTableCol className="w-[56px]" />
                 <SetupDataTableCol className="w-[112px]" />
@@ -446,7 +445,6 @@ export default function SetupTempatPenyimpananPage() {
                 )}
               </SetupDataTableBody>
           </SetupDataTable>
-        </div>
         <Pagination
           page={paginationMeta.page}
           lastPage={paginationMeta.lastPage}
@@ -455,7 +453,7 @@ export default function SetupTempatPenyimpananPage() {
           isLoading={isLoading}
           onPageChange={setPage}
         />
-      </div>
+      </SetupTableCard>
 
       <DashboardModal
         isOpen={isModalOpen}

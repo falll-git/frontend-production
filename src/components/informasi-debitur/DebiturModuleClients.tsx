@@ -43,6 +43,12 @@ import {
   SetupDataTableHead,
   SetupDataTableHeaderCell,
   SetupDataTableRow,
+  SetupTableCard,
+  SetupTableCode,
+  SetupTableMoney,
+  SetupTableNumber,
+  SetupTablePrimaryText,
+  SetupTableSecondaryText,
 } from "@/components/ui/SetupDataTable";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import SetupFormSection from "@/components/ui/SetupFormSection";
@@ -63,8 +69,6 @@ import {
   SETUP_PAGE_SEGMENTED_BUTTON_BASE_CLASS,
   SETUP_PAGE_SEGMENTED_BUTTON_INACTIVE_CLASS,
   SETUP_PAGE_SEGMENTED_GROUP_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
-  SETUP_PAGE_TABLE_SCROLL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import { exportToExcel } from "@/lib/utils/exportExcel";
@@ -291,6 +295,13 @@ function periodLabel(value: string | null | undefined) {
 function normalizeDisplay(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") return "-";
   return String(value);
+}
+
+function slikDisplay(
+  displayValue: string | number | null | undefined,
+  rawValue: string | number | null | undefined,
+) {
+  return displayValue || normalizeDisplay(rawValue);
 }
 
 function getRecordText(record: ParameterMasterRecord, ...keys: string[]) {
@@ -1104,20 +1115,6 @@ function DetailItem({
   );
 }
 
-function TableCard({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} ${className}`.trim()}>
-      <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>{children}</div>
-    </div>
-  );
-}
-
 function ModalFooter({
   onClose,
   onSave,
@@ -1323,7 +1320,10 @@ function DebtorDetailModal({
               />
               <DetailItem label="Segmen SLIK" value={debtor.slik_segment} />
               <DetailItem label="Status CIF" value={debtor.slik_status_code} />
-              <DetailItem label="Operasi Data" value={debtor.slik_operation_code} />
+              <DetailItem
+                label="Operasi Data"
+                value={slikDisplay(debtor.slik_operation_display, debtor.slik_operation_code)}
+              />
               <DetailItem label="Cabang" value={debtor.branch?.name} />
               <DetailItem
                 label="PIC / Marketing"
@@ -1353,7 +1353,31 @@ function DebtorDetailModal({
                   value={individualProfile.name_as_identity}
                 />
                 <DetailItem label="Nama Lengkap" value={individualProfile.full_name} />
-                <DetailItem label="Jenis Kelamin" value={individualProfile.gender} />
+                <DetailItem
+                  label="Jenis Identitas"
+                  value={slikDisplay(
+                    individualProfile.identity_type_display,
+                    individualProfile.identity_type_code,
+                  )}
+                />
+                <DetailItem
+                  label="Jenis Kelamin"
+                  value={slikDisplay(individualProfile.gender_display, individualProfile.gender)}
+                />
+                <DetailItem
+                  label="Pendidikan/Gelar"
+                  value={slikDisplay(
+                    individualProfile.education_degree_display,
+                    individualProfile.education_degree_code,
+                  )}
+                />
+                <DetailItem
+                  label="Pekerjaan"
+                  value={slikDisplay(
+                    individualProfile.occupation_display,
+                    individualProfile.occupation_code,
+                  )}
+                />
                 <DetailItem label="Tempat Lahir" value={individualProfile.birth_place} />
                 <DetailItem
                   label="Tanggal Lahir"
@@ -1362,6 +1386,24 @@ function DebtorDetailModal({
                 <DetailItem label="NPWP" value={individualProfile.tax_number} />
                 <DetailItem label="Seluler" value={individualProfile.mobile_phone} />
                 <DetailItem label="Email" value={individualProfile.email} />
+                <DetailItem
+                  label="DATI II/Kota"
+                  value={slikDisplay(individualProfile.city_display, individualProfile.city_code)}
+                />
+                <DetailItem
+                  label="Bidang Usaha Tempat Kerja"
+                  value={slikDisplay(
+                    individualProfile.workplace_business_field_display,
+                    individualProfile.workplace_business_field_code,
+                  )}
+                />
+                <DetailItem
+                  label="Golongan Debitur"
+                  value={slikDisplay(
+                    individualProfile.debtor_group_display,
+                    individualProfile.debtor_group_code,
+                  )}
+                />
                 <DetailItem
                   label="Nama Ibu Kandung"
                   value={individualProfile.mother_maiden_name}
@@ -1387,7 +1429,10 @@ function DebtorDetailModal({
                 />
                 <DetailItem
                   label="Bentuk Badan Usaha"
-                  value={legalEntityProfile.legal_form_code}
+                  value={slikDisplay(
+                    legalEntityProfile.legal_form_display,
+                    legalEntityProfile.legal_form_code,
+                  )}
                 />
                 <DetailItem
                   label="Tempat Pendirian"
@@ -1404,7 +1449,21 @@ function DebtorDetailModal({
                 <DetailItem label="Email" value={legalEntityProfile.email} />
                 <DetailItem
                   label="Bidang Usaha"
-                  value={legalEntityProfile.business_field_code}
+                  value={slikDisplay(
+                    legalEntityProfile.business_field_display,
+                    legalEntityProfile.business_field_code,
+                  )}
+                />
+                <DetailItem
+                  label="DATI II/Kota"
+                  value={slikDisplay(legalEntityProfile.city_display, legalEntityProfile.city_code)}
+                />
+                <DetailItem
+                  label="Golongan Debitur"
+                  value={slikDisplay(
+                    legalEntityProfile.debtor_group_display,
+                    legalEntityProfile.debtor_group_code,
+                  )}
                 />
                 <DetailItem
                   label="Nama Grup Debitur"
@@ -1423,8 +1482,8 @@ function DebtorDetailModal({
             <h3 className="mb-4 text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Kontrak Terkait
             </h3>
-            <TableCard>
-              <SetupDataTable className="min-w-[840px]">
+            <SetupTableCard variant="nested">
+              <SetupDataTable variant="nested" density="compact" className="min-w-[840px]">
                 <SetupDataTableColGroup>
                   <SetupDataTableCol className="w-[56px]" />
                   <SetupDataTableCol className="w-[170px]" />
@@ -1478,7 +1537,7 @@ function DebtorDetailModal({
                   ) : null}
                 </SetupDataTableBody>
               </SetupDataTable>
-            </TableCard>
+            </SetupTableCard>
           </section>
         </div>
       ) : null}
@@ -2155,19 +2214,20 @@ function DebtorTable({
   onUploadDocument?: (debtor: DebtorRecord) => void;
 }) {
   const showActions = Boolean(onEdit || onDelete || onAddContract || onUploadDocument);
-  const colSpan = showActions ? 11 : 10;
+  const colSpan = showActions ? 12 : 11;
 
   return (
-    <SetupDataTable className="min-w-[1300px]">
+    <SetupDataTable variant="portfolio" density="compact" className="min-w-[1540px]">
       <SetupDataTableColGroup>
         <SetupDataTableCol className="w-[56px]" />
-        <SetupDataTableCol className="w-[160px]" />
+        <SetupDataTableCol className="w-[260px]" />
+        <SetupDataTableCol className="w-[170px]" />
         <SetupDataTableCol className="w-[190px]" />
-        <SetupDataTableCol className="w-[150px]" />
-        <SetupDataTableCol className="w-[150px]" />
-        <SetupDataTableCol className="w-[170px]" />
-        <SetupDataTableCol className="w-[170px]" />
-        <SetupDataTableCol className="w-[150px]" />
+        <SetupDataTableCol className="w-[130px]" />
+        <SetupDataTableCol className="w-[120px]" />
+        <SetupDataTableCol className="w-[160px]" />
+        <SetupDataTableCol className="w-[160px]" />
+        <SetupDataTableCol className="w-[140px]" />
         <SetupDataTableCol className="w-[120px]" />
         <SetupDataTableCol className="w-[120px]" />
         {showActions ? <SetupDataTableCol className="w-[88px]" /> : null}
@@ -2177,18 +2237,19 @@ function DebtorTable({
           <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
             No
           </SetupDataTableHeaderCell>
-          <SetupDataTableHeaderCell>No Debitur</SetupDataTableHeaderCell>
-          <SetupDataTableHeaderCell>Nama Debitur</SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>Debitur</SetupDataTableHeaderCell>
           <SetupDataTableHeaderCell>Status CIF / Jenis Nasabah</SetupDataTableHeaderCell>
-          <SetupDataTableHeaderCell>Cabang</SetupDataTableHeaderCell>
-          <SetupDataTableHeaderCell>PIC / Marketing</SetupDataTableHeaderCell>
-          <SetupDataTableHeaderCell>Kontrak Terakhir</SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>Cabang / PIC</SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>Fasilitas</SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>Agunan</SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>Total OS</SetupDataTableHeaderCell>
           <SetupDataTableHeaderCell>Kolektibilitas</SetupDataTableHeaderCell>
-          <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-            Status
-          </SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>Periode SLIK</SetupDataTableHeaderCell>
           <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
             Dokumen
+          </SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+            Status
           </SetupDataTableHeaderCell>
           {showActions ? (
             <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
@@ -2208,12 +2269,19 @@ function DebtorTable({
               {(meta.page - 1) * meta.limit + index + 1}
             </SetupDataTableCell>
             <SetupDataTableCell>
-              <span className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium tabular-nums text-gray-700">
-                {item.debtor_number ?? "-"}
-              </span>
-            </SetupDataTableCell>
-            <SetupDataTableCell className="font-semibold">
-              {item.name}
+              <div className="space-y-1">
+                <SetupTablePrimaryText>{item.name}</SetupTablePrimaryText>
+                <div className="flex flex-wrap gap-1.5 text-xs">
+                  <SetupTableCode>
+                    {item.debtor_number ?? "-"}
+                  </SetupTableCode>
+                  {item.identity_number ? (
+                    <SetupTableCode className="bg-white text-slate-500">
+                      {item.identity_number}
+                    </SetupTableCode>
+                  ) : null}
+                </div>
+              </div>
             </SetupDataTableCell>
             <SetupDataTableCell>
               <SetupStatusBadge
@@ -2224,25 +2292,55 @@ function DebtorTable({
                 )}
               />
             </SetupDataTableCell>
-            <SetupDataTableCell>{item.branch?.name ?? "-"}</SetupDataTableCell>
             <SetupDataTableCell>
-              {item.marketing_user
-                ? item.marketing_user.division_name
-                  ? `${item.marketing_user.name} / ${item.marketing_user.division_name}`
-                  : item.marketing_user.name
-                : "-"}
+              <div className="space-y-1">
+                <SetupTablePrimaryText className="font-medium">
+                  {item.branch?.name ?? "-"}
+                </SetupTablePrimaryText>
+                <SetupTableSecondaryText>
+                  {item.marketing_user
+                    ? item.marketing_user.division_name
+                      ? `${item.marketing_user.name} / ${item.marketing_user.division_name}`
+                      : item.marketing_user.name
+                    : "-"}
+                </SetupTableSecondaryText>
+              </div>
             </SetupDataTableCell>
             <SetupDataTableCell>
-              {item.latest_contract?.no_kontrak ?? "-"}
+              <div className="space-y-1">
+                <SetupTableNumber>{formatNumber(item.contracts_count)}</SetupTableNumber>
+                <SetupTableSecondaryText>
+                  {item.latest_contract?.no_kontrak ?? "-"}
+                </SetupTableSecondaryText>
+              </div>
+            </SetupDataTableCell>
+            <SetupDataTableCell className="tabular-nums">
+              <SetupTableNumber>{formatNumber(item.collaterals_count)}</SetupTableNumber>
+            </SetupDataTableCell>
+            <SetupDataTableCell className="font-semibold tabular-nums">
+              <SetupTableMoney>{formatCurrency(item.total_outstanding)}</SetupTableMoney>
             </SetupDataTableCell>
             <SetupDataTableCell>
-              {collectibilityLabel(item.latest_contract?.latest_collectibility)}
+              <SetupStatusBadge
+                status={
+                  item.latest_collectibility_display ??
+                  collectibilityLabel(item.latest_contract?.latest_collectibility) ??
+                  "-"
+                }
+                showIcon={false}
+              />
             </SetupDataTableCell>
-            <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-              <SetupStatusBadge status={statusLabel(item.status)} />
+            <SetupDataTableCell>
+              {periodLabel(
+                item.latest_slik_period_month ??
+                  item.latest_contract?.latest_slik_snapshot?.period_month,
+              )}
             </SetupDataTableCell>
             <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
               {item.documents_count}
+            </SetupDataTableCell>
+            <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+              <SetupStatusBadge status={statusLabel(item.status)} />
             </SetupDataTableCell>
             {showActions ? (
               <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
@@ -2335,7 +2433,7 @@ function FinancingTable({
   onViewDebtor: (debtorId: string) => void;
 }) {
   return (
-    <SetupDataTable className="min-w-[1240px]">
+    <SetupDataTable variant="portfolio" density="compact" className="min-w-[1240px]">
       <SetupDataTableColGroup>
         <SetupDataTableCol className="w-[56px]" />
         <SetupDataTableCol className="w-[170px]" />
@@ -2383,29 +2481,42 @@ function FinancingTable({
                 {(meta.page - 1) * meta.limit + index + 1}
               </SetupDataTableCell>
               <SetupDataTableCell>
-                <span className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium tabular-nums text-gray-700">
+                <SetupTableCode>
                   {snapshot?.facility_number ?? item.no_kontrak}
-                </span>
+                </SetupTableCode>
               </SetupDataTableCell>
               <SetupDataTableCell className="font-semibold">
-                {item.debtor?.name ?? "-"}
+                <SetupTablePrimaryText>{item.debtor?.name ?? "-"}</SetupTablePrimaryText>
               </SetupDataTableCell>
               <SetupDataTableCell>
-                {[item.product?.name, item.akad_type?.name].filter(Boolean).join(" / ") || "-"}
+                {[
+                  snapshot?.credit_type_display ?? item.product?.name,
+                  snapshot?.financing_scheme_display ?? item.akad_type?.name,
+                ].filter(Boolean).join(" / ") || "-"}
               </SetupDataTableCell>
               <SetupDataTableCell>{periodLabel(snapshot?.period_month)}</SetupDataTableCell>
               <SetupDataTableCell>
-                {formatCurrency(snapshot?.plafond ?? item.plafond)}
+                <SetupTableMoney>
+                  {formatCurrency(snapshot?.plafond ?? item.plafond)}
+                </SetupTableMoney>
               </SetupDataTableCell>
               <SetupDataTableCell>
-                {formatCurrency(snapshot?.baki_debet ?? item.outstanding_pokok)}
+                <SetupTableMoney>
+                  {formatCurrency(snapshot?.baki_debet ?? item.outstanding_pokok)}
+                </SetupTableMoney>
               </SetupDataTableCell>
               <SetupDataTableCell>
-                {formatCurrency(snapshot?.margin_arrears ?? item.outstanding_margin)}
+                <SetupTableMoney>
+                  {formatCurrency(snapshot?.margin_arrears ?? item.outstanding_margin)}
+                </SetupTableMoney>
               </SetupDataTableCell>
               <SetupDataTableCell>
                 <SetupStatusBadge
-                  status={collectibilityLabel(item.latest_collectibility)}
+                  status={
+                    snapshot?.collectibility_display ??
+                    collectibilityLabel(item.latest_collectibility) ??
+                    "-"
+                  }
                   showIcon={false}
                 />
               </SetupDataTableCell>
@@ -2475,7 +2586,7 @@ function CollateralTable({
   collateralTypeLabels: Map<string, string>;
 }) {
   return (
-    <SetupDataTable className="min-w-[1240px]">
+    <SetupDataTable variant="portfolio" density="compact" className="min-w-[1240px]">
       <SetupDataTableColGroup>
         <SetupDataTableCol className="w-[56px]" />
         <SetupDataTableCol className="w-[170px]" />
@@ -2519,26 +2630,43 @@ function CollateralTable({
               <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                 {(meta.page - 1) * meta.limit + index + 1}
               </SetupDataTableCell>
-              <SetupDataTableCell className="font-semibold">
-                {item.collateral_number}
+              <SetupDataTableCell>
+                <SetupTableCode>
+                  {item.collateral_number}
+                </SetupTableCode>
               </SetupDataTableCell>
               <SetupDataTableCell>
-                {item.facility_number ?? item.contract?.no_kontrak ?? "-"}
+                <SetupTableCode>
+                  {item.facility_number ?? item.contract?.no_kontrak ?? "-"}
+                </SetupTableCode>
               </SetupDataTableCell>
-              <SetupDataTableCell>{item.debtor?.name ?? "-"}</SetupDataTableCell>
               <SetupDataTableCell>
-                {item.collateral_type
-                  ? collateralTypeLabels.get(item.collateral_type.toUpperCase()) ??
-                    item.collateral_type
-                  : "-"}
+                <SetupTablePrimaryText>{item.debtor?.name ?? "-"}</SetupTablePrimaryText>
+              </SetupDataTableCell>
+              <SetupDataTableCell>
+                <SetupTablePrimaryText>
+                  {item.collateral_type_display ??
+                    (item.collateral_type
+                    ? collateralTypeLabels.get(item.collateral_type.toUpperCase()) ??
+                      item.collateral_type
+                    : "-")}
+                </SetupTablePrimaryText>
               </SetupDataTableCell>
               <SetupDataTableCell>{item.owner_name ?? "-"}</SetupDataTableCell>
-              <SetupDataTableCell>{item.proof_number ?? "-"}</SetupDataTableCell>
               <SetupDataTableCell>
-                {formatCurrency(item.market_value ?? item.appraisal_value)}
+                <SetupTableCode className="bg-white">
+                  {item.proof_number ?? "-"}
+                </SetupTableCode>
               </SetupDataTableCell>
               <SetupDataTableCell>
-                {item.address ?? item.description ?? "-"}
+                <SetupTableMoney>
+                  {formatCurrency(item.market_value ?? item.appraisal_value)}
+                </SetupTableMoney>
+              </SetupDataTableCell>
+              <SetupDataTableCell>
+                <SetupTableSecondaryText as="div" className="whitespace-normal">
+                  {item.address ?? item.description ?? "-"}
+                </SetupTableSecondaryText>
               </SetupDataTableCell>
               <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
                 <SetupActionMenu
@@ -2603,7 +2731,7 @@ function ContractTable({
   onDelete: (contract: DebtorContract) => void;
 }) {
   return (
-    <SetupDataTable className="min-w-[1180px]">
+    <SetupDataTable variant="portfolio" density="compact" className="min-w-[1180px]">
       <SetupDataTableColGroup>
         <SetupDataTableCol className="w-[56px]" />
         <SetupDataTableCol className="w-[170px]" />
@@ -2644,17 +2772,19 @@ function ContractTable({
               {(meta.page - 1) * meta.limit + index + 1}
             </SetupDataTableCell>
             <SetupDataTableCell>
-              <span className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium tabular-nums text-gray-700">
+              <SetupTableCode>
                 {item.no_kontrak}
-              </span>
+              </SetupTableCode>
             </SetupDataTableCell>
-            <SetupDataTableCell className="font-semibold">
-              {item.debtor?.name ?? "-"}
+            <SetupDataTableCell>
+              <SetupTablePrimaryText>{item.debtor?.name ?? "-"}</SetupTablePrimaryText>
             </SetupDataTableCell>
             <SetupDataTableCell>{item.product?.name ?? "-"}</SetupDataTableCell>
             <SetupDataTableCell>{formatDateOnly(item.tanggal_akad)}</SetupDataTableCell>
             <SetupDataTableCell>{formatDateOnly(item.tanggal_jatuh_tempo)}</SetupDataTableCell>
-            <SetupDataTableCell>{formatCurrency(item.total_outstanding)}</SetupDataTableCell>
+            <SetupDataTableCell>
+              <SetupTableMoney>{formatCurrency(item.total_outstanding)}</SetupTableMoney>
+            </SetupDataTableCell>
             <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
               <SetupStatusBadge status={statusLabel(item.status)} />
             </SetupDataTableCell>
@@ -2690,8 +2820,8 @@ function ContractTable({
           </SetupDataTableEmptyRow>
         ) : null}
         {!isLoading && items.length === 0 ? (
-          <SetupDataTableEmptyRow colSpan={9}>
-            Belum ada data kontrak yang sesuai.
+          <SetupDataTableEmptyRow colSpan={9} tone="debitur">
+            Belum ada data kontrak.
           </SetupDataTableEmptyRow>
         ) : null}
       </SetupDataTableBody>
@@ -2749,58 +2879,14 @@ function DebtorSearchPanel({
   );
 }
 
-function DebtorListViewTabs({
-  value,
-  onChange,
-}: {
-  value: DebtorListView;
-  onChange: (value: DebtorListView) => void;
-}) {
-  const options: Array<{ value: DebtorListView; label: string; description: string }> = [
-    {
-      value: "cif",
-      label: "CIF / Nasabah",
-      description: "Gabungan D01 dan D02",
-    },
-    {
-      value: "financing",
-      label: "Pembiayaan F01",
-      description: "Fasilitas dan OS per periode",
-    },
-    {
-      value: "collateral",
-      label: "Jaminan A01",
-      description: "Agunan dan link fasilitas",
-    },
-  ];
-
+function DebtorListScopeNote() {
   return (
-    <div className={`${SETUP_PAGE_SEGMENTED_GROUP_CLASS} w-full flex-wrap`}>
-      {options.map((option) => {
-        const active = option.value === value;
-
-        return (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onChange(option.value)}
-            className={`${SETUP_PAGE_SEGMENTED_BUTTON_BASE_CLASS} min-w-[190px] flex-1 ${
-              active
-                ? SETUP_PAGE_SEGMENTED_BUTTON_ACTIVE_CLASS
-                : SETUP_PAGE_SEGMENTED_BUTTON_INACTIVE_CLASS
-            }`}
-          >
-            <span className="block truncate">{option.label}</span>
-            <span
-              className={`mt-0.5 block truncate text-xs font-medium ${
-                active ? "text-white/80" : "text-gray-500"
-              }`}
-            >
-              {option.description}
-            </span>
-          </button>
-        );
-      })}
+    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 shadow-sm">
+      <p className="font-semibold text-gray-900">List gabungan per nasabah</p>
+      <p className="mt-1">
+        Fasilitas, agunan, kolektibilitas, outstanding, dan periode SLIK ditarik
+        sebagai ringkasan per CIF. Detail relasi tetap dibuka dari baris debitur.
+      </p>
     </div>
   );
 }
@@ -2959,7 +3045,7 @@ function DebtorListSummaryCards({
 }
 
 export function DebtorListClient() {
-  const [activeView, setActiveView] = useState<DebtorListView>("cif");
+  const [activeView] = useState<DebtorListView>("cif");
   const { showToast } = useAppToast();
   const { hasCapability } = useProtectedAction();
   const table = useDebtorTable();
@@ -3063,7 +3149,7 @@ export function DebtorListClient() {
         subtitle="Eksplorasi data CIF, pembiayaan F01, dan jaminan A01 hasil import SLIK."
         icon={<Users />}
       />
-      <DebtorListViewTabs value={activeView} onChange={setActiveView} />
+      <DebtorListScopeNote />
       {activeView === "cif" ? (
         <>
           <DebtorSearchPanel
@@ -3150,7 +3236,7 @@ export function DebtorListClient() {
           </div>
         </>
       ) : null}
-      <TableCard>
+      <SetupTableCard variant="portfolio">
         {activeView === "cif" ? (
           <>
             <DebtorTable
@@ -3212,7 +3298,7 @@ export function DebtorListClient() {
             />
           </>
         ) : null}
-      </TableCard>
+      </SetupTableCard>
     </DashboardPageShell>
   );
 }
@@ -3507,7 +3593,7 @@ export function DebtorMasterClient() {
             onCustomerTypeChange={table.setCustomerType}
           />
           <DebtorListSummaryCards items={table.items} meta={table.meta} />
-          <TableCard>
+          <SetupTableCard variant="portfolio">
             <DebtorTable
               items={table.items}
               meta={table.meta}
@@ -3528,7 +3614,7 @@ export function DebtorMasterClient() {
               isLoading={table.isLoading}
               onPageChange={table.setPage}
             />
-          </TableCard>
+          </SetupTableCard>
         </>
       ) : null}
 
@@ -3556,7 +3642,7 @@ export function DebtorMasterClient() {
               </SetupSelect>
             </div>
           </div>
-          <TableCard>
+          <SetupTableCard variant="portfolio">
             <ContractTable
               items={contractTable.items}
               meta={contractTable.meta}
@@ -3574,7 +3660,7 @@ export function DebtorMasterClient() {
               isLoading={contractTable.isLoading}
               onPageChange={contractTable.setPage}
             />
-          </TableCard>
+          </SetupTableCard>
         </section>
       ) : null}
 
@@ -3897,8 +3983,8 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
           </SetupSelect>
         </div>
       </div>
-      <TableCard>
-        <SetupDataTable className="min-w-[1100px]">
+      <SetupTableCard variant="workflow">
+        <SetupDataTable variant="workflow" density="compact" className="min-w-[1100px]">
           <SetupDataTableColGroup>
             <SetupDataTableCol className="w-[56px]" />
             <SetupDataTableCol className="w-[200px]" />
@@ -3995,7 +4081,7 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
           isLoading={isLoading}
           onPageChange={setPage}
         />
-      </TableCard>
+      </SetupTableCard>
       <MarketingFormModal
         isOpen={isModalOpen}
           kind={kind}
@@ -4444,8 +4530,8 @@ export function DebtorImportClient({
           </div>
         }
       />
-      <TableCard>
-        <SetupDataTable className="min-w-[1120px]">
+      <SetupTableCard variant="report">
+        <SetupDataTable variant="report" density="compact" className="min-w-[1120px]">
           <SetupDataTableColGroup>
             <SetupDataTableCol className="w-[52px]" />
             <SetupDataTableCol className="w-[96px]" />
@@ -4566,7 +4652,7 @@ export function DebtorImportClient({
           isLoading={isLoading}
           onPageChange={setPage}
         />
-      </TableCard>
+      </SetupTableCard>
       <DashboardModal
         isOpen={isModalOpen}
         title={config.title}
@@ -4627,10 +4713,10 @@ export function DebtorImportClient({
             ) : null}
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm leading-6 text-gray-600">
               {form.import_segment === "F01"
-                ? "Import F01 menambah atau mengupdate posisi pembiayaan sesuai Periode Data. OS tersimpan sebagai histori bulanan."
+                ? "Urutan import: D01/D02 lebih dulu, lalu F01. F01 menambah atau mengupdate posisi pembiayaan sesuai Periode Data."
                 : form.import_segment === "A01"
-                  ? "Import A01 mengupdate data jaminan terbaru. Histori upload tetap tercatat di monitoring import."
-                  : "Import CIF membaca D01 sebagai perorangan atau D02 sebagai badan usaha/yayasan. Status CIF ditentukan otomatis dari jenis TXT."}
+                  ? "Urutan import: D01/D02 dan F01 lebih dulu, lalu A01. Jika F01 belum ada, agunan akan ditandai menunggu relasi."
+                  : "Urutan import: D01/D02 untuk membuat CIF, lalu F01 untuk fasilitas, lalu A01 untuk agunan."}
             </div>
             <SlikMultiFileField files={form.files} onChange={(files) => setForm((prev) => ({ ...prev, files, file: files[0] ?? null }))} />
           </SetupFormSection>
@@ -4816,8 +4902,8 @@ export function DebtorNpfReportClient() {
         />
       </div>
       <div className="grid gap-6 xl:grid-cols-2">
-        <TableCard>
-          <SetupDataTable className="min-w-[560px]">
+        <SetupTableCard variant="report">
+          <SetupDataTable variant="report" density="compact" className="min-w-[560px]">
             <SetupDataTableHead>
               <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                 <SetupDataTableHeaderCell>Kolektibilitas</SetupDataTableHeaderCell>
@@ -4846,9 +4932,9 @@ export function DebtorNpfReportClient() {
               ) : null}
             </SetupDataTableBody>
           </SetupDataTable>
-        </TableCard>
-        <TableCard>
-          <SetupDataTable className="min-w-[520px]">
+        </SetupTableCard>
+        <SetupTableCard variant="report">
+          <SetupDataTable variant="report" density="compact" className="min-w-[520px]">
             <SetupDataTableHead>
               <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                 <SetupDataTableHeaderCell>Periode</SetupDataTableHeaderCell>
@@ -4873,10 +4959,10 @@ export function DebtorNpfReportClient() {
               ) : null}
             </SetupDataTableBody>
           </SetupDataTable>
-        </TableCard>
+        </SetupTableCard>
       </div>
-      <TableCard>
-        <SetupDataTable className="min-w-[960px]">
+      <SetupTableCard variant="report">
+        <SetupDataTable variant="report" density="compact" className="min-w-[960px]">
           <SetupDataTableHead>
             <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
               <SetupDataTableHeaderCell>Debitur</SetupDataTableHeaderCell>
@@ -4911,7 +4997,7 @@ export function DebtorNpfReportClient() {
             ) : null}
           </SetupDataTableBody>
         </SetupDataTable>
-      </TableCard>
+      </SetupTableCard>
     </DashboardPageShell>
   );
 }
@@ -4958,8 +5044,8 @@ export function DebtorMarketingReportClient() {
         icon={<BarChart3 />}
       />
       <div className="grid gap-6 xl:grid-cols-2">
-        <TableCard>
-          <SetupDataTable className="min-w-[560px]">
+        <SetupTableCard variant="report">
+          <SetupDataTable variant="report" density="compact" className="min-w-[560px]">
             <SetupDataTableHead>
               <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                 <SetupDataTableHeaderCell>Jenis Aktivitas</SetupDataTableHeaderCell>
@@ -4988,9 +5074,9 @@ export function DebtorMarketingReportClient() {
               ) : null}
             </SetupDataTableBody>
           </SetupDataTable>
-        </TableCard>
-        <TableCard>
-          <SetupDataTable className="min-w-[720px]">
+        </SetupTableCard>
+        <SetupTableCard variant="report">
+          <SetupDataTable variant="report" density="compact" className="min-w-[720px]">
             <SetupDataTableHead>
               <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                 <SetupDataTableHeaderCell>Debitur</SetupDataTableHeaderCell>
@@ -5019,7 +5105,7 @@ export function DebtorMarketingReportClient() {
               ) : null}
             </SetupDataTableBody>
           </SetupDataTable>
-        </TableCard>
+        </SetupTableCard>
       </div>
     </DashboardPageShell>
   );

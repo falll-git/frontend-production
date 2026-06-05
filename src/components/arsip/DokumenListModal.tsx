@@ -8,7 +8,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableCell,
   SetupDataTableColGroup,
-  SetupDataTableCol
+  SetupDataTableCol,
+  SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -33,8 +34,6 @@ import {
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
-  SETUP_PAGE_TABLE_SCROLL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { DEFAULT_PAGINATION_META, SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import { exportDokumenPerRak } from "@/lib/export-arsip";
@@ -254,9 +253,8 @@ export default function DokumenListModal({
             </div>
           ) : (
             <div className="space-y-4 px-5 py-4">
-              <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
-                <div className={SETUP_PAGE_TABLE_SCROLL_CLASS}>
-                  <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+              <SetupTableCard variant="nested">
+                  <SetupDataTable variant="nested" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
                     <SetupDataTableColGroup>
                       {DOCUMENT_TABLE_COLUMN_WIDTHS.map((width, index) => (
                         <SetupDataTableCol
@@ -349,8 +347,7 @@ export default function DokumenListModal({
                       ))}
                     </SetupDataTableBody>
                   </SetupDataTable>
-                </div>
-              </div>
+              </SetupTableCard>
 
               <Pagination
                 page={paginationMeta.page}

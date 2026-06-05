@@ -282,7 +282,7 @@ export default function LaporanAktivitasMarketingSection({
 
         <div className="overflow-hidden rounded-xl border border-gray-200">
           <div className="overflow-x-auto">
-            <SetupDataTable className="min-w-[60rem]">
+            <SetupDataTable variant="workflow" density="compact" className="min-w-[60rem]">
               <SetupDataTableHead className="bg-gray-50">
                 <SetupDataTableRow>
                   <SetupDataTableHeaderCell>Tanggal</SetupDataTableHeaderCell>

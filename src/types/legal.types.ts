@@ -1,5 +1,5 @@
 import type { PaginationMeta } from "@/types/api.types";
-import type { DebtorContract, DebtorFileMeta } from "@/types/debitur.types";
+import type { DebtorCollateral, DebtorContract, DebtorFileMeta } from "@/types/debitur.types";
 import type { ParameterMasterRecord } from "@/services/parameter-master.service";
 
 export type LegalDocumentType =
@@ -24,6 +24,7 @@ export type LegalListQuery = {
   document_type?: string;
   template_type?: string;
   contract_id?: string;
+  collateral_id?: string;
   third_party_id?: string;
   type?: string;
   deposit_id?: string;
@@ -60,6 +61,7 @@ export type LegalPrintHistory = {
 export type LegalProgressRecord = {
   id: string;
   contract_id: string;
+  collateral_id: string | null;
   third_party_id: string;
   deed_type?: string | null;
   received_at?: string | null;
@@ -79,6 +81,7 @@ export type LegalProgressRecord = {
   notes: string | null;
   file: DebtorFileMeta | null;
   contract: DebtorContract | null;
+  collateral: DebtorCollateral | null;
   third_party: ParameterMasterRecord | null;
   created_at: string | null;
   updated_at: string | null;
@@ -87,6 +90,7 @@ export type LegalProgressRecord = {
 export type LegalClaim = {
   id: string;
   contract_id: string;
+  collateral_id: string | null;
   insurance_progress_id: string | null;
   policy_number: string | null;
   claim_type: string;
@@ -100,6 +104,7 @@ export type LegalClaim = {
   notes: string | null;
   file: DebtorFileMeta | null;
   contract: DebtorContract | null;
+  collateral: DebtorCollateral | null;
   insurance_progress: LegalProgressRecord | null;
   created_at: string | null;
   updated_at: string | null;
@@ -175,6 +180,7 @@ export type LegalPrintPayload = {
   template_id: string;
   numbering_template_id?: string | null;
   contract_id: string;
+  collateral_id?: string | null;
   document_type: LegalDocumentType | string;
   payload_snapshot?: Record<string, unknown>;
   file?: File | null;
@@ -182,6 +188,7 @@ export type LegalPrintPayload = {
 
 export type LegalNotaryPayload = {
   contract_id: string;
+  collateral_id?: string | null;
   third_party_id: string;
   deed_type: string;
   received_at: string;
@@ -195,6 +202,7 @@ export type LegalNotaryPayload = {
 
 export type LegalInsurancePayload = {
   contract_id: string;
+  collateral_id?: string | null;
   third_party_id: string;
   insurance_type: string;
   coverage_amount?: number;
@@ -208,6 +216,7 @@ export type LegalInsurancePayload = {
 
 export type LegalKjppPayload = {
   contract_id: string;
+  collateral_id?: string | null;
   third_party_id: string;
   appraisal_type: string;
   received_at: string;
@@ -223,6 +232,7 @@ export type LegalKjppPayload = {
 
 export type LegalClaimPayload = {
   contract_id: string;
+  collateral_id?: string | null;
   insurance_progress_id?: string | null;
   policy_number?: string | null;
   claim_type: string;
@@ -256,4 +266,11 @@ export type LegalDepositTransactionPayload = {
   action: string;
   amount: number;
   notes?: string | null;
+};
+
+export type LegalDocumentContext = {
+  placeholders: string[];
+  values: Record<string, string | number | boolean | null | undefined>;
+  missing_fields: string[];
+  context: Record<string, unknown>;
 };

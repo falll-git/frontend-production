@@ -9,7 +9,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableCell,
   SetupDataTableColGroup,
-  SetupDataTableCol
+  SetupDataTableCol,
+  SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useMemo, useState } from "react";
 import {
@@ -46,7 +47,6 @@ import {
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
 } from "@/components/ui/setupPageStyles";
 
 type ActionKind = "approve" | "reject" | "handover" | "return";
@@ -330,9 +330,8 @@ export default function AcceptPeminjamanPage() {
       </div>
 
       {data.length > 0 ? (
-        <div className={SETUP_PAGE_TABLE_CARD_CLASS}>
-          <div className="overflow-x-auto">
-            <SetupDataTable className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
+        <SetupTableCard variant="workflow">
+            <SetupDataTable variant="workflow" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
               <SetupDataTableColGroup>
                 {ACCEPT_PEMINJAMAN_TABLE_COLUMN_WIDTHS.map((width, index) => (
                   <SetupDataTableCol
@@ -471,7 +470,6 @@ export default function AcceptPeminjamanPage() {
                 ) : null}
               </SetupDataTableBody>
             </SetupDataTable>
-          </div>
           <Pagination
             page={paginationMeta.page}
             lastPage={paginationMeta.lastPage}
@@ -479,7 +477,7 @@ export default function AcceptPeminjamanPage() {
             limit={paginationMeta.limit}
             onPageChange={setPage}
           />
-        </div>
+        </SetupTableCard>
       ) : (
         <div className="rounded-lg border border-gray-200 bg-white p-10 text-center shadow-sm">
           <div className="mb-4 flex justify-center">

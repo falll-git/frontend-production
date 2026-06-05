@@ -33,6 +33,9 @@ import {
   SetupDataTableHead,
   SetupDataTableHeaderCell,
   SetupDataTableRow,
+  SetupTableCard,
+  SetupTablePrimaryText,
+  SetupTableSecondaryText,
 } from "@/components/ui/SetupDataTable";
 import SetupActionMenu, {
   type SetupActionMenuItem,
@@ -62,7 +65,6 @@ import {
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
   SETUP_PAGE_SEARCH_LABEL_CLASS,
-  SETUP_PAGE_TABLE_CARD_CLASS,
   SETUP_PAGE_WIDTH_2XL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { divisionService } from "@/services/division.service";
@@ -826,9 +828,8 @@ export default function ManajemenUserPage() {
         </div>
       </div>
 
-      <div className={`${SETUP_PAGE_TABLE_CARD_CLASS} mx-auto max-w-[1240px]`}>
-        <div className="overflow-x-auto">
-          <SetupDataTable className="min-w-[1200px] table-fixed">
+      <SetupTableCard variant="crud" className="mx-auto max-w-[1240px]">
+          <SetupDataTable variant="crud" density="compact" className="min-w-[1200px] table-fixed">
             <SetupDataTableColGroup>
               <SetupDataTableCol className="w-[48px]" />
               <SetupDataTableCol className="w-[146px]" />
@@ -903,13 +904,13 @@ export default function ManajemenUserPage() {
                       className={`${SETUP_PAGE_MODERN_CELL_CLASS} truncate font-semibold text-gray-900`}
                       title={user.name}
                     >
-                      {user.name}
+                      <SetupTablePrimaryText>{user.name}</SetupTablePrimaryText>
                     </SetupDataTableCell>
                     <SetupDataTableCell
                       className={`${SETUP_PAGE_MODERN_CELL_CLASS} truncate text-gray-900`}
                       title={user.username}
                     >
-                      {user.username}
+                      <SetupTableSecondaryText>{user.username}</SetupTableSecondaryText>
                     </SetupDataTableCell>
                     <SetupDataTableCell
                       className={`${SETUP_PAGE_MODERN_CELL_CLASS} truncate text-gray-700`}
@@ -980,7 +981,6 @@ export default function ManajemenUserPage() {
               )}
             </SetupDataTableBody>
           </SetupDataTable>
-        </div>
         <Pagination
           page={paginationMeta.page}
           lastPage={paginationMeta.lastPage}
@@ -989,7 +989,7 @@ export default function ManajemenUserPage() {
           isLoading={isFetching}
           onPageChange={setPage}
         />
-      </div>
+      </SetupTableCard>
 
       <DashboardModal
         isOpen={showModal}
