@@ -7,13 +7,24 @@ import {
   Building2,
   CheckCircle2,
   ChevronRight,
+  ClipboardList,
   Scale,
   Shield,
   Users2,
   type LucideIcon,
 } from "lucide-react";
 
-import ProtectedLink from "@/components/rbac/ProtectedLink";
+import DashboardModal from "@/components/ui/DashboardModal";
+import { SetupDataTable, SetupDataTableBody, SetupDataTableCell, SetupDataTableEmptyRow, SetupDataTableHead, SetupDataTableHeaderCell, SetupDataTableRow, SetupTableCard } from "@/components/ui/SetupDataTable";
+import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
+import {
+  SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
+  SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
+  SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
+  SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
+  SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+} from "@/components/ui/setupPageStyles";
 import { legalService } from "@/services/legal.service";
 import type { LegalThirdPartyDocumentsReport } from "@/types/legal.types";
 import type { DashboardMenuNode } from "@/types/rbac.types";
@@ -26,6 +37,11 @@ type PihakKetigaSummaryItem = {
   prosesBerjalan: number;
   laporanSelesai: number;
   lewatExpired: number;
+};
+
+type DocumentModalRow = {
+  module: string;
+  record: Record<string, unknown>;
 };
 
 function formatNumber(value: number) {
@@ -76,9 +92,40 @@ function readGroupCount(record: Record<string, unknown>) {
   return 0;
 }
 
+function readReportString(record: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return "-";
+}
+
 function readStatus(record: Record<string, unknown>) {
   const status = record.status;
   return typeof status === "string" ? status.trim().toUpperCase() : "";
+}
+
+function normalizeDisplay(value: string | null | undefined) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return "-";
+  return normalized
+    .toLowerCase()
+    .split("_")
+    .map((item) => item.charAt(0).toUpperCase() + item.slice(1))
+    .join(" ");
+}
+
+function statusLabel(status: string | null | undefined) {
+  const normalized = String(status ?? "").trim().toUpperCase();
+  if (!normalized) return "-";
+  if (["AKTIF", "ACTIVE"].includes(normalized)) return "Aktif";
+  if (["PENDING", "PENGAJUAN"].includes(normalized)) return "Menunggu";
+  if (["PROSES", "DIPROSES", "VERIFIKASI"].includes(normalized)) return "Dalam Proses";
+  if (["SELESAI", "TERUPLOAD", "DISETUJUI", "DIBAYAR", "CAIR", "APPROVED", "DONE", "COMPLETED"].includes(normalized)) return "Selesai";
+  if (["GAGAL", "DITOLAK", "BERMASALAH"].includes(normalized)) return "Ditolak";
+  if (["EXPIRED", "LEWAT_TEMPO", "OVERDUE"].includes(normalized)) return "Expired";
+  if (normalized === "KLAIM") return "Klaim";
+  return normalizeDisplay(normalized);
 }
 
 function isDoneStatus(status: string) {
@@ -148,6 +195,52 @@ function mapReportSummary(
   return kategoriOrder.map((kategori) => summaries.get(kategori)!);
 }
 
+function getModalRows(
+  report: LegalThirdPartyDocumentsReport | null,
+  kategori: PihakKetigaKategori | null,
+): DocumentModalRow[] {
+  if (!report || !kategori) return [];
+  if (kategori === "NOTARIS") {
+    return report.notary.map((record) => ({ module: "Notaris", record }));
+  }
+  if (kategori === "KJPP") {
+    return report.kjpp.map((record) => ({ module: "KJPP", record }));
+  }
+  return [
+    ...report.insurance.map((record) => ({ module: "Asuransi", record })),
+    ...report.claims.map((record) => ({ module: "Klaim", record })),
+  ];
+}
+
+function SummaryMetricCard({
+  icon: Icon,
+  label,
+  value,
+  tone = "neutral",
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  tone?: "neutral" | "success" | "danger";
+}) {
+  const toneClass =
+    tone === "success"
+      ? "text-emerald-700"
+      : tone === "danger"
+        ? "text-red-600"
+        : "text-slate-700";
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className={`mb-3 flex items-center gap-2 text-sm font-semibold ${toneClass}`}>
+        <Icon className="h-4 w-4" aria-hidden="true" />
+        {label}
+      </div>
+      <p className="text-2xl font-bold tabular-nums text-slate-900">{value}</p>
+    </div>
+  );
+}
+
 export default function LaporanPihakKetigaSection({
   widget,
 }: {
@@ -158,7 +251,8 @@ export default function LaporanPihakKetigaSection({
   );
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const detailUrl = widget?.url ?? "/dashboard/legal/laporan/pihak-ketiga/dokumen";
+  const [selectedKategori, setSelectedKategori] =
+    useState<PihakKetigaKategori | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -191,115 +285,187 @@ export default function LaporanPihakKetigaSection({
   }, []);
 
   const documentSummary = useMemo(() => mapReportSummary(report), [report]);
+  const selectedSummary = useMemo(
+    () => documentSummary.find((item) => item.kategori === selectedKategori) ?? null,
+    [documentSummary, selectedKategori],
+  );
+  const modalRows = useMemo(
+    () => getModalRows(report, selectedKategori),
+    [report, selectedKategori],
+  );
+  const selectedMeta = selectedKategori ? kategoriMeta[selectedKategori] : null;
 
   return (
-    <section className="animate-fade-in">
-      <div className="mb-4">
-        <h2 className="flex items-center gap-2 text-xl font-bold text-gray-800">
-          <Users2 className="h-6 w-6 text-gray-600" aria-hidden="true" />
-          {widget?.name ?? "Laporan Pihak Ketiga - Dokumen"}
-        </h2>
-      </div>
-
-      {errorMessage ? (
-        <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-          {errorMessage}
+    <>
+      <section className="animate-fade-in">
+        <div className="mb-4">
+          <h2 className="flex items-center gap-2 text-xl font-bold text-gray-800">
+            <Users2 className="h-6 w-6 text-gray-600" aria-hidden="true" />
+            {widget?.name ?? "Laporan Pihak Ketiga - Dokumen"}
+          </h2>
         </div>
-      ) : null}
 
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-        {documentSummary.map((item, index) => {
-          const meta = kategoriMeta[item.kategori];
-          const CategoryIcon = meta.icon;
+        {errorMessage ? (
+          <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            {errorMessage}
+          </div>
+        ) : null}
 
-          return (
-            <ProtectedLink
-              href={detailUrl}
-              key={item.kategori}
-              className="group animate-slide-up rounded-2xl border border-gray-100 bg-white p-6 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
-              style={{ animationDelay: `${index * 0.1}s` }}
-              title={`Lihat laporan ${meta.label}`}
-            >
-              <div className="mb-6 flex items-start gap-4">
-                <div className="flex min-w-0 flex-1 items-center gap-4">
-                  <div
-                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg transition-transform group-hover:scale-110"
-                    style={{
-                      background: `linear-gradient(135deg, ${meta.accentColor} 0%, ${meta.accentColor}cc 100%)`,
-                      boxShadow: `0 16px 28px ${meta.accentColor}2b`,
-                    }}
-                  >
-                    <CategoryIcon
-                      className="h-7 w-7"
-                      aria-hidden="true"
-                    />
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+          {documentSummary.map((item, index) => {
+            const meta = kategoriMeta[item.kategori];
+            const CategoryIcon = meta.icon;
+            const expiredTone = item.lewatExpired > 0 ? "text-red-600" : "text-gray-400";
+
+            return (
+              <button
+                type="button"
+                key={item.kategori}
+                onClick={() => setSelectedKategori(item.kategori)}
+                className="group animate-slide-up rounded-2xl border border-gray-100 bg-white p-6 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+                style={{ animationDelay: `${index * 0.1}s` }}
+                title={`Lihat laporan ${meta.label}`}
+              >
+                <div className="mb-6 flex items-start gap-4">
+                  <div className="flex min-w-0 flex-1 items-center gap-4">
+                    <div
+                      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg transition-transform group-hover:scale-110"
+                      style={{
+                        background: `linear-gradient(135deg, ${meta.accentColor} 0%, ${meta.accentColor}cc 100%)`,
+                        boxShadow: `0 16px 28px ${meta.accentColor}2b`,
+                      }}
+                    >
+                      <CategoryIcon className="h-7 w-7" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-lg font-bold text-gray-900">
+                        {meta.label}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-lg font-bold text-gray-900">
-                      {meta.label}
-                    </p>
+
+                  <div className="flex w-[7.375rem] shrink-0 flex-col items-end text-right">
+                    <span className="mb-1 text-xs font-semibold uppercase leading-tight tracking-wider text-gray-400">
+                      Total Dokumen
+                    </span>
+                    <span className="text-2xl font-bold tabular-nums text-gray-800">
+                      {isLoading ? "-" : formatNumber(item.totalDokumen)}
+                    </span>
                   </div>
                 </div>
 
-                <div className="flex w-[7.375rem] shrink-0 flex-col items-end text-right">
-                  <span className="mb-1 text-xs font-semibold uppercase leading-tight tracking-wider text-gray-400">
-                    Total Dokumen
-                  </span>
-                  <span className="text-2xl font-bold tabular-nums text-gray-800">
-                    {isLoading ? "-" : formatNumber(item.totalDokumen)}
-                  </span>
+                <div className="rounded-xl bg-gray-50 p-4">
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <span className="flex items-center gap-2 text-gray-500">
+                      <Activity className="h-4 w-4 text-gray-500" aria-hidden="true" />
+                      Proses Berjalan
+                    </span>
+                    <span className="font-semibold text-gray-800">
+                      {isLoading ? "-" : formatNumber(item.prosesBerjalan)}
+                    </span>
+                  </div>
+                  <div className="my-3 h-px w-full bg-gray-200" />
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <span className="flex items-center gap-2 text-emerald-700">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
+                      Laporan Selesai
+                    </span>
+                    <span className="font-semibold text-emerald-600">
+                      {isLoading ? "-" : formatNumber(item.laporanSelesai)}
+                    </span>
+                  </div>
+                  <div className="my-3 h-px w-full bg-gray-200" />
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <span className={`flex items-center gap-2 ${expiredTone}`}>
+                      <AlertTriangle className={`h-4 w-4 ${expiredTone}`} aria-hidden="true" />
+                      Lewat Expired
+                    </span>
+                    <span className={`font-semibold ${expiredTone}`}>
+                      {isLoading ? "-" : formatNumber(item.lewatExpired)}
+                    </span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="rounded-xl bg-gray-50 p-4">
-                <div className="flex items-center justify-between gap-4 text-sm">
-                  <span className="flex items-center gap-2 text-gray-500">
-                    <Activity
-                      className="h-4 w-4 text-gray-500"
-                      aria-hidden="true"
-                    />
-                    Proses Berjalan
-                  </span>
-                  <span className="font-semibold text-gray-800">
-                    {isLoading ? "-" : formatNumber(item.prosesBerjalan)}
-                  </span>
+                <div className="mt-6 flex items-center justify-between font-medium text-gray-900 transition-transform group-hover:translate-x-1">
+                  <span className="text-sm">Lihat Detail</span>
+                  <ChevronRight className="h-5 w-5" aria-hidden="true" />
                 </div>
-                <div className="my-3 h-px w-full bg-gray-200" />
-                <div className="flex items-center justify-between gap-4 text-sm">
-                  <span className="flex items-center gap-2 text-gray-700">
-                    <CheckCircle2
-                      className="h-4 w-4 text-slate-900"
-                      aria-hidden="true"
-                    />
-                    Laporan Selesai
-                  </span>
-                  <span className="font-semibold text-gray-800">
-                    {isLoading ? "-" : formatNumber(item.laporanSelesai)}
-                  </span>
-                </div>
-                <div className="my-3 h-px w-full bg-gray-200" />
-                <div className="flex items-center justify-between gap-4 text-sm">
-                  <span className="flex items-center gap-2 text-gray-500">
-                    <AlertTriangle
-                      className="h-4 w-4 text-gray-500"
-                      aria-hidden="true"
-                    />
-                    Lewat Expired
-                  </span>
-                  <span className="font-semibold text-gray-800">
-                    {isLoading ? "-" : formatNumber(item.lewatExpired)}
-                  </span>
-                </div>
-              </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
-              <div className="mt-6 flex items-center justify-between font-medium text-gray-900 transition-transform group-hover:translate-x-1">
-                <span className="text-sm">Lihat Detail</span>
-                <ChevronRight className="h-5 w-5" aria-hidden="true" />
-              </div>
-            </ProtectedLink>
-          );
-        })}
-      </div>
-    </section>
+      <DashboardModal
+        isOpen={selectedKategori !== null}
+        title={selectedMeta ? `Laporan Pihak Ketiga - ${selectedMeta.label}` : "Laporan Pihak Ketiga"}
+        description="Ringkasan progress dokumen pihak ketiga berdasarkan data legal."
+        maxWidth="5xl"
+        bodyClassName="space-y-5 p-4 sm:p-5"
+        onClose={() => setSelectedKategori(null)}
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryMetricCard
+            icon={ClipboardList}
+            label="Total Dokumen"
+            value={isLoading ? "-" : formatNumber(selectedSummary?.totalDokumen ?? 0)}
+          />
+          <SummaryMetricCard
+            icon={Activity}
+            label="Proses Berjalan"
+            value={isLoading ? "-" : formatNumber(selectedSummary?.prosesBerjalan ?? 0)}
+          />
+          <SummaryMetricCard
+            icon={CheckCircle2}
+            label="Laporan Selesai"
+            value={isLoading ? "-" : formatNumber(selectedSummary?.laporanSelesai ?? 0)}
+            tone="success"
+          />
+          <SummaryMetricCard
+            icon={AlertTriangle}
+            label="Lewat Expired"
+            value={isLoading ? "-" : formatNumber(selectedSummary?.lewatExpired ?? 0)}
+            tone={(selectedSummary?.lewatExpired ?? 0) > 0 ? "danger" : "neutral"}
+          />
+        </div>
+
+        <SetupTableCard variant="report">
+          <SetupDataTable variant="report" density="compact" className="min-w-[760px]">
+            <SetupDataTableHead>
+              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell>Modul</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell>Pihak Ketiga</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Status</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Total</SetupDataTableHeaderCell>
+              </SetupDataTableRow>
+            </SetupDataTableHead>
+            <SetupDataTableBody>
+              {modalRows.map((item, index) => (
+                <SetupDataTableRow key={`${item.module}-${index}`} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>{index + 1}</SetupDataTableCell>
+                  <SetupDataTableCell>{item.module}</SetupDataTableCell>
+                  <SetupDataTableCell>{readReportString(item.record, "third_party_name", "third_party_id")}</SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                    <SetupStatusBadge status={statusLabel(readStatus(item.record))} />
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>{formatNumber(readGroupCount(item.record))}</SetupDataTableCell>
+                </SetupDataTableRow>
+              ))}
+              {isLoading ? <SetupDataTableEmptyRow colSpan={5}>Memuat laporan pihak ketiga...</SetupDataTableEmptyRow> : null}
+              {!isLoading && modalRows.length === 0 ? (
+                <SetupDataTableEmptyRow
+                  colSpan={5}
+                  tone="legal"
+                  description="Laporan akan terisi dari progress pihak ketiga pada modul Legal."
+                >
+                  Belum ada laporan untuk kategori ini.
+                </SetupDataTableEmptyRow>
+              ) : null}
+            </SetupDataTableBody>
+          </SetupDataTable>
+        </SetupTableCard>
+      </DashboardModal>
+    </>
   );
 }

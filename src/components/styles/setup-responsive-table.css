@@ -326,6 +326,7 @@
   .setup-responsive-table__cell,
   .setup-responsive-table__head th {
     min-width: 0;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    word-break: normal;
   }
 }

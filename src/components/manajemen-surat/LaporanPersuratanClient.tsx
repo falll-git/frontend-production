@@ -7,6 +7,8 @@ import {
   SetupDataTableRow,
   SetupDataTableHeaderCell,
   SetupDataTableCell,
+  SetupDataTableColGroup,
+  SetupDataTableCol,
   SetupTableCard,
   SetupTableScroll,
 } from "@/components/ui/SetupDataTable";
@@ -715,7 +717,10 @@ const activeSectionConfig: Record<ReportKind, ActiveSectionConfig> = {
 };
 
 const REPORT_TABLE_CLASS =
-  `${SETUP_PAGE_MODERN_TABLE_CLASS} [&_thead_th]:whitespace-nowrap`;
+  `${SETUP_PAGE_MODERN_TABLE_CLASS} [table-layout:fixed] [&_thead_th]:whitespace-nowrap`;
+const REPORT_SURAT_MASUK_TABLE_CLASS = `${REPORT_TABLE_CLASS} min-w-[2832px]`;
+const REPORT_SURAT_KELUAR_TABLE_CLASS = `${REPORT_TABLE_CLASS} min-w-[2052px]`;
+const REPORT_MEMORANDUM_TABLE_CLASS = `${REPORT_TABLE_CLASS} min-w-[2394px]`;
 const REPORT_TABLE_HEADER_CELL_CLASS = SETUP_PAGE_MODERN_HEADER_CELL_CLASS;
 const REPORT_TABLE_CELL_CLASS = SETUP_PAGE_MODERN_CELL_CLASS;
 const REPORT_NUMBER_HEADER_CELL_CLASS = REPORT_TABLE_HEADER_CELL_CLASS;
@@ -730,6 +735,73 @@ const TABLE_TEXT_CLASS = "text-sm text-gray-700";
 const TABLE_TEXT_MUTED_CLASS = "text-sm text-gray-600";
 const TABLE_TEXT_STRONG_CLASS = "text-sm text-gray-900";
 const TABLE_EMPTY_TEXT_CLASS = "text-sm text-gray-400";
+const TABLE_MULTILINE_TEXT_CLASS =
+  "block max-w-full break-normal text-sm leading-5 text-gray-600 line-clamp-2";
+const TABLE_MULTILINE_STRONG_CLASS =
+  "block max-w-full break-normal text-sm font-medium leading-5 text-gray-800 line-clamp-2";
+const TABLE_MULTILINE_MUTED_CLASS =
+  "block max-w-full break-normal text-sm leading-5 text-gray-500 line-clamp-2";
+const TABLE_ACTION_BUTTON_CLASS =
+  "uiverse-modal-button uiverse-modal-button--primary min-h-9 w-[136px] justify-center whitespace-nowrap px-3 py-2 text-sm";
+const REPORT_SURAT_MASUK_COLUMN_WIDTHS = [
+  "56px",
+  "190px",
+  "210px",
+  "230px",
+  "190px",
+  "150px",
+  "118px",
+  "260px",
+  "240px",
+  "150px",
+  "150px",
+  "150px",
+  "240px",
+  "240px",
+  "170px",
+  "88px",
+] as const;
+const REPORT_SURAT_KELUAR_COLUMN_WIDTHS = [
+  "56px",
+  "190px",
+  "220px",
+  "230px",
+  "150px",
+  "118px",
+  "130px",
+  "260px",
+  "150px",
+  "160px",
+  "150px",
+  "150px",
+  "88px",
+] as const;
+const REPORT_MEMORANDUM_COLUMN_WIDTHS = [
+  "56px",
+  "150px",
+  "220px",
+  "160px",
+  "220px",
+  "180px",
+  "220px",
+  "150px",
+  "150px",
+  "150px",
+  "240px",
+  "240px",
+  "170px",
+  "88px",
+] as const;
+
+function ReportColGroup({ widths }: { widths: readonly string[] }) {
+  return (
+    <SetupDataTableColGroup>
+      {widths.map((width, index) => (
+        <SetupDataTableCol key={`${width}-${index}`} style={{ width }} />
+      ))}
+    </SetupDataTableColGroup>
+  );
+}
 
 function SelectionState() {
   return (
@@ -808,7 +880,7 @@ function DispositionTableButton({
   return (
     <button
       type="button"
-      className="uiverse-modal-button uiverse-modal-button--primary min-h-9 px-3 py-2 text-sm"
+      className={TABLE_ACTION_BUTTON_CLASS}
       disabled={disabled}
       title={`${label} ${itemName}`}
       onClick={(event) => {
@@ -3423,7 +3495,8 @@ export default function LaporanPersuratanClient() {
                 </div>
               ) : filteredSuratMasuk.length > 0 ? (
                 <>
-                <SetupDataTable variant="report" density="compact" className={REPORT_TABLE_CLASS}>
+                <SetupDataTable variant="report" density="compact" className={REPORT_SURAT_MASUK_TABLE_CLASS}>
+                  <ReportColGroup widths={REPORT_SURAT_MASUK_COLUMN_WIDTHS} />
                   <SetupDataTableHead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
                     <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                       <SetupDataTableHeaderCell className={REPORT_NUMBER_HEADER_CELL_CLASS}>
@@ -3501,7 +3574,9 @@ export default function LaporanPersuratanClient() {
                           <span className={TABLE_TEXT_STRONG_CLASS}>{record.namaSurat}</span>
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <span className={TABLE_TEXT_CLASS}>{record.perihal}</span>
+                          <span className={TABLE_MULTILINE_TEXT_CLASS} title={record.perihal}>
+                            {record.perihal}
+                          </span>
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
                           <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
@@ -3512,14 +3587,24 @@ export default function LaporanPersuratanClient() {
                           <span className={TABLE_TEXT_CLASS}>{record.sifat}</span>
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <span className={TABLE_TEXT_MUTED_CLASS}>
+                          <span
+                            className={TABLE_MULTILINE_MUTED_CLASS}
+                            title={record.physicalStorageLabel ?? "-"}
+                          >
                             {record.physicalStorageLabel ?? "-"}
                           </span>
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          {record.disposisiKepada.length > 0
-                            ? record.disposisiKepada.join(", ")
-                            : "—"}
+                          {record.disposisiKepada.length > 0 ? (
+                            <span
+                              className={TABLE_MULTILINE_TEXT_CLASS}
+                              title={record.disposisiKepada.join(", ")}
+                            >
+                              {record.disposisiKepada.join(", ")}
+                            </span>
+                          ) : (
+                            <span className={TABLE_EMPTY_TEXT_CLASS}>-</span>
+                          )}
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
                           <SuratMasukStatusBadge status={record.status} />
@@ -3556,11 +3641,26 @@ export default function LaporanPersuratanClient() {
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
                           {record.keterangan ? (
-                            <p className="text-sm text-gray-600">
+                            <p
+                              className={TABLE_MULTILINE_TEXT_CLASS}
+                              title={record.keterangan}
+                            >
                               {record.keterangan}
                             </p>
                           ) : (
                             <span className={TABLE_EMPTY_TEXT_CLASS}>—</span>
+                          )}
+                        </SetupDataTableCell>
+                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                          {record.keteranganTenggat ? (
+                            <p
+                              className={TABLE_MULTILINE_TEXT_CLASS}
+                              title={record.keteranganTenggat}
+                            >
+                              {record.keteranganTenggat}
+                            </p>
+                          ) : (
+                            <span className={TABLE_EMPTY_TEXT_CLASS}>-</span>
                           )}
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_ACTION_CELL_CLASS}>
@@ -3653,7 +3753,8 @@ export default function LaporanPersuratanClient() {
                 </div>
               ) : filteredSuratKeluar.length > 0 ? (
                 <>
-                <SetupDataTable variant="report" density="compact" className={REPORT_TABLE_CLASS}>
+                <SetupDataTable variant="report" density="compact" className={REPORT_SURAT_KELUAR_TABLE_CLASS}>
+                  <ReportColGroup widths={REPORT_SURAT_KELUAR_COLUMN_WIDTHS} />
                   <SetupDataTableHead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
                     <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                       <SetupDataTableHeaderCell className={REPORT_NUMBER_HEADER_CELL_CLASS}>
@@ -3716,7 +3817,10 @@ export default function LaporanPersuratanClient() {
                           <span className={TABLE_TEXT_STRONG_CLASS}>{record.penerima}</span>
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <p className="text-sm text-gray-600">
+                          <p
+                            className={TABLE_MULTILINE_TEXT_CLASS}
+                            title={record.alamatPenerima}
+                          >
                             {record.alamatPenerima}
                           </p>
                         </SetupDataTableCell>
@@ -3735,7 +3839,10 @@ export default function LaporanPersuratanClient() {
                           <span className={TABLE_TEXT_CLASS}>{record.media}</span>
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <span className={TABLE_TEXT_MUTED_CLASS}>
+                          <span
+                            className={TABLE_MULTILINE_MUTED_CLASS}
+                            title={record.physicalStorageLabel ?? "-"}
+                          >
                             {record.physicalStorageLabel ?? "-"}
                           </span>
                         </SetupDataTableCell>
@@ -3838,7 +3945,8 @@ export default function LaporanPersuratanClient() {
                 </div>
               ) : filteredMemorandum.length > 0 ? (
                 <>
-                <SetupDataTable variant="report" density="compact" className={REPORT_TABLE_CLASS}>
+                <SetupDataTable variant="report" density="compact" className={REPORT_MEMORANDUM_TABLE_CLASS}>
+                  <ReportColGroup widths={REPORT_MEMORANDUM_COLUMN_WIDTHS} />
                   <SetupDataTableHead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
                     <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                       <SetupDataTableHeaderCell className={REPORT_NUMBER_HEADER_CELL_CLASS}>
@@ -3906,7 +4014,9 @@ export default function LaporanPersuratanClient() {
                           </span>
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <span className={TABLE_TEXT_CLASS}>{record.perihal}</span>
+                          <span className={TABLE_MULTILINE_TEXT_CLASS} title={record.perihal}>
+                            {record.perihal}
+                          </span>
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
                           <span className={TABLE_TEXT_CLASS}>{record.divisiAsal}</span>
@@ -3920,7 +4030,10 @@ export default function LaporanPersuratanClient() {
                           <span className={TABLE_TEXT_STRONG_CLASS}>{record.pembuatMemo}</span>
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <p className="text-sm text-gray-700">
+                          <p
+                            className={TABLE_MULTILINE_STRONG_CLASS}
+                            title={formatJoinedNames(record.penerima)}
+                          >
                             {formatJoinedNames(record.penerima)}
                           </p>
                         </SetupDataTableCell>
@@ -3960,12 +4073,18 @@ export default function LaporanPersuratanClient() {
                           })()}
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <span className={TABLE_TEXT_MUTED_CLASS}>
+                          <span
+                            className={TABLE_MULTILINE_MUTED_CLASS}
+                            title={record.physicalStorageLabel ?? "-"}
+                          >
                             {record.physicalStorageLabel ?? "-"}
                           </span>
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <p className="text-sm text-gray-600">
+                          <p
+                            className={TABLE_MULTILINE_TEXT_CLASS}
+                            title={record.keterangan}
+                          >
                             {record.keterangan}
                           </p>
                         </SetupDataTableCell>

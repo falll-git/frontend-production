@@ -8,7 +8,6 @@ import {
   Landmark,
   ListChecks,
   ReceiptText,
-  RefreshCw,
   Send,
   ShieldCheck,
   Tags,
@@ -218,16 +217,6 @@ export const collateralTypeParameterConfig = simpleCodeNameConfig({
   icon: Landmark,
   addLabel: "Tambah Jenis Agunan",
   searchPlaceholder: "Cari kode, nama, atau keterangan agunan...",
-});
-
-export const restructuringTypeParameterConfig = simpleCodeNameConfig({
-  title: "Setup Jenis Restrukturisasi",
-  subtitle: "Kelola jenis restrukturisasi untuk import dan riwayat restrukturisasi debitur.",
-  entityLabel: "jenis restrukturisasi",
-  endpoint: "/restructuring-types",
-  icon: RefreshCw,
-  addLabel: "Tambah Jenis Restrukturisasi",
-  searchPlaceholder: "Cari kode, nama, atau keterangan restrukturisasi...",
 });
 
 export const documentChecklistParameterConfig: ParameterMasterPageConfig = {

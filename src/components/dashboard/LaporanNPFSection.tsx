@@ -20,6 +20,7 @@ import {
   SetupDataTableRow,
 } from "@/components/ui/SetupDataTable";
 import SetupSelect from "@/components/ui/SetupSelect";
+import { COLLECTIBILITY_CHART_COLORS } from "@/components/ui/SetupCollectibilityBadge";
 import SetupStatusBadge, {
   type SetupStatusTone,
 } from "@/components/ui/SetupStatusBadge";
@@ -70,14 +71,6 @@ const riwayatRangeOptions: Array<{ value: RiwayatRange; label: string }> = [
   { value: 6, label: "6 bulan terakhir" },
   { value: 12, label: "12 bulan terakhir" },
 ];
-
-const npfKolektibilitasColors: Record<NpfKolektibilitasLevel, string> = {
-  1: "#22c55e",
-  2: "#eab308",
-  3: "#f97316",
-  4: "#ef4444",
-  5: "#991b1b",
-};
 
 const monthNames = [
   "Januari",
@@ -299,11 +292,11 @@ export default function LaporanNPFSection({
               <>
                 <DonutNPFChart
                   data={kolektibilitasData.map((item) => {
-                    const kol = item.kol as keyof typeof npfKolektibilitasColors;
+                    const kol = item.kol as NpfKolektibilitasLevel;
 
                     return {
                       ...item,
-                      color: npfKolektibilitasColors[kol] ?? "#64748b",
+                      color: COLLECTIBILITY_CHART_COLORS[kol] ?? "#64748b",
                     };
                   })}
                   ratio={currentRatio}

@@ -13,7 +13,12 @@ import {
 import type {
   DebtorBranchSummary,
   DebtorCollateral,
+  DebtorCollateralReport,
+  DebtorCollateralReportSummary,
   DebtorCollectibilitySummary,
+  DebtorCompletenessIssue,
+  DebtorCompletenessReport,
+  DebtorCompletenessReportSummary,
   DebtorContract,
   DebtorContractPayload,
   DebtorContractSlikSnapshot,
@@ -21,7 +26,14 @@ import type {
   DebtorDocumentChecklistStatus,
   DebtorDocumentPayload,
   DebtorFileMeta,
+  DebtorIdebComparison,
+  DebtorIdebComparisonDifference,
+  DebtorIdebComparisonFacility,
+  DebtorIdebComparisonItem,
+  DebtorIdebComparisonSummary,
+  DebtorIdebPendingUpload,
   DebtorIdebOtherBprs,
+  DebtorIdebResolvePayload,
   DebtorIdebSummaryDetail,
   DebtorImportJob,
   DebtorImportPayload,
@@ -44,9 +56,13 @@ import type {
   DebtorPageResult,
   DebtorParameterSummary,
   DebtorPayload,
+  DebtorPortfolioReport,
+  DebtorReportQuery,
+  DebtorReportScope,
   DebtorRecord,
   DebtorReportSummary,
-  DebtorRestructuringRecord,
+  DebtorFacilityReport,
+  DebtorFacilityReportSummary,
   DebtorUserSummary,
   DebtorWarningLetter,
   DebtorWarningLetterPayload,
@@ -524,6 +540,41 @@ function mapDebtor(record: unknown, includeContracts = true): DebtorRecord | nul
     contracts_count: readNumber(debtor, "contracts_count", "contractsCount") ?? contracts.length,
     collaterals_count: readNumber(debtor, "collaterals_count", "collateralsCount") ?? 0,
     documents_count: readNumber(debtor, "documents_count", "documentsCount") ?? 0,
+    required_documents_total: readNumber(
+      debtor,
+      "required_documents_total",
+      "requiredDocumentsTotal",
+    ) ?? undefined,
+    required_documents_uploaded: readNumber(
+      debtor,
+      "required_documents_uploaded",
+      "requiredDocumentsUploaded",
+    ) ?? undefined,
+    required_documents_missing: readNumber(
+      debtor,
+      "required_documents_missing",
+      "requiredDocumentsMissing",
+    ) ?? undefined,
+    required_documents_status: nullableString(
+      debtor,
+      "required_documents_status",
+      "requiredDocumentsStatus",
+    ),
+    required_documents_display: nullableString(
+      debtor,
+      "required_documents_display",
+      "requiredDocumentsDisplay",
+    ),
+    slik_completeness_status: nullableString(
+      debtor,
+      "slik_completeness_status",
+      "slikCompletenessStatus",
+    ),
+    slik_completeness_label: nullableString(
+      debtor,
+      "slik_completeness_label",
+      "slikCompletenessLabel",
+    ),
     total_outstanding: numberValue(debtor, "total_outstanding"),
     latest_slik_period_month: nullableString(
       debtor,
@@ -825,6 +876,14 @@ function mapIdebSummaryDetail(record: unknown): DebtorIdebSummaryDetail | null {
     : [];
 
   return {
+    schema_version: nullableString(item, "schema_version", "schemaVersion"),
+    source_format: nullableString(item, "source_format", "sourceFormat"),
+    period_month: nullableString(item, "period_month", "periodMonth"),
+    officer_name: nullableString(item, "officer_name", "officerName"),
+    report_number: nullableString(item, "report_number", "reportNumber"),
+    reference_number: nullableString(item, "reference_number", "referenceNumber"),
+    request_date: normalizeDate(item.request_date ?? item.requestDate),
+    result_date: normalizeDate(item.result_date ?? item.resultDate),
     debtor_name: nullableString(item, "debtor_name", "debtorName"),
     identity_number: nullableString(item, "identity_number", "identityNumber"),
     contract_number: nullableString(item, "contract_number", "contractNumber"),
@@ -835,6 +894,18 @@ function mapIdebSummaryDetail(record: unknown): DebtorIdebSummaryDetail | null {
     financing_status: nullableString(item, "financing_status", "financingStatus"),
     conclusion: nullableString(item, "conclusion"),
     processed_at: normalizeDate(item.processed_at),
+    identity: asRecord(item.identity) ?? null,
+    summary: asRecord(item.summary) ?? null,
+    facilities: Array.isArray(item.facilities)
+      ? item.facilities
+          .map((entry) => asRecord(entry))
+          .filter((entry): entry is Record<string, unknown> => entry !== null)
+      : [],
+    monthly_collectibility_history: Array.isArray(item.monthly_collectibility_history)
+      ? item.monthly_collectibility_history
+          .map((entry) => asRecord(entry))
+          .filter((entry): entry is Record<string, unknown> => entry !== null)
+      : [],
     other_bprs: otherBprs,
   };
 }
@@ -861,42 +932,108 @@ function mapIdebUpload(record: unknown): DebtorWorkflowIdebUpload | null {
   };
 }
 
-function mapRestructuringRecord(record: unknown): DebtorRestructuringRecord | null {
+function mapIdebPendingUpload(record: unknown): DebtorIdebPendingUpload | null {
   const item = asRecord(record);
-  if (!item) return null;
-  const id = readString(item, "id");
-  const periodMonth = readString(item, "period_month", "periodMonth");
-  if (!id || !periodMonth) return null;
+  const base = mapIdebUpload(record);
+  if (!item || !base) return null;
 
   return {
-    id,
+    ...base,
     import_job_id: nullableString(item, "import_job_id", "importJobId"),
-    debtor_id: nullableString(item, "debtor_id", "debtorId"),
-    contract_id: nullableString(item, "contract_id", "contractId"),
-    period_month: periodMonth,
-    restructuring_date: nullableString(item, "restructuring_date", "restructuringDate"),
-    restructuring_type: nullableString(item, "restructuring_type", "restructuringType"),
-    reason: nullableString(item, "reason"),
-    plafond_after: readNumber(item, "plafond_after", "plafondAfter"),
-    outstanding_after: readNumber(item, "outstanding_after", "outstandingAfter"),
-    tenor_after: readNumber(item, "tenor_after", "tenorAfter"),
-    new_due_date: nullableString(item, "new_due_date", "newDueDate"),
-    collectibility_before: nullableString(
-      item,
-      "collectibility_before",
-      "collectibilityBefore",
-    ),
-    collectibility_after: nullableString(
-      item,
-      "collectibility_after",
-      "collectibilityAfter",
-    ),
-    status: readString(item, "status") ?? "AKTIF",
-    description: nullableString(item, "description"),
-    raw_data: asRecord(item.raw_data) ?? null,
-    contract: mapContract(item.contract, false),
-    created_at: nullableString(item, "created_at", "createdAt"),
+    external_status: readString(item, "external_status", "externalStatus") ?? "MATCH_PENDING",
+    period_month: nullableString(item, "period_month", "periodMonth"),
+    debtor_name: nullableString(item, "debtor_name", "debtorName"),
+    identity_number: nullableString(item, "identity_number", "identityNumber"),
+    contract_number: nullableString(item, "contract_number", "contractNumber"),
+    source_format: nullableString(item, "source_format", "sourceFormat"),
+    current_collectibility:
+      readString(item, "current_collectibility", "currentCollectibility") ??
+      readNumber(item, "current_collectibility", "currentCollectibility"),
+    outstanding_pokok: numberValue(item, "outstanding_pokok"),
     updated_at: nullableString(item, "updated_at", "updatedAt"),
+  };
+}
+
+function mapIdebComparisonSummary(record: unknown): DebtorIdebComparisonSummary {
+  const item = asRecord(record) ?? {};
+  return {
+    total: numberValue(item, "total"),
+    matched: numberValue(item, "matched"),
+    different: numberValue(item, "different"),
+    external_only: numberValue(item, "external_only"),
+    internal_only: numberValue(item, "internal_only"),
+  };
+}
+
+function mapIdebComparisonFacility(record: unknown): DebtorIdebComparisonFacility | null {
+  const item = asRecord(record);
+  if (!item) return null;
+  return {
+    reporter: nullableString(item, "reporter"),
+    account_number: nullableString(item, "account_number", "accountNumber"),
+    contract_id: nullableString(item, "contract_id", "contractId"),
+    no_kontrak: nullableString(item, "no_kontrak", "noKontrak"),
+    facility_number: nullableString(item, "facility_number", "facilityNumber"),
+    product: nullableString(item, "product"),
+    akad: nullableString(item, "akad"),
+    plafond: readNumber(item, "plafond"),
+    outstanding: readNumber(item, "outstanding"),
+    collectibility:
+      readString(item, "collectibility") ?? readNumber(item, "collectibility"),
+    dpd: readNumber(item, "dpd"),
+    condition: nullableString(item, "condition"),
+    due_date: nullableString(item, "due_date", "dueDate"),
+    period_month: nullableString(item, "period_month", "periodMonth"),
+  };
+}
+
+function mapIdebComparisonDifference(record: unknown): DebtorIdebComparisonDifference | null {
+  const item = asRecord(record);
+  if (!item) return null;
+  const field = readString(item, "field");
+  const label = readString(item, "label");
+  if (!field || !label) return null;
+  return {
+    field,
+    label,
+    external:
+      readString(item, "external") ?? readNumber(item, "external") ?? null,
+    internal:
+      readString(item, "internal") ?? readNumber(item, "internal") ?? null,
+  };
+}
+
+function mapIdebComparisonItem(record: unknown): DebtorIdebComparisonItem | null {
+  const item = asRecord(record);
+  if (!item) return null;
+  const status = readString(item, "status") as DebtorIdebComparisonItem["status"] | null;
+  if (!status) return null;
+  return {
+    status,
+    status_label: readString(item, "status_label", "statusLabel") ?? status,
+    match_key: nullableString(item, "match_key", "matchKey"),
+    external: mapIdebComparisonFacility(item.external),
+    internal: mapIdebComparisonFacility(item.internal),
+    differences: Array.isArray(item.differences)
+      ? item.differences
+          .map((entry) => mapIdebComparisonDifference(entry))
+          .filter((entry): entry is DebtorIdebComparisonDifference => entry !== null)
+      : [],
+  };
+}
+
+function mapIdebComparison(record: unknown): DebtorIdebComparison {
+  const item = extractRecord(record) ?? {};
+  return {
+    ideb_upload_id: readString(item, "ideb_upload_id", "idebUploadId") ?? "",
+    debtor_id: readString(item, "debtor_id", "debtorId") ?? "",
+    period_month: nullableString(item, "period_month", "periodMonth"),
+    summary: mapIdebComparisonSummary(item.summary),
+    items: Array.isArray(item.items)
+      ? item.items
+          .map((entry) => mapIdebComparisonItem(entry))
+          .filter((entry): entry is DebtorIdebComparisonItem => entry !== null)
+      : [],
   };
 }
 
@@ -906,7 +1043,6 @@ function mapLegalPrint(record: unknown): DebtorWorkflowPrint | null {
   const id = readString(item, "id");
   const contractId = readString(item, "contract_id", "contractId");
   if (!id || !contractId) return null;
-
   return {
     id,
     template_id: nullableString(item, "template_id", "templateId"),
@@ -962,6 +1098,11 @@ function mapWorkflowProgress(record: unknown): DebtorWorkflowLegalProgress | nul
   const id = readString(item, "id");
   const contractId = readString(item, "contract_id", "contractId");
   if (!id || !contractId) return null;
+  const rawStatus = readString(item, "status") ?? "PROSES";
+  const status =
+    readString(item, "insurance_type", "insuranceType") && rawStatus.toUpperCase() === "PROSES"
+      ? "AKTIF"
+      : rawStatus;
 
   return {
     id,
@@ -975,6 +1116,7 @@ function mapWorkflowProgress(record: unknown): DebtorWorkflowLegalProgress | nul
     deed_number: nullableString(item, "deed_number", "deedNumber"),
     insurance_type: nullableString(item, "insurance_type", "insuranceType"),
     coverage_amount: numberValue(item, "coverage_amount"),
+    premium_amount: numberValue(item, "premium_amount"),
     period_start: normalizeDate(item.period_start),
     period_end: normalizeDate(item.period_end),
     policy_number: nullableString(item, "policy_number", "policyNumber"),
@@ -982,7 +1124,7 @@ function mapWorkflowProgress(record: unknown): DebtorWorkflowLegalProgress | nul
     report_number: nullableString(item, "report_number", "reportNumber"),
     collateral_object: nullableString(item, "collateral_object", "collateralObject"),
     appraisal_value: readNumber(item, "appraisal_value", "appraisalValue"),
-    status: readString(item, "status") ?? "PROSES",
+    status,
     notes: nullableString(item, "notes"),
     file: mapFile(item.file),
     contract: mapContract(item.contract, false),
@@ -1040,8 +1182,10 @@ function mapDepositTransaction(record: unknown): DebtorWorkflowDepositTransactio
     deposit_id: depositId,
     transaction_date: normalizeDate(item.transaction_date),
     action: readString(item, "action") ?? "-",
+    raw_action: nullableString(item, "raw_action", "rawAction"),
     amount: numberValue(item, "amount"),
     notes: nullableString(item, "notes"),
+    file: mapFile(item.file),
     created_at: nullableString(item, "created_at", "createdAt"),
   };
 }
@@ -1063,6 +1207,26 @@ function mapWorkflowDeposit(record: unknown): DebtorWorkflowDeposit | null {
     paid_amount: numberValue(item, "paid_amount"),
     processed_amount: numberValue(item, "processed_amount"),
     remaining_amount: numberValue(item, "remaining_amount"),
+    total_deposit_amount: numberValue(
+      item,
+      "total_deposit_amount",
+      numberValue(item, "nominal"),
+    ),
+    total_payment_amount: numberValue(
+      item,
+      "total_payment_amount",
+      numberValue(item, "paid_amount"),
+    ),
+    total_refund_amount: numberValue(
+      item,
+      "total_refund_amount",
+      numberValue(item, "processed_amount"),
+    ),
+    balance_amount: numberValue(
+      item,
+      "balance_amount",
+      numberValue(item, "remaining_amount"),
+    ),
     status: readString(item, "status") ?? "PENDING",
     notes: nullableString(item, "notes"),
     deposit_type: mapParameter(item.deposit_type),
@@ -1112,11 +1276,6 @@ function mapWorkflow(payload: unknown): DebtorWorkflow | null {
       ? record.collaterals
           .map((item) => mapCollateral(item))
           .filter((item): item is DebtorCollateral => item !== null)
-      : [],
-    restructuring_records: Array.isArray(record.restructuring_records)
-      ? record.restructuring_records
-          .map((item) => mapRestructuringRecord(item))
-          .filter((item): item is DebtorRestructuringRecord => item !== null)
       : [],
     document_checklist_status: Array.isArray(record.document_checklist_status)
       ? record.document_checklist_status
@@ -1221,7 +1380,7 @@ function mapPage<T>(
   };
 }
 
-function buildQuery(query: DebtorListQuery = {}) {
+function buildQuery(query: DebtorReportQuery = {}) {
   return Object.fromEntries(
     Object.entries({
       page: query.page ?? 1,
@@ -1237,10 +1396,119 @@ function buildQuery(query: DebtorListQuery = {}) {
       collectibility_level: query.collectibility_level,
       collateral_type: query.collateral_type,
       link_status: query.link_status,
+      issue_type: query.issue_type,
       sort_by: query.sort_by,
       sort_order: query.sort_order,
     }).filter(([, value]) => value !== undefined && value !== null && value !== ""),
   );
+}
+
+function mapReportScope(record: unknown): DebtorReportScope | null {
+  const scope = asRecord(record);
+  if (!scope) return null;
+  return {
+    can_report_all: readBoolean(scope, "can_report_all", "canReportAll"),
+    can_view_division: readBoolean(scope, "can_view_division", "canViewDivision"),
+    can_manage_all: readBoolean(scope, "can_manage_all", "canManageAll"),
+  };
+}
+
+function mapDebtorReportSummary(record: unknown): DebtorReportSummary {
+  const item = asRecord(record) ?? {};
+  return {
+    total_debtors: numberValue(item, "total_debtors"),
+    active_debtors: numberValue(item, "active_debtors"),
+    inactive_debtors: numberValue(item, "inactive_debtors"),
+    active_contracts: numberValue(item, "active_contracts"),
+    closed_contracts: numberValue(item, "closed_contracts"),
+    individual_debtors: readNumber(item, "individual_debtors", "individualDebtors") ?? 0,
+    legal_entity_debtors: readNumber(item, "legal_entity_debtors", "legalEntityDebtors") ?? 0,
+    total_facilities: readNumber(item, "total_facilities", "totalFacilities") ?? 0,
+    total_collaterals: readNumber(item, "total_collaterals", "totalCollaterals") ?? 0,
+    total_outstanding: numberValue(item, "total_outstanding"),
+    scope: mapReportScope(item.scope),
+  };
+}
+
+function mapFacilityReportSummary(record: unknown): DebtorFacilityReportSummary {
+  const item = asRecord(record) ?? {};
+  return {
+    total_facilities: numberValue(item, "total_facilities"),
+    active_facilities: numberValue(item, "active_facilities"),
+    npf_facilities: numberValue(item, "npf_facilities"),
+    total_plafond: numberValue(item, "total_plafond"),
+    total_outstanding: numberValue(item, "total_outstanding"),
+    scope: mapReportScope(item.scope),
+  };
+}
+
+function mapCollateralReportSummary(record: unknown): DebtorCollateralReportSummary {
+  const item = asRecord(record) ?? {};
+  return {
+    total_collaterals: numberValue(item, "total_collaterals"),
+    linked_collaterals: numberValue(item, "linked_collaterals"),
+    unlinked_collaterals: numberValue(item, "unlinked_collaterals"),
+    total_market_value: numberValue(item, "total_market_value"),
+    total_appraisal_value: numberValue(item, "total_appraisal_value"),
+    scope: mapReportScope(item.scope),
+  };
+}
+
+function mapCompletenessReportSummary(record: unknown): DebtorCompletenessReportSummary {
+  const item = asRecord(record) ?? {};
+  return {
+    total_issues: numberValue(item, "total_issues"),
+    required_documents_incomplete: numberValue(
+      item,
+      "required_documents_incomplete",
+    ),
+    debtors_without_facilities: numberValue(item, "debtors_without_facilities"),
+    facilities_without_collaterals: numberValue(item, "facilities_without_collaterals"),
+    unlinked_collaterals: numberValue(item, "unlinked_collaterals"),
+    missing_slik_period: numberValue(item, "missing_slik_period"),
+    scope: mapReportScope(item.scope),
+  };
+}
+
+function mapReportMeta(record: UnknownRecord, fallback: { page?: number; limit?: number }) {
+  return extractPaginationMeta(record.meta ?? record, fallback);
+}
+
+function mapCompletenessIssue(record: UnknownRecord): DebtorCompletenessIssue {
+  return {
+    id: readString(record, "id") ?? "",
+    issue_type: readString(record, "issue_type", "issueType") ?? "",
+    issue_label: readString(record, "issue_label", "issueLabel") ?? "-",
+    severity: readString(record, "severity") ?? "medium",
+    impact: readString(record, "impact") ?? "-",
+    recommendation: readString(record, "recommendation") ?? "-",
+    debtor_id: nullableString(record, "debtor_id", "debtorId"),
+    debtor: mapDebtor(record.debtor, false),
+    contract_id: nullableString(record, "contract_id", "contractId"),
+    contract: mapContract(record.contract),
+    collateral_id: nullableString(record, "collateral_id", "collateralId"),
+    collateral: mapCollateral(record.collateral),
+    period_month: nullableString(record, "period_month", "periodMonth"),
+    created_at: normalizeDate(record.created_at),
+  };
+}
+
+function mapNpfDetail(record: UnknownRecord): DebtorNpfDetail {
+  return {
+    debtor_id: nullableString(record, "debtor_id", "debtorId"),
+    debtor_number: nullableString(record, "debtor_number", "debtorNumber"),
+    debtor_name: readString(record, "debtor_name", "debtorName") ?? "-",
+    contract_id: readString(record, "contract_id", "contractId") ?? "",
+    contract_number: readString(record, "contract_number", "contractNumber") ?? "-",
+    level: readNumber(record, "level"),
+    code: nullableString(record, "code"),
+    name: readString(record, "name") ?? "Belum ada kolektibilitas",
+    outstanding: numberValue(record, "outstanding"),
+    outstanding_pokok: numberValue(record, "outstanding_pokok"),
+    outstanding_margin: numberValue(record, "outstanding_margin"),
+    remaining_months: numberValue(record, "remaining_months"),
+    is_npf: readBoolean(record, "is_npf", "isNpf"),
+  };
 }
 
 function mapEndpoint(type: DebtorImportType) {
@@ -1249,11 +1517,23 @@ function mapEndpoint(type: DebtorImportType) {
       return "/debtor-imports/ideb";
     case "SLIK":
       return "/debtor-imports/slik";
-    case "RESTRIK":
-      return "/debtor-imports/restrik";
     default:
       return "/debtor-imports/slik";
   }
+}
+
+function readContentDispositionFileName(header: string | null | undefined) {
+  if (!header) return null;
+  const utf8Match = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].trim().replace(/^"|"$/g, ""));
+    } catch {
+      return utf8Match[1].trim().replace(/^"|"$/g, "");
+    }
+  }
+  const match = /filename="?([^";]+)"?/i.exec(header);
+  return match?.[1]?.trim() || null;
 }
 
 function toImportFormData(payload: DebtorImportPayload) {
@@ -1556,22 +1836,153 @@ export const debiturService = {
     return mapped;
   },
 
-  getReportSummary: async (): Promise<DebtorReportSummary> => {
-    const res = await api.get("/debtor-reports/summary");
-    const record = extractRecord(res.data) ?? {};
+  getPendingIdebUploads: async (
+    query: DebtorListQuery = {},
+  ): Promise<DebtorPageResult<DebtorIdebPendingUpload>> => {
+    const params = buildQuery(query);
+    const res = await api.get("/debtor-imports/ideb/pending", { params });
+    return mapPage(res.data, mapIdebPendingUpload, {
+      page: Number(params.page),
+      limit: Number(params.limit),
+    });
+  },
+
+  resolveIdebUpload: async (
+    uploadId: string,
+    payload: DebtorIdebResolvePayload,
+  ): Promise<DebtorIdebPendingUpload> => {
+    const res = await api.patch(`/debtor-imports/ideb/${uploadId}/resolve`, payload);
+    const mapped = mapIdebPendingUpload(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons resolve IDEB dari server tidak valid");
+    return mapped;
+  },
+
+  getIdebComparison: async (
+    debtorId: string,
+    idebUploadId: string,
+  ): Promise<DebtorIdebComparison> => {
+    const res = await api.get(`/debtors/${debtorId}/ideb-comparison`, {
+      params: { ideb_upload_id: idebUploadId },
+    });
+    return mapIdebComparison(res.data);
+  },
+
+  downloadIdebResumePdf: async (
+    idebUploadId: string,
+  ): Promise<{ blob: Blob; fileName: string }> => {
+    const res = await api.get(`/debtor-imports/ideb/${idebUploadId}/resume-pdf`, {
+      responseType: "blob",
+    });
+    const header = res.headers["content-disposition"];
     return {
-      total_debtors: numberValue(record, "total_debtors"),
-      active_debtors: numberValue(record, "active_debtors"),
-      inactive_debtors: numberValue(record, "inactive_debtors"),
-      active_contracts: numberValue(record, "active_contracts"),
-      closed_contracts: numberValue(record, "closed_contracts"),
+      blob: res.data,
+      fileName:
+        readContentDispositionFileName(Array.isArray(header) ? header[0] : header) ||
+        `resume-ideb-${idebUploadId}.pdf`,
     };
   },
 
-  getNpfReport: async (query: { from_period?: string; to_period?: string } = {}): Promise<DebtorNpfReport> => {
+  getReportSummary: async (): Promise<DebtorReportSummary> => {
+    const res = await api.get("/debtor-reports/summary");
+    return mapDebtorReportSummary(extractRecord(res.data));
+  },
+
+  getPortfolioReport: async (
+    query: DebtorReportQuery = {},
+  ): Promise<DebtorPortfolioReport> => {
+    const params = buildQuery(query);
+    const res = await api.get("/debtor-reports/portfolio", { params });
+    const record = extractRecord(res.data) ?? {};
+    const items = Array.isArray(record.items)
+      ? record.items
+          .filter(isRecord)
+          .map((item) => mapDebtor(item))
+          .filter((item): item is DebtorRecord => item !== null)
+      : [];
+    return {
+      summary: mapDebtorReportSummary(record.summary),
+      items,
+      meta: mapReportMeta(record, {
+        page: Number(params.page),
+        limit: Number(params.limit),
+      }),
+    };
+  },
+
+  getFacilityReport: async (
+    query: DebtorReportQuery = {},
+  ): Promise<DebtorFacilityReport> => {
+    const params = buildQuery(query);
+    const res = await api.get("/debtor-reports/facilities", { params });
+    const record = extractRecord(res.data) ?? {};
+    const items = Array.isArray(record.items)
+      ? record.items
+          .filter(isRecord)
+          .map((item) => mapContract(item))
+          .filter((item): item is DebtorContract => item !== null)
+      : [];
+    return {
+      summary: mapFacilityReportSummary(record.summary),
+      items,
+      meta: mapReportMeta(record, {
+        page: Number(params.page),
+        limit: Number(params.limit),
+      }),
+    };
+  },
+
+  getCollateralReport: async (
+    query: DebtorReportQuery = {},
+  ): Promise<DebtorCollateralReport> => {
+    const params = buildQuery(query);
+    const res = await api.get("/debtor-reports/collaterals", { params });
+    const record = extractRecord(res.data) ?? {};
+    const items = Array.isArray(record.items)
+      ? record.items
+          .filter(isRecord)
+          .map((item) => mapCollateral(item))
+          .filter((item): item is DebtorCollateral => item !== null)
+      : [];
+    return {
+      summary: mapCollateralReportSummary(record.summary),
+      items,
+      meta: mapReportMeta(record, {
+        page: Number(params.page),
+        limit: Number(params.limit),
+      }),
+    };
+  },
+
+  getCompletenessReport: async (
+    query: DebtorReportQuery = {},
+  ): Promise<DebtorCompletenessReport> => {
+    const params = buildQuery(query);
+    const res = await api.get("/debtor-reports/completeness", { params });
+    const record = extractRecord(res.data) ?? {};
+    const items = Array.isArray(record.items)
+      ? record.items.filter(isRecord).map<DebtorCompletenessIssue>(mapCompletenessIssue)
+      : [];
+    return {
+      summary: mapCompletenessReportSummary(record.summary),
+      items,
+      meta: mapReportMeta(record, {
+        page: Number(params.page),
+        limit: Number(params.limit),
+      }),
+    };
+  },
+
+  getNpfReport: async (
+    query: DebtorReportQuery & { from_period?: string; to_period?: string } = {},
+  ): Promise<DebtorNpfReport> => {
+    const params = {
+      ...buildQuery(query),
+      from_period: query.from_period,
+      to_period: query.to_period,
+    };
     const res = await api.get("/debtor-reports/npf", {
       params: Object.fromEntries(
-        Object.entries(query).filter(([, value]) => value),
+        Object.entries(params).filter(([, value]) => value),
       ),
     });
     const record = extractRecord(res.data) ?? {};
@@ -1593,25 +2004,15 @@ export const debiturService = {
           numerator: numberValue(item, "numerator"),
           denominator: numberValue(item, "denominator"),
           percentage: numberValue(item, "percentage"),
-        }))
+          }))
       : [];
     const details = Array.isArray(record.details)
-      ? record.details.filter(isRecord).map<DebtorNpfDetail>((item) => ({
-          debtor_id: nullableString(item, "debtor_id", "debtorId"),
-          debtor_number: nullableString(item, "debtor_number", "debtorNumber"),
-          debtor_name: readString(item, "debtor_name", "debtorName") ?? "-",
-          contract_id: readString(item, "contract_id", "contractId") ?? "",
-          contract_number: readString(item, "contract_number", "contractNumber") ?? "-",
-          level: readNumber(item, "level"),
-          code: nullableString(item, "code"),
-          name: readString(item, "name") ?? "Belum ada kolektibilitas",
-          outstanding: numberValue(item, "outstanding"),
-          outstanding_pokok: numberValue(item, "outstanding_pokok"),
-          outstanding_margin: numberValue(item, "outstanding_margin"),
-          remaining_months: numberValue(item, "remaining_months"),
-          is_npf: readBoolean(item, "is_npf", "isNpf"),
-        }))
+      ? record.details.filter(isRecord).map<DebtorNpfDetail>(mapNpfDetail)
       : [];
+    const items = Array.isArray(record.items)
+      ? record.items.filter(isRecord).map<DebtorNpfDetail>(mapNpfDetail)
+      : details;
+    const summary = asRecord(record.summary);
 
     return {
       formula: readString(record, "formula") ?? "",
@@ -1621,6 +2022,21 @@ export const debiturService = {
       breakdown_per_kol: breakdown,
       details,
       trend,
+      items,
+      meta: mapReportMeta(record, {
+        page: Number(query.page ?? 1),
+        limit: Number(query.limit ?? OPERATIONAL_TABLE_PAGE_SIZE),
+      }),
+      summary: summary
+        ? {
+            numerator: numberValue(summary, "numerator"),
+            denominator: numberValue(summary, "denominator"),
+            percentage: numberValue(summary, "percentage"),
+            total_facilities: numberValue(summary, "total_facilities"),
+            npf_facilities: numberValue(summary, "npf_facilities"),
+            scope: mapReportScope(summary.scope),
+          }
+        : undefined,
     };
   },
 

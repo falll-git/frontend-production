@@ -244,7 +244,7 @@ export default function SearchableSelect({
         id={controlId}
         type="button"
         className={cn(
-          "app-select searchable-select-trigger flex min-h-[44px] items-center justify-between gap-3 text-left",
+          "app-select searchable-select-trigger flex min-h-[42px] items-center justify-between gap-2.5 text-left",
           !currentOption && "text-gray-400",
           buttonClassName,
         )}

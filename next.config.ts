@@ -1,6 +1,11 @@
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || "";
 const serverActionsEncryptionKey =
-  process.env.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY || "";
+  (process.env.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY || "").trim();
+const deploymentId =
+  process.env.NEXT_DEPLOYMENT_ID ||
+  process.env.DEPLOYMENT_VERSION ||
+  process.env.GIT_HASH ||
+  "";
 const backendApiUrl = publicApiUrl.startsWith("http") ? publicApiUrl : "";
 const isProduction = process.env.NODE_ENV === "production";
 const backendOrigin = (() => {
@@ -19,6 +24,22 @@ if (isProduction && !serverActionsEncryptionKey.trim()) {
   throw new Error(
     "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY wajib diisi di production agar Server Action stabil antar build dan PM2 instance.",
   );
+}
+
+if (isProduction && serverActionsEncryptionKey) {
+  let decodedKeyLength = 0;
+
+  try {
+    decodedKeyLength = Buffer.from(serverActionsEncryptionKey, "base64").length;
+  } catch {
+    decodedKeyLength = 0;
+  }
+
+  if (![16, 24, 32].includes(decodedKeyLength)) {
+    throw new Error(
+      "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY harus base64 valid dengan decoded length 16, 24, atau 32 bytes. Generate dengan: openssl rand -base64 32",
+    );
+  }
 }
 
 const scriptSource = [
@@ -52,6 +73,7 @@ const contentSecurityPolicy = [
 
 const nextConfig = {
   reactStrictMode: true,
+  ...(deploymentId ? { deploymentId } : {}),
   allowedDevOrigins: ["localhost", "127.0.0.1"],
   poweredByHeader: false,
   compress: true,

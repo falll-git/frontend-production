@@ -64,7 +64,7 @@ export interface KolektibilitasNasabahItem {
   kolektibilitas: NpfKolektibilitasLevel;
 }
 
-export type JenisTitipan = "NOTARIS" | "ASURANSI" | "ANGSURAN";
+export type JenisTitipan = "NOTARIS" | "ASURANSI" | "ANGSURAN" | "LAINNYA";
 
 export interface TitipanNasabah {
   id: string;
@@ -72,15 +72,15 @@ export interface TitipanNasabah {
   jenisTitipan: JenisTitipan;
   pihakKetigaId?: string | null;
   totalTitipan: number;
-  saldoTerbayar: number;
-  sisaSaldo: number;
+  totalPembayaran: number;
+  saldoAkhir: number;
 }
 
 export interface TitipanSummary {
   jenisTitipan: JenisTitipan;
   totalTitipan: number;
-  saldoTerbayar: number;
-  sisaSaldo: number;
+  totalPembayaran: number;
+  saldoAkhir: number;
   jumlahNasabah: number;
   lunas: boolean;
 }

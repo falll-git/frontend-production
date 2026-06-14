@@ -35,6 +35,15 @@ export type ArsipStorageSummary = {
   locationLabel: string;
 };
 
+export type ArsipDebtorSummary = {
+  id: string;
+  debtor_number: string | null;
+  name: string;
+  identity_number: string | null;
+  financing_number: string | null;
+  description: string | null;
+};
+
 export type DokumenAvailabilityKey =
   | "AVAILABLE"
   | "REQUESTED"
@@ -93,6 +102,7 @@ export interface Dokumen {
   creator?: ArsipUserSummary | null;
   owner?: ArsipUserSummary | null;
   ownerDivision?: ArsipDivisionSummary | null;
+  debtor?: ArsipDebtorSummary | null;
   relatedUsers?: ArsipUserSummary[];
   storage?: ArsipStorageSummary | null;
   currentLoan?: Peminjaman | null;

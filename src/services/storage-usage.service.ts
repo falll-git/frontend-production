@@ -213,7 +213,11 @@ function mapTrendPoint(value: unknown): StorageUsageTrendPoint | null {
     label,
     used_bytes: readNumber(value, "used_bytes", "usedBytes") ?? 0,
     used_gb: readNumber(value, "used_gb", "usedGb") ?? 0,
+    file_count: readNumber(value, "file_count", "fileCount") ?? 0,
+    delta_bytes: readNumber(value, "delta_bytes", "deltaBytes") ?? 0,
+    delta_gb: readNumber(value, "delta_gb", "deltaGb") ?? 0,
     limit_gb: readNumber(value, "limit_gb", "limitGb") ?? 0,
+    is_estimated: readBoolean(value, "is_estimated", "isEstimated"),
   };
 }
 

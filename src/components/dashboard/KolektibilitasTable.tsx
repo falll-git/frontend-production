@@ -21,6 +21,7 @@ import {
   SetupTableNumber,
   SetupTablePrimaryText,
 } from "@/components/ui/SetupDataTable";
+import { COLLECTIBILITY_CHART_COLORS } from "@/components/ui/SetupCollectibilityBadge";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import { formatNumber, formatRupiah } from "@/lib/utils/laporan";
 
@@ -29,14 +30,6 @@ type SortOption =
   | "OUTSTANDING_ASC"
   | "NAME_ASC"
   | "NAME_DESC";
-
-const kolColors: Record<NpfKolektibilitasLevel, string> = {
-  1: "#22c55e",
-  2: "#eab308",
-  3: "#f97316",
-  4: "#ef4444",
-  5: "#991b1b",
-};
 
 const sortOptions: Array<{ value: SortOption; label: string }> = [
   { value: "OUTSTANDING_DESC", label: "Outstanding Tertinggi" },
@@ -101,7 +94,7 @@ export default function KolektibilitasTable({
 
         return {
           ...item,
-          color: kolColors[level],
+          color: COLLECTIBILITY_CHART_COLORS[level],
           level,
           shortLabel: getShortLabel(item.label),
           percentage:

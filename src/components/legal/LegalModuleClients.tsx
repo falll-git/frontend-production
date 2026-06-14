@@ -94,8 +94,6 @@ import type {
   LegalSummaryReport,
   LegalTemplate,
   LegalTemplatePayload,
-  LegalThirdPartyDocumentsReport,
-  LegalDepositFundsReport,
   LegalNotaryPayload,
 } from "@/types/legal.types";
 
@@ -118,6 +116,23 @@ type DetailRow = {
   label: string;
   value: ReactNode;
 };
+
+function InfoItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+      <div className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+        {label}
+      </div>
+      <div className="mt-2 text-lg font-bold text-gray-800">{value}</div>
+    </div>
+  );
+}
 
 type TemplateFormState = {
   template_type: LegalDocumentType;
@@ -145,6 +160,7 @@ type ProgressFormState = {
   estimated_completed_at: string;
   completed_at: string;
   coverage_amount: string;
+  premium_amount: string;
   period_start: string;
   period_end: string;
   policy_number: string;
@@ -178,12 +194,11 @@ type DepositFormState = {
   contract_id: string;
   deposit_type_id: string;
   third_party_id: string;
-  nominal: string;
-  paid_amount: string;
-  processed_amount: string;
-  remaining_amount: string;
-  status: string;
   notes: string;
+  opening_transaction_date: string;
+  opening_transaction_amount: string;
+  opening_transaction_notes: string;
+  opening_transaction_file: File | null;
 };
 
 type DepositTransactionFormState = {
@@ -191,6 +206,7 @@ type DepositTransactionFormState = {
   action: string;
   amount: string;
   notes: string;
+  file: File | null;
 };
 
 const EMPTY_META: PaginationMeta = {
@@ -263,7 +279,6 @@ const NOTARY_STATUS_OPTIONS: Option[] = [
 ];
 
 const INSURANCE_STATUS_OPTIONS: Option[] = [
-  { value: "PROSES", label: "Dalam Proses" },
   { value: "AKTIF", label: "Aktif" },
   { value: "EXPIRED", label: "Expired" },
   { value: "KLAIM", label: "Klaim" },
@@ -283,17 +298,10 @@ const CLAIM_STATUS_OPTIONS: Option[] = [
   { value: "CAIR", label: "Cair" },
 ];
 
-const DEPOSIT_STATUS_OPTIONS: Option[] = [
-  { value: "PENDING", label: "Menunggu" },
-  { value: "DIBAYAR", label: "Dibayar" },
-  { value: "DIPROSES", label: "Diproses" },
-  { value: "SELESAI", label: "Selesai" },
-];
-
 const DEPOSIT_TRANSACTION_ACTION_OPTIONS: Option[] = [
-  { value: "BAYAR", label: "Bayar" },
-  { value: "PROSES", label: "Proses" },
-  { value: "KOREKSI", label: "Koreksi" },
+  { value: "TITIPAN", label: "Titipan" },
+  { value: "PEMBAYARAN", label: "Pembayaran" },
+  { value: "REFUND", label: "Refund" },
 ];
 
 const thirdPartyService = createParameterMasterService("/third-parties");
@@ -314,10 +322,6 @@ function toNumberInput(value: string) {
 function toOptionalNumber(value: string) {
   if (!value.trim()) return null;
   return toNumberInput(value);
-}
-
-function formatNumber(value: number | null | undefined) {
-  return new Intl.NumberFormat("id-ID").format(Number(value ?? 0));
 }
 
 function formatCurrency(value: number | null | undefined) {
@@ -482,6 +486,15 @@ function documentTypeLabel(type: string | null | undefined) {
   return DOCUMENT_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? normalizeDisplay(type);
 }
 
+function depositTypeLabel(type: string | null | undefined) {
+  const normalized = String(type ?? "").trim().toUpperCase();
+  if (normalized === "NOTARIS") return "Titipan Notaris";
+  if (normalized === "ASURANSI") return "Titipan Asuransi";
+  if (normalized === "ANGSURAN") return "Titipan Angsuran";
+  if (normalized === "LAINNYA") return "Titipan Lainnya";
+  return normalizeDisplay(type);
+}
+
 function statusLabel(status: string | null | undefined) {
   const normalized = String(status ?? "").trim().toUpperCase();
   if (!normalized) return "-";
@@ -498,6 +511,25 @@ function statusLabel(status: string | null | undefined) {
     .split("_")
     .map((item) => item.charAt(0).toUpperCase() + item.slice(1))
     .join(" ");
+}
+
+function depositActionLabel(action: string | null | undefined) {
+  const normalized = String(action ?? "").trim().toUpperCase();
+  if (!normalized) return "-";
+  if (normalized === "TITIPAN") return "Titipan";
+  if (["PEMBAYARAN", "BAYAR", "PAID"].includes(normalized)) return "Pembayaran";
+  if (["REFUND", "PROSES", "PROCESS", "DIPROSES"].includes(normalized)) return "Refund";
+  return normalized
+    .toLowerCase()
+    .split("_")
+    .map((item) => item.charAt(0).toUpperCase() + item.slice(1))
+    .join(" ");
+}
+
+function insuranceStatusValue(status: string | null | undefined) {
+  const normalized = String(status ?? "").trim().toUpperCase();
+  if (["AKTIF", "EXPIRED", "KLAIM"].includes(normalized)) return normalized;
+  return "AKTIF";
 }
 
 type OpenDocumentPreview = (fileUrl: string, fileName: string) => void;
@@ -1675,6 +1707,7 @@ function emptyProgressForm(status: string): ProgressFormState {
     estimated_completed_at: "",
     completed_at: "",
     coverage_amount: "0",
+    premium_amount: "0",
     period_start: "",
     period_end: "",
     policy_number: "",
@@ -1705,12 +1738,13 @@ function notaryToForm(item: LegalProgressRecord): ProgressFormState {
 
 function insuranceToForm(item: LegalProgressRecord): ProgressFormState {
   return {
-    ...emptyProgressForm(item.status || "PROSES"),
+    ...emptyProgressForm(insuranceStatusValue(item.status)),
     contract_id: item.contract_id,
     collateral_id: item.collateral_id ?? "",
     third_party_id: item.third_party_id,
     main_type: item.insurance_type ?? "",
     coverage_amount: String(item.coverage_amount ?? 0),
+    premium_amount: String(item.premium_amount ?? 0),
     period_start: item.period_start?.slice(0, 10) ?? "",
     period_end: item.period_end?.slice(0, 10) ?? "",
     policy_number: item.policy_number ?? "",
@@ -1776,6 +1810,7 @@ function buildInsurancePayload(form: ProgressFormState): LegalInsurancePayload {
     third_party_id: form.third_party_id,
     insurance_type: form.main_type,
     coverage_amount: toNumberInput(form.coverage_amount),
+    premium_amount: toNumberInput(form.premium_amount),
     period_start: form.period_start,
     period_end: form.period_end || null,
     policy_number: form.policy_number || null,
@@ -1817,6 +1852,7 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
         };
   const title = config.title;
   const subtitle = config.subtitle;
+  const defaultStatus = isNotary || isKjpp ? "PROSES" : "AKTIF";
   const lookups = useLegalLookups();
   const canCreate = hasCapability(pathname, "create");
   const canUpdate = hasCapability(pathname, "update");
@@ -1831,7 +1867,7 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
   const [detailTarget, setDetailTarget] = useState<LegalProgressRecord | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LegalProgressRecord | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [form, setForm] = useState<ProgressFormState>(() => emptyProgressForm("PROSES"));
+  const [form, setForm] = useState<ProgressFormState>(() => emptyProgressForm(defaultStatus));
   const collateralLookup = useContractCollateralOptions(form.contract_id);
 
   const load = useCallback(async () => {
@@ -1859,7 +1895,7 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
   const openCreate = () => {
     if (!ensureCapability(pathname, "create")) return;
     setSelected(null);
-    setForm(emptyProgressForm("PROSES"));
+    setForm(emptyProgressForm(defaultStatus));
     setIsModalOpen(true);
   };
 
@@ -1873,7 +1909,7 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
   const closeModal = () => {
     setIsModalOpen(false);
     setSelected(null);
-    setForm(emptyProgressForm("PROSES"));
+    setForm(emptyProgressForm(defaultStatus));
   };
 
   const save = async () => {
@@ -1961,6 +1997,7 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
       risk,
     };
   }, [items, meta.total]);
+  const progressTableColSpan = isNotary || isKjpp ? 9 : 10;
 
   return (
     <DashboardPageShell spacing="md">
@@ -1973,7 +2010,7 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
       </div>
       <SearchCard search={search} onSearch={(value) => { setPage(1); setSearch(value); }} />
       <SetupTableCard variant="workflow">
-        <SetupDataTable variant="workflow" density="compact" className="min-w-[1220px]">
+        <SetupDataTable variant="workflow" density="compact" className={isNotary || isKjpp ? "min-w-[1220px]" : "min-w-[1320px]"}>
           <SetupDataTableHead>
             <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
@@ -1983,6 +2020,7 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
               <SetupDataTableHeaderCell>Pihak Ketiga</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>{config.typeLabel}</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Status</SetupDataTableHeaderCell>
+              {!isNotary && !isKjpp ? <SetupDataTableHeaderCell>Premi</SetupDataTableHeaderCell> : null}
               <SetupDataTableHeaderCell>Tanggal</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
             </SetupDataTableRow>
@@ -2001,6 +2039,7 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
                 <SetupDataTableCell>{getRecordText(item.third_party, "name") || "-"}</SetupDataTableCell>
                 <SetupDataTableCell>{isNotary ? item.deed_type ?? "-" : isKjpp ? item.appraisal_type ?? "-" : item.insurance_type ?? "-"}</SetupDataTableCell>
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}><SetupStatusBadge status={statusLabel(item.status)} /></SetupDataTableCell>
+                {!isNotary && !isKjpp ? <SetupDataTableCell>{formatCurrency(item.premium_amount)}</SetupDataTableCell> : null}
                 <SetupDataTableCell>{formatDateOnly(isNotary || isKjpp ? item.received_at : item.period_start)}</SetupDataTableCell>
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
                   <SetupActionMenu
@@ -2039,10 +2078,10 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
                 </SetupDataTableCell>
               </SetupDataTableRow>
             ))}
-            {isLoading ? <SetupDataTableEmptyRow colSpan={9}>Memuat progress legal...</SetupDataTableEmptyRow> : null}
+            {isLoading ? <SetupDataTableEmptyRow colSpan={progressTableColSpan}>Memuat progress legal...</SetupDataTableEmptyRow> : null}
             {!isLoading && items.length === 0 ? (
               <SetupDataTableEmptyRow
-                colSpan={9}
+                colSpan={progressTableColSpan}
                 tone="legal"
                 description="Catat progress pihak ketiga berdasarkan kontrak supaya muncul di detail debitur."
                 action={
@@ -2113,10 +2152,11 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
             </>
           ) : (
             <>
-              <TextField label="Nilai Pertanggungan" value={form.coverage_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, coverage_amount: value }))} />
               <DateField label="Mulai Polis" value={form.period_start} required onChange={(value) => setForm((prev) => ({ ...prev, period_start: value }))} />
               <DateField label="Akhir Polis" value={form.period_end} onChange={(value) => setForm((prev) => ({ ...prev, period_end: value }))} />
+              <TextField label="Nilai Pertanggungan" value={form.coverage_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, coverage_amount: value }))} />
               <TextField label="Nomor Polis" value={form.policy_number} onChange={(value) => setForm((prev) => ({ ...prev, policy_number: value }))} />
+              <TextField label="Nilai Premi" value={form.premium_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, premium_amount: value }))} />
             </>
           )}
         </SetupFormSection>
@@ -2204,6 +2244,14 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
                       ? "-"
                       : formatCurrency(detailTarget.coverage_amount),
                 },
+                ...(isNotary || isKjpp
+                  ? []
+                  : [
+                      {
+                        label: "Nilai Premi",
+                        value: formatCurrency(detailTarget.premium_amount),
+                      },
+                    ]),
                 { label: "Catatan", value: detailTarget.notes || "-" },
               ]}
             />
@@ -2572,12 +2620,11 @@ function emptyDepositForm(): DepositFormState {
     contract_id: "",
     deposit_type_id: "",
     third_party_id: "",
-    nominal: "0",
-    paid_amount: "0",
-    processed_amount: "0",
-    remaining_amount: "",
-    status: "PENDING",
     notes: "",
+    opening_transaction_date: "",
+    opening_transaction_amount: "",
+    opening_transaction_notes: "",
+    opening_transaction_file: null,
   };
 }
 
@@ -2586,31 +2633,53 @@ function depositToForm(item: LegalDeposit): DepositFormState {
     contract_id: item.contract_id,
     deposit_type_id: item.deposit_type_id ?? "",
     third_party_id: item.third_party_id ?? "",
-    nominal: String(item.nominal ?? 0),
-    paid_amount: String(item.paid_amount ?? 0),
-    processed_amount: String(item.processed_amount ?? 0),
-    remaining_amount: String(item.remaining_amount ?? ""),
-    status: item.status || "PENDING",
     notes: item.notes ?? "",
+    opening_transaction_date: "",
+    opening_transaction_amount: "",
+    opening_transaction_notes: "",
+    opening_transaction_file: null,
   };
 }
 
-function buildDepositPayload(form: DepositFormState, type: string): LegalDepositPayload {
-  return {
+function buildDepositPayload(
+  form: DepositFormState,
+  type: string,
+  selected: LegalDeposit | null,
+): LegalDepositPayload {
+  const payload: LegalDepositPayload = {
     type,
     contract_id: form.contract_id,
     deposit_type_id: form.deposit_type_id || null,
     third_party_id: type === "ANGSURAN" ? null : form.third_party_id || null,
-    nominal: toNumberInput(form.nominal),
-    paid_amount: toNumberInput(form.paid_amount),
-    processed_amount: toNumberInput(form.processed_amount),
-    remaining_amount: toOptionalNumber(form.remaining_amount),
-    status: form.status,
     notes: form.notes || null,
+  };
+  if (!selected) {
+    const amount = toOptionalNumber(form.opening_transaction_amount);
+    if (amount && amount > 0 && form.opening_transaction_date) {
+      payload.opening_transaction = {
+        transaction_date: form.opening_transaction_date,
+        action: "TITIPAN",
+        amount,
+        notes: form.opening_transaction_notes || null,
+      };
+      payload.file = form.opening_transaction_file;
+    }
+  }
+  return payload;
+}
+
+function emptyDepositTransactionForm(): DepositTransactionFormState {
+  return {
+    transaction_date: "",
+    action: "PEMBAYARAN",
+    amount: "0",
+    notes: "",
+    file: null,
   };
 }
 
-export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARIS" | "ANGSURAN"; title: string }) {
+export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARIS" | "ANGSURAN" | "LAINNYA"; title: string }) {
+  const { openPreview } = useDocumentPreviewContext();
   const pathname = usePathname() ?? "";
   const { showToast } = useAppToast();
   const { hasCapability, ensureCapability } = useProtectedAction();
@@ -2627,14 +2696,10 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
   const [selected, setSelected] = useState<LegalDeposit | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LegalDeposit | null>(null);
   const [transactionTarget, setTransactionTarget] = useState<LegalDeposit | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<LegalDeposit | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<DepositFormState>(() => emptyDepositForm());
-  const [transactionForm, setTransactionForm] = useState<DepositTransactionFormState>(() => ({
-    transaction_date: "",
-    action: "BAYAR",
-    amount: "0",
-    notes: "",
-  }));
+  const [transactionForm, setTransactionForm] = useState<DepositTransactionFormState>(() => emptyDepositTransactionForm());
   const depositTypeOptions = useMemo(
     () =>
       toParameterOptions(
@@ -2645,8 +2710,9 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
   const thirdPartyOptions = useMemo(() => {
     if (type === "NOTARIS") return lookups.notaryOptions;
     if (type === "ASURANSI") return lookups.insuranceOptions;
+    if (type === "LAINNYA") return lookups.thirdPartyOptions;
     return [];
-  }, [lookups.insuranceOptions, lookups.notaryOptions, type]);
+  }, [lookups.insuranceOptions, lookups.notaryOptions, lookups.thirdPartyOptions, type]);
   const canUseThirdParty = type !== "ANGSURAN";
 
   const load = useCallback(async () => {
@@ -2694,15 +2760,31 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
     setForm(emptyDepositForm());
   };
 
+  const closeTransactionModal = () => {
+    setTransactionTarget(null);
+    setTransactionForm(emptyDepositTransactionForm());
+  };
+
   const save = async () => {
     if (!form.contract_id) {
       showToast("Kontrak wajib dipilih", "warning");
       return;
     }
+    if (!selected) {
+      const openingAmount = toOptionalNumber(form.opening_transaction_amount);
+      if (openingAmount && openingAmount > 0 && !form.opening_transaction_date) {
+        showToast("Tanggal titipan awal wajib diisi jika nominal titipan awal diisi", "warning");
+        return;
+      }
+      if (form.opening_transaction_file && (!openingAmount || openingAmount <= 0)) {
+        showToast("Nominal titipan awal wajib diisi jika mengunggah file pendukung", "warning");
+        return;
+      }
+    }
     setIsSaving(true);
     try {
-      if (selected) await legalService.updateDeposit(selected.id, buildDepositPayload(form, type));
-      else await legalService.createDeposit(buildDepositPayload(form, type));
+      if (selected) await legalService.updateDeposit(selected.id, buildDepositPayload(form, type, selected));
+      else await legalService.createDeposit(buildDepositPayload(form, type, null));
       showToast("Dana titipan tersimpan", "success");
       closeModal();
       await load();
@@ -2733,19 +2815,23 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
       showToast("Tanggal transaksi wajib diisi", "warning");
       return;
     }
+    if (toNumberInput(transactionForm.amount) <= 0) {
+      showToast("Nominal transaksi wajib lebih dari 0", "warning");
+      return;
+    }
     const payload: LegalDepositTransactionPayload = {
       deposit_id: transactionTarget.id,
       transaction_date: transactionForm.transaction_date,
       action: transactionForm.action,
       amount: toNumberInput(transactionForm.amount),
       notes: transactionForm.notes || null,
+      file: transactionForm.file,
     };
     setIsSaving(true);
     try {
       await legalService.createDepositTransaction(payload);
       showToast("Transaksi dana titipan tersimpan", "success");
-      setTransactionTarget(null);
-      setTransactionForm({ transaction_date: "", action: "BAYAR", amount: "0", notes: "" });
+      closeTransactionModal();
       await load();
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Gagal menyimpan transaksi dana titipan", "error");
@@ -2759,16 +2845,17 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
       <FeatureHeader title={title} subtitle="Kelola dana titipan yang terhubung ke kontrak debitur." icon={<Banknote />} actions={canCreate ? <SetupAddButton label="Tambah Titipan" onClick={openCreate} /> : null} />
       <SearchCard search={search} onSearch={(value) => { setPage(1); setSearch(value); }} />
       <SetupTableCard variant="workflow">
-        <SetupDataTable variant="workflow" density="compact" className="min-w-[1120px]">
+        <SetupDataTable variant="workflow" density="compact" className="min-w-[1240px]">
           <SetupDataTableHead>
             <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Debitur</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Jenis Titipan</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Nominal</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Terbayar</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Sisa</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Total Titipan</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Pembayaran</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Refund</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Saldo Akhir</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Status</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
             </SetupDataTableRow>
@@ -2783,15 +2870,26 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
                 <SetupDataTableCell>
                   <SetupTablePrimaryText>{item.contract?.debtor?.name ?? "-"}</SetupTablePrimaryText>
                 </SetupDataTableCell>
-                <SetupDataTableCell>{getRecordText(item.deposit_type, "name", "label") || documentTypeLabel(item.type)}</SetupDataTableCell>
-                <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.nominal)}</SetupTableMoney></SetupDataTableCell>
-                <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.paid_amount)}</SetupTableMoney></SetupDataTableCell>
-                <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.remaining_amount)}</SetupTableMoney></SetupDataTableCell>
+                <SetupDataTableCell>{getRecordText(item.deposit_type, "name", "label") || depositTypeLabel(item.type)}</SetupDataTableCell>
+                <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.total_deposit_amount ?? item.nominal)}</SetupTableMoney></SetupDataTableCell>
+                <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.total_payment_amount ?? item.paid_amount)}</SetupTableMoney></SetupDataTableCell>
+                <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.total_refund_amount ?? item.processed_amount)}</SetupTableMoney></SetupDataTableCell>
+                <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.balance_amount ?? item.remaining_amount)}</SetupTableMoney></SetupDataTableCell>
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}><SetupStatusBadge status={statusLabel(item.status)} /></SetupDataTableCell>
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
                   <SetupActionMenu
                     items={[
-                      { key: "transaction", label: "Transaksi", icon: Banknote, disabled: !canCreate, onClick: () => setTransactionTarget(item) },
+                      { key: "history", label: "Riwayat", icon: ClipboardList, onClick: () => setHistoryTarget(item) },
+                      {
+                        key: "transaction",
+                        label: "Transaksi",
+                        icon: Banknote,
+                        disabled: !canCreate,
+                        onClick: () => {
+                          setTransactionTarget(item);
+                          setTransactionForm(emptyDepositTransactionForm());
+                        },
+                      },
                       { key: "edit", label: "Ubah", icon: Pencil, disabled: !canUpdate, onClick: () => openEdit(item) },
                       { key: "delete", label: "Hapus", icon: Trash2, tone: "red", disabled: !canDelete, onClick: () => setDeleteTarget(item) },
                     ]}
@@ -2799,10 +2897,10 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
                 </SetupDataTableCell>
               </SetupDataTableRow>
             ))}
-            {isLoading ? <SetupDataTableEmptyRow colSpan={9}>Memuat dana titipan...</SetupDataTableEmptyRow> : null}
+            {isLoading ? <SetupDataTableEmptyRow colSpan={10}>Memuat dana titipan...</SetupDataTableEmptyRow> : null}
             {!isLoading && items.length === 0 ? (
               <SetupDataTableEmptyRow
-                colSpan={9}
+                colSpan={10}
                 tone="legal"
                 description="Input titipan berdasarkan kontrak agar saldo dan transaksi bisa dipantau."
                 action={
@@ -2835,14 +2933,23 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
           ) : (
             <SelectField label="Pihak Ketiga" value="" options={[]} emptyLabel="Tidak dipakai untuk titipan angsuran" disabled onChange={() => undefined} />
           )}
-          <SelectField label="Status" value={form.status} options={DEPOSIT_STATUS_OPTIONS} includeEmpty={false} onChange={(value) => setForm((prev) => ({ ...prev, status: value }))} />
         </SetupFormSection>
-        <SetupFormSection title="Nominal">
-          <TextField label="Nominal" value={form.nominal} type="number" required onChange={(value) => setForm((prev) => ({ ...prev, nominal: value }))} />
-          <TextField label="Terbayar" value={form.paid_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, paid_amount: value }))} />
-          <TextField label="Diproses" value={form.processed_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, processed_amount: value }))} />
-          <TextField label="Sisa Manual" value={form.remaining_amount} type="number" placeholder="Opsional" onChange={(value) => setForm((prev) => ({ ...prev, remaining_amount: value }))} />
-        </SetupFormSection>
+        {!selected ? (
+          <SetupFormSection title="Transaksi Awal Titipan">
+            <DateField label="Tanggal Titipan" value={form.opening_transaction_date} onChange={(value) => setForm((prev) => ({ ...prev, opening_transaction_date: value }))} />
+            <TextField label="Nominal Titipan" value={form.opening_transaction_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, opening_transaction_amount: value }))} />
+            <TextareaField label="Catatan Titipan Awal" value={form.opening_transaction_notes} onChange={(value) => setForm((prev) => ({ ...prev, opening_transaction_notes: value }))} />
+            <FileUploadField
+              id="legal-deposit-opening-file"
+              label="File Pendukung"
+              required={false}
+              file={form.opening_transaction_file}
+              validateFile={validateDomainUploadFile}
+              onChange={(event) => setForm((prev) => ({ ...prev, opening_transaction_file: event.target.files?.[0] ?? null }))}
+              onClear={() => setForm((prev) => ({ ...prev, opening_transaction_file: null }))}
+            />
+          </SetupFormSection>
+        ) : null}
         <SetupFormSection title="Catatan" contentClassName="md:grid-cols-1">
           <TextareaField label="Catatan" value={form.notes} onChange={(value) => setForm((prev) => ({ ...prev, notes: value }))} />
         </SetupFormSection>
@@ -2851,18 +2958,87 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
         isOpen={Boolean(transactionTarget)}
         title="Tambah Transaksi Titipan"
         description={transactionTarget?.contract?.no_kontrak}
-        onClose={() => setTransactionTarget(null)}
+        onClose={closeTransactionModal}
         closeDisabled={isSaving}
         maxWidth="2xl"
         bodyClassName="p-6"
-        footer={<ModalFooter onClose={() => setTransactionTarget(null)} onSave={() => void saveTransaction()} isSaving={isSaving} />}
+        footer={<ModalFooter onClose={closeTransactionModal} onSave={() => void saveTransaction()} isSaving={isSaving} />}
       >
         <SetupFormSection title="Detail Transaksi">
           <DateField label="Tanggal Transaksi" value={transactionForm.transaction_date} required onChange={(value) => setTransactionForm((prev) => ({ ...prev, transaction_date: value }))} />
-          <SelectField label="Aksi" value={transactionForm.action} options={DEPOSIT_TRANSACTION_ACTION_OPTIONS} includeEmpty={false} onChange={(value) => setTransactionForm((prev) => ({ ...prev, action: value }))} />
+          <SelectField label="Jenis Transaksi" value={transactionForm.action} options={DEPOSIT_TRANSACTION_ACTION_OPTIONS} includeEmpty={false} onChange={(value) => setTransactionForm((prev) => ({ ...prev, action: value }))} />
           <TextField label="Nominal" value={transactionForm.amount} type="number" required onChange={(value) => setTransactionForm((prev) => ({ ...prev, amount: value }))} />
           <TextareaField label="Catatan" value={transactionForm.notes} onChange={(value) => setTransactionForm((prev) => ({ ...prev, notes: value }))} />
+          <FileUploadField
+            id="legal-deposit-transaction-file"
+            label="File Pendukung"
+            required={false}
+            file={transactionForm.file}
+            validateFile={validateDomainUploadFile}
+            onChange={(event) => setTransactionForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
+            onClear={() => setTransactionForm((prev) => ({ ...prev, file: null }))}
+          />
         </SetupFormSection>
+      </DashboardModal>
+      <DashboardModal
+        isOpen={Boolean(historyTarget)}
+        title="Riwayat Transaksi Titipan"
+        description={historyTarget?.contract?.no_kontrak ?? undefined}
+        onClose={() => setHistoryTarget(null)}
+        maxWidth="4xl"
+        bodyClassName="max-h-[70vh] overflow-y-auto p-6"
+      >
+        <div className="grid gap-3 md:grid-cols-4">
+          <InfoItem label="Total Titipan" value={formatCurrency(historyTarget?.total_deposit_amount ?? historyTarget?.nominal)} />
+          <InfoItem label="Pembayaran" value={formatCurrency(historyTarget?.total_payment_amount ?? historyTarget?.paid_amount)} />
+          <InfoItem label="Refund" value={formatCurrency(historyTarget?.total_refund_amount ?? historyTarget?.processed_amount)} />
+          <InfoItem label="Saldo Akhir" value={formatCurrency(historyTarget?.balance_amount ?? historyTarget?.remaining_amount)} />
+        </div>
+        <div className="mt-5">
+          <SetupTableCard variant="nested">
+            <SetupDataTable variant="nested" density="compact" className="min-w-[760px]">
+              <SetupDataTableHead>
+                <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Tanggal</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Jenis</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Nominal</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Catatan</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>File</SetupDataTableHeaderCell>
+                </SetupDataTableRow>
+              </SetupDataTableHead>
+              <SetupDataTableBody>
+                {(historyTarget?.transactions ?? []).map((transaction, index) => (
+                  <SetupDataTableRow key={transaction.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>{index + 1}</SetupDataTableCell>
+                    <SetupDataTableCell>{formatDateOnly(transaction.transaction_date)}</SetupDataTableCell>
+                    <SetupDataTableCell>{depositActionLabel(transaction.action)}</SetupDataTableCell>
+                    <SetupDataTableCell><SetupTableMoney>{formatCurrency(transaction.amount)}</SetupTableMoney></SetupDataTableCell>
+                    <SetupDataTableCell>{transaction.notes || "-"}</SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      {transaction.file?.url ? (
+                        <button
+                          type="button"
+                          className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-700"
+                          onClick={() => openFile(transaction.file?.url, transaction.file?.name, openPreview)}
+                        >
+                          Lihat File
+                        </button>
+                      ) : (
+                        "-"
+                      )}
+                    </SetupDataTableCell>
+                  </SetupDataTableRow>
+                ))}
+                {(historyTarget?.transactions ?? []).length === 0 ? (
+                  <SetupDataTableEmptyRow colSpan={6}>
+                    Belum ada transaksi pada dana titipan ini.
+                  </SetupDataTableEmptyRow>
+                ) : null}
+              </SetupDataTableBody>
+            </SetupDataTable>
+          </SetupTableCard>
+        </div>
       </DashboardModal>
       <DeleteConfirmModal
         isOpen={Boolean(deleteTarget)}
@@ -2920,173 +3096,6 @@ export function LegalReportClient() {
         <StatCard label="Klaim" value={isLoading ? "-" : data?.claims ?? 0} icon={FileCheck2} />
         <StatCard label="Dana Titipan" value={isLoading ? "-" : data?.deposits ?? 0} icon={Banknote} />
       </div>
-    </DashboardPageShell>
-  );
-}
-
-function readReportNumber(record: Record<string, unknown>, ...keys: string[]) {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "number") return value;
-    if (typeof value === "string" && value.trim() && !Number.isNaN(Number(value))) return Number(value);
-  }
-  return 0;
-}
-
-function readReportString(record: Record<string, unknown>, ...keys: string[]) {
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "string" && value.trim()) return value;
-  }
-  return "-";
-}
-
-function countFromGroup(record: Record<string, unknown>) {
-  const count = record._count;
-  if (count && typeof count === "object" && "id" in count) {
-    const value = (count as Record<string, unknown>).id;
-    if (typeof value === "number") return value;
-  }
-  return readReportNumber(record, "total", "total_records");
-}
-
-export function LegalThirdPartyDocumentsReportClient() {
-  const { showToast } = useAppToast();
-  const [data, setData] = useState<LegalThirdPartyDocumentsReport | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    let ignore = false;
-    async function load() {
-      try {
-        setIsLoading(true);
-        const result = await legalService.getThirdPartyDocumentsReport();
-        if (!ignore) setData(result);
-      } catch (error) {
-        if (!ignore) showToast(error instanceof Error ? error.message : "Gagal memuat laporan pihak ketiga", "error");
-      } finally {
-        if (!ignore) setIsLoading(false);
-      }
-    }
-    void load();
-    return () => {
-      ignore = true;
-    };
-  }, [showToast]);
-
-  const rows = [
-    ...(data?.notary ?? []).map((item) => ({ module: "Notaris", ...item })),
-    ...(data?.insurance ?? []).map((item) => ({ module: "Asuransi", ...item })),
-    ...(data?.kjpp ?? []).map((item) => ({ module: "KJPP", ...item })),
-    ...(data?.claims ?? []).map((item) => ({ module: "Klaim", ...item })),
-  ];
-
-  return (
-    <DashboardPageShell spacing="md">
-      <FeatureHeader title="Laporan Pihak Ketiga Dokumen" subtitle="Rekap progress dokumen notaris, asuransi, KJPP, dan klaim." icon={<ClipboardList />} />
-      <SetupTableCard variant="report">
-        <SetupDataTable variant="report" density="compact" className="min-w-[720px]">
-          <SetupDataTableHead>
-            <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Modul</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Pihak Ketiga</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Status</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Total</SetupDataTableHeaderCell>
-            </SetupDataTableRow>
-          </SetupDataTableHead>
-          <SetupDataTableBody>
-            {rows.map((item, index) => (
-              <SetupDataTableRow key={`${item.module}-${index}`} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>{index + 1}</SetupDataTableCell>
-                <SetupDataTableCell>{item.module}</SetupDataTableCell>
-                <SetupDataTableCell>{readReportString(item, "third_party_name", "third_party_id")}</SetupDataTableCell>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}><SetupStatusBadge status={statusLabel(readReportString(item, "status"))} /></SetupDataTableCell>
-                <SetupDataTableCell>{formatNumber(countFromGroup(item))}</SetupDataTableCell>
-              </SetupDataTableRow>
-            ))}
-            {isLoading ? <SetupDataTableEmptyRow colSpan={5}>Memuat laporan pihak ketiga...</SetupDataTableEmptyRow> : null}
-            {!isLoading && rows.length === 0 ? (
-              <SetupDataTableEmptyRow
-                colSpan={5}
-                tone="legal"
-                description="Laporan akan terisi dari progress notaris, asuransi, KJPP, dan klaim."
-              >
-                Belum ada laporan pihak ketiga.
-              </SetupDataTableEmptyRow>
-            ) : null}
-          </SetupDataTableBody>
-        </SetupDataTable>
-      </SetupTableCard>
-    </DashboardPageShell>
-  );
-}
-
-export function LegalThirdPartyDepositFundsReportClient() {
-  const { showToast } = useAppToast();
-  const [rows, setRows] = useState<LegalDepositFundsReport[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    let ignore = false;
-    async function load() {
-      try {
-        setIsLoading(true);
-        const result = await legalService.getThirdPartyDepositFundsReport();
-        if (!ignore) setRows(result);
-      } catch (error) {
-        if (!ignore) showToast(error instanceof Error ? error.message : "Gagal memuat laporan dana titipan", "error");
-      } finally {
-        if (!ignore) setIsLoading(false);
-      }
-    }
-    void load();
-    return () => {
-      ignore = true;
-    };
-  }, [showToast]);
-
-  return (
-    <DashboardPageShell spacing="md">
-      <FeatureHeader title="Laporan Pihak Ketiga Dana Titipan" subtitle="Rekap nominal dana titipan legal berdasarkan tipe dan status." icon={<Banknote />} />
-      <SetupTableCard variant="report">
-        <SetupDataTable variant="report" density="compact" className="min-w-[900px]">
-          <SetupDataTableHead>
-            <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Tipe</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Status</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Total Data</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Nominal</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Terbayar</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Sisa</SetupDataTableHeaderCell>
-            </SetupDataTableRow>
-          </SetupDataTableHead>
-          <SetupDataTableBody>
-            {rows.map((item, index) => (
-              <SetupDataTableRow key={`${item.type}-${item.status}`} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>{index + 1}</SetupDataTableCell>
-                <SetupDataTableCell>{documentTypeLabel(item.type)}</SetupDataTableCell>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}><SetupStatusBadge status={statusLabel(item.status)} /></SetupDataTableCell>
-                <SetupDataTableCell>{formatNumber(item.total_records)}</SetupDataTableCell>
-                <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.nominal)}</SetupTableMoney></SetupDataTableCell>
-                <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.paid_amount)}</SetupTableMoney></SetupDataTableCell>
-                <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.remaining_amount)}</SetupTableMoney></SetupDataTableCell>
-              </SetupDataTableRow>
-            ))}
-            {isLoading ? <SetupDataTableEmptyRow colSpan={7}>Memuat laporan dana titipan...</SetupDataTableEmptyRow> : null}
-            {!isLoading && rows.length === 0 ? (
-              <SetupDataTableEmptyRow
-                colSpan={7}
-                tone="legal"
-                description="Laporan akan terisi dari data titipan asuransi, notaris, dan angsuran."
-              >
-                Belum ada laporan dana titipan.
-              </SetupDataTableEmptyRow>
-            ) : null}
-          </SetupDataTableBody>
-        </SetupDataTable>
-      </SetupTableCard>
     </DashboardPageShell>
   );
 }

@@ -67,7 +67,11 @@ export interface StorageUsageTrendPoint {
   label: string;
   used_bytes: number;
   used_gb: number;
+  file_count: number;
+  delta_bytes: number;
+  delta_gb: number;
   limit_gb: number;
+  is_estimated: boolean;
 }
 
 export interface StorageUsageDashboardData {

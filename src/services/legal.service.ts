@@ -306,6 +306,11 @@ function mapProgress(record: unknown): LegalProgressRecord | null {
   const contractId = item ? readString(item, "contract_id", "contractId") : null;
   const thirdPartyId = item ? readString(item, "third_party_id", "thirdPartyId") : null;
   if (!item || !id || !contractId || !thirdPartyId) return null;
+  const rawStatus = readString(item, "status") ?? "PROSES";
+  const status =
+    readString(item, "insurance_type", "insuranceType") && rawStatus.toUpperCase() === "PROSES"
+      ? "AKTIF"
+      : rawStatus;
   return {
     id,
     contract_id: contractId,
@@ -317,6 +322,7 @@ function mapProgress(record: unknown): LegalProgressRecord | null {
     completed_at: nullableString(item, "completed_at", "completedAt"),
     insurance_type: nullableString(item, "insurance_type", "insuranceType"),
     coverage_amount: numberValue(item, "coverage_amount"),
+    premium_amount: numberValue(item, "premium_amount"),
     period_start: nullableString(item, "period_start", "periodStart"),
     period_end: nullableString(item, "period_end", "periodEnd"),
     policy_number: nullableString(item, "policy_number", "policyNumber"),
@@ -324,7 +330,7 @@ function mapProgress(record: unknown): LegalProgressRecord | null {
     report_number: nullableString(item, "report_number", "reportNumber"),
     collateral_object: nullableString(item, "collateral_object", "collateralObject"),
     appraisal_value: readNumber(item, "appraisal_value", "appraisalValue"),
-    status: readString(item, "status") ?? "PROSES",
+    status,
     deed_number: nullableString(item, "deed_number", "deedNumber"),
     notes: nullableString(item, "notes"),
     file: mapFile(item.file),
@@ -375,8 +381,10 @@ function mapDepositTransaction(record: unknown): LegalDepositTransaction | null 
     deposit_id: depositId,
     transaction_date: nullableString(item, "transaction_date", "transactionDate"),
     action: readString(item, "action") ?? "-",
+    raw_action: nullableString(item, "raw_action", "rawAction"),
     amount: numberValue(item, "amount"),
     notes: nullableString(item, "notes"),
+    file: mapFile(item.file),
     created_at: nullableString(item, "created_at", "createdAt"),
   };
 }
@@ -401,6 +409,10 @@ function mapDeposit(record: unknown): LegalDeposit | null {
     paid_amount: numberValue(item, "paid_amount"),
     processed_amount: numberValue(item, "processed_amount"),
     remaining_amount: numberValue(item, "remaining_amount"),
+    total_deposit_amount: numberValue(item, "total_deposit_amount", numberValue(item, "nominal")),
+    total_payment_amount: numberValue(item, "total_payment_amount", numberValue(item, "paid_amount")),
+    total_refund_amount: numberValue(item, "total_refund_amount", numberValue(item, "processed_amount")),
+    balance_amount: numberValue(item, "balance_amount", numberValue(item, "remaining_amount")),
     status: readString(item, "status") ?? "PENDING",
     notes: nullableString(item, "notes"),
     deposit_type: mapParameter(item.deposit_type),
@@ -644,13 +656,13 @@ export const legalService = {
     });
   },
   createDeposit: async (payload: LegalDepositPayload) => {
-    const res = await api.post("/legal/deposits", payload);
+    const res = await api.post("/legal/deposits", multipartBody(payload));
     const mapped = mapDeposit(extractRecord(res.data));
     if (!mapped) throw new Error("Respons dana titipan dari server tidak valid");
     return mapped;
   },
   updateDeposit: async (id: string, payload: LegalDepositPayload) => {
-    const res = await api.put(`/legal/deposits/${id}`, payload);
+    const res = await api.put(`/legal/deposits/${id}`, multipartBody(payload));
     const mapped = mapDeposit(extractRecord(res.data));
     if (!mapped) throw new Error("Respons update dana titipan dari server tidak valid");
     return mapped;
@@ -667,7 +679,7 @@ export const legalService = {
     });
   },
   createDepositTransaction: async (payload: LegalDepositTransactionPayload) => {
-    const res = await api.post("/legal/deposit-transactions", payload);
+    const res = await api.post("/legal/deposit-transactions", multipartBody(payload));
     const mapped = mapDepositTransaction(extractRecord(res.data));
     if (!mapped) throw new Error("Respons transaksi dana titipan dari server tidak valid");
     return mapped;
@@ -705,6 +717,10 @@ export const legalService = {
       paid_amount: numberValue(item, "paid_amount"),
       processed_amount: numberValue(item, "processed_amount"),
       remaining_amount: numberValue(item, "remaining_amount"),
+      total_deposit_amount: numberValue(item, "total_deposit_amount", numberValue(item, "nominal")),
+      total_payment_amount: numberValue(item, "total_payment_amount", numberValue(item, "paid_amount")),
+      total_refund_amount: numberValue(item, "total_refund_amount", numberValue(item, "processed_amount")),
+      balance_amount: numberValue(item, "balance_amount", numberValue(item, "remaining_amount")),
     }));
   },
 };

@@ -1,16 +1,23 @@
 "use client";
 
 import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type ReactNode,
+} from "react";
 import {
   ArrowLeft,
-  BadgeCheck,
+  ArrowUpRight,
   BriefcaseBusiness,
-  Eye,
+  Download,
   FileText,
-  Pencil,
   ShieldCheck,
-  Trash2,
+  Upload,
   User,
   WalletCards,
   type LucideIcon,
@@ -18,12 +25,10 @@ import {
 
 import ProtectedLink from "@/components/rbac/ProtectedLink";
 import FeatureHeader from "@/components/ui/FeatureHeader";
-import BasicDateInput from "@/components/ui/BasicDateInput";
 import DashboardModal from "@/components/ui/DashboardModal";
-import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 import FileUploadField from "@/components/ui/FileUploadField";
-import SetupActionMenu from "@/components/ui/SetupActionMenu";
 import SetupAddButton from "@/components/ui/SetupAddButton";
+import SetupCollectibilityBadge from "@/components/ui/SetupCollectibilityBadge";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupFormSection from "@/components/ui/SetupFormSection";
 import SetupSelect from "@/components/ui/SetupSelect";
@@ -40,6 +45,8 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableRow,
   SetupTableCard,
+  SetupTableCode,
+  SetupTableSecondaryText,
   SetupTableScroll,
 } from "@/components/ui/SetupDataTable";
 import {
@@ -74,17 +81,18 @@ import type {
   DebtorDocument,
   DebtorDocumentChecklistStatus,
   DebtorFileMeta,
+  DebtorIdebComparison,
   DebtorMarketingTimelineEntry,
-  DebtorRestructuringRecord,
   DebtorWarningLetter,
-  DebtorWarningLetterPayload,
   DebtorWorkflow,
   DebtorWorkflowClaim,
   DebtorWorkflowCollectibility,
   DebtorWorkflowDeposit,
+  DebtorWorkflowDepositTransaction,
   DebtorWorkflowIdebUpload,
   DebtorWorkflowLegalProgress,
   DebtorWorkflowPrint,
+  DebtorDocumentPayload,
 } from "@/types/debitur.types";
 
 type TabType =
@@ -109,7 +117,14 @@ type TabConfig = {
 const DEBTOR_LIST_URL = "/dashboard/informasi-debitur";
 const DEBTOR_MASTER_URL = "/dashboard/informasi-debitur/master-debitur";
 const collateralTypeService = createParameterMasterService("/collateral-types");
-const restructuringTypeService = createParameterMasterService("/restructuring-types");
+const DOUBLE_ROW_ACTIVATION_DELAY_MS = 420;
+const DOUBLE_ROW_ACTIVATION_SUPPRESS_MS = 250;
+
+type DoubleRowActivationState = {
+  key: string;
+  clickAt: number;
+  activatedAt: number;
+};
 
 const TABS: TabConfig[] = [
   { id: "info", label: "Data Utama" },
@@ -172,22 +187,16 @@ const TIMELINE_ROW_META: Record<
   },
 };
 
-type WarningLetterFormState = {
+type DebtorDocumentUploadMode = "checklist" | "other";
+
+type DebtorDocumentUploadFormState = {
   contract_id: string;
-  letter_type: string;
-  issued_at: string;
-  sent_at: string;
-  delivery_status: string;
+  document_checklist_id: string;
+  document_type: string;
+  category: "AWAL" | "LAINNYA";
   description: string;
   file: File | null;
 };
-
-const warningLetterStatusOptions = [
-  { value: "BELUM_DIKIRIM", label: "Belum Dikirim" },
-  { value: "TERKIRIM", label: "Terkirim" },
-  { value: "DITERIMA", label: "Diterima" },
-  { value: "DIBATALKAN", label: "Dibatalkan" },
-];
 
 function formatCurrency(value: number | null | undefined) {
   return new Intl.NumberFormat("id-ID", {
@@ -210,11 +219,137 @@ function display(value: string | number | null | undefined) {
   return String(value);
 }
 
+function comparableDisplay(value: string | number | null | undefined) {
+  return display(value)
+    .trim()
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+}
+
+function hasDisplayValue(value: string | number | null | undefined) {
+  const normalized = comparableDisplay(value);
+  return normalized !== "" && normalized !== "-";
+}
+
+function hasContactValue(value: string | number | null | undefined) {
+  const normalized = comparableDisplay(value);
+  return normalized !== "" && normalized !== "-" && normalized !== "0";
+}
+
+function triggerDoubleRowActivation(
+  stateRef: MutableRefObject<DoubleRowActivationState | null>,
+  key: string,
+  activate: () => void,
+) {
+  const now = Date.now();
+  const previous = stateRef.current;
+
+  if (
+    previous?.key === key &&
+    previous.activatedAt > 0 &&
+    now - previous.activatedAt < DOUBLE_ROW_ACTIVATION_SUPPRESS_MS
+  ) {
+    return;
+  }
+
+  stateRef.current = { key, clickAt: now, activatedAt: now };
+  activate();
+}
+
+function handleDoubleRowClick(
+  stateRef: MutableRefObject<DoubleRowActivationState | null>,
+  key: string,
+  activate: () => void,
+) {
+  const now = Date.now();
+  const previous = stateRef.current;
+
+  if (
+    previous?.key === key &&
+    now - previous.clickAt <= DOUBLE_ROW_ACTIVATION_DELAY_MS
+  ) {
+    triggerDoubleRowActivation(stateRef, key, activate);
+    return;
+  }
+
+  stateRef.current = {
+    key,
+    clickAt: now,
+    activatedAt: previous?.activatedAt ?? 0,
+  };
+}
+
+function sameDisplayValue(
+  first: string | number | null | undefined,
+  second: string | number | null | undefined,
+) {
+  const normalizedFirst = comparableDisplay(first);
+  const normalizedSecond = comparableDisplay(second);
+  return (
+    normalizedFirst !== "" &&
+    normalizedFirst !== "-" &&
+    normalizedFirst === normalizedSecond
+  );
+}
+
+function sameNumberValue(
+  first: number | null | undefined,
+  second: number | null | undefined,
+) {
+  if (first === null || first === undefined || second === null || second === undefined) {
+    return false;
+  }
+  return Number(first) === Number(second);
+}
+
+function hasNonZeroNumber(value: number | null | undefined) {
+  return value !== null && value !== undefined && Number(value) !== 0;
+}
+
+function numericValue(value: number | null | undefined) {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function downloadBrowserFile(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function slikDisplay(
   displayValue: string | number | null | undefined,
   rawValue: string | number | null | undefined,
 ) {
   return displayValue || display(rawValue);
+}
+
+function compactPairDisplay(
+  firstLabel: string,
+  firstValue: string | number | null | undefined,
+  secondLabel: string,
+  secondValue: string | number | null | undefined,
+  sameLabel: string,
+) {
+  const firstDisplay = display(firstValue);
+  const secondDisplay = display(secondValue);
+
+  if (firstDisplay === "-" && secondDisplay === "-") return "-";
+  if (sameDisplayValue(firstDisplay, secondDisplay)) {
+    return `${firstDisplay} (${sameLabel})`;
+  }
+
+  return [
+    firstDisplay !== "-" ? `${firstLabel}: ${firstDisplay}` : null,
+    secondDisplay !== "-" ? `${secondLabel}: ${secondDisplay}` : null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
 }
 
 function collateralDisplay(collateral: DebtorCollateral | null | undefined) {
@@ -346,6 +481,159 @@ function collectibilityLabel(collectibility: DebtorContract["latest_collectibili
   return name || rawName || null;
 }
 
+function contractNumber(contract: DebtorContract | null | undefined) {
+  return contract?.no_kontrak || "-";
+}
+
+function facilityNumber(contract: DebtorContract | null | undefined) {
+  return contract?.latest_slik_snapshot?.facility_number || "-";
+}
+
+function contractFacilityMatchNumber(contract: DebtorContract | null | undefined) {
+  return contract?.latest_slik_snapshot?.facility_number || contract?.no_kontrak || "-";
+}
+
+function contractProductAkad(contract: DebtorContract | null | undefined) {
+  if (!contract) return "-";
+  const snapshot = contract.latest_slik_snapshot;
+  return (
+    [
+      snapshot?.credit_type_display ?? contract.product?.name,
+      snapshot?.financing_scheme_display ?? contract.akad_type?.name,
+    ]
+      .filter(Boolean)
+      .join(" / ") || "-"
+  );
+}
+
+function contractCollectibilityDisplay(contract: DebtorContract | null | undefined) {
+  if (!contract) return "-";
+  const snapshot = contract.latest_slik_snapshot;
+  return (
+    snapshot?.collectibility_display ??
+    snapshot?.collectibility_code ??
+    collectibilityLabel(contract.latest_collectibility) ??
+    "-"
+  );
+}
+
+function contractPlafondAmount(contract: DebtorContract | null | undefined) {
+  if (!contract) return 0;
+  return numericValue(contract.latest_slik_snapshot?.plafond ?? contract.plafond);
+}
+
+function contractBakiDebetAmount(contract: DebtorContract | null | undefined) {
+  if (!contract) return 0;
+  return numericValue(contract.latest_slik_snapshot?.baki_debet ?? contract.outstanding_pokok);
+}
+
+function contractPeriodSortValue(contract: DebtorContract | null | undefined) {
+  const rawPeriod = contract?.latest_slik_snapshot?.period_month;
+  if (!rawPeriod) return 0;
+  const normalized = /^\d{4}-\d{2}$/.test(rawPeriod)
+    ? `${rawPeriod}-01T00:00:00Z`
+    : rawPeriod;
+  const timestamp = Date.parse(normalized);
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function isActiveSlikFacility(contract: DebtorContract | null | undefined) {
+  if (!contract) return false;
+  const snapshot = contract.latest_slik_snapshot;
+  const conditionCode = String(snapshot?.condition_code ?? "").trim();
+  const conditionDisplay = comparableDisplay(snapshot?.condition_display);
+  const contractStatus = comparableDisplay(contract.status);
+
+  return (
+    conditionCode === "00" ||
+    conditionDisplay.includes("FASILITAS AKTIF") ||
+    contractStatus === "ACTIVE" ||
+    contractStatus === "AKTIF"
+  );
+}
+
+function getPreferredActiveContractId(
+  contracts: DebtorContract[],
+  fallbackContract: DebtorContract | null | undefined,
+) {
+  if (!contracts.length) return fallbackContract?.id ?? null;
+
+  const [preferredContract] = contracts
+    .map((contract, index) => ({ contract, index }))
+    .sort((first, second) => {
+      const activeDelta =
+        Number(isActiveSlikFacility(second.contract)) -
+        Number(isActiveSlikFacility(first.contract));
+      if (activeDelta !== 0) return activeDelta;
+
+      const periodDelta =
+        contractPeriodSortValue(second.contract) -
+        contractPeriodSortValue(first.contract);
+      if (periodDelta !== 0) return periodDelta;
+
+      const bakiDebetDelta =
+        contractBakiDebetAmount(second.contract) -
+        contractBakiDebetAmount(first.contract);
+      if (bakiDebetDelta !== 0) return bakiDebetDelta;
+
+      return first.index - second.index;
+    });
+
+  return preferredContract?.contract.id ?? fallbackContract?.id ?? null;
+}
+
+function resolveMainContract(
+  contracts: DebtorContract[],
+  selectedContractId: string | null,
+  fallbackContract: DebtorContract | null | undefined,
+) {
+  const preferredContractId = getPreferredActiveContractId(contracts, fallbackContract);
+  return (
+    contracts.find((contract) => contract.id === selectedContractId) ??
+    contracts.find((contract) => contract.id === preferredContractId) ??
+    fallbackContract ??
+    null
+  );
+}
+
+function contractOptionLabel(contract: DebtorContract) {
+  const snapshot = contract.latest_slik_snapshot;
+  const f01FacilityNumber = facilityNumber(contract);
+  return [
+    `No Kontrak ${contractNumber(contract)}`,
+    f01FacilityNumber !== "-" ? `F01 ${f01FacilityNumber}` : null,
+    contractProductAkad(contract),
+    contractCollectibilityDisplay(contract),
+    formatOptionalCurrency(snapshot?.baki_debet ?? contract.outstanding_pokok),
+    periodLabel(snapshot?.period_month),
+  ]
+    .filter((value) => value && value !== "-")
+    .join(" | ");
+}
+
+function isCollateralLinkedToContract(
+  collateral: DebtorCollateral,
+  contract: DebtorContract | null | undefined,
+) {
+  if (!contract) return false;
+  const facilityNumber = contractFacilityMatchNumber(contract);
+  return (
+    collateral.contract_id === contract.id ||
+    collateral.contract?.id === contract.id ||
+    (facilityNumber !== "-" && collateral.facility_number === facilityNumber)
+  );
+}
+
+function getContractCollaterals(
+  contract: DebtorContract | null | undefined,
+  collaterals: DebtorCollateral[],
+) {
+  if (!contract) return [];
+  return collaterals.filter((collateral) =>
+    isCollateralLinkedToContract(collateral, contract),
+  );
+}
+
 function documentTypeLabel(value: string | null | undefined) {
   const normalized = String(value ?? "").trim().toUpperCase();
   if (normalized === "AKAD") return "Akad";
@@ -385,49 +673,60 @@ function hasDebtorMasterCapability(
   return hasDashboardCapability(DEBTOR_MASTER_URL, role, roleId, capability);
 }
 
-function emptyWarningLetterForm(): WarningLetterFormState {
+function emptyDocumentUploadForm(
+  contractId = "",
+): DebtorDocumentUploadFormState {
   return {
-    contract_id: "",
-    letter_type: "",
-    issued_at: "",
-    sent_at: "",
-    delivery_status: "BELUM_DIKIRIM",
+    contract_id: contractId,
+    document_checklist_id: "",
+    document_type: "",
+    category: "LAINNYA",
     description: "",
     file: null,
   };
 }
 
-function warningLetterToForm(item: DebtorWarningLetter): WarningLetterFormState {
+function documentUploadFormFromChecklist(
+  item: DebtorDocumentChecklistStatus,
+  contractId = "",
+): DebtorDocumentUploadFormState {
   return {
-    contract_id: item.contract_id ?? "",
-    letter_type: item.letter_type,
-    issued_at: item.issued_at?.slice(0, 10) ?? "",
-    sent_at: item.sent_at?.slice(0, 10) ?? "",
-    delivery_status: item.delivery_status || item.status || "BELUM_DIKIRIM",
-    description: item.description ?? item.notes ?? "",
+    contract_id: contractId,
+    document_checklist_id: item.id,
+    document_type: item.document_type || item.name,
+    category: normalizeDocumentCategory(item.category, item.is_required),
+    description: item.description ?? "",
     file: null,
   };
 }
 
-function buildWarningLetterPayload(
-  debtorId: string,
-  form: WarningLetterFormState,
-): DebtorWarningLetterPayload {
+function normalizeDocumentCategory(
+  category: string | null | undefined,
+  isRequired = false,
+): "AWAL" | "LAINNYA" {
+  const normalized = String(category ?? "").trim().toUpperCase();
+  if (normalized === "AWAL") return "AWAL";
+  if (normalized === "LAINNYA") return "LAINNYA";
+  return isRequired ? "AWAL" : "LAINNYA";
+}
+
+function buildDocumentUploadPayload(
+  form: DebtorDocumentUploadFormState,
+): DebtorDocumentPayload {
+  if (!form.file) throw new Error("File dokumen wajib dipilih");
   return {
-    debtor_id: debtorId,
     contract_id: form.contract_id || null,
-    letter_type: form.letter_type,
-    issued_at: form.issued_at,
-    sent_at: form.sent_at || null,
-    delivery_status: form.delivery_status || "BELUM_DIKIRIM",
-    description: form.description || null,
+    document_checklist_id: form.document_checklist_id || null,
+    document_type: form.document_type.trim(),
+    category: form.category,
+    description: form.description.trim() || null,
     file: form.file,
   };
 }
 
-function validateWarningLetterForm(form: WarningLetterFormState) {
-  if (!form.letter_type.trim()) return "Jenis surat peringatan wajib diisi";
-  if (!form.issued_at) return "Tanggal terbit wajib diisi";
+function validateDocumentUploadForm(form: DebtorDocumentUploadFormState) {
+  if (!form.document_type.trim()) return "Jenis dokumen wajib diisi";
+  if (!form.file) return "File dokumen wajib dipilih";
   return null;
 }
 
@@ -489,6 +788,33 @@ function EmptyState({ children }: { children: ReactNode }) {
   );
 }
 
+function LegalShortcutLink({ href, label }: { href: string; label: string }) {
+  return (
+    <ProtectedLink
+      href={href}
+      className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+      title={label}
+    >
+      <span>{label}</span>
+      <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+    </ProtectedLink>
+  );
+}
+
+function LegalShortcutGroup({
+  links,
+}: {
+  links: Array<{ href: string; label: string }>;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {links.map((item) => (
+        <LegalShortcutLink key={item.href} href={item.href} label={item.label} />
+      ))}
+    </div>
+  );
+}
+
 function FormFieldLabel({ children, required = false }: { children: string; required?: boolean }) {
   return (
     <label className="mb-2 block text-sm font-medium text-gray-700">
@@ -497,9 +823,11 @@ function FormFieldLabel({ children, required = false }: { children: string; requ
   );
 }
 
-function WarningLetterFormModal({
+function DebtorDocumentUploadModal({
   isOpen,
+  mode,
   form,
+  checklist,
   contracts,
   isSaving,
   onChange,
@@ -507,17 +835,21 @@ function WarningLetterFormModal({
   onSave,
 }: {
   isOpen: boolean;
-  form: WarningLetterFormState;
+  mode: DebtorDocumentUploadMode;
+  form: DebtorDocumentUploadFormState;
+  checklist: DebtorDocumentChecklistStatus | null;
   contracts: DebtorContract[];
   isSaving: boolean;
-  onChange: (patch: Partial<WarningLetterFormState>) => void;
+  onChange: (patch: Partial<DebtorDocumentUploadFormState>) => void;
   onClose: () => void;
   onSave: () => void;
 }) {
+  const isChecklistMode = mode === "checklist";
+
   return (
     <DashboardModal
       isOpen={isOpen}
-      title="Surat Peringatan"
+      title={isChecklistMode ? "Upload Dokumen Wajib" : "Tambah Dokumen Lainnya"}
       onClose={onClose}
       closeDisabled={isSaving}
       maxWidth="3xl"
@@ -538,12 +870,13 @@ function WarningLetterFormModal({
             disabled={isSaving}
             onClick={onSave}
           >
-            {isSaving ? "Menyimpan..." : "Simpan"}
+            <Upload className="h-4 w-4" aria-hidden="true" />
+            <span>{isSaving ? "Mengupload..." : "Upload"}</span>
           </button>
         </>
       }
     >
-      <SetupFormSection title="Detail Surat">
+      <SetupFormSection title="Relasi Dokumen">
         <div>
           <FormFieldLabel>Kontrak</FormFieldLabel>
           <SetupSelect
@@ -558,41 +891,21 @@ function WarningLetterFormModal({
             ))}
           </SetupSelect>
         </div>
-        <div>
-          <FormFieldLabel required>Jenis Surat</FormFieldLabel>
-          <SetupTextInput
-            value={form.letter_type}
-            placeholder="SP1 / SP2 / SP3"
-            onChange={(event) => onChange({ letter_type: event.target.value })}
-          />
-        </div>
-        <div>
-          <FormFieldLabel>Status Pengiriman</FormFieldLabel>
-          <SetupSelect
-            value={form.delivery_status}
-            onChange={(event) => onChange({ delivery_status: event.target.value })}
-          >
-            {warningLetterStatusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </SetupSelect>
-        </div>
-        <div>
-          <FormFieldLabel required>Tanggal Terbit</FormFieldLabel>
-          <BasicDateInput
-            value={form.issued_at}
-            onChange={(value) => onChange({ issued_at: value })}
-          />
-        </div>
-        <div>
-          <FormFieldLabel>Tanggal Kirim</FormFieldLabel>
-          <BasicDateInput
-            value={form.sent_at}
-            onChange={(value) => onChange({ sent_at: value })}
-          />
-        </div>
+        {isChecklistMode ? (
+          <>
+            <InfoItem label="Checklist" value={checklist?.name ?? form.document_type} />
+            <InfoItem label="Jenis Dokumen" value={documentTypeLabel(form.document_type)} />
+          </>
+        ) : (
+          <div>
+            <FormFieldLabel required>Jenis Dokumen</FormFieldLabel>
+            <SetupTextInput
+              value={form.document_type}
+              placeholder="Masukkan jenis dokumen"
+              onChange={(event) => onChange({ document_type: event.target.value })}
+            />
+          </div>
+        )}
       </SetupFormSection>
       <SetupFormSection title="File dan Keterangan" contentClassName="md:grid-cols-1">
         <div>
@@ -603,10 +916,9 @@ function WarningLetterFormModal({
           />
         </div>
         <FileUploadField
-          id="debtor-detail-warning-letter-file"
-          required={false}
+          id="debtor-detail-document-file"
           file={form.file}
-          label="File Surat"
+          label="File Dokumen"
           validateFile={validateDomainUploadFile}
           onChange={(event) => onChange({ file: event.target.files?.[0] ?? null })}
           onClear={() => onChange({ file: null })}
@@ -651,23 +963,165 @@ function HeaderActions({
         <span>Kembali</span>
       </ProtectedLink>
       {collectibility ? (
-        <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm">
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" aria-hidden="true" />
-          <span>{collectibility}</span>
-        </div>
+        <SetupCollectibilityBadge
+          value={collectibility}
+          size="md"
+          className="shadow-sm"
+        />
       ) : null}
     </div>
   );
 }
 
-function DataUtamaTab({ workflow }: { workflow: DebtorWorkflow }) {
+function DataUtamaTab({
+  workflow,
+  selectedContractId,
+  onSelectContract,
+  onOpenAgunanTab,
+}: {
+  workflow: DebtorWorkflow;
+  selectedContractId: string | null;
+  onSelectContract: (contractId: string) => void;
+  onOpenAgunanTab: () => void;
+}) {
   const debtor = workflow.debtor;
-  const mainContract = workflow.contracts[0] ?? debtor.latest_contract;
+  const facilityRowActivationRef = useRef<DoubleRowActivationState | null>(null);
+  const mainContract = resolveMainContract(
+    workflow.contracts,
+    selectedContractId,
+    debtor.latest_contract,
+  );
   const latestSnapshot = mainContract?.latest_slik_snapshot ?? null;
+  const activeContractCollaterals = getContractCollaterals(
+    mainContract,
+    workflow.collaterals,
+  );
+  const hasMultipleContracts = workflow.contracts.length > 1;
+  const activeContractIndex = workflow.contracts.findIndex(
+    (contract) => contract.id === mainContract?.id,
+  );
+  const activeContractPosition =
+    activeContractIndex >= 0 ? activeContractIndex + 1 : null;
+  const totalPlafondAllContracts = workflow.contracts.reduce(
+    (total, contract) => total + contractPlafondAmount(contract),
+    0,
+  );
+  const totalBakiDebetAllContracts = workflow.contracts.reduce(
+    (total, contract) => total + contractBakiDebetAmount(contract),
+    0,
+  );
   const individualProfile =
     debtor.customer_type === "INDIVIDUAL" ? debtor.individual_profile : null;
   const legalEntityProfile =
     debtor.customer_type === "LEGAL_ENTITY" ? debtor.legal_entity_profile : null;
+  const cifType = customerTypeLabel(
+    debtor.customer_type,
+    debtor.customer_type_label,
+    debtor.slik_status_code,
+  );
+  const segmentSummary = [
+    debtor.slik_segment,
+    debtor.slik_status_code ? `Status CIF ${debtor.slik_status_code}` : null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
+  const hasStructuredCollateralForMainContract = activeContractCollaterals.length > 0;
+  const showManualCollateral =
+    hasDisplayValue(mainContract?.agunan) && !hasStructuredCollateralForMainContract;
+  const showIndividualIdentityName =
+    individualProfile &&
+    !sameDisplayValue(individualProfile.name_as_identity, debtor.name);
+  const showIndividualFullName =
+    individualProfile &&
+    !sameDisplayValue(individualProfile.full_name, debtor.name) &&
+    !sameDisplayValue(individualProfile.full_name, individualProfile.name_as_identity);
+  const individualContactItems = [
+    hasContactValue(individualProfile?.mobile_phone) &&
+    !sameDisplayValue(individualProfile?.mobile_phone, debtor.phone)
+      ? `Seluler: ${individualProfile?.mobile_phone}`
+      : null,
+    hasContactValue(individualProfile?.phone) &&
+    !sameDisplayValue(individualProfile?.phone, debtor.phone)
+      ? `Telepon: ${individualProfile?.phone}`
+      : null,
+  ].filter(Boolean);
+  const showIndividualContact = individualContactItems.length > 0;
+  const individualContact = individualContactItems.join(" / ");
+  const showIndividualAddress =
+    individualProfile &&
+    !sameDisplayValue(individualProfile.address_detail, debtor.address);
+  const showLegalBusinessName =
+    legalEntityProfile &&
+    !sameDisplayValue(legalEntityProfile.business_name, debtor.name);
+  const showLegalAddress =
+    legalEntityProfile &&
+    !sameDisplayValue(legalEntityProfile.address_detail, debtor.address);
+  const akadNumberSummary = compactPairDisplay(
+    "Awal",
+    latestSnapshot?.initial_akad_number,
+    "Akhir",
+    latestSnapshot?.final_akad_number,
+    "awal/akhir sama",
+  );
+  const akadDateSummary = compactPairDisplay(
+    "Awal",
+    formatDateOnly(latestSnapshot?.initial_akad_date ?? mainContract?.tanggal_akad),
+    "Akhir",
+    formatDateOnly(latestSnapshot?.final_akad_date),
+    "awal/akhir sama",
+  );
+  const creditStartSummary = compactPairDisplay(
+    "Awal kredit",
+    formatDateOnly(latestSnapshot?.credit_start_date),
+    "Mulai",
+    formatDateOnly(latestSnapshot?.start_date),
+    "awal/mulai sama",
+  );
+  const displayedPlafond = latestSnapshot?.plafond ?? mainContract?.plafond;
+  const showInitialPlafond =
+    latestSnapshot?.initial_plafond !== null &&
+    latestSnapshot?.initial_plafond !== undefined &&
+    !sameNumberValue(latestSnapshot.initial_plafond, displayedPlafond);
+  const showFinancingComposition =
+    Boolean(mainContract) &&
+    (hasNonZeroNumber(mainContract?.margin) ||
+      !sameNumberValue(mainContract?.pokok, displayedPlafond));
+  const financingComposition = mainContract
+    ? [
+        `Pokok: ${formatCurrency(mainContract.pokok)}`,
+        `Margin: ${formatCurrency(mainContract.margin)}`,
+      ].join(" / ")
+    : "-";
+  const hasArrearsData = Boolean(
+    latestSnapshot &&
+      ((latestSnapshot.principal_arrears !== null &&
+        latestSnapshot.principal_arrears !== undefined) ||
+        (latestSnapshot.margin_arrears !== null &&
+          latestSnapshot.margin_arrears !== undefined)),
+  );
+  const arrearsSummary = [
+    `Pokok: ${formatOptionalCurrency(latestSnapshot?.principal_arrears)}`,
+    `Margin: ${formatOptionalCurrency(latestSnapshot?.margin_arrears)}`,
+  ].join(" / ");
+  const restructuringFrequency = latestSnapshot?.restructuring_frequency;
+  const hasRestructuringDetails = Boolean(
+    latestSnapshot &&
+      ((restructuringFrequency !== null &&
+        restructuringFrequency !== undefined &&
+        restructuringFrequency > 0) ||
+        hasDisplayValue(latestSnapshot.initial_restructuring_date) ||
+        hasDisplayValue(latestSnapshot.final_restructuring_date) ||
+        hasDisplayValue(latestSnapshot.restructuring_method_display) ||
+        hasDisplayValue(latestSnapshot.restructuring_method_code)),
+  );
+  const restructuringPeriodSummary = compactPairDisplay(
+    "Awal",
+    formatDateOnly(latestSnapshot?.initial_restructuring_date),
+    "Akhir",
+    formatDateOnly(latestSnapshot?.final_restructuring_date),
+    "awal/akhir sama",
+  );
+  const restructuringStatusLabel = hasRestructuringDetails ? "Pernah Restruk" : "Tidak Ada";
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
@@ -677,17 +1131,12 @@ function DataUtamaTab({ workflow }: { workflow: DebtorWorkflow }) {
           <InfoItem label="No Identitas" value={debtor.identity_number} />
           <InfoItem label="Nama Nasabah" value={debtor.name} />
           <InfoItem
-            label="Status CIF / Jenis Nasabah"
-            value={customerTypeLabel(
-              debtor.customer_type,
-              debtor.customer_type_label,
-              debtor.slik_status_code,
-            )}
+            label="Jenis CIF"
+            value={cifType}
           />
-          <InfoItem label="Segmen SLIK" value={debtor.slik_segment} />
-          <InfoItem label="Status CIF" value={debtor.slik_status_code} />
+          <InfoItem label="Segmen SLIK" value={segmentSummary} />
           <InfoItem
-            label="Operasi Data"
+            label="Operasi CIF"
             value={slikDisplay(debtor.slik_operation_display, debtor.slik_operation_code)}
           />
           <InfoItem label="Telepon" value={debtor.phone} />
@@ -710,11 +1159,15 @@ function DataUtamaTab({ workflow }: { workflow: DebtorWorkflow }) {
       {individualProfile ? (
         <SectionCard title="CIF Perorangan">
           <div className="grid gap-4 md:grid-cols-2">
-            <InfoItem
-              label="Nama Sesuai Identitas"
-              value={individualProfile.name_as_identity}
-            />
-            <InfoItem label="Nama Lengkap" value={individualProfile.full_name} />
+            {showIndividualIdentityName ? (
+              <InfoItem
+                label="Nama Sesuai Identitas SLIK"
+                value={individualProfile.name_as_identity}
+              />
+            ) : null}
+            {showIndividualFullName ? (
+              <InfoItem label="Nama Lengkap SLIK" value={individualProfile.full_name} />
+            ) : null}
             <InfoItem
               label="Jenis Identitas"
               value={slikDisplay(
@@ -753,7 +1206,9 @@ function DataUtamaTab({ workflow }: { workflow: DebtorWorkflow }) {
               value={formatDateOnly(individualProfile.birth_date)}
             />
             <InfoItem label="NPWP" value={individualProfile.tax_number} />
-            <InfoItem label="Seluler" value={individualProfile.mobile_phone} />
+            {showIndividualContact ? (
+              <InfoItem label="Kontak SLIK" value={individualContact} />
+            ) : null}
             <InfoItem label="Email" value={individualProfile.email} />
             <InfoItem
               label="DATI II/Kota"
@@ -791,11 +1246,13 @@ function DataUtamaTab({ workflow }: { workflow: DebtorWorkflow }) {
               label="Nama Ibu Kandung"
               value={individualProfile.mother_maiden_name}
             />
-            <InfoItem
-              label="Alamat Sesuai SLIK"
-              value={individualProfile.address_detail}
-              wide
-            />
+            {showIndividualAddress ? (
+              <InfoItem
+                label="Alamat Sesuai SLIK"
+                value={individualProfile.address_detail}
+                wide
+              />
+            ) : null}
           </div>
         </SectionCard>
       ) : null}
@@ -803,10 +1260,12 @@ function DataUtamaTab({ workflow }: { workflow: DebtorWorkflow }) {
       {legalEntityProfile ? (
         <SectionCard title="CIF Badan Hukum/Yayasan">
           <div className="grid gap-4 md:grid-cols-2">
-            <InfoItem
-              label="Nama Badan Usaha"
-              value={legalEntityProfile.business_name}
-            />
+            {showLegalBusinessName ? (
+              <InfoItem
+                label="Nama Badan Usaha SLIK"
+                value={legalEntityProfile.business_name}
+              />
+            ) : null}
             <InfoItem
               label="Bentuk Badan Usaha"
               value={slikDisplay(
@@ -867,178 +1326,344 @@ function DataUtamaTab({ workflow }: { workflow: DebtorWorkflow }) {
               label="Nama Grup Debitur"
               value={legalEntityProfile.debtor_group_name}
             />
-            <InfoItem
-              label="Alamat Badan Usaha"
-              value={legalEntityProfile.address_detail}
-              wide
-            />
+            {showLegalAddress ? (
+              <InfoItem
+                label="Alamat Badan Usaha SLIK"
+                value={legalEntityProfile.address_detail}
+                wide
+              />
+            ) : null}
           </div>
         </SectionCard>
       ) : null}
 
-      <SectionCard title="Informasi Pembiayaan">
-        {mainContract ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            <InfoItem
-              label="No Rekening Fasilitas"
-              value={latestSnapshot?.facility_number ?? mainContract.no_kontrak}
-            />
-            <InfoItem
-              label="Periode Data"
-              value={periodLabel(latestSnapshot?.period_month ?? null)}
-            />
-            <InfoItem
-              label="Produk"
-              value={slikDisplay(
-                latestSnapshot?.credit_type_display,
-                latestSnapshot?.credit_type_code ?? mainContract.product?.name,
-              )}
-            />
-            <InfoItem
-              label="Jenis Akad"
-              value={slikDisplay(
-                latestSnapshot?.financing_scheme_display,
-                latestSnapshot?.financing_scheme_code ?? mainContract.akad_type?.name,
-              )}
-            />
-            <InfoItem
-              label="Sektor Ekonomi"
-              value={slikDisplay(
-                latestSnapshot?.economic_sector_display,
-                latestSnapshot?.economic_sector_code,
-              )}
-            />
-            <InfoItem
-              label="Lokasi Proyek"
-              value={slikDisplay(
-                latestSnapshot?.project_location_city_display,
-                latestSnapshot?.project_location_city_code,
-              )}
-            />
-            <InfoItem
-              label="Jenis Penggunaan"
-              value={slikDisplay(
-                latestSnapshot?.usage_type_display,
-                latestSnapshot?.usage_type_code,
-              )}
-            />
-            <InfoItem
-              label="No Akad Awal"
-              value={latestSnapshot?.initial_akad_number}
-            />
-            <InfoItem
-              label="Tanggal Akad Awal"
-              value={formatDateOnly(
-                latestSnapshot?.initial_akad_date ?? mainContract.tanggal_akad,
-              )}
-            />
-            <InfoItem
-              label="No Akad Akhir"
-              value={latestSnapshot?.final_akad_number}
-            />
-            <InfoItem
-              label="Tanggal Akad Akhir"
-              value={formatDateOnly(latestSnapshot?.final_akad_date)}
-            />
-            <InfoItem
-              label="Tanggal Awal Kredit"
-              value={formatDateOnly(latestSnapshot?.credit_start_date)}
-            />
-            <InfoItem
-              label="Tanggal Mulai"
-              value={formatDateOnly(latestSnapshot?.start_date)}
-            />
-            <InfoItem
-              label="Jatuh Tempo"
-              value={formatDateOnly(
-                latestSnapshot?.due_date ?? mainContract.tanggal_jatuh_tempo,
-              )}
-            />
-            <InfoItem label="Tenor" value={mainContract.tenor ? `${mainContract.tenor} Bulan` : "-"} />
-            <InfoItem
-              label="Plafon Awal"
-              value={formatOptionalCurrency(latestSnapshot?.initial_plafond)}
-            />
-            <InfoItem
-              label="Plafon"
-              value={formatOptionalCurrency(latestSnapshot?.plafond ?? mainContract.plafond)}
-            />
-            <InfoItem label="Pokok" value={formatCurrency(mainContract.pokok)} />
-            <InfoItem label="Margin" value={formatCurrency(mainContract.margin)} />
-            <InfoItem
-              label="Baki Debet"
-              value={formatOptionalCurrency(
-                latestSnapshot?.baki_debet ?? mainContract.outstanding_pokok,
-              )}
-            />
-            <InfoItem
-              label="Tunggakan Pokok"
-              value={formatOptionalCurrency(latestSnapshot?.principal_arrears)}
-            />
-            <InfoItem
-              label="Tunggakan Margin"
-              value={formatOptionalCurrency(latestSnapshot?.margin_arrears)}
-            />
-            <InfoItem
-              label="Kolektibilitas"
-              value={
-                latestSnapshot?.collectibility_display ??
-                latestSnapshot?.collectibility_code ??
-                collectibilityLabel(mainContract.latest_collectibility) ??
-                "-"
-              }
-            />
-            <InfoItem
-              label="DPD"
-              value={
-                latestSnapshot?.days_past_due === null ||
-                latestSnapshot?.days_past_due === undefined
-                  ? "-"
-                  : `${formatNumber(latestSnapshot.days_past_due)} hari`
-              }
-            />
-            <InfoItem
-              label="Restrukturisasi"
-              value={
-                latestSnapshot?.restructuring_frequency === null ||
-                latestSnapshot?.restructuring_frequency === undefined
-                  ? "-"
-                  : `${formatNumber(latestSnapshot.restructuring_frequency)} kali`
-              }
-            />
-            <InfoItem
-              label="Kondisi"
-              value={slikDisplay(
-                latestSnapshot?.condition_display,
-                latestSnapshot?.condition_code,
-              )}
-            />
-            <InfoItem
-              label="Tanggal Kondisi"
-              value={formatDateOnly(latestSnapshot?.condition_date)}
-            />
-            <InfoItem
-              label="Kode Cabang SLIK"
-              value={latestSnapshot?.branch_code}
-            />
-            <InfoItem
-              label="Operasi Data"
-              value={slikDisplay(
-                latestSnapshot?.operation_display,
-                latestSnapshot?.operation_code,
-              )}
-            />
-            <InfoItem
-              label="Keterangan F01"
-              value={latestSnapshot?.description ?? mainContract.objek_pembiayaan}
-              wide
-            />
-            <InfoItem label="Agunan" value={mainContract.agunan} wide />
+      {hasMultipleContracts && mainContract ? (
+        <div className="lg:col-span-2 rounded-lg border border-gray-200 bg-gray-50/80 p-4 shadow-sm">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(520px,1fr)]">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+                Fasilitas Aktif
+              </p>
+              <div className="mt-2">
+                <SetupSelect
+                  value={mainContract.id}
+                  onChange={(event) => onSelectContract(event.target.value)}
+                >
+                  {workflow.contracts.map((contract) => (
+                    <option key={contract.id} value={contract.id}>
+                      {contractOptionLabel(contract)}
+                    </option>
+                  ))}
+                </SetupSelect>
+              </div>
+              <p className="mt-2 text-xs font-medium text-gray-500">
+                Menampilkan kontrak {contractNumber(mainContract)}
+                {facilityNumber(mainContract) !== "-"
+                  ? ` / F01 ${facilityNumber(mainContract)}`
+                  : ""}
+                {activeContractPosition
+                  ? ` dari ${formatNumber(workflow.contracts.length)} fasilitas`
+                  : ""}
+                .
+              </p>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+                  Nomor Kontrak
+                </p>
+                <p className="mt-1 text-sm font-bold text-gray-900">
+                  {contractNumber(mainContract)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+                  Nomor Fasilitas F01
+                </p>
+                <p className="mt-1 text-sm font-bold text-gray-900">
+                  {facilityNumber(mainContract)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+                  Total Fasilitas
+                </p>
+                <p className="mt-1 text-sm font-bold text-gray-900">
+                  {formatNumber(workflow.contracts.length)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+                  Agunan Terkait
+                </p>
+                <p className="mt-1 text-sm font-bold text-gray-900">
+                  {formatNumber(activeContractCollaterals.length)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+                  Total Plafon Semua Fasilitas
+                </p>
+                <p className="mt-1 text-sm font-bold text-gray-900">
+                  {formatCurrency(totalPlafondAllContracts)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+                  Total Baki Debet Semua Fasilitas
+                </p>
+                <p className="mt-1 text-sm font-bold text-gray-900">
+                  {formatCurrency(totalBakiDebetAllContracts)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+                  Periode SLIK
+                </p>
+                <p className="mt-1 text-sm font-bold text-gray-900">
+                  {periodLabel(latestSnapshot?.period_month)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+                  KOL Aktif
+                </p>
+                <div className="mt-1">
+                  <SetupCollectibilityBadge
+                    value={contractCollectibilityDisplay(mainContract)}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
-        ) : (
-          <EmptyState>Belum ada kontrak pembiayaan untuk debitur ini.</EmptyState>
-        )}
-      </SectionCard>
+          {activeContractCollaterals.length > 0 ? (
+            <div className="mt-3 flex justify-end">
+              <SetupViewButton
+                onClick={onOpenAgunanTab}
+                label="Lihat Agunan Fasilitas Ini"
+                title="Lihat agunan A01 untuk fasilitas aktif"
+                className="px-3 py-2 text-xs"
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="lg:col-span-2">
+        <SectionCard
+          title={
+            mainContract
+              ? `Informasi Pembiayaan - Kontrak ${contractNumber(mainContract)}`
+              : "Informasi Pembiayaan"
+          }
+        >
+          {mainContract ? (
+            <>
+              {hasMultipleContracts ? (
+                <p className="mb-4 text-xs font-medium text-gray-500">
+                  Detail di bawah mengikuti fasilitas aktif yang dipilih dari daftar F01.
+                </p>
+              ) : null}
+              <div className="grid gap-4 md:grid-cols-2">
+                <InfoItem
+                  label="No Rekening Fasilitas"
+                  value={facilityNumber(mainContract)}
+                />
+                <InfoItem
+                  label="Periode Data"
+                  value={periodLabel(latestSnapshot?.period_month ?? null)}
+                />
+                <InfoItem
+                  label="Agunan A01 Terkait"
+                  value={`${formatNumber(activeContractCollaterals.length)} agunan A01`}
+                />
+                <InfoItem
+                  label="Produk"
+                  value={slikDisplay(
+                    latestSnapshot?.credit_type_display,
+                    latestSnapshot?.credit_type_code ?? mainContract.product?.name,
+                  )}
+                />
+                <InfoItem
+                  label="Jenis Akad"
+                  value={slikDisplay(
+                    latestSnapshot?.financing_scheme_display,
+                    latestSnapshot?.financing_scheme_code ?? mainContract.akad_type?.name,
+                  )}
+                />
+                <InfoItem
+                  label="Sektor Ekonomi"
+                  value={slikDisplay(
+                    latestSnapshot?.economic_sector_display,
+                    latestSnapshot?.economic_sector_code,
+                  )}
+                />
+                <InfoItem
+                  label="Lokasi Proyek"
+                  value={slikDisplay(
+                    latestSnapshot?.project_location_city_display,
+                    latestSnapshot?.project_location_city_code,
+                  )}
+                />
+                <InfoItem
+                  label="Jenis Penggunaan"
+                  value={slikDisplay(
+                    latestSnapshot?.usage_type_display,
+                    latestSnapshot?.usage_type_code,
+                  )}
+                />
+                <InfoItem
+                  label="No Akad"
+                  value={akadNumberSummary}
+                />
+                <InfoItem
+                  label="Tanggal Akad"
+                  value={akadDateSummary}
+                />
+                <InfoItem
+                  label="Awal/Mulai Kredit"
+                  value={creditStartSummary}
+                />
+                <InfoItem
+                  label="Jatuh Tempo"
+                  value={formatDateOnly(
+                    latestSnapshot?.due_date ?? mainContract.tanggal_jatuh_tempo,
+                  )}
+                />
+                <InfoItem
+                  label="Tenor"
+                  value={mainContract.tenor ? `${mainContract.tenor} Bulan` : "-"}
+                />
+                {showInitialPlafond ? (
+                  <InfoItem
+                    label="Plafon Awal"
+                    value={formatOptionalCurrency(latestSnapshot?.initial_plafond)}
+                  />
+                ) : null}
+                <InfoItem
+                  label="Plafon Fasilitas Terpilih"
+                  value={formatOptionalCurrency(latestSnapshot?.plafond ?? mainContract.plafond)}
+                />
+                {showFinancingComposition ? (
+                  <InfoItem label="Pokok / Margin" value={financingComposition} />
+                ) : null}
+                <InfoItem
+                  label="Baki Debet Fasilitas Terpilih"
+                  value={formatOptionalCurrency(
+                    latestSnapshot?.baki_debet ?? mainContract.outstanding_pokok,
+                  )}
+                />
+                {hasArrearsData ? (
+                  <InfoItem label="Tunggakan" value={arrearsSummary} />
+                ) : null}
+                <InfoItem
+                  label="Kolektibilitas"
+                  value={
+                    latestSnapshot?.collectibility_display ??
+                    latestSnapshot?.collectibility_code ??
+                    collectibilityLabel(mainContract.latest_collectibility) ??
+                    "-"
+                  }
+                />
+                <InfoItem
+                  label="DPD"
+                  value={
+                    latestSnapshot?.days_past_due === null ||
+                    latestSnapshot?.days_past_due === undefined
+                      ? "-"
+                      : `${formatNumber(latestSnapshot.days_past_due)} hari`
+                  }
+                />
+                <InfoItem
+                  label="Kondisi"
+                  value={slikDisplay(
+                    latestSnapshot?.condition_display,
+                    latestSnapshot?.condition_code,
+                  )}
+                />
+                <InfoItem
+                  label="Tanggal Kondisi"
+                  value={formatDateOnly(latestSnapshot?.condition_date)}
+                />
+                <InfoItem
+                  label="Kode Cabang SLIK"
+                  value={latestSnapshot?.branch_code}
+                />
+                <InfoItem
+                  label="Operasi Fasilitas F01"
+                  value={slikDisplay(
+                    latestSnapshot?.operation_display,
+                    latestSnapshot?.operation_code,
+                  )}
+                />
+                <InfoItem
+                  label="Keterangan F01"
+                  value={latestSnapshot?.description ?? mainContract.objek_pembiayaan}
+                  wide
+                />
+                {showManualCollateral ? (
+                  <InfoItem label="Agunan Manual" value={mainContract.agunan} wide />
+                ) : null}
+              </div>
+
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/70 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-amber-700">
+                      Informasi Restrukturisasi F01
+                    </p>
+                    <p className="mt-1 text-sm text-amber-900">
+                      Ringkasan restrukturisasi mengikuti fasilitas aktif yang dipilih dari daftar
+                      F01.
+                    </p>
+                  </div>
+                  <SetupStatusBadge
+                    status={restructuringStatusLabel}
+                    tone={hasRestructuringDetails ? "amber" : "gray"}
+                    showIcon={false}
+                  />
+                </div>
+
+                {hasRestructuringDetails ? (
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <InfoItem
+                      label="Frekuensi Restrukturisasi F01"
+                      value={
+                        restructuringFrequency === null || restructuringFrequency === undefined
+                          ? "-"
+                          : `${formatNumber(restructuringFrequency)} kali`
+                      }
+                    />
+                    <InfoItem
+                      label="Periode Restrukturisasi F01"
+                      value={restructuringPeriodSummary}
+                    />
+                    <InfoItem
+                      label="Cara Restrukturisasi F01"
+                      value={slikDisplay(
+                        latestSnapshot?.restructuring_method_display,
+                        latestSnapshot?.restructuring_method_code,
+                      )}
+                    />
+                    <InfoItem
+                      label="Keterangan F01"
+                      value={latestSnapshot?.description ?? mainContract.objek_pembiayaan}
+                      wide
+                    />
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-lg border border-dashed border-amber-200 bg-white px-4 py-3 text-sm text-gray-600">
+                    Tidak ada restrukturisasi pada data F01 periode ini.
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <EmptyState>Belum ada kontrak pembiayaan untuk debitur ini.</EmptyState>
+          )}
+        </SectionCard>
+      </div>
 
       <div className="lg:col-span-2">
         <SectionCard title="Daftar Fasilitas F01">
@@ -1047,7 +1672,7 @@ function DataUtamaTab({ workflow }: { workflow: DebtorWorkflow }) {
               <SetupDataTable variant="portfolio" density="compact" className="min-w-[1320px]">
                 <SetupDataTableHead>
                   <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-                    <SetupDataTableHeaderCell>No Fasilitas</SetupDataTableHeaderCell>
+                    <SetupDataTableHeaderCell>No Fasilitas F01</SetupDataTableHeaderCell>
                     <SetupDataTableHeaderCell>Produk / Akad</SetupDataTableHeaderCell>
                     <SetupDataTableHeaderCell>Sektor / Lokasi Proyek</SetupDataTableHeaderCell>
                     <SetupDataTableHeaderCell>Periode</SetupDataTableHeaderCell>
@@ -1061,16 +1686,63 @@ function DataUtamaTab({ workflow }: { workflow: DebtorWorkflow }) {
                 <SetupDataTableBody>
                   {workflow.contracts.map((contract) => {
                     const snapshot = contract.latest_slik_snapshot;
+                    const isActive = contract.id === mainContract?.id;
+
                     return (
-                      <SetupDataTableRow key={contract.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
+                      <SetupDataTableRow
+                        key={contract.id}
+                        className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} ${
+                          isActive
+                            ? "bg-[#157ec3]/5 ring-1 ring-inset ring-[#157ec3]/20"
+                            : "cursor-pointer hover:bg-[#157ec3]/5"
+                        }`}
+                        role={isActive ? undefined : "button"}
+                        tabIndex={isActive ? undefined : 0}
+                        title={isActive ? undefined : "Klik dua kali untuk melihat detail fasilitas"}
+                        onClick={
+                          isActive
+                            ? undefined
+                            : () =>
+                                handleDoubleRowClick(
+                                  facilityRowActivationRef,
+                                  contract.id,
+                                  () => onSelectContract(contract.id),
+                                )
+                        }
+                        onDoubleClick={
+                          isActive
+                            ? undefined
+                            : () =>
+                                triggerDoubleRowActivation(
+                                  facilityRowActivationRef,
+                                  contract.id,
+                                  () => onSelectContract(contract.id),
+                                )
+                        }
+                        onKeyDown={
+                          isActive
+                            ? undefined
+                            : (event) => {
+                                if (event.key !== "Enter") return;
+                                event.preventDefault();
+                                triggerDoubleRowActivation(
+                                  facilityRowActivationRef,
+                                  contract.id,
+                                  () => onSelectContract(contract.id),
+                                );
+                              }
+                        }
+                      >
                         <SetupDataTableCell className="font-semibold tabular-nums">
-                          {snapshot?.facility_number ?? contract.no_kontrak}
+                          <div className="space-y-1">
+                            <SetupTableCode>{facilityNumber(contract)}</SetupTableCode>
+                            <SetupTableSecondaryText>
+                              Kontrak: {contractNumber(contract)}
+                            </SetupTableSecondaryText>
+                          </div>
                         </SetupDataTableCell>
                         <SetupDataTableCell>
-                          {[
-                            snapshot?.credit_type_display ?? contract.product?.name,
-                            snapshot?.financing_scheme_display ?? contract.akad_type?.name,
-                          ].filter(Boolean).join(" / ") || "-"}
+                          {contractProductAkad(contract)}
                         </SetupDataTableCell>
                         <SetupDataTableCell>
                           <div className="space-y-1">
@@ -1096,13 +1768,8 @@ function DataUtamaTab({ workflow }: { workflow: DebtorWorkflow }) {
                           {formatOptionalCurrency(snapshot?.baki_debet ?? contract.outstanding_pokok)}
                         </SetupDataTableCell>
                         <SetupDataTableCell>
-                          <SetupStatusBadge
-                            status={
-                              snapshot?.collectibility_display ??
-                              collectibilityLabel(contract.latest_collectibility) ??
-                              "-"
-                            }
-                            showIcon={false}
+                          <SetupCollectibilityBadge
+                            value={contractCollectibilityDisplay(contract)}
                           />
                         </SetupDataTableCell>
                         <SetupDataTableCell>
@@ -1431,80 +2098,1462 @@ function SummaryTab({
   );
 }
 
+type IdebRecord = Record<string, unknown>;
+
+function idebRecord(value: unknown): IdebRecord | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as IdebRecord;
+}
+
+function idebArray(value: unknown): IdebRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => idebRecord(item))
+    .filter((item): item is IdebRecord => item !== null);
+}
+
+function idebText(record: IdebRecord | null | undefined, keys: string[]) {
+  if (!record) return null;
+
+  for (const key of keys) {
+    const value = record[key];
+    if (value === null || value === undefined) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+
+  return null;
+}
+
+function idebNumber(record: IdebRecord | null | undefined, keys: string[]) {
+  if (!record) return null;
+
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value !== "string") continue;
+
+    const normalized = value
+      .trim()
+      .replace(/[^\d,.-]/g, "")
+      .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+      .replace(",", ".");
+    if (!normalized) continue;
+
+    const parsed = Number(normalized);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+
+  return null;
+}
+
+function idebMoney(record: IdebRecord | null | undefined, keys: string[]) {
+  const value = idebNumber(record, keys);
+  return value === null ? "-" : formatCurrency(value);
+}
+
+function idebDate(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return "-";
+  return formatDateOnly(String(value));
+}
+
+function idebPeriod(value: string | number | null | undefined) {
+  const text = String(value ?? "").trim();
+  if (!text) return "-";
+
+  const normalized =
+    /^\d{6}$/.test(text) ? `${text.slice(0, 4)}-${text.slice(4)}` : text;
+  const match = /^(\d{4})-(\d{2})$/.exec(normalized);
+  if (!match) return text;
+
+  return new Intl.DateTimeFormat("id-ID", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(Number(match[1]), Number(match[2]) - 1, 1));
+}
+
+function getIdebUploadPeriod(item: DebtorWorkflowIdebUpload) {
+  if (item.summary_detail?.period_month) return item.summary_detail.period_month;
+  if (item.year && item.month) {
+    return `${item.year}-${String(item.month).padStart(2, "0")}`;
+  }
+  return null;
+}
+
+function getIdebSummaryRecord(item: DebtorWorkflowIdebUpload) {
+  return idebRecord(item.summary_detail?.summary);
+}
+
+function getIdebIdentityRecord(item: DebtorWorkflowIdebUpload) {
+  return idebRecord(item.summary_detail?.identity);
+}
+
+function getIdebFacilities(item: DebtorWorkflowIdebUpload) {
+  return idebArray(item.summary_detail?.facilities);
+}
+
+function getIdebMonthlyHistory(item: DebtorWorkflowIdebUpload) {
+  return idebArray(item.summary_detail?.monthly_collectibility_history);
+}
+
+function getIdebRawHeaderRecord(item: DebtorWorkflowIdebUpload) {
+  const resultSummary = idebRecord(item.result_summary);
+  const raw = idebRecord(resultSummary?.raw);
+  return idebRecord(raw?.header) ?? idebRecord(resultSummary?.header);
+}
+
+function getIdebReporterCount(
+  summary: IdebRecord | null,
+  facilities: IdebRecord[],
+) {
+  const explicitCount =
+    (idebNumber(summary, ["bank_creditor_count"]) ?? 0) +
+    (idebNumber(summary, ["bpr_bprs_creditor_count"]) ?? 0) +
+    (idebNumber(summary, ["lp_creditor_count"]) ?? 0) +
+    (idebNumber(summary, ["other_creditor_count"]) ?? 0);
+  if (explicitCount > 0) return explicitCount;
+
+  const reporters = new Set(
+    facilities
+      .map((facility) =>
+        idebText(facility, ["reporter_name", "reporter_code", "ljk", "bank"]),
+      )
+      .filter(Boolean),
+  );
+  return reporters.size;
+}
+
+function getIdebReporterNames(facilities: IdebRecord[]) {
+  const names = new Map<string, string>();
+
+  for (const facility of facilities) {
+    const name =
+      idebText(facility, ["reporter_name", "reporter_code", "ljk", "bank"]) ?? "-";
+    const key = comparableDisplay(name);
+    if (key && key !== "-" && !names.has(key)) names.set(key, name);
+  }
+
+  return Array.from(names.values());
+}
+
+function getIdebTotalPlafond(summary: IdebRecord | null, facilities: IdebRecord[]) {
+  return (
+    idebNumber(summary, ["total_plafond", "effective_plafond_credit"]) ??
+    facilities.reduce(
+      (total, facility) =>
+        total + (idebNumber(facility, ["plafond", "initial_plafond"]) ?? 0),
+      0,
+    )
+  );
+}
+
+function getIdebFacilityOutstanding(facility: IdebRecord) {
+  return idebNumber(facility, ["outstanding", "baki_debet", "outstanding_pokok"]) ?? 0;
+}
+
+function getIdebFacilityPlafond(facility: IdebRecord) {
+  return idebNumber(facility, ["plafond", "initial_plafond", "plafon"]) ?? 0;
+}
+
+function getIdebFacilityInitialPlafond(facility: IdebRecord) {
+  return idebNumber(facility, ["initial_plafond", "plafon_awal", "plafond"]) ?? 0;
+}
+
+function getIdebFacilityArrears(facility: IdebRecord) {
+  return (
+    (idebNumber(facility, ["principal_arrears", "tunggakan_pokok"]) ?? 0) +
+    (idebNumber(facility, ["interest_arrears", "tunggakan_bunga"]) ?? 0) +
+    (idebNumber(facility, ["penalty", "denda"]) ?? 0)
+  );
+}
+
+function getIdebFacilityCondition(facility: IdebRecord) {
+  return idebText(facility, ["condition", "condition_code", "status"]) ?? "-";
+}
+
+function isIdebPaidOffFacility(facility: IdebRecord) {
+  const condition = comparableDisplay(getIdebFacilityCondition(facility));
+  return condition === "02" || condition.includes("LUNAS");
+}
+
+function isIdebWriteOffFacility(facility: IdebRecord) {
+  const condition = comparableDisplay(getIdebFacilityCondition(facility));
+  const compactCondition = condition.replace(/\s+/g, "");
+  return (
+    condition === "03" ||
+    condition.startsWith("03 ") ||
+    compactCondition.includes("HAPUSBUKU") ||
+    compactCondition.includes("DIHAPUSBUKUKAN")
+  );
+}
+
+function getIdebCollectibilityLevel(value: unknown) {
+  const text = String(value ?? "").trim();
+  const match = /(?:^|\D)([1-5])(?:\D|$)/.exec(text);
+  return match ? Number(match[1]) : null;
+}
+
+function getIdebWorstCollectibility(
+  item: DebtorWorkflowIdebUpload,
+  summary: IdebRecord | null,
+  facilities: IdebRecord[],
+) {
+  const explicit =
+    item.summary_detail?.current_collectibility ??
+    idebText(summary, ["worst_collectibility", "worst_collectibility_code"]);
+  if (explicit !== null && explicit !== undefined && String(explicit).trim()) {
+    return explicit;
+  }
+
+  const worstLevel = facilities.reduce<number | null>((current, facility) => {
+    const level = getIdebCollectibilityLevel(getIdebFacilityCollectibility(facility));
+    if (level === null) return current;
+    return current === null ? level : Math.max(current, level);
+  }, null);
+
+  return worstLevel;
+}
+
+function getIdebOfficerName(item: DebtorWorkflowIdebUpload) {
+  return (
+    item.summary_detail?.officer_name ??
+    idebText(getIdebRawHeaderRecord(item), [
+      "dibuatOleh",
+      "officer_name",
+      "petugas",
+      "created_by_name",
+    ])
+  );
+}
+
+function getIdebSortableTime(item: DebtorWorkflowIdebUpload) {
+  const candidates = [
+    item.summary_detail?.result_date,
+    item.summary_detail?.processed_at,
+    item.created_at,
+    getIdebUploadPeriod(item),
+  ];
+
+  for (const value of candidates) {
+    if (!value) continue;
+    const timestamp = Date.parse(String(value));
+    if (Number.isFinite(timestamp)) return timestamp;
+  }
+
+  return 0;
+}
+
+function getLatestIdebItem(items: DebtorWorkflowIdebUpload[]) {
+  return [...items].sort((first, second) => {
+    const byTime = getIdebSortableTime(second) - getIdebSortableTime(first);
+    if (byTime !== 0) return byTime;
+    return String(second.created_at ?? "").localeCompare(String(first.created_at ?? ""));
+  })[0] ?? null;
+}
+
+function getIdebResume(item: DebtorWorkflowIdebUpload) {
+  const summary = getIdebSummaryRecord(item);
+  const facilities = getIdebFacilities(item);
+  const activeFacilities = facilities.filter((facility) => !isIdebPaidOffFacility(facility));
+  const paidOffFacilities = facilities.filter(isIdebPaidOffFacility);
+  const writeOffFacilities = facilities.filter(isIdebWriteOffFacility);
+  const activeOutstanding = activeFacilities.reduce(
+    (total, facility) => total + getIdebFacilityOutstanding(facility),
+    0,
+  );
+  const paidOffPlafond = paidOffFacilities.reduce(
+    (total, facility) => total + getIdebFacilityPlafond(facility),
+    0,
+  );
+  const writeOffOutstanding = writeOffFacilities.reduce(
+    (total, facility) => total + getIdebFacilityOutstanding(facility),
+    0,
+  );
+  const writeOffPlafond = writeOffFacilities.reduce(
+    (total, facility) => total + getIdebFacilityPlafond(facility),
+    0,
+  );
+  const writeOffArrears = writeOffFacilities.reduce(
+    (total, facility) => total + getIdebFacilityArrears(facility),
+    0,
+  );
+  const totalArrears = facilities.reduce(
+    (total, facility) => total + getIdebFacilityArrears(facility),
+    0,
+  );
+  const reporterNames = getIdebReporterNames(facilities);
+  const activeFacilitySummaries = activeFacilities.map((facility) => {
+    const reporter = idebText(facility, ["reporter_name", "reporter_code"]) ?? "-";
+    const outstanding = getIdebFacilityOutstanding(facility);
+    const kol = getIdebFacilityCollectibility(facility);
+    return {
+      key: `${reporter}-${getIdebFacilityAccount(facility)}-${kol}`,
+      reporter,
+      outstanding,
+      collectibility: kol,
+    };
+  });
+
+  return {
+    summary,
+    facilities,
+    activeFacilities,
+    paidOffFacilities,
+    writeOffFacilities,
+    activeOutstanding,
+    paidOffPlafond,
+    writeOffOutstanding,
+    writeOffPlafond,
+    writeOffArrears,
+    totalPlafond: getIdebTotalPlafond(summary, facilities),
+    totalArrears,
+    reporterCount: getIdebReporterCount(summary, facilities),
+    reporterNames,
+    worstCollectibility: getIdebWorstCollectibility(item, summary, facilities),
+    officerName: getIdebOfficerName(item),
+    activeFacilitySummaries,
+  };
+}
+
+function getIdebFacilityCollectibility(facility: IdebRecord) {
+  return (
+    idebText(facility, ["collectibility", "collectibility_code", "kol"]) ?? "-"
+  );
+}
+
+function getIdebFacilityAccount(facility: IdebRecord) {
+  return (
+    idebText(facility, ["account_number", "no_rekening", "noRekening"]) ?? "-"
+  );
+}
+
+function getIdebFacilityCreditDisplay(facility: IdebRecord) {
+  const creditType = idebText(facility, ["credit_type", "credit_type_code"]);
+  const scheme = idebText(facility, ["financing_scheme", "financing_scheme_code"]);
+  return [creditType, scheme].filter(Boolean).join(" / ") || "-";
+}
+
+function getIdebFacilityAkadDate(facility: IdebRecord) {
+  return (
+    idebDate(
+      idebText(facility, [
+        "final_akad_date",
+        "initial_akad_date",
+        "akad_date",
+        "tanggal_akad",
+      ]),
+    ) || "-"
+  );
+}
+
+function getIdebFacilityCollateralSummary(facility: IdebRecord) {
+  const collaterals = idebArray(facility.collaterals);
+  if (collaterals.length > 0) {
+    return collaterals
+      .slice(0, 3)
+      .map((record) =>
+        display(
+          idebText(record, [
+            "collateral_type",
+            "jenis_agunan",
+            "jenisAgunan",
+            "jenis",
+            "type",
+            "description",
+            "keterangan",
+          ]),
+        ),
+      )
+      .join(", ");
+  }
+
+  return display(
+    idebText(facility, [
+      "collateral_summary",
+      "collateral",
+      "jaminan",
+      "agunan",
+      "guarantee",
+    ]),
+  );
+}
+
+function getIdebFacilityRowsWithNested(
+  facilities: IdebRecord[],
+  key: "collaterals" | "guarantors",
+) {
+  return facilities.flatMap((facility) =>
+    idebArray(facility[key]).map((record) => ({ facility, record })),
+  );
+}
+
+function IdebMetricCard({
+  label,
+  children,
+  hint,
+}: {
+  label: string;
+  children: ReactNode;
+  hint?: ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+        {label}
+      </p>
+      <div className="mt-2 text-sm font-semibold leading-6 text-gray-900">
+        {children}
+      </div>
+      {hint ? <p className="mt-1 text-xs leading-5 text-gray-500">{hint}</p> : null}
+    </div>
+  );
+}
+
+function IdebCreditMetricCard({
+  label,
+  children,
+  hint,
+  tone = "default",
+}: {
+  label: string;
+  children: ReactNode;
+  hint?: ReactNode;
+  tone?: "default" | "success" | "warning" | "danger" | "blue";
+}) {
+  const toneClass =
+    tone === "success"
+      ? "border-emerald-200 bg-emerald-50"
+      : tone === "warning"
+        ? "border-yellow-200 bg-yellow-50"
+        : tone === "danger"
+          ? "border-red-200 bg-red-50"
+          : tone === "blue"
+            ? "border-blue-200 bg-blue-50"
+            : "border-gray-200 bg-white";
+
+  return (
+    <div className={`min-h-[128px] rounded-lg border p-4 shadow-sm ${toneClass}`}>
+      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+        {label}
+      </p>
+      <div className="mt-3 text-xl font-extrabold leading-tight text-gray-950">
+        {children}
+      </div>
+      {hint ? <div className="mt-3 text-xs font-semibold leading-5 text-gray-500">{hint}</div> : null}
+    </div>
+  );
+}
+
+function idebKolMetricTone(value: unknown): "default" | "success" | "warning" | "danger" {
+  const level = getIdebCollectibilityLevel(value);
+  if (level === 1 || level === 2) return "success";
+  if (level === 3 || level === 4) return "warning";
+  if (level === 5) return "danger";
+  return "default";
+}
+
+function IdebReporterBreakdown({ resume }: { resume: ReturnType<typeof getIdebResume> }) {
+  const reporterSummary =
+    resume.reporterNames.length > 0
+      ? resume.reporterNames.map((name, index) => `${index + 1}) ${name}`).join("  ")
+      : "-";
+
+  return (
+    <div className="grid overflow-hidden rounded-lg border border-gray-200 bg-white md:grid-cols-[minmax(220px,0.35fr)_minmax(0,1fr)]">
+      <div className="border-b border-gray-200 bg-gray-50 p-4 md:border-b-0 md:border-r">
+        <p className="text-sm font-bold leading-6 text-gray-900">
+          Jumlah Lembaga Pembuat Pelaporan
+        </p>
+        <p className="text-sm font-bold leading-6 text-gray-900">(Kreditur)</p>
+      </div>
+      <div className="p-4 text-sm font-semibold leading-6 text-gray-900">
+        {formatNumber(resume.reporterCount)} lembaga
+        <span className="mx-2 text-gray-300">|</span>
+        {reporterSummary}
+      </div>
+    </div>
+  );
+}
+
+function IdebCreditPositionTable({ facilities }: { facilities: IdebRecord[] }) {
+  const totalInitialPlafond = facilities.reduce(
+    (total, facility) => total + getIdebFacilityInitialPlafond(facility),
+    0,
+  );
+  const totalOutstanding = facilities.reduce(
+    (total, facility) => total + getIdebFacilityOutstanding(facility),
+    0,
+  );
+  const totalArrears = facilities.reduce(
+    (total, facility) => total + getIdebFacilityArrears(facility),
+    0,
+  );
+
+  return (
+    <SectionCard title="Ringkasan Posisi Fasilitas Kredit">
+      <SetupTableCard variant="portfolio">
+        <SetupDataTable variant="portfolio" density="compact" className="min-w-[1240px]">
+          <SetupDataTableHead>
+            <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+              <SetupDataTableHeaderCell>Pelapor</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Jenis Kredit / Pembiayaan</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Tanggal Akad</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+                Plafon Awal
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+                Baki Debet Saat Ini
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                Kolektibilitas
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+                Tunggakan
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Jaminan / Agunan</SetupDataTableHeaderCell>
+            </SetupDataTableRow>
+          </SetupDataTableHead>
+          <SetupDataTableBody>
+            {facilities.map((facility, index) => {
+              const reporter = idebText(facility, ["reporter_name", "reporter_code"]) ?? "-";
+              const branch = idebText(facility, ["branch_name", "branch_code"]);
+              const accountNumber = getIdebFacilityAccount(facility);
+
+              return (
+                <SetupDataTableRow
+                  key={`${accountNumber}-${index}`}
+                  className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
+                >
+                  <SetupDataTableCell>
+                    <p className="line-clamp-2 font-semibold text-gray-900">{reporter}</p>
+                    <p className="mt-1 text-xs text-gray-500">{display(branch)}</p>
+                    <SetupTableCode className="mt-2" as="p">
+                      {accountNumber}
+                    </SetupTableCode>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell>
+                    <p className="line-clamp-2 font-semibold text-gray-900">
+                      {getIdebFacilityCreditDisplay(facility)}
+                    </p>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell>{getIdebFacilityAkadDate(facility)}</SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                    {formatCurrency(getIdebFacilityInitialPlafond(facility))}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                    {formatCurrency(getIdebFacilityOutstanding(facility))}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                    <SetupCollectibilityBadge
+                      value={getIdebFacilityCollectibility(facility)}
+                      wrap
+                    />
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                    {formatCurrency(getIdebFacilityArrears(facility))}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell>
+                    <p className="line-clamp-2 font-semibold text-gray-900">
+                      {getIdebFacilityCollateralSummary(facility)}
+                    </p>
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
+              );
+            })}
+            {facilities.length > 0 ? (
+              <SetupDataTableRow className="bg-blue-900 text-white">
+                <SetupDataTableCell
+                  colSpan={3}
+                  className="bg-blue-900 text-center text-sm font-extrabold uppercase tracking-[0.08em] text-white"
+                >
+                  Total Keseluruhan
+                </SetupDataTableCell>
+                <SetupDataTableCell className="bg-blue-900 text-right font-extrabold text-white">
+                  {formatCurrency(totalInitialPlafond)}
+                </SetupDataTableCell>
+                <SetupDataTableCell className="bg-blue-900 text-right font-extrabold text-white">
+                  {formatCurrency(totalOutstanding)}
+                </SetupDataTableCell>
+                <SetupDataTableCell className="bg-blue-900 text-center font-extrabold text-white">
+                  -
+                </SetupDataTableCell>
+                <SetupDataTableCell className="bg-blue-900 text-right font-extrabold text-white">
+                  {formatCurrency(totalArrears)}
+                </SetupDataTableCell>
+                <SetupDataTableCell className="bg-blue-900 text-white">-</SetupDataTableCell>
+              </SetupDataTableRow>
+            ) : (
+              <SetupDataTableEmptyRow colSpan={8}>
+                Belum ada data fasilitas IDEB di hasil ini.
+              </SetupDataTableEmptyRow>
+            )}
+          </SetupDataTableBody>
+        </SetupDataTable>
+      </SetupTableCard>
+    </SectionCard>
+  );
+}
+
+function IdebCreditReviewSummary({ item }: { item: DebtorWorkflowIdebUpload }) {
+  const resume = getIdebResume(item);
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-4 md:grid-cols-2">
+        <IdebProfileSection item={item} />
+        <SectionCard title="Resume Hasil IDEB">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <InfoItem
+              label="Tanggal Pengecekan IDEB"
+              value={idebDate(item.summary_detail?.result_date ?? item.summary_detail?.processed_at)}
+            />
+            <InfoItem label="Petugas" value={resume.officerName} />
+            <InfoItem label="Jumlah Lembaga / PJK" value={formatNumber(resume.reporterCount)} />
+            <InfoItem
+              label="KOL Terburuk"
+              value={display(String(resume.worstCollectibility ?? "-"))}
+            />
+          </div>
+        </SectionCard>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <IdebCreditMetricCard
+          label="KOL Terburuk"
+          tone={idebKolMetricTone(resume.worstCollectibility)}
+          hint={
+            <>
+              Jumlah fasilitas: {formatNumber(resume.facilities.length)}
+              <br />
+              Total tunggakan: {formatCurrency(resume.totalArrears)}
+            </>
+          }
+        >
+          <SetupCollectibilityBadge value={resume.worstCollectibility} size="md" wrap />
+        </IdebCreditMetricCard>
+        <IdebCreditMetricCard
+          label="Total Baki Debet Aktif"
+          tone="success"
+          hint={
+            <>
+              Jumlah PJK: {formatNumber(resume.reporterCount)}
+              <br />
+              Fasilitas aktif: {formatNumber(resume.activeFacilities.length)}
+            </>
+          }
+        >
+          {formatCurrency(resume.activeOutstanding)}
+        </IdebCreditMetricCard>
+        <IdebCreditMetricCard
+          label="Total Plafon Lunas"
+          tone="blue"
+          hint={`Fasilitas lunas: ${formatNumber(resume.paidOffFacilities.length)}`}
+        >
+          {formatCurrency(resume.paidOffPlafond)}
+        </IdebCreditMetricCard>
+        <IdebCreditMetricCard
+          label="Pembiayaan Hapus Buku"
+          tone={resume.writeOffFacilities.length > 0 ? "danger" : "default"}
+          hint={
+            <>
+              Jumlah fasilitas: {formatNumber(resume.writeOffFacilities.length)}
+              <br />
+              Tunggakan: {formatCurrency(resume.writeOffArrears)}
+            </>
+          }
+        >
+          {formatCurrency(resume.writeOffOutstanding || resume.writeOffPlafond)}
+        </IdebCreditMetricCard>
+      </div>
+
+      <IdebReporterBreakdown resume={resume} />
+      <IdebCreditPositionTable facilities={resume.facilities} />
+    </div>
+  );
+}
+
+function IdebProfileSection({ item }: { item: DebtorWorkflowIdebUpload }) {
+  const identity = getIdebIdentityRecord(item);
+  const birthInfo = [
+    idebText(identity, ["birth_place"]),
+    idebDate(idebText(identity, ["birth_date"])),
+  ]
+    .filter((value) => value && value !== "-")
+    .join(" / ");
+  const address = [
+    idebText(identity, ["address"]),
+    idebText(identity, ["village"]),
+    idebText(identity, ["district"]),
+    idebText(identity, ["city", "city_code"]),
+    idebText(identity, ["postal_code"]),
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return (
+    <SectionCard title="Profil Pokok Debitur">
+      <div className="grid gap-4 md:grid-cols-2">
+        <InfoItem
+          label="Nama Lengkap"
+          value={
+            idebText(identity, ["name"]) ??
+            item.summary_detail?.debtor_name ??
+            item.debtor?.name
+          }
+        />
+        <InfoItem
+          label="Sektor Usaha"
+          value={idebText(identity, ["business_field", "business_field_code"])}
+        />
+        <InfoItem label="Tempat / Tanggal Lahir" value={birthInfo || "-"} />
+        <InfoItem label="Alamat Terakhir" value={address || "-"} />
+        <InfoItem
+          label="Pekerjaan Utama"
+          value={idebText(identity, ["occupation", "occupation_code", "workplace"])}
+        />
+        <InfoItem
+          label="Nomor Telp"
+          value={idebText(identity, [
+            "phone",
+            "mobile_phone",
+            "telephone",
+            "phone_number",
+            "nomor_telp",
+            "nomorTelp",
+          ])}
+        />
+        <InfoItem
+          label="NIK"
+          value={
+            idebText(identity, ["identity_number"]) ??
+            item.summary_detail?.identity_number ??
+            item.debtor?.identity_number
+          }
+        />
+        <InfoItem label="Jenis Kelamin" value={idebText(identity, ["gender"])} />
+      </div>
+    </SectionCard>
+  );
+}
+
+function IdebResumeSection({ item }: { item: DebtorWorkflowIdebUpload }) {
+  const resume = getIdebResume(item);
+  const reporterSummary =
+    resume.reporterNames.length > 0
+      ? resume.reporterNames.map((name, index) => `${index + 1}) ${name}`).join("  ")
+      : "-";
+
+  return (
+    <SectionCard title="Resume Hasil IDEB">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <IdebMetricCard label="Tanggal IDEB Terakhir">
+          {idebDate(item.summary_detail?.result_date ?? item.summary_detail?.processed_at)}
+        </IdebMetricCard>
+        <IdebMetricCard label="Petugas IDEB">
+          {display(resume.officerName)}
+        </IdebMetricCard>
+        <IdebMetricCard label="Jumlah Lembaga / PJK">
+          {formatNumber(resume.reporterCount)}
+        </IdebMetricCard>
+        <IdebMetricCard label="Kualitas Terburuk">
+          <SetupCollectibilityBadge
+            value={resume.worstCollectibility}
+            size="md"
+            wrap
+          />
+        </IdebMetricCard>
+        <IdebMetricCard label="Fasilitas Aktif">
+          {formatNumber(resume.activeFacilities.length)}
+        </IdebMetricCard>
+        <IdebMetricCard label="Sisa Baki Debet">
+          {formatCurrency(resume.activeOutstanding)}
+        </IdebMetricCard>
+        <IdebMetricCard label="Total Plafon">
+          {formatCurrency(resume.totalPlafond)}
+        </IdebMetricCard>
+        <IdebMetricCard label="Total Tunggakan">
+          {formatCurrency(resume.totalArrears)}
+        </IdebMetricCard>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+            Jumlah Lembaga
+          </p>
+          <p className="mt-2 text-sm font-semibold leading-6 text-gray-900">
+            {reporterSummary}
+          </p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+            Fasilitas Aktif
+          </p>
+          {resume.activeFacilitySummaries.length > 0 ? (
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {resume.activeFacilitySummaries.map((facility) => (
+                <div
+                  key={facility.key}
+                  className="rounded-md border border-gray-200 bg-white px-3 py-2"
+                >
+                  <p className="line-clamp-1 text-sm font-semibold text-gray-900">
+                    {facility.reporter}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-600">
+                    <span>{formatCurrency(facility.outstanding)}</span>
+                    <SetupCollectibilityBadge value={facility.collectibility} wrap />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm font-semibold text-gray-900">
+              Tidak ada fasilitas aktif.
+            </p>
+          )}
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+function IdebHistoryMatrix({ history }: { history: IdebRecord[] }) {
+  const columns = Array.from(
+    new Map(
+      history
+        .map((entry) => {
+          const monthIndex = idebNumber(entry, ["month_index"]);
+          const period = idebText(entry, ["period_month"]);
+          const key =
+            monthIndex !== null
+              ? String(monthIndex).padStart(2, "0")
+              : period ?? "unknown";
+          return [
+            key,
+            {
+              key,
+              label: period ? idebPeriod(period) : `Bulan ${key}`,
+              order: monthIndex ?? Number.MAX_SAFE_INTEGER,
+            },
+          ] as const;
+        })
+        .filter(([, column]) => column.key !== "unknown"),
+    ).values(),
+  ).sort((a, b) => a.order - b.order || a.key.localeCompare(b.key));
+
+  const groupedRows = Array.from(
+    history.reduce(
+      (map, entry) => {
+        const accountNumber =
+          idebText(entry, ["account_number", "no_rekening"]) ?? "-";
+        const reporterName =
+          idebText(entry, ["reporter_name", "reporter_code"]) ?? "-";
+        const rowKey = `${accountNumber}__${reporterName}`;
+        const monthIndex = idebNumber(entry, ["month_index"]);
+        const period = idebText(entry, ["period_month"]);
+        const columnKey =
+          monthIndex !== null
+            ? String(monthIndex).padStart(2, "0")
+            : period ?? "unknown";
+
+        const current =
+          map.get(rowKey) ??
+          ({
+            key: rowKey,
+            accountNumber,
+            reporterName,
+            entries: new Map<string, IdebRecord>(),
+          } as {
+            key: string;
+            accountNumber: string;
+            reporterName: string;
+            entries: Map<string, IdebRecord>;
+          });
+
+        if (columnKey !== "unknown") current.entries.set(columnKey, entry);
+        map.set(rowKey, current);
+        return map;
+      },
+      new Map<
+        string,
+        {
+          key: string;
+          accountNumber: string;
+          reporterName: string;
+          entries: Map<string, IdebRecord>;
+        }
+      >(),
+    ),
+  ).map(([, row]) => row);
+
+  return (
+    <SetupTableCard variant="matrix">
+      <SetupDataTable variant="matrix" density="compact" className="min-w-[1120px]">
+        <SetupDataTableHead>
+          <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+            <SetupDataTableHeaderCell>Fasilitas / Pelapor</SetupDataTableHeaderCell>
+            {columns.map((column) => (
+              <SetupDataTableHeaderCell
+                key={column.key}
+                className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}
+              >
+                {column.label}
+              </SetupDataTableHeaderCell>
+            ))}
+          </SetupDataTableRow>
+        </SetupDataTableHead>
+        <SetupDataTableBody>
+          {groupedRows.map((row) => (
+            <SetupDataTableRow key={row.key} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
+              <SetupDataTableCell>
+                <p className="font-semibold text-gray-900">{row.accountNumber}</p>
+                <p className="mt-1 text-xs text-gray-500">{row.reporterName}</p>
+              </SetupDataTableCell>
+              {columns.map((column) => {
+                const entry = row.entries.get(column.key);
+                const collectibility =
+                  idebText(entry, ["collectibility", "collectibility_code", "kol"]) ??
+                  "-";
+                const dpd = idebNumber(entry, ["days_past_due", "dpd"]);
+
+                return (
+                  <SetupDataTableCell
+                    key={column.key}
+                    className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                  >
+                    {entry ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <SetupCollectibilityBadge value={collectibility} />
+                        {dpd !== null ? (
+                          <span className="text-[11px] font-medium text-gray-500">
+                            {formatNumber(dpd)} hari
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : (
+                      "-"
+                    )}
+                  </SetupDataTableCell>
+                );
+              })}
+            </SetupDataTableRow>
+          ))}
+          {groupedRows.length === 0 ? (
+            <SetupDataTableEmptyRow colSpan={Math.max(columns.length + 1, 2)}>
+              Belum ada histori KOL bulanan di hasil IDEB ini.
+            </SetupDataTableEmptyRow>
+          ) : null}
+        </SetupDataTableBody>
+      </SetupDataTable>
+    </SetupTableCard>
+  );
+}
+
+function IdebOtherBprsTable({
+  otherBprs,
+}: {
+  otherBprs: NonNullable<DebtorWorkflowIdebUpload["summary_detail"]>["other_bprs"];
+}) {
+  const rows = Array.isArray(otherBprs) ? otherBprs : [];
+
+  return (
+    <SetupTableCard variant="nested">
+      <SetupDataTable variant="nested" density="compact" className="min-w-[640px]">
+        <SetupDataTableHead>
+          <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+            <SetupDataTableHeaderCell>Nama Pelapor</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+              KOL
+            </SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+              Baki Debet
+            </SetupDataTableHeaderCell>
+          </SetupDataTableRow>
+        </SetupDataTableHead>
+        <SetupDataTableBody>
+          {rows.map((bprs, index) => (
+            <SetupDataTableRow
+              key={`${bprs.name}-${bprs.collectibility}-${index}`}
+              className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
+            >
+              <SetupDataTableCell className="font-semibold">{bprs.name}</SetupDataTableCell>
+              <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                <SetupCollectibilityBadge value={bprs.collectibility} />
+              </SetupDataTableCell>
+              <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                {formatCurrency(bprs.outstanding_pokok)}
+              </SetupDataTableCell>
+            </SetupDataTableRow>
+          ))}
+          {rows.length === 0 ? (
+            <SetupDataTableEmptyRow colSpan={3}>
+              Belum ada riwayat pelapor lain di hasil IDEB ini.
+            </SetupDataTableEmptyRow>
+          ) : null}
+        </SetupDataTableBody>
+      </SetupDataTable>
+    </SetupTableCard>
+  );
+}
+
+function IdebCollateralTable({ facilities }: { facilities: IdebRecord[] }) {
+  const rows = getIdebFacilityRowsWithNested(facilities, "collaterals");
+
+  return (
+    <SetupTableCard variant="nested">
+      <SetupDataTable variant="nested" density="compact" className="min-w-[820px]">
+        <SetupDataTableHead>
+          <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+            <SetupDataTableHeaderCell>No Fasilitas F01</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Jenis Agunan</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+              Nilai
+            </SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Lokasi / Alamat</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Status</SetupDataTableHeaderCell>
+          </SetupDataTableRow>
+        </SetupDataTableHead>
+        <SetupDataTableBody>
+          {rows.map(({ facility, record }, index) => (
+            <SetupDataTableRow
+              key={`${getIdebFacilityAccount(facility)}-collateral-${index}`}
+              className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
+            >
+              <SetupDataTableCell>
+                <SetupTableCode>{getIdebFacilityAccount(facility)}</SetupTableCode>
+              </SetupDataTableCell>
+              <SetupDataTableCell>
+                {display(
+                  idebText(record, [
+                    "collateral_type",
+                    "jenis_agunan",
+                    "jenisAgunan",
+                    "jenis",
+                    "type",
+                  ]),
+                )}
+              </SetupDataTableCell>
+              <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                {idebMoney(record, [
+                  "value",
+                  "market_value",
+                  "nilai",
+                  "nilai_agunan",
+                  "nilaiAgunan",
+                ])}
+              </SetupDataTableCell>
+              <SetupDataTableCell>
+                {display(
+                  idebText(record, ["location", "alamat", "address", "lokasi"]),
+                )}
+              </SetupDataTableCell>
+              <SetupDataTableCell>
+                {display(
+                  idebText(record, [
+                    "status",
+                    "condition",
+                    "keterangan",
+                    "description",
+                  ]),
+                )}
+              </SetupDataTableCell>
+            </SetupDataTableRow>
+          ))}
+          {rows.length === 0 ? (
+            <SetupDataTableEmptyRow colSpan={5}>
+              Belum ada data agunan di hasil IDEB ini.
+            </SetupDataTableEmptyRow>
+          ) : null}
+        </SetupDataTableBody>
+      </SetupDataTable>
+    </SetupTableCard>
+  );
+}
+
+function IdebGuarantorTable({ facilities }: { facilities: IdebRecord[] }) {
+  const rows = getIdebFacilityRowsWithNested(facilities, "guarantors");
+
+  return (
+    <SetupTableCard variant="nested">
+      <SetupDataTable variant="nested" density="compact" className="min-w-[760px]">
+        <SetupDataTableHead>
+          <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+            <SetupDataTableHeaderCell>No Fasilitas F01</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Nama Penjamin</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>No Identitas</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Jenis / Hubungan</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Alamat</SetupDataTableHeaderCell>
+          </SetupDataTableRow>
+        </SetupDataTableHead>
+        <SetupDataTableBody>
+          {rows.map(({ facility, record }, index) => (
+            <SetupDataTableRow
+              key={`${getIdebFacilityAccount(facility)}-guarantor-${index}`}
+              className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
+            >
+              <SetupDataTableCell>
+                <SetupTableCode>{getIdebFacilityAccount(facility)}</SetupTableCode>
+              </SetupDataTableCell>
+              <SetupDataTableCell className="font-semibold">
+                {display(
+                  idebText(record, ["name", "nama", "nama_penjamin", "namaPenjamin"]),
+                )}
+              </SetupDataTableCell>
+              <SetupDataTableCell>
+                {display(
+                  idebText(record, [
+                    "identity_number",
+                    "no_identitas",
+                    "noIdentitas",
+                    "nik",
+                  ]),
+                )}
+              </SetupDataTableCell>
+              <SetupDataTableCell>
+                {display(
+                  idebText(record, [
+                    "type",
+                    "jenis",
+                    "relationship",
+                    "hubungan",
+                  ]),
+                )}
+              </SetupDataTableCell>
+              <SetupDataTableCell>
+                {display(idebText(record, ["address", "alamat"]))}
+              </SetupDataTableCell>
+            </SetupDataTableRow>
+          ))}
+          {rows.length === 0 ? (
+            <SetupDataTableEmptyRow colSpan={5}>
+              Belum ada data penjamin di hasil IDEB ini.
+            </SetupDataTableEmptyRow>
+          ) : null}
+        </SetupDataTableBody>
+      </SetupDataTable>
+    </SetupTableCard>
+  );
+}
+
+function idebComparisonStatusLabel(status: string) {
+  if (status === "MATCHED") return "Cocok";
+  if (status === "DIFFERENT") return "Beda Data";
+  if (status === "EXTERNAL_ONLY") return "Fasilitas Eksternal";
+  if (status === "INTERNAL_ONLY") return "Internal Tidak Muncul";
+  return status;
+}
+
+function IdebComparisonTable({
+  comparison,
+  isLoading,
+  error,
+}: {
+  comparison: DebtorIdebComparison | null;
+  isLoading: boolean;
+  error: string | null;
+}) {
+  return (
+    <SetupTableCard variant="nested">
+      <SetupDataTable variant="portfolio" density="compact" className="min-w-[1180px]">
+        <SetupDataTableHead>
+          <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+            <SetupDataTableHeaderCell>Status</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Fasilitas IDEB</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>F01 Internal</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+              KOL
+            </SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+              Baki Debet
+            </SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Perbedaan</SetupDataTableHeaderCell>
+          </SetupDataTableRow>
+        </SetupDataTableHead>
+        <SetupDataTableBody>
+          {comparison?.items.map((item, index) => {
+            const external = item.external;
+            const internal = item.internal;
+            const differences =
+              item.differences.length > 0
+                ? item.differences.map((difference) => difference.label).join(", ")
+                : "-";
+
+            return (
+              <SetupDataTableRow
+                key={`${item.status}-${item.match_key ?? index}`}
+                className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
+              >
+                <SetupDataTableCell>
+                  <SetupStatusBadge
+                    status={item.status_label || idebComparisonStatusLabel(item.status)}
+                    showIcon={false}
+                  />
+                </SetupDataTableCell>
+                <SetupDataTableCell>
+                  {external ? (
+                    <>
+                      <SetupTableCode>{external.account_number ?? "-"}</SetupTableCode>
+                      <p className="mt-2 line-clamp-2 font-semibold text-gray-900">
+                        {display(external.product)}
+                      </p>
+                      <p className="mt-1 line-clamp-1 text-xs text-gray-500">
+                        {display(external.akad)}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {display(external.reporter)}
+                      </p>
+                    </>
+                  ) : (
+                    "-"
+                  )}
+                </SetupDataTableCell>
+                <SetupDataTableCell>
+                  {internal ? (
+                    <>
+                      <SetupTableCode>
+                        {internal.facility_number ?? internal.no_kontrak ?? "-"}
+                      </SetupTableCode>
+                      <p className="mt-2 line-clamp-2 font-semibold text-gray-900">
+                        {display(internal.product)}
+                      </p>
+                      <p className="mt-1 line-clamp-1 text-xs text-gray-500">
+                        {display(internal.akad)}
+                      </p>
+                    </>
+                  ) : (
+                    "-"
+                  )}
+                </SetupDataTableCell>
+                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                  <div className="flex flex-col items-center gap-1">
+                    {external ? (
+                      <SetupCollectibilityBadge value={external.collectibility} wrap />
+                    ) : null}
+                    {internal ? (
+                      <SetupCollectibilityBadge value={internal.collectibility} wrap />
+                    ) : null}
+                    {!external && !internal ? "-" : null}
+                  </div>
+                </SetupDataTableCell>
+                <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                  <div className="space-y-1">
+                    <p>{formatOptionalCurrency(external?.outstanding)}</p>
+                    <p className="text-xs text-gray-500">
+                      Internal: {formatOptionalCurrency(internal?.outstanding)}
+                    </p>
+                  </div>
+                </SetupDataTableCell>
+                <SetupDataTableCell>
+                  <span className="line-clamp-2 text-sm text-gray-600" title={differences}>
+                    {differences}
+                  </span>
+                </SetupDataTableCell>
+              </SetupDataTableRow>
+            );
+          })}
+          {isLoading ? (
+            <SetupDataTableEmptyRow colSpan={6}>
+              Memuat perbandingan IDEB dengan F01 internal...
+            </SetupDataTableEmptyRow>
+          ) : null}
+          {!isLoading && error ? (
+            <SetupDataTableEmptyRow colSpan={6}>{error}</SetupDataTableEmptyRow>
+          ) : null}
+          {!isLoading && !error && (!comparison || comparison.items.length === 0) ? (
+            <SetupDataTableEmptyRow colSpan={6}>
+              Belum ada data yang bisa dibandingkan.
+            </SetupDataTableEmptyRow>
+          ) : null}
+        </SetupDataTableBody>
+      </SetupDataTable>
+    </SetupTableCard>
+  );
+}
+
 function IdebTab({
+  debtorId,
   items,
   onOpenFile,
 }: {
+  debtorId: string;
   items: DebtorWorkflowIdebUpload[];
   onOpenFile: (file: DebtorFileMeta) => void;
 }) {
   const [selectedIdeb, setSelectedIdeb] = useState<DebtorWorkflowIdebUpload | null>(null);
+  const [comparison, setComparison] = useState<DebtorIdebComparison | null>(null);
+  const [isLoadingComparison, setIsLoadingComparison] = useState(false);
+  const [comparisonError, setComparisonError] = useState<string | null>(null);
+  const [exportingIdebId, setExportingIdebId] = useState<string | null>(null);
+  const idebRowActivationRef = useRef<DoubleRowActivationState | null>(null);
+  const { showToast } = useAppToast();
+  const latestIdeb = useMemo(() => getLatestIdebItem(items), [items]);
+  const selectedFacilities = selectedIdeb ? getIdebFacilities(selectedIdeb) : [];
+  const selectedHistory = selectedIdeb ? getIdebMonthlyHistory(selectedIdeb) : [];
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadComparison() {
+      if (!selectedIdeb) {
+        setComparison(null);
+        setComparisonError(null);
+        return;
+      }
+
+      setIsLoadingComparison(true);
+      setComparisonError(null);
+      try {
+        const result = await debiturService.getIdebComparison(debtorId, selectedIdeb.id);
+        if (!ignore) setComparison(result);
+      } catch (error) {
+        if (!ignore) {
+          setComparison(null);
+          setComparisonError(
+            error instanceof Error
+              ? error.message
+              : "Perbandingan IDEB belum tersedia.",
+          );
+        }
+      } finally {
+        if (!ignore) setIsLoadingComparison(false);
+      }
+    }
+
+    void loadComparison();
+
+    return () => {
+      ignore = true;
+    };
+  }, [debtorId, selectedIdeb]);
+
+  const exportResumePdf = async (item: DebtorWorkflowIdebUpload) => {
+    setExportingIdebId(item.id);
+    try {
+      const result = await debiturService.downloadIdebResumePdf(item.id);
+      downloadBrowserFile(result.blob, result.fileName);
+      showToast("Resume IDEB berhasil diexport", "success");
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Gagal export resume IDEB",
+        "error",
+      );
+    } finally {
+      setExportingIdebId(null);
+    }
+  };
 
   return (
     <>
-      <div>
-        <h2 className="text-lg font-bold text-gray-900">Riwayat Pengecekan IDEB</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Riwayat upload dan hasil pengecekan IDEB nasabah.
-        </p>
+      {latestIdeb ? (
+        <div className="space-y-6">
+          <IdebProfileSection item={latestIdeb} />
+          <IdebResumeSection item={latestIdeb} />
+        </div>
+      ) : (
+        <EmptyState>Belum ada hasil IDEB untuk debitur ini.</EmptyState>
+      )}
+
+      <div className="mt-6">
+        <h2 className="text-lg font-bold text-gray-900">List Historis IDEB</h2>
       </div>
       <SetupTableCard variant="nested">
-        <SetupDataTable variant="report" density="compact" className="min-w-[900px]">
+        <SetupDataTable variant="report" density="compact" className="min-w-[1280px]">
           <SetupDataTableHead>
             <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
                 No
               </SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Bulan</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Tahun</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Tgl Upload</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                Status
+              <SetupDataTableHeaderCell>Tgl Upload / Tgl IDEB</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+                Jumlah Bank/PJK
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+                Fasilitas Aktif
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+                Baki Debet Aktif
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+                Fasilitas Lunas
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+                Plafon Lunas
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+                Total Plafon
               </SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                Kesimpulan
+                KOL Terburuk
               </SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                Aksi
-              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Petugas</SetupDataTableHeaderCell>
             </SetupDataTableRow>
           </SetupDataTableHead>
           <SetupDataTableBody>
-            {items.map((item, index) => (
-              <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                  {index + 1}
-                </SetupDataTableCell>
-                <SetupDataTableCell>
-                  {item.month
-                    ? new Intl.DateTimeFormat("id-ID", { month: "long" }).format(
-                        new Date(item.year || 2000, item.month - 1, 1),
-                      )
-                    : "-"}
-                </SetupDataTableCell>
-                <SetupDataTableCell>{item.year || "-"}</SetupDataTableCell>
-                <SetupDataTableCell>{formatDateOnly(item.created_at)}</SetupDataTableCell>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                  <SetupStatusBadge status={statusLabel(item.status)} />
-                </SetupDataTableCell>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                  <SetupStatusBadge
-                    status={statusLabel(item.status)}
-                    label={item.summary_detail?.conclusion ?? statusLabel(item.status)}
-                    showIcon={false}
-                  />
-                </SetupDataTableCell>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                  <SetupViewButton
-                    label="Lihat Detail"
-                    title="Lihat detail hasil IDEB"
-                    onClick={() => setSelectedIdeb(item)}
-                  />
-                </SetupDataTableCell>
-              </SetupDataTableRow>
-            ))}
+            {items.map((item, index) => {
+              const resume = getIdebResume(item);
+              const activateRow = () => setSelectedIdeb(item);
+
+              return (
+                <SetupDataTableRow
+                  key={item.id}
+                  role="button"
+                  tabIndex={0}
+                  title="Double-click untuk melihat detail pengecekan IDEB"
+                  className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200`}
+                  onClick={() =>
+                    handleDoubleRowClick(idebRowActivationRef, item.id, activateRow)
+                  }
+                  onDoubleClick={() =>
+                    triggerDoubleRowActivation(idebRowActivationRef, item.id, activateRow)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") return;
+                    event.preventDefault();
+                    triggerDoubleRowActivation(idebRowActivationRef, item.id, activateRow);
+                  }}
+                >
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                    {index + 1}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell>
+                    <p className="font-semibold text-gray-900">
+                      {formatDateOnly(item.created_at)}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      IDEB {idebDate(item.summary_detail?.result_date)}
+                    </p>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                    {formatNumber(resume.reporterCount)}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                    {formatNumber(resume.activeFacilities.length)}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                    {formatCurrency(resume.activeOutstanding)}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                    {formatNumber(resume.paidOffFacilities.length)}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                    {formatCurrency(resume.paidOffPlafond)}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                    {formatCurrency(resume.totalPlafond)}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                    <SetupCollectibilityBadge value={resume.worstCollectibility} wrap />
+                  </SetupDataTableCell>
+                  <SetupDataTableCell>
+                    <p className="line-clamp-2 font-semibold text-gray-900">
+                      {display(resume.officerName)}
+                    </p>
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
+              );
+            })}
             {items.length === 0 ? (
-              <SetupDataTableEmptyRow colSpan={7}>
+              <SetupDataTableEmptyRow colSpan={10}>
                 Belum ada hasil IDEB untuk debitur ini.
               </SetupDataTableEmptyRow>
             ) : null}
@@ -1516,84 +3565,62 @@ function IdebTab({
         isOpen={selectedIdeb !== null}
         title={
           selectedIdeb
-            ? `Hasil IDEB - ${selectedIdeb.summary_detail?.debtor_name ?? selectedIdeb.debtor?.name ?? "Debitur"}`
-            : "Hasil IDEB"
+            ? `Detail Pengecekan IDEB - ${selectedIdeb.summary_detail?.debtor_name ?? selectedIdeb.debtor?.name ?? "Debitur"}`
+            : "Detail Pengecekan IDEB"
         }
         description={
-          selectedIdeb?.month && selectedIdeb.year
-            ? new Intl.DateTimeFormat("id-ID", {
-                month: "long",
-                year: "numeric",
-              }).format(new Date(selectedIdeb.year, selectedIdeb.month - 1, 1))
+          selectedIdeb
+            ? idebPeriod(getIdebUploadPeriod(selectedIdeb))
             : undefined
         }
         onClose={() => setSelectedIdeb(null)}
-        maxWidth="3xl"
+        maxWidth="5xl"
       >
         {selectedIdeb ? (
           <div className="space-y-6">
             <div className="flex justify-end">
               <SetupStatusBadge status={statusLabel(selectedIdeb.status)} />
             </div>
-            <SectionCard title="Ringkasan Hasil IDEB">
-              <div className="grid gap-4 md:grid-cols-2">
-                <InfoItem
-                  label="Nama Nasabah"
-                  value={selectedIdeb.summary_detail?.debtor_name ?? selectedIdeb.debtor?.name}
-                />
-                <InfoItem
-                  label="No Identitas"
-                  value={selectedIdeb.summary_detail?.identity_number ?? selectedIdeb.debtor?.identity_number}
-                />
-                <InfoItem
-                  label="No Kontrak"
-                  value={selectedIdeb.summary_detail?.contract_number ?? selectedIdeb.contract?.no_kontrak}
-                />
-                <InfoItem
-                  label="Kolektibilitas Berjalan"
-                  value={selectedIdeb.summary_detail?.current_collectibility}
-                />
-                <InfoItem
-                  label="OS Pokok"
-                  value={formatCurrency(selectedIdeb.summary_detail?.outstanding_pokok)}
-                />
-                <InfoItem
-                  label="Status Pembiayaan"
-                  value={selectedIdeb.summary_detail?.financing_status}
-                />
+            <IdebCreditReviewSummary item={selectedIdeb} />
+
+            <SectionCard title="Perbandingan dengan F01 Internal">
+              <div className="mb-4 grid gap-3 md:grid-cols-4">
+                <IdebMetricCard label="Cocok">
+                  {formatNumber(comparison?.summary.matched ?? 0)}
+                </IdebMetricCard>
+                <IdebMetricCard label="Beda Data">
+                  {formatNumber(comparison?.summary.different ?? 0)}
+                </IdebMetricCard>
+                <IdebMetricCard label="Fasilitas Eksternal">
+                  {formatNumber(comparison?.summary.external_only ?? 0)}
+                </IdebMetricCard>
+                <IdebMetricCard label="Internal Tidak Muncul">
+                  {formatNumber(comparison?.summary.internal_only ?? 0)}
+                </IdebMetricCard>
               </div>
+              <IdebComparisonTable
+                comparison={comparison}
+                isLoading={isLoadingComparison}
+                error={comparisonError}
+              />
             </SectionCard>
 
-            <SectionCard title="Riwayat Kolektibilitas di BPRS Lain">
-              <SetupTableCard variant="nested">
-                <SetupDataTable variant="nested" density="compact" className="min-w-[640px]">
-                  <SetupDataTableHead>
-                    <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-                      <SetupDataTableHeaderCell>Nama BPRS</SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                        Kolektibilitas
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell>OS Pokok</SetupDataTableHeaderCell>
-                    </SetupDataTableRow>
-                  </SetupDataTableHead>
-                  <SetupDataTableBody>
-                    {(selectedIdeb.summary_detail?.other_bprs ?? []).map((bprs) => (
-                      <SetupDataTableRow key={`${bprs.name}-${bprs.collectibility}`} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
-                        <SetupDataTableCell className="font-semibold">{bprs.name}</SetupDataTableCell>
-                        <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                          {display(bprs.collectibility)}
-                        </SetupDataTableCell>
-                        <SetupDataTableCell>{formatCurrency(bprs.outstanding_pokok)}</SetupDataTableCell>
-                      </SetupDataTableRow>
-                    ))}
-                    {(selectedIdeb.summary_detail?.other_bprs ?? []).length === 0 ? (
-                      <SetupDataTableEmptyRow colSpan={3}>
-                        Belum ada riwayat BPRS lain di hasil IDEB ini.
-                      </SetupDataTableEmptyRow>
-                    ) : null}
-                  </SetupDataTableBody>
-                </SetupDataTable>
-              </SetupTableCard>
+            <SectionCard title="Histori KOL">
+              <IdebHistoryMatrix history={selectedHistory} />
+            </SectionCard>
+
+            {selectedFacilities.length === 0 ? (
+              <SectionCard title="Riwayat Pelapor">
+                <IdebOtherBprsTable otherBprs={selectedIdeb.summary_detail?.other_bprs ?? []} />
+              </SectionCard>
+            ) : null}
+
+            <SectionCard title="Agunan">
+              <IdebCollateralTable facilities={selectedFacilities} />
+            </SectionCard>
+
+            <SectionCard title="Penjamin">
+              <IdebGuarantorTable facilities={selectedFacilities} />
             </SectionCard>
 
             <SectionCard title="Kesimpulan">
@@ -1602,7 +3629,20 @@ function IdebTab({
               </div>
             </SectionCard>
 
-            <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                className="uiverse-modal-button uiverse-modal-button--neutral"
+                disabled={exportingIdebId === selectedIdeb.id}
+                onClick={() => void exportResumePdf(selectedIdeb)}
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+                <span>
+                  {exportingIdebId === selectedIdeb.id
+                    ? "Mengexport..."
+                    : "Export Resume PDF"}
+                </span>
+              </button>
               <FileButton file={selectedIdeb.file} onOpen={onOpenFile} />
             </div>
           </div>
@@ -1659,42 +3699,70 @@ function HistorisKolTab({ items }: { items: DebtorWorkflowCollectibility[] }) {
 function DokumenTab({
   items,
   checklist,
+  canUpload,
   onOpenFile,
+  onUploadChecklist,
+  onUploadOther,
 }: {
   items: DebtorDocument[];
   checklist: DebtorDocumentChecklistStatus[];
+  canUpload: boolean;
   onOpenFile: (file: DebtorFileMeta) => void;
+  onUploadChecklist: (item: DebtorDocumentChecklistStatus) => void;
+  onUploadOther: () => void;
 }) {
-  const shouldUseChecklist = checklist.length > 0;
+  const requiredChecklist = useMemo(
+    () => checklist.filter((item) => item.is_required),
+    [checklist],
+  );
+  const optionalChecklist = useMemo(
+    () => checklist.filter((item) => !item.is_required),
+    [checklist],
+  );
+  const activeChecklistIds = useMemo(
+    () => new Set(checklist.map((item) => item.id)),
+    [checklist],
+  );
+  const standaloneDocuments = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          !item.document_checklist_id ||
+          !activeChecklistIds.has(item.document_checklist_id),
+      ),
+    [activeChecklistIds, items],
+  );
+  const otherRowsCount = optionalChecklist.length + standaloneDocuments.length;
 
   return (
-    <SetupTableCard variant="nested">
-      <SetupDataTable variant="portfolio" density="compact" className="min-w-[920px]">
-        <SetupDataTableHead>
-          <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
-              No
-            </SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Dokumen</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Kategori</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Keterangan</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-              Status
-            </SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-              File
-            </SetupDataTableHeaderCell>
-          </SetupDataTableRow>
-        </SetupDataTableHead>
-        <SetupDataTableBody>
-          {shouldUseChecklist
-            ? checklist.map((item, index) => (
+    <div className="space-y-5">
+      <SectionCard title="Dokumen Wajib">
+        <SetupTableCard variant="nested">
+          <SetupDataTable variant="portfolio" density="compact" className="min-w-[920px]">
+            <SetupDataTableHead>
+              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+                  No
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell>Dokumen</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell>Jenis</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell>Keterangan</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                  Status
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                  Aksi
+                </SetupDataTableHeaderCell>
+              </SetupDataTableRow>
+            </SetupDataTableHead>
+            <SetupDataTableBody>
+              {requiredChecklist.map((item, index) => (
                 <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                     {index + 1}
                   </SetupDataTableCell>
                   <SetupDataTableCell className="font-semibold">{item.name}</SetupDataTableCell>
-                  <SetupDataTableCell>{item.category ?? "-"}</SetupDataTableCell>
+                  <SetupDataTableCell>{documentTypeLabel(item.document_type)}</SetupDataTableCell>
                   <SetupDataTableCell>
                     {item.document?.description ?? item.description ?? "-"}
                   </SetupDataTableCell>
@@ -1705,36 +3773,139 @@ function DokumenTab({
                     />
                   </SetupDataTableCell>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <FileButton file={item.document?.file} onOpen={onOpenFile} />
+                    <DocumentTableAction
+                      document={item.document}
+                      canUpload={canUpload}
+                      onOpenFile={onOpenFile}
+                      onUpload={() => onUploadChecklist(item)}
+                    />
                   </SetupDataTableCell>
                 </SetupDataTableRow>
-              ))
-            : items.map((item, index) => (
+              ))}
+              {requiredChecklist.length === 0 ? (
+                <SetupDataTableEmptyRow colSpan={6}>
+                  Belum ada checklist dokumen wajib aktif.
+                </SetupDataTableEmptyRow>
+              ) : null}
+            </SetupDataTableBody>
+          </SetupDataTable>
+        </SetupTableCard>
+      </SectionCard>
+
+      <SectionCard
+        title="Dokumen Lainnya"
+        actions={
+          canUpload ? (
+            <SetupAddButton
+              label="Tambah Dokumen Lainnya"
+              icon={<Upload className="uiverse-add-user-button__svg" aria-hidden="true" />}
+              onClick={onUploadOther}
+            />
+          ) : null
+        }
+      >
+        <SetupTableCard variant="nested">
+          <SetupDataTable variant="portfolio" density="compact" className="min-w-[920px]">
+            <SetupDataTableHead>
+              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+                  No
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell>Dokumen</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell>Jenis</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell>Keterangan</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                  Status
+                </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                  Aksi
+                </SetupDataTableHeaderCell>
+              </SetupDataTableRow>
+            </SetupDataTableHead>
+            <SetupDataTableBody>
+              {optionalChecklist.map((item, index) => (
                 <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                     {index + 1}
                   </SetupDataTableCell>
+                  <SetupDataTableCell className="font-semibold">{item.name}</SetupDataTableCell>
+                  <SetupDataTableCell>{documentTypeLabel(item.document_type)}</SetupDataTableCell>
+                  <SetupDataTableCell>
+                    {item.document?.description ?? item.description ?? "-"}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                    <SetupStatusBadge
+                      status={item.status === "ADA" ? "Ada" : "Belum Ada"}
+                      showIcon={false}
+                    />
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                    <DocumentTableAction
+                      document={item.document}
+                      canUpload={canUpload}
+                      onOpenFile={onOpenFile}
+                      onUpload={() => onUploadChecklist(item)}
+                    />
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
+              ))}
+              {standaloneDocuments.map((item, index) => (
+                <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                    {optionalChecklist.length + index + 1}
+                  </SetupDataTableCell>
                   <SetupDataTableCell className="font-semibold">
                     {item.document_checklist?.name ?? item.document_type}
                   </SetupDataTableCell>
-                  <SetupDataTableCell>{item.category}</SetupDataTableCell>
+                  <SetupDataTableCell>{documentTypeLabel(item.document_type)}</SetupDataTableCell>
                   <SetupDataTableCell>{display(item.description)}</SetupDataTableCell>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
                     <SetupStatusBadge status="Ada" showIcon={false} />
                   </SetupDataTableCell>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <FileButton file={item.file} onOpen={onOpenFile} />
+                    <FileButton file={item.file} label="Lihat File" onOpen={onOpenFile} />
                   </SetupDataTableCell>
                 </SetupDataTableRow>
               ))}
-          {(shouldUseChecklist ? checklist.length : items.length) === 0 ? (
-            <SetupDataTableEmptyRow colSpan={6}>
-              Belum ada checklist atau dokumen debitur.
-            </SetupDataTableEmptyRow>
-          ) : null}
-        </SetupDataTableBody>
-      </SetupDataTable>
-    </SetupTableCard>
+              {otherRowsCount === 0 ? (
+                <SetupDataTableEmptyRow colSpan={6}>
+                  Belum ada dokumen lainnya untuk debitur ini.
+                </SetupDataTableEmptyRow>
+              ) : null}
+            </SetupDataTableBody>
+          </SetupDataTable>
+        </SetupTableCard>
+      </SectionCard>
+    </div>
+  );
+}
+
+function DocumentTableAction({
+  document,
+  canUpload,
+  onOpenFile,
+  onUpload,
+}: {
+  document: DebtorDocument | null;
+  canUpload: boolean;
+  onOpenFile: (file: DebtorFileMeta) => void;
+  onUpload: () => void;
+}) {
+  if (document?.file) {
+    return <FileButton file={document.file} label="Lihat File" onOpen={onOpenFile} />;
+  }
+
+  if (!canUpload) return <span className="text-gray-400">-</span>;
+
+  return (
+    <button
+      type="button"
+      className="uiverse-modal-button uiverse-modal-button--primary"
+      onClick={onUpload}
+    >
+      <Upload className="h-4 w-4" aria-hidden="true" />
+      <span>Upload</span>
+    </button>
   );
 }
 
@@ -1796,11 +3967,7 @@ function DebtorDetailSummary({
             <SetupStatusBadge status={customerLabel} showIcon={false} />
             <SetupStatusBadge status={statusLabel(debtor.status)} />
             {collectibility ? (
-              <SetupStatusBadge
-                status={collectibility}
-                tone="emerald"
-                icon={BadgeCheck}
-              />
+              <SetupCollectibilityBadge value={collectibility} />
             ) : null}
           </div>
           <div>
@@ -1923,13 +4090,15 @@ function DetailTabNav({
 function AgunanTab({
   items,
   collateralTypeLookup,
+  activeContract,
 }: {
   items: DebtorCollateral[];
   collateralTypeLookup: Map<string, string>;
+  activeContract?: DebtorContract | null;
 }) {
   const groups = items.reduce<Array<{ key: string; items: DebtorCollateral[] }>>(
     (result, item) => {
-      const key = item.contract?.no_kontrak ?? item.facility_number ?? "Tanpa fasilitas";
+      const key = item.facility_number ?? item.contract?.no_kontrak ?? "Tanpa fasilitas";
       const existing = result.find((group) => group.key === key);
       if (existing) {
         existing.items.push(item);
@@ -1965,7 +4134,14 @@ function AgunanTab({
         <div key={group.key} className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-sm font-bold text-gray-900">Fasilitas {group.key}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-bold text-gray-900">Fasilitas {group.key}</p>
+                {group.items.some((item) =>
+                  isCollateralLinkedToContract(item, activeContract),
+                ) ? (
+                  <SetupStatusBadge status="Fasilitas aktif" showIcon={false} />
+                ) : null}
+              </div>
               <p className="text-xs text-gray-500">{formatNumber(group.items.length)} agunan A01</p>
             </div>
           </div>
@@ -2045,66 +4221,6 @@ function AgunanTab({
   );
 }
 
-function RestrukturisasiTab({
-  items,
-  restructuringTypeLookup,
-}: {
-  items: DebtorRestructuringRecord[];
-  restructuringTypeLookup: Map<string, string>;
-}) {
-  return (
-    <SetupTableCard variant="nested">
-      <SetupDataTable variant="workflow" density="compact" className="min-w-[1120px]">
-        <SetupDataTableHead>
-          <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
-              No
-            </SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Periode</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Tanggal Restruk</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Jenis</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Alasan</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>OS Setelah</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Jatuh Tempo Baru</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-              Status
-            </SetupDataTableHeaderCell>
-          </SetupDataTableRow>
-        </SetupDataTableHead>
-        <SetupDataTableBody>
-          {items.map((item, index) => (
-            <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
-              <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                {index + 1}
-              </SetupDataTableCell>
-              <SetupDataTableCell>{periodLabel(item.period_month)}</SetupDataTableCell>
-              <SetupDataTableCell>{item.contract?.no_kontrak ?? "-"}</SetupDataTableCell>
-              <SetupDataTableCell>{formatDateOnly(item.restructuring_date)}</SetupDataTableCell>
-              <SetupDataTableCell>
-                {parameterDisplay(item.restructuring_type, restructuringTypeLookup)}
-              </SetupDataTableCell>
-              <SetupDataTableCell>{display(item.reason)}</SetupDataTableCell>
-              <SetupDataTableCell>
-                {formatOptionalCurrency(item.outstanding_after)}
-              </SetupDataTableCell>
-              <SetupDataTableCell>{formatDateOnly(item.new_due_date)}</SetupDataTableCell>
-              <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                <SetupStatusBadge status={statusLabel(item.status)} />
-              </SetupDataTableCell>
-            </SetupDataTableRow>
-          ))}
-          {items.length === 0 ? (
-            <SetupDataTableEmptyRow colSpan={9}>
-              Belum ada riwayat restrukturisasi untuk debitur ini.
-            </SetupDataTableEmptyRow>
-          ) : null}
-        </SetupDataTableBody>
-      </SetupDataTable>
-    </SetupTableCard>
-  );
-}
-
 function NotarisTab({
   items,
   onOpenFile,
@@ -2113,79 +4229,77 @@ function NotarisTab({
   onOpenFile: (file: DebtorFileMeta) => void;
 }) {
   return (
-    <SetupTableCard variant="nested">
-      <SetupDataTable variant="workflow" density="compact" className="min-w-[1180px]">
-        <SetupDataTableHead>
-          <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
-              No
-            </SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Jenis Akta</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Notaris</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Agunan</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Diterima</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Estimasi</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Selesai</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-              Status
-            </SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-              File
-            </SetupDataTableHeaderCell>
-          </SetupDataTableRow>
-        </SetupDataTableHead>
-        <SetupDataTableBody>
-          {items.map((item, index) => (
-            <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
-              <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                {index + 1}
-              </SetupDataTableCell>
-              <SetupDataTableCell>{display(item.deed_type)}</SetupDataTableCell>
-              <SetupDataTableCell>{item.third_party?.name ?? "-"}</SetupDataTableCell>
-              <SetupDataTableCell>{item.contract?.no_kontrak ?? "-"}</SetupDataTableCell>
-              <SetupDataTableCell>{collateralDisplay(item.collateral)}</SetupDataTableCell>
-              <SetupDataTableCell>{formatDateOnly(item.received_at)}</SetupDataTableCell>
-              <SetupDataTableCell>{formatDateOnly(item.estimated_completed_at)}</SetupDataTableCell>
-              <SetupDataTableCell>{formatDateOnly(item.completed_at)}</SetupDataTableCell>
-              <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                <SetupStatusBadge status={statusLabel(item.status)} />
-              </SetupDataTableCell>
-              <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                <FileButton file={item.file} onOpen={onOpenFile} />
-              </SetupDataTableCell>
+    <SectionCard
+      title="Progress Notaris"
+      actions={
+        <LegalShortcutLink
+          href="/dashboard/legal/progress/notaris"
+          label="Buka Progress Notaris"
+        />
+      }
+    >
+      <SetupTableCard variant="nested">
+        <SetupDataTable variant="workflow" density="compact" className="min-w-[1180px]">
+          <SetupDataTableHead>
+            <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+                No
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Jenis Akta</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Notaris</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Agunan</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Diterima</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Estimasi</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Selesai</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                Status
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                File
+              </SetupDataTableHeaderCell>
             </SetupDataTableRow>
-          ))}
-          {items.length === 0 ? (
-            <SetupDataTableEmptyRow colSpan={10}>
-              Belum ada progress notaris untuk debitur ini.
-            </SetupDataTableEmptyRow>
-          ) : null}
-        </SetupDataTableBody>
-      </SetupDataTable>
-    </SetupTableCard>
+          </SetupDataTableHead>
+          <SetupDataTableBody>
+            {items.map((item, index) => (
+              <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
+                <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                  {index + 1}
+                </SetupDataTableCell>
+                <SetupDataTableCell>{display(item.deed_type)}</SetupDataTableCell>
+                <SetupDataTableCell>{item.third_party?.name ?? "-"}</SetupDataTableCell>
+                <SetupDataTableCell>{item.contract?.no_kontrak ?? "-"}</SetupDataTableCell>
+                <SetupDataTableCell>{collateralDisplay(item.collateral)}</SetupDataTableCell>
+                <SetupDataTableCell>{formatDateOnly(item.received_at)}</SetupDataTableCell>
+                <SetupDataTableCell>{formatDateOnly(item.estimated_completed_at)}</SetupDataTableCell>
+                <SetupDataTableCell>{formatDateOnly(item.completed_at)}</SetupDataTableCell>
+                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                  <SetupStatusBadge status={statusLabel(item.status)} />
+                </SetupDataTableCell>
+                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                  <FileButton file={item.file} onOpen={onOpenFile} />
+                </SetupDataTableCell>
+              </SetupDataTableRow>
+            ))}
+            {items.length === 0 ? (
+              <SetupDataTableEmptyRow colSpan={10}>
+                Belum ada progress notaris untuk debitur ini.
+              </SetupDataTableEmptyRow>
+            ) : null}
+          </SetupDataTableBody>
+        </SetupDataTable>
+      </SetupTableCard>
+    </SectionCard>
   );
 }
 
 function SuratPeringatanTab({
   letters,
   prints,
-  canCreate,
-  canUpdate,
-  canDelete,
-  onCreate,
-  onEdit,
-  onDelete,
   onOpenFile,
 }: {
   letters: DebtorWarningLetter[];
   prints: DebtorWorkflowPrint[];
-  canCreate: boolean;
-  canUpdate: boolean;
-  canDelete: boolean;
-  onCreate: () => void;
-  onEdit: (item: DebtorWarningLetter) => void;
-  onDelete: (item: DebtorWarningLetter) => void;
   onOpenFile: (file: DebtorFileMeta) => void;
 }) {
   const warningPrints = prints.filter(
@@ -2197,13 +4311,14 @@ function SuratPeringatanTab({
       <SectionCard
         title="Surat Peringatan Terupload"
         actions={
-          canCreate ? (
-            <SetupAddButton label="Tambah Surat" onClick={onCreate} />
-          ) : null
+          <LegalShortcutLink
+            href="/dashboard/legal/cetak/surat-peringatan"
+            label="Buka Cetak SP"
+          />
         }
       >
         <SetupTableCard variant="nested">
-          <SetupDataTable variant="document" density="compact" className="min-w-[980px]">
+          <SetupDataTable variant="document" density="compact" className="min-w-[900px]">
             <SetupDataTableHead>
               <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
@@ -2219,9 +4334,6 @@ function SuratPeringatanTab({
                 <SetupDataTableHeaderCell>Keterangan</SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   File
-                </SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                  Aksi
                 </SetupDataTableHeaderCell>
               </SetupDataTableRow>
             </SetupDataTableHead>
@@ -2242,42 +4354,10 @@ function SuratPeringatanTab({
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
                     <FileButton file={item.file} onOpen={onOpenFile} />
                   </SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <SetupActionMenu
-                      items={[
-                        {
-                          key: "view",
-                          label: "Preview",
-                          icon: Eye,
-                          tone: "blue",
-                          disabled: !item.file?.url,
-                          onClick: () => {
-                            if (item.file) onOpenFile(item.file);
-                          },
-                        },
-                        {
-                          key: "edit",
-                          label: "Edit",
-                          icon: Pencil,
-                          tone: "amber",
-                          disabled: !canUpdate,
-                          onClick: () => onEdit(item),
-                        },
-                        {
-                          key: "delete",
-                          label: "Hapus",
-                          icon: Trash2,
-                          tone: "red",
-                          disabled: !canDelete,
-                          onClick: () => onDelete(item),
-                        },
-                      ]}
-                    />
-                  </SetupDataTableCell>
                 </SetupDataTableRow>
               ))}
               {letters.length === 0 ? (
-                <SetupDataTableEmptyRow colSpan={9}>
+                <SetupDataTableEmptyRow colSpan={8}>
                   Belum ada surat peringatan terupload.
                 </SetupDataTableEmptyRow>
               ) : null}
@@ -2340,9 +4420,17 @@ function ClaimTab({
 }) {
   return (
     <div className="space-y-5">
-      <SectionCard title="Progress Asuransi">
+      <SectionCard
+        title="Progress Asuransi"
+        actions={
+          <LegalShortcutLink
+            href="/dashboard/legal/progress/asuransi"
+            label="Buka Progress Asuransi"
+          />
+        }
+      >
         <SetupTableCard variant="nested">
-          <SetupDataTable variant="workflow" density="compact" className="min-w-[1120px]">
+          <SetupDataTable variant="workflow" density="compact" className="min-w-[1220px]">
             <SetupDataTableHead>
               <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
@@ -2354,6 +4442,7 @@ function ClaimTab({
                 <SetupDataTableHeaderCell>Agunan</SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell>No Polis</SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell>Nilai Cover</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell>Nilai Premi</SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   Status
                 </SetupDataTableHeaderCell>
@@ -2374,6 +4463,7 @@ function ClaimTab({
                   <SetupDataTableCell>{collateralDisplay(item.collateral)}</SetupDataTableCell>
                   <SetupDataTableCell>{display(item.policy_number)}</SetupDataTableCell>
                   <SetupDataTableCell>{formatCurrency(item.coverage_amount)}</SetupDataTableCell>
+                  <SetupDataTableCell>{formatCurrency(item.premium_amount)}</SetupDataTableCell>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
                     <SetupStatusBadge status={statusLabel(item.status)} />
                   </SetupDataTableCell>
@@ -2383,7 +4473,7 @@ function ClaimTab({
                 </SetupDataTableRow>
               ))}
               {insuranceProgress.length === 0 ? (
-                <SetupDataTableEmptyRow colSpan={9}>
+                <SetupDataTableEmptyRow colSpan={10}>
                   Belum ada progress asuransi.
                 </SetupDataTableEmptyRow>
               ) : null}
@@ -2392,7 +4482,15 @@ function ClaimTab({
         </SetupTableCard>
       </SectionCard>
 
-      <SectionCard title="Klaim Asuransi">
+      <SectionCard
+        title="Klaim Asuransi"
+        actions={
+          <LegalShortcutLink
+            href="/dashboard/legal/progress/klaim"
+            label="Buka Progress Klaim"
+          />
+        }
+      >
         <SetupTableCard variant="nested">
           <SetupDataTable variant="workflow" density="compact" className="min-w-[1120px]">
             <SetupDataTableHead>
@@ -2449,23 +4547,102 @@ function ClaimTab({
   );
 }
 
-function TitipanTab({ deposits }: { deposits: DebtorWorkflowDeposit[] }) {
-  const totalNominal = deposits.reduce((total, item) => total + item.nominal, 0);
-  const totalRemaining = deposits.reduce(
-    (total, item) => total + item.remaining_amount,
+function depositLedgerTotal(item: DebtorWorkflowDeposit) {
+  return item.total_deposit_amount ?? item.nominal;
+}
+
+function depositLedgerPayment(item: DebtorWorkflowDeposit) {
+  return item.total_payment_amount ?? item.paid_amount;
+}
+
+function depositLedgerRefund(item: DebtorWorkflowDeposit) {
+  return item.total_refund_amount ?? item.processed_amount;
+}
+
+function depositLedgerBalance(item: DebtorWorkflowDeposit) {
+  return item.balance_amount ?? item.remaining_amount;
+}
+
+function depositTransactionLabel(action: string | null | undefined) {
+  const value = String(action ?? "").trim().toUpperCase();
+  if (value === "TITIPAN") return "Titipan";
+  if (value === "PEMBAYARAN" || value === "BAYAR" || value === "PAID") return "Pembayaran";
+  if (value === "REFUND" || value === "KEMBALI") return "Refund";
+  return action ?? "-";
+}
+
+function TitipanTab({
+  deposits,
+  onOpenFile,
+}: {
+  deposits: DebtorWorkflowDeposit[];
+  onOpenFile: (file: DebtorFileMeta) => void;
+}) {
+  const totalDeposit = deposits.reduce((total, item) => total + depositLedgerTotal(item), 0);
+  const totalPayment = deposits.reduce((total, item) => total + depositLedgerPayment(item), 0);
+  const totalRefund = deposits.reduce((total, item) => total + depositLedgerRefund(item), 0);
+  const totalBalance = deposits.reduce((total, item) => total + depositLedgerBalance(item), 0);
+  const totalTransactions = deposits.reduce(
+    (total, item) => total + item.transactions.length,
     0,
   );
+  const recentTransactions: Array<{
+    deposit: DebtorWorkflowDeposit;
+    transaction: DebtorWorkflowDepositTransaction;
+  }> = deposits
+    .flatMap((deposit) =>
+      deposit.transactions.map((transaction) => ({
+        deposit,
+        transaction,
+      })),
+    )
+    .sort((left, right) => {
+      const leftValue = left.transaction.transaction_date ?? left.transaction.created_at ?? "";
+      const rightValue = right.transaction.transaction_date ?? right.transaction.created_at ?? "";
+      return rightValue.localeCompare(leftValue);
+    });
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-3">
-        <InfoItem label="Total Titipan" value={formatCurrency(totalNominal)} />
-        <InfoItem label="Sisa Titipan" value={formatCurrency(totalRemaining)} />
-        <InfoItem label="Jumlah Rekening" value={formatNumber(deposits.length)} />
-      </div>
+      <SectionCard
+        title="Ringkasan Dana Titipan"
+        actions={
+          <LegalShortcutGroup
+            links={[
+              {
+                href: "/dashboard/legal/titipan/notaris",
+                label: "Titipan Notaris",
+              },
+              {
+                href: "/dashboard/legal/titipan/asuransi",
+                label: "Titipan Asuransi",
+              },
+              {
+                href: "/dashboard/legal/titipan/angsuran",
+                label: "Titipan Angsuran",
+              },
+              {
+                href: "/dashboard/legal/titipan/lainnya",
+                label: "Titipan Lainnya",
+              },
+            ]}
+          />
+        }
+      >
+        <div className="grid gap-4 md:grid-cols-4">
+          <InfoItem label="Total Titipan" value={formatCurrency(totalDeposit)} />
+          <InfoItem label="Total Pembayaran" value={formatCurrency(totalPayment)} />
+          <InfoItem label="Total Refund" value={formatCurrency(totalRefund)} />
+          <InfoItem label="Saldo Akhir" value={formatCurrency(totalBalance)} />
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <InfoItem label="Jumlah Kantong" value={formatNumber(deposits.length)} />
+          <InfoItem label="Jumlah Transaksi" value={formatNumber(totalTransactions)} />
+        </div>
+      </SectionCard>
 
       <SetupTableCard variant="nested">
-        <SetupDataTable variant="workflow" density="compact" className="min-w-[980px]">
+        <SetupDataTable variant="workflow" density="compact" className="min-w-[1180px]">
           <SetupDataTableHead>
             <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
@@ -2474,10 +4651,10 @@ function TitipanTab({ deposits }: { deposits: DebtorWorkflowDeposit[] }) {
               <SetupDataTableHeaderCell>Jenis Titipan</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Pihak Ketiga</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Nominal</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Dibayar</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Diproses</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Sisa</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Total Titipan</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Pembayaran</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Refund</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Saldo Akhir</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                 Status
               </SetupDataTableHeaderCell>
@@ -2492,10 +4669,10 @@ function TitipanTab({ deposits }: { deposits: DebtorWorkflowDeposit[] }) {
                 <SetupDataTableCell>{item.deposit_type?.name ?? item.type}</SetupDataTableCell>
                 <SetupDataTableCell>{item.contract?.no_kontrak ?? "-"}</SetupDataTableCell>
                 <SetupDataTableCell>{item.third_party?.name ?? "-"}</SetupDataTableCell>
-                <SetupDataTableCell>{formatCurrency(item.nominal)}</SetupDataTableCell>
-                <SetupDataTableCell>{formatCurrency(item.paid_amount)}</SetupDataTableCell>
-                <SetupDataTableCell>{formatCurrency(item.processed_amount)}</SetupDataTableCell>
-                <SetupDataTableCell>{formatCurrency(item.remaining_amount)}</SetupDataTableCell>
+                <SetupDataTableCell>{formatCurrency(depositLedgerTotal(item))}</SetupDataTableCell>
+                <SetupDataTableCell>{formatCurrency(depositLedgerPayment(item))}</SetupDataTableCell>
+                <SetupDataTableCell>{formatCurrency(depositLedgerRefund(item))}</SetupDataTableCell>
+                <SetupDataTableCell>{formatCurrency(depositLedgerBalance(item))}</SetupDataTableCell>
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
                   <SetupStatusBadge status={statusLabel(item.status)} />
                 </SetupDataTableCell>
@@ -2509,6 +4686,57 @@ function TitipanTab({ deposits }: { deposits: DebtorWorkflowDeposit[] }) {
           </SetupDataTableBody>
         </SetupDataTable>
       </SetupTableCard>
+
+      <SectionCard title="Riwayat Transaksi Titipan">
+        {recentTransactions.length > 0 ? (
+          <SetupTableCard variant="nested">
+            <SetupDataTable variant="workflow" density="compact" className="min-w-[1240px]">
+              <SetupDataTableHead>
+                <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+                    No
+                  </SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Tanggal</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Jenis</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Jenis Titipan</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Nominal</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Catatan</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                    File
+                  </SetupDataTableHeaderCell>
+                </SetupDataTableRow>
+              </SetupDataTableHead>
+              <SetupDataTableBody>
+                {recentTransactions.map((entry, index) => (
+                  <SetupDataTableRow
+                    key={entry.transaction.id}
+                    className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
+                  >
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                      {index + 1}
+                    </SetupDataTableCell>
+                    <SetupDataTableCell>{formatDateOnly(entry.transaction.transaction_date ?? entry.transaction.created_at)}</SetupDataTableCell>
+                    <SetupDataTableCell>{depositTransactionLabel(entry.transaction.raw_action ?? entry.transaction.action)}</SetupDataTableCell>
+                    <SetupDataTableCell>{entry.deposit.contract?.no_kontrak ?? "-"}</SetupDataTableCell>
+                    <SetupDataTableCell>{entry.deposit.deposit_type?.name ?? entry.deposit.type}</SetupDataTableCell>
+                    <SetupDataTableCell>{formatCurrency(entry.transaction.amount)}</SetupDataTableCell>
+                    <SetupDataTableCell>{entry.transaction.notes ?? "-"}</SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      <FileButton file={entry.transaction.file} onOpen={onOpenFile} />
+                    </SetupDataTableCell>
+                  </SetupDataTableRow>
+                ))}
+              </SetupDataTableBody>
+            </SetupDataTable>
+          </SetupTableCard>
+        ) : (
+          <SetupEmptyState
+            title="Belum ada transaksi titipan."
+            description="Transaksi titipan, pembayaran, dan refund akan muncul di sini setelah dicatat."
+          />
+        )}
+      </SectionCard>
     </div>
   );
 }
@@ -2573,10 +4801,16 @@ function KJPPSection({
   items: DebtorWorkflowLegalProgress[];
   onOpenFile: (file: DebtorFileMeta) => void;
 }) {
-  if (items.length === 0) return null;
-
   return (
-    <SectionCard title="Progress KJPP">
+    <SectionCard
+      title="Progress KJPP"
+      actions={
+        <LegalShortcutLink
+          href="/dashboard/legal/progress/kjpp"
+          label="Buka Progress KJPP"
+        />
+      }
+    >
       <SetupTableCard variant="nested">
         <SetupDataTable variant="workflow" density="compact" className="min-w-[1100px]">
           <SetupDataTableHead>
@@ -2618,6 +4852,11 @@ function KJPPSection({
                 </SetupDataTableCell>
               </SetupDataTableRow>
             ))}
+            {items.length === 0 ? (
+              <SetupDataTableEmptyRow colSpan={9}>
+                Belum ada progress KJPP untuk debitur ini.
+              </SetupDataTableEmptyRow>
+            ) : null}
           </SetupDataTableBody>
         </SetupDataTable>
       </SetupTableCard>
@@ -2631,24 +4870,20 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
   const { openPreview } = useDocumentPreviewContext();
   const [workflow, setWorkflow] = useState<DebtorWorkflow | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>("info");
+  const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [warningForm, setWarningForm] = useState<WarningLetterFormState>(
-    emptyWarningLetterForm,
-  );
-  const [warningEditing, setWarningEditing] = useState<DebtorWarningLetter | null>(null);
-  const [warningDeleting, setWarningDeleting] = useState<DebtorWarningLetter | null>(null);
-  const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
-  const [isSavingWarning, setIsSavingWarning] = useState(false);
-  const [isDeletingWarning, setIsDeletingWarning] = useState(false);
+  const [documentUploadForm, setDocumentUploadForm] =
+    useState<DebtorDocumentUploadFormState>(emptyDocumentUploadForm);
+  const [documentUploadMode, setDocumentUploadMode] =
+    useState<DebtorDocumentUploadMode>("other");
+  const [documentUploadChecklist, setDocumentUploadChecklist] =
+    useState<DebtorDocumentChecklistStatus | null>(null);
+  const [isDocumentUploadModalOpen, setIsDocumentUploadModalOpen] = useState(false);
+  const [isSavingDocumentUpload, setIsSavingDocumentUpload] = useState(false);
   const [collateralTypes, setCollateralTypes] = useState<ParameterMasterRecord[]>([]);
-  const [restructuringTypes, setRestructuringTypes] = useState<
-    ParameterMasterRecord[]
-  >([]);
 
-  const canCreateWarningLetter = hasDebtorMasterCapability(role, user?.role_id, "create");
-  const canUpdateWarningLetter = hasDebtorMasterCapability(role, user?.role_id, "update");
-  const canDeleteWarningLetter = hasDebtorMasterCapability(role, user?.role_id, "delete");
+  const canUploadDocument = hasDebtorMasterCapability(role, user?.role_id, "create");
 
   const canViewLegal = hasAnyMenuCapability(role, user?.role_id, [
     "/dashboard/legal/laporan",
@@ -2703,18 +4938,41 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
   }, [loadWorkflow]);
 
   useEffect(() => {
+    if (!workflow) {
+      setSelectedContractId(null);
+      return;
+    }
+
+    const fallbackContractId = getPreferredActiveContractId(
+      workflow.contracts,
+      workflow.debtor.latest_contract,
+    );
+
+    if (!fallbackContractId) {
+      setSelectedContractId(null);
+      return;
+    }
+
+    const selectedContractStillExists =
+      workflow.contracts.some((contract) => contract.id === selectedContractId) ||
+      workflow.debtor.latest_contract?.id === selectedContractId;
+
+    if (!selectedContractId || !selectedContractStillExists) {
+      setSelectedContractId(fallbackContractId);
+    }
+  }, [selectedContractId, workflow]);
+
+  useEffect(() => {
     let ignore = false;
 
     async function loadParameterLookups() {
       try {
-        const [nextCollateralTypes, nextRestructuringTypes] = await Promise.all([
-          collateralTypeService.getAll({ is_active: true }),
-          restructuringTypeService.getAll({ is_active: true }),
-        ]);
+        const nextCollateralTypes = await collateralTypeService.getAll({
+          is_active: true,
+        });
 
         if (!ignore) {
           setCollateralTypes(nextCollateralTypes);
-          setRestructuringTypes(nextRestructuringTypes);
         }
       } catch (error) {
         if (!ignore) {
@@ -2739,10 +4997,6 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
     () => createParameterLookup(collateralTypes),
     [collateralTypes],
   );
-  const restructuringTypeLookup = useMemo(
-    () => createParameterLookup(restructuringTypes),
-    [restructuringTypes],
-  );
 
   const openFile = useCallback(
     (file: DebtorFileMeta) => {
@@ -2754,79 +5008,74 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
     [openPreview],
   );
 
-  const openCreateWarningLetter = () => {
-    if (!canCreateWarningLetter) return;
-    setWarningEditing(null);
-    setWarningForm(emptyWarningLetterForm());
-    setIsWarningModalOpen(true);
+  const getDefaultDocumentContractId = () => {
+    if (!workflow || workflow.contracts.length !== 1) return "";
+    return workflow.contracts[0]?.id ?? "";
   };
 
-  const openEditWarningLetter = (item: DebtorWarningLetter) => {
-    if (!canUpdateWarningLetter) return;
-    setWarningEditing(item);
-    setWarningForm(warningLetterToForm(item));
-    setIsWarningModalOpen(true);
+  const openChecklistDocumentUpload = (item: DebtorDocumentChecklistStatus) => {
+    if (!canUploadDocument) return;
+    setDocumentUploadMode("checklist");
+    setDocumentUploadChecklist(item);
+    setDocumentUploadForm(
+      documentUploadFormFromChecklist(item, getDefaultDocumentContractId()),
+    );
+    setIsDocumentUploadModalOpen(true);
   };
 
-  const closeWarningModal = () => {
-    setIsWarningModalOpen(false);
-    setWarningEditing(null);
-    setWarningForm(emptyWarningLetterForm());
+  const openOtherDocumentUpload = () => {
+    if (!canUploadDocument) return;
+    setDocumentUploadMode("other");
+    setDocumentUploadChecklist(null);
+    setDocumentUploadForm(emptyDocumentUploadForm(getDefaultDocumentContractId()));
+    setIsDocumentUploadModalOpen(true);
   };
 
-  const saveWarningLetter = async () => {
-    const validation = validateWarningLetterForm(warningForm);
+  const closeDocumentUploadModal = () => {
+    setIsDocumentUploadModalOpen(false);
+    setDocumentUploadMode("other");
+    setDocumentUploadChecklist(null);
+    setDocumentUploadForm(emptyDocumentUploadForm());
+  };
+
+  const saveDocumentUpload = async () => {
+    const validation = validateDocumentUploadForm(documentUploadForm);
     if (validation) {
       showToast(validation, "warning");
       return;
     }
 
-    setIsSavingWarning(true);
+    setIsSavingDocumentUpload(true);
     try {
-      const payload = buildWarningLetterPayload(debtorId, warningForm);
-      if (warningEditing) {
-        await debiturService.updateWarningLetter(warningEditing.id, payload);
-        showToast("Surat peringatan diperbarui", "success");
-      } else {
-        await debiturService.createWarningLetter(payload);
-        showToast("Surat peringatan ditambahkan", "success");
-      }
-      closeWarningModal();
+      await debiturService.createDebtorDocument(
+        debtorId,
+        buildDocumentUploadPayload(documentUploadForm),
+      );
+      showToast("Dokumen debitur berhasil diupload", "success");
+      closeDocumentUploadModal();
       await loadWorkflow();
     } catch (error) {
       showToast(
-        error instanceof Error ? error.message : "Gagal menyimpan surat peringatan",
+        error instanceof Error ? error.message : "Gagal upload dokumen debitur",
         "error",
       );
     } finally {
-      setIsSavingWarning(false);
+      setIsSavingDocumentUpload(false);
     }
   };
 
-  const confirmDeleteWarningLetter = async () => {
-    if (!warningDeleting) return;
-    if (!canDeleteWarningLetter) return;
+  const mainContract: DebtorContract | null = workflow
+    ? resolveMainContract(
+        workflow.contracts,
+        selectedContractId,
+        workflow.debtor.latest_contract,
+      )
+    : null;
 
-    setIsDeletingWarning(true);
-    try {
-      await debiturService.removeWarningLetter(warningDeleting.id);
-      showToast("Surat peringatan dihapus", "success");
-      setWarningDeleting(null);
-      await loadWorkflow();
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Gagal menghapus surat peringatan",
-        "error",
-      );
-    } finally {
-      setIsDeletingWarning(false);
-    }
-  };
-
-  const mainContract: DebtorContract | null =
-    workflow?.contracts[0] ?? workflow?.debtor.latest_contract ?? null;
-
-  const headerCollectibility = collectibilityLabel(mainContract?.latest_collectibility ?? null);
+  const headerCollectibility =
+    mainContract && contractCollectibilityDisplay(mainContract) !== "-"
+      ? contractCollectibilityDisplay(mainContract)
+      : null;
 
   return (
     <DashboardPageShell spacing="md">
@@ -2867,13 +5116,22 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
 
           <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm md:p-5">
             {resolvedActiveTab === "info" ? (
-              <DataUtamaTab workflow={workflow} />
+              <DataUtamaTab
+                workflow={workflow}
+                selectedContractId={selectedContractId}
+                onSelectContract={setSelectedContractId}
+                onOpenAgunanTab={() => setActiveTab("agunan")}
+              />
             ) : null}
             {resolvedActiveTab === "summary" ? (
               <SummaryTab workflow={workflow} onOpenFile={openFile} />
             ) : null}
             {resolvedActiveTab === "ideb" ? (
-              <IdebTab items={workflow.ideb_uploads} onOpenFile={openFile} />
+              <IdebTab
+                debtorId={workflow.debtor.id}
+                items={workflow.ideb_uploads}
+                onOpenFile={openFile}
+              />
             ) : null}
             {resolvedActiveTab === "historis" ? (
               <HistorisKolTab items={workflow.collectibilities} />
@@ -2882,22 +5140,18 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
               <DokumenTab
                 items={workflow.documents}
                 checklist={workflow.document_checklist_status}
+                canUpload={canUploadDocument}
                 onOpenFile={openFile}
+                onUploadChecklist={openChecklistDocumentUpload}
+                onUploadOther={openOtherDocumentUpload}
               />
             ) : null}
             {resolvedActiveTab === "agunan" ? (
-              <div className="space-y-5">
-                <AgunanTab
-                  items={workflow.collaterals}
-                  collateralTypeLookup={collateralTypeLookup}
-                />
-                <SectionCard title="Riwayat Restrukturisasi">
-                  <RestrukturisasiTab
-                    items={workflow.restructuring_records}
-                    restructuringTypeLookup={restructuringTypeLookup}
-                  />
-                </SectionCard>
-              </div>
+              <AgunanTab
+                items={workflow.collaterals}
+                collateralTypeLookup={collateralTypeLookup}
+                activeContract={mainContract}
+              />
             ) : null}
             {resolvedActiveTab === "notaris" && canViewLegal ? (
               <div className="space-y-5">
@@ -2915,12 +5169,6 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
               <SuratPeringatanTab
                 letters={workflow.legal.warning_letters}
                 prints={workflow.legal.prints}
-                canCreate={canCreateWarningLetter}
-                canUpdate={canUpdateWarningLetter}
-                canDelete={canDeleteWarningLetter}
-                onCreate={openCreateWarningLetter}
-                onEdit={openEditWarningLetter}
-                onDelete={setWarningDeleting}
                 onOpenFile={openFile}
               />
             ) : null}
@@ -2933,7 +5181,7 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
             ) : null}
             {resolvedActiveTab === "titipan" && canViewLegal ? (
               <div className="space-y-5">
-                <TitipanTab deposits={workflow.legal.deposits} />
+                <TitipanTab deposits={workflow.legal.deposits} onOpenFile={openFile} />
                 <CetakLegalTab
                   prints={workflow.legal.prints}
                   onOpenFile={openFile}
@@ -2943,27 +5191,18 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
           </div>
         </>
       ) : null}
-      <WarningLetterFormModal
-        isOpen={isWarningModalOpen}
-        form={warningForm}
+      <DebtorDocumentUploadModal
+        isOpen={isDocumentUploadModalOpen}
+        mode={documentUploadMode}
+        form={documentUploadForm}
+        checklist={documentUploadChecklist}
         contracts={workflow?.contracts ?? []}
-        isSaving={isSavingWarning}
-        onChange={(patch) => setWarningForm((prev) => ({ ...prev, ...patch }))}
-        onClose={closeWarningModal}
-        onSave={() => void saveWarningLetter()}
-      />
-      <DeleteConfirmModal
-        isOpen={warningDeleting !== null}
-        title="Hapus Surat Peringatan?"
-        entityLabel="Surat Peringatan"
-        itemName={
-          warningDeleting
-            ? `${warningDeleting.letter_type} - ${warningDeleting.debtor?.name ?? workflow?.debtor.name ?? debtorId}`
-            : ""
+        isSaving={isSavingDocumentUpload}
+        onChange={(patch) =>
+          setDocumentUploadForm((prev) => ({ ...prev, ...patch }))
         }
-        onClose={() => setWarningDeleting(null)}
-        onConfirm={() => void confirmDeleteWarningLetter()}
-        isLoading={isDeletingWarning}
+        onClose={closeDocumentUploadModal}
+        onSave={() => void saveDocumentUpload()}
       />
     </DashboardPageShell>
   );

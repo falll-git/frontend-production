@@ -19,6 +19,7 @@ import type {
   ArsipRoleSummary,
   ArsipStorageSummary,
   ArsipUserSummary,
+  Disposisi,
   Dokumen,
   Kantor,
   Lemari,
@@ -31,6 +32,26 @@ type CollectionQuery = {
   page?: number;
   limit?: number | "all";
   search?: string;
+};
+
+export type ArsipDigitalReportQuery = CollectionQuery & {
+  status?: string;
+  availability?: string;
+  due_status?: string;
+  report?: string;
+  from_date?: string;
+  to_date?: string;
+  date_from?: string;
+  date_to?: string;
+  requested_start_date_from?: string;
+  requested_start_date_to?: string;
+  requested_due_date_from?: string;
+  requested_due_date_to?: string;
+  due_date_from?: string;
+  due_date_to?: string;
+  document_type_id?: string;
+  owner_user_id?: string;
+  owner_division_id?: string;
 };
 
 function isRecord(value: unknown): value is AnyRecord {
@@ -92,6 +113,23 @@ function mapUserSummary(record: unknown): ArsipUserSummary | null {
     division_id: readString(record, "division_id", "divisionId"),
     role: mapRoleSummary(record.role),
     division: mapDivisionSummary(record.division),
+  };
+}
+
+function mapDebtorSummary(record: unknown) {
+  if (!isRecord(record)) return null;
+
+  const id = readString(record, "id");
+  const name = readString(record, "name");
+  if (!id || !name) return null;
+
+  return {
+    id,
+    debtor_number: readString(record, "debtor_number"),
+    name,
+    identity_number: readString(record, "identity_number"),
+    financing_number: readString(record, "financing_number"),
+    description: readString(record, "description"),
   };
 }
 
@@ -233,6 +271,7 @@ export function mapDigitalDocument(record: AnyRecord): Dokumen | null {
   const creator = mapUserSummary(record.creator);
   const owner = mapUserSummary(record.owner ?? record.owner_user);
   const ownerDivision = mapDivisionSummary(record.owner_division);
+  const debtor = mapDebtorSummary(record.debtor);
   const relatedUsers = Array.isArray(record.related_users)
     ? record.related_users
         .map((item) =>
@@ -285,6 +324,7 @@ export function mapDigitalDocument(record: AnyRecord): Dokumen | null {
     creator,
     owner,
     ownerDivision,
+    debtor,
     relatedUsers,
     storage,
     currentLoan,
@@ -298,6 +338,100 @@ export function mapDigitalDocument(record: AnyRecord): Dokumen | null {
         readNumber(readNestedRecord(record, "loan_summary") ?? {}, "total_count") ??
         0,
     },
+  };
+}
+
+function mapReportLoan(record: AnyRecord): Peminjaman | null {
+  const loan = mapLoanSummary(record);
+  if (!loan) return null;
+
+  const document = isRecord(record.document)
+    ? mapDigitalDocument(record.document)
+    : null;
+
+  return {
+    ...loan,
+    detail: document?.namaDokumen ?? loan.detail,
+    document,
+  };
+}
+
+function mapAccessRequestStatusLabel(label: string | null): Disposisi["status"] {
+  switch (label) {
+    case "Approved":
+    case "Disetujui":
+      return "Disetujui";
+    case "Rejected":
+    case "Ditolak":
+      return "Ditolak";
+    case "Pending":
+    case "Menunggu Persetujuan":
+    default:
+      return "Menunggu Persetujuan";
+  }
+}
+
+function mapUserName(record: unknown): string {
+  if (!isRecord(record)) return "-";
+
+  return (
+    readString(record, "username") ??
+    readString(record, "name") ??
+    readString(record, "email") ??
+    "-"
+  );
+}
+
+function mapReportAccessRequest(record: AnyRecord): Disposisi | null {
+  const id = readString(record, "id");
+  const statusKey = readString(record, "status_key");
+  const statusLabel = readString(record, "status_label");
+  const document = isRecord(record.document)
+    ? mapDigitalDocument(record.document)
+    : null;
+
+  if (!id || !statusKey || !statusLabel) return null;
+
+  return {
+    id,
+    dokumenId: readString(record, "document_id") ?? document?.id ?? "",
+    detail: document?.detail ?? readString(record, "request_reason") ?? "-",
+    pemohon: mapUserName(record.requester),
+    pemilik: mapUserName(record.owner),
+    tglPengajuan: readString(record, "created_at") ?? "",
+    status: mapAccessRequestStatusLabel(statusLabel),
+    statusKey: statusKey as Disposisi["statusKey"],
+    alasanPengajuan: readString(record, "request_reason") ?? "",
+    tglExpired: readString(record, "expires_at"),
+    tglAksi: readString(record, "acted_at"),
+    alasanAksi: readString(record, "action_note"),
+    canViewDocument: readBoolean(record, "can_view_document"),
+    isActiveAccess: readBoolean(record, "is_active_access"),
+    document,
+    requester: isRecord(record.requester)
+      ? {
+          id: readString(record.requester, "id") ?? "",
+          name: readString(record.requester, "name") ?? "-",
+          username: readString(record.requester, "username") ?? "-",
+          email: readString(record.requester, "email") ?? "-",
+        }
+      : null,
+    owner: isRecord(record.owner)
+      ? {
+          id: readString(record.owner, "id") ?? "",
+          name: readString(record.owner, "name") ?? "-",
+          username: readString(record.owner, "username") ?? "-",
+          email: readString(record.owner, "email") ?? "-",
+        }
+      : null,
+    actor: isRecord(record.actor)
+      ? {
+          id: readString(record.actor, "id") ?? "",
+          name: readString(record.actor, "name") ?? "-",
+          username: readString(record.actor, "username") ?? "-",
+          email: readString(record.actor, "email") ?? "-",
+        }
+      : null,
   };
 }
 
@@ -925,6 +1059,150 @@ export const arsipService = {
   getReportSummary: async (): Promise<ArsipDigitalReportSummary> => {
     const res = await api.get("/digital-archives/reports/summary");
     return mapReportSummary(extractRecord(res.data));
+  },
+  getDocumentReport: async (
+    params: ArsipDigitalReportQuery = {},
+  ): Promise<Dokumen[]> => {
+    const records = await getPaginatedRecords(
+      "/digital-archives/reports/documents",
+      params,
+    );
+    return records
+      .map((record) => mapDigitalDocument(record))
+      .filter((item): item is Dokumen => item !== null);
+  },
+  getDocumentReportPage: async ({
+    page = 1,
+    limit = OPERATIONAL_TABLE_PAGE_SIZE,
+    ...params
+  }: ArsipDigitalReportQuery = {}): Promise<PaginatedResult<Dokumen>> => {
+    const res = await api.get("/digital-archives/reports/documents", {
+      params: {
+        ...params,
+        page,
+        limit,
+      },
+    });
+    const items = extractList(res.data)
+      .map((record) => mapDigitalDocument(record))
+      .filter((item): item is Dokumen => item !== null);
+
+    return {
+      items,
+      meta: extractPaginationMeta(res.data, {
+        page,
+        limit: typeof limit === "number" ? limit : OPERATIONAL_TABLE_PAGE_SIZE,
+        total: items.length,
+      }),
+    };
+  },
+  getDueDateReport: async (
+    params: ArsipDigitalReportQuery = {},
+  ): Promise<Peminjaman[]> => {
+    const records = await getPaginatedRecords(
+      "/digital-archives/reports/due-dates",
+      params,
+    );
+    return records
+      .map((record) => mapReportLoan(record))
+      .filter((item): item is Peminjaman => item !== null);
+  },
+  getDueDateReportPage: async ({
+    page = 1,
+    limit = OPERATIONAL_TABLE_PAGE_SIZE,
+    ...params
+  }: ArsipDigitalReportQuery = {}): Promise<PaginatedResult<Peminjaman>> => {
+    const res = await api.get("/digital-archives/reports/due-dates", {
+      params: {
+        ...params,
+        page,
+        limit,
+      },
+    });
+    const items = extractList(res.data)
+      .map((record) => mapReportLoan(record))
+      .filter((item): item is Peminjaman => item !== null);
+
+    return {
+      items,
+      meta: extractPaginationMeta(res.data, {
+        page,
+        limit: typeof limit === "number" ? limit : OPERATIONAL_TABLE_PAGE_SIZE,
+        total: items.length,
+      }),
+    };
+  },
+  getAccessRequestReport: async (
+    params: ArsipDigitalReportQuery = {},
+  ): Promise<Disposisi[]> => {
+    const records = await getPaginatedRecords(
+      "/digital-archives/reports/access-requests",
+      params,
+    );
+    return records
+      .map((record) => mapReportAccessRequest(record))
+      .filter((item): item is Disposisi => item !== null);
+  },
+  getAccessRequestReportPage: async ({
+    page = 1,
+    limit = OPERATIONAL_TABLE_PAGE_SIZE,
+    ...params
+  }: ArsipDigitalReportQuery = {}): Promise<PaginatedResult<Disposisi>> => {
+    const res = await api.get("/digital-archives/reports/access-requests", {
+      params: {
+        ...params,
+        page,
+        limit,
+      },
+    });
+    const items = extractList(res.data)
+      .map((record) => mapReportAccessRequest(record))
+      .filter((item): item is Disposisi => item !== null);
+
+    return {
+      items,
+      meta: extractPaginationMeta(res.data, {
+        page,
+        limit: typeof limit === "number" ? limit : OPERATIONAL_TABLE_PAGE_SIZE,
+        total: items.length,
+      }),
+    };
+  },
+  getLoanReport: async (
+    params: ArsipDigitalReportQuery = {},
+  ): Promise<Peminjaman[]> => {
+    const records = await getPaginatedRecords(
+      "/digital-archives/reports/loans",
+      params,
+    );
+    return records
+      .map((record) => mapReportLoan(record))
+      .filter((item): item is Peminjaman => item !== null);
+  },
+  getLoanReportPage: async ({
+    page = 1,
+    limit = OPERATIONAL_TABLE_PAGE_SIZE,
+    ...params
+  }: ArsipDigitalReportQuery = {}): Promise<PaginatedResult<Peminjaman>> => {
+    const res = await api.get("/digital-archives/reports/loans", {
+      params: {
+        ...params,
+        page,
+        limit,
+      },
+    });
+    const items = extractList(res.data)
+      .map((record) => mapReportLoan(record))
+      .filter((item): item is Peminjaman => item !== null);
+
+    return {
+      items,
+      meta: extractPaginationMeta(res.data, {
+        page,
+        limit: typeof limit === "number" ? limit : OPERATIONAL_TABLE_PAGE_SIZE,
+        total: items.length,
+      }),
+    };
   },
   getAll: async (): Promise<Dokumen[]> => {
     const records = await getPaginatedRecords("/digital-documents");

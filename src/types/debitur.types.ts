@@ -11,7 +11,7 @@ export type DebtorMarketingKind =
   | "action-plans"
   | "visit-results"
   | "handling-steps";
-export type DebtorImportType = "SLIK" | "RESTRIK" | "IDEB";
+export type DebtorImportType = "SLIK" | "IDEB";
 
 export type DebtorFileMeta = {
   name: string | null;
@@ -175,6 +175,13 @@ export type DebtorRecord = SlikReferenceFields & {
   contracts_count: number;
   collaterals_count?: number;
   documents_count: number;
+  required_documents_total?: number;
+  required_documents_uploaded?: number;
+  required_documents_missing?: number;
+  required_documents_status?: string | null;
+  required_documents_display?: string | null;
+  slik_completeness_status?: string | null;
+  slik_completeness_label?: string | null;
   total_outstanding?: number;
   latest_slik_period_month?: string | null;
   latest_collectibility_display?: string | null;
@@ -311,7 +318,23 @@ export type DebtorIdebOtherBprs = {
   outstanding_pokok: number;
 };
 
+export type DebtorIdebSummaryStats = Record<string, unknown>;
+
+export type DebtorIdebIdentity = Record<string, unknown>;
+
+export type DebtorIdebFacility = Record<string, unknown>;
+
+export type DebtorIdebMonthlyCollectibility = Record<string, unknown>;
+
 export type DebtorIdebSummaryDetail = {
+  schema_version?: string | null;
+  source_format?: string | null;
+  period_month?: string | null;
+  officer_name?: string | null;
+  report_number?: string | null;
+  reference_number?: string | null;
+  request_date?: string | null;
+  result_date?: string | null;
   debtor_name: string | null;
   identity_number: string | null;
   contract_number: string | null;
@@ -320,12 +343,17 @@ export type DebtorIdebSummaryDetail = {
   financing_status: string | null;
   conclusion: string | null;
   processed_at: string | null;
+  identity?: DebtorIdebIdentity | null;
+  summary?: DebtorIdebSummaryStats | null;
+  facilities?: DebtorIdebFacility[];
+  monthly_collectibility_history?: DebtorIdebMonthlyCollectibility[];
   other_bprs: DebtorIdebOtherBprs[];
 };
 
 export type DebtorWorkflowIdebUpload = {
   id: string;
   debtor_id: string | null;
+  import_job_id?: string | null;
   contract_id: string | null;
   month: number;
   year: number;
@@ -338,27 +366,77 @@ export type DebtorWorkflowIdebUpload = {
   created_at: string | null;
 };
 
-export type DebtorRestructuringRecord = {
-  id: string;
+export type DebtorIdebPendingUpload = DebtorWorkflowIdebUpload & {
   import_job_id: string | null;
-  debtor_id: string | null;
-  contract_id: string | null;
-  period_month: string;
-  restructuring_date: string | null;
-  restructuring_type: string | null;
-  reason: string | null;
-  plafond_after: number | null;
-  outstanding_after: number | null;
-  tenor_after: number | null;
-  new_due_date: string | null;
-  collectibility_before: string | null;
-  collectibility_after: string | null;
-  status: string;
-  description: string | null;
-  raw_data: Record<string, unknown> | null;
-  contract: Pick<DebtorContract, "id" | "debtor_id" | "no_kontrak" | "status"> | null;
-  created_at: string | null;
+  external_status: string;
+  period_month: string | null;
+  debtor_name: string | null;
+  identity_number: string | null;
+  contract_number: string | null;
+  source_format: string | null;
+  current_collectibility: string | number | null;
+  outstanding_pokok: number;
   updated_at: string | null;
+};
+
+export type DebtorIdebResolvePayload = {
+  debtor_id: string;
+  contract_id?: string | null;
+};
+
+export type DebtorIdebComparisonStatus =
+  | "MATCHED"
+  | "DIFFERENT"
+  | "EXTERNAL_ONLY"
+  | "INTERNAL_ONLY";
+
+export type DebtorIdebComparisonFacility = {
+  reporter?: string | null;
+  account_number?: string | null;
+  contract_id?: string | null;
+  no_kontrak?: string | null;
+  facility_number?: string | null;
+  product?: string | null;
+  akad?: string | null;
+  plafond?: number | null;
+  outstanding?: number | null;
+  collectibility?: string | number | null;
+  dpd?: number | null;
+  condition?: string | null;
+  due_date?: string | null;
+  period_month?: string | null;
+};
+
+export type DebtorIdebComparisonDifference = {
+  field: string;
+  label: string;
+  external: string | number | null;
+  internal: string | number | null;
+};
+
+export type DebtorIdebComparisonItem = {
+  status: DebtorIdebComparisonStatus;
+  status_label: string;
+  match_key: string | null;
+  external: DebtorIdebComparisonFacility | null;
+  internal: DebtorIdebComparisonFacility | null;
+  differences: DebtorIdebComparisonDifference[];
+};
+
+export type DebtorIdebComparisonSummary = {
+  total: number;
+  matched: number;
+  different: number;
+  external_only: number;
+  internal_only: number;
+};
+
+export type DebtorIdebComparison = {
+  ideb_upload_id: string;
+  debtor_id: string;
+  period_month: string | null;
+  summary: DebtorIdebComparisonSummary;
+  items: DebtorIdebComparisonItem[];
 };
 
 export type DebtorWorkflowPrint = {
@@ -482,6 +560,7 @@ export type DebtorWorkflowLegalProgress = {
   deed_number?: string | null;
   insurance_type?: string | null;
   coverage_amount?: number;
+  premium_amount?: number;
   period_start?: string | null;
   period_end?: string | null;
   policy_number?: string | null;
@@ -527,8 +606,10 @@ export type DebtorWorkflowDepositTransaction = {
   deposit_id: string;
   transaction_date: string | null;
   action: string;
+  raw_action?: string | null;
   amount: number;
   notes: string | null;
+  file: DebtorFileMeta | null;
   created_at: string | null;
 };
 
@@ -542,6 +623,10 @@ export type DebtorWorkflowDeposit = {
   paid_amount: number;
   processed_amount: number;
   remaining_amount: number;
+  total_deposit_amount?: number;
+  total_payment_amount?: number;
+  total_refund_amount?: number;
+  balance_amount?: number;
   status: string;
   notes: string | null;
   deposit_type: DebtorParameterSummary | null;
@@ -558,7 +643,6 @@ export type DebtorWorkflow = {
   collectibilities: DebtorWorkflowCollectibility[];
   documents: DebtorDocument[];
   collaterals: DebtorCollateral[];
-  restructuring_records: DebtorRestructuringRecord[];
   document_checklist_status: DebtorDocumentChecklistStatus[];
   marketing: {
     action_plans: DebtorMarketingActivity[];
@@ -617,6 +701,103 @@ export type DebtorReportSummary = {
   inactive_debtors: number;
   active_contracts: number;
   closed_contracts: number;
+  individual_debtors?: number;
+  legal_entity_debtors?: number;
+  total_facilities?: number;
+  total_collaterals?: number;
+  total_outstanding?: number;
+  scope?: DebtorReportScope | null;
+};
+
+export type DebtorReportScope = {
+  can_report_all: boolean;
+  can_view_division: boolean;
+  can_manage_all: boolean;
+};
+
+export type DebtorReportQuery = DebtorListQuery & {
+  period_month?: string;
+  collectibility_level?: string;
+  collateral_type?: string;
+  link_status?: string;
+  issue_type?: string;
+};
+
+export type DebtorPortfolioReport = {
+  summary: DebtorReportSummary;
+  items: DebtorRecord[];
+  meta: PaginationMeta;
+};
+
+export type DebtorFacilityReportSummary = {
+  total_facilities: number;
+  active_facilities: number;
+  npf_facilities: number;
+  total_plafond: number;
+  total_outstanding: number;
+  scope?: DebtorReportScope | null;
+};
+
+export type DebtorFacilityReport = {
+  summary: DebtorFacilityReportSummary;
+  items: DebtorContract[];
+  meta: PaginationMeta;
+};
+
+export type DebtorCollateralReportSummary = {
+  total_collaterals: number;
+  linked_collaterals: number;
+  unlinked_collaterals: number;
+  total_market_value: number;
+  total_appraisal_value: number;
+  scope?: DebtorReportScope | null;
+};
+
+export type DebtorCollateralReport = {
+  summary: DebtorCollateralReportSummary;
+  items: DebtorCollateral[];
+  meta: PaginationMeta;
+};
+
+export type DebtorCompletenessIssueType =
+  | "REQUIRED_DOCUMENTS_INCOMPLETE"
+  | "DEBTOR_WITHOUT_FACILITY"
+  | "FACILITY_WITHOUT_COLLATERAL"
+  | "UNLINKED_COLLATERAL"
+  | "MISSING_SLIK_PERIOD"
+  | string;
+
+export type DebtorCompletenessIssue = {
+  id: string;
+  issue_type: DebtorCompletenessIssueType;
+  issue_label: string;
+  severity: string;
+  impact: string;
+  recommendation: string;
+  debtor_id: string | null;
+  debtor: DebtorRecord | null;
+  contract_id: string | null;
+  contract: DebtorContract | null;
+  collateral_id: string | null;
+  collateral: DebtorCollateral | null;
+  period_month: string | null;
+  created_at: string | null;
+};
+
+export type DebtorCompletenessReportSummary = {
+  total_issues: number;
+  required_documents_incomplete: number;
+  debtors_without_facilities: number;
+  facilities_without_collaterals: number;
+  unlinked_collaterals: number;
+  missing_slik_period: number;
+  scope?: DebtorReportScope | null;
+};
+
+export type DebtorCompletenessReport = {
+  summary: DebtorCompletenessReportSummary;
+  items: DebtorCompletenessIssue[];
+  meta: PaginationMeta;
 };
 
 export type DebtorNpfBreakdown = {
@@ -659,6 +840,16 @@ export type DebtorNpfReport = {
   breakdown_per_kol: DebtorNpfBreakdown[];
   details: DebtorNpfDetail[];
   trend: DebtorNpfTrend[];
+  items?: DebtorNpfDetail[];
+  meta?: PaginationMeta;
+  summary?: {
+    numerator: number;
+    denominator: number;
+    percentage: number;
+    total_facilities: number;
+    npf_facilities: number;
+    scope?: DebtorReportScope | null;
+  };
 };
 
 export type DebtorMarketingReportSummary = {

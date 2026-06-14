@@ -69,6 +69,7 @@ export type LegalProgressRecord = {
   completed_at?: string | null;
   insurance_type?: string | null;
   coverage_amount?: number;
+  premium_amount?: number;
   period_start?: string | null;
   period_end?: string | null;
   policy_number?: string | null;
@@ -113,13 +114,17 @@ export type LegalClaim = {
 export type LegalDeposit = {
   id: string;
   deposit_type_id: string | null;
-  type: "NOTARIS" | "ASURANSI" | "ANGSURAN" | string;
+  type: "NOTARIS" | "ASURANSI" | "ANGSURAN" | "LAINNYA" | string;
   contract_id: string;
   third_party_id: string | null;
   nominal: number;
   paid_amount: number;
   processed_amount: number;
   remaining_amount: number;
+  total_deposit_amount?: number;
+  total_payment_amount?: number;
+  total_refund_amount?: number;
+  balance_amount?: number;
   status: string;
   notes: string | null;
   deposit_type: ParameterMasterRecord | null;
@@ -135,8 +140,10 @@ export type LegalDepositTransaction = {
   deposit_id: string;
   transaction_date: string | null;
   action: string;
+  raw_action?: string | null;
   amount: number;
   notes: string | null;
+  file: DebtorFileMeta | null;
   created_at: string | null;
 };
 
@@ -165,6 +172,10 @@ export type LegalDepositFundsReport = {
   paid_amount: number;
   processed_amount: number;
   remaining_amount: number;
+  total_deposit_amount?: number;
+  total_payment_amount?: number;
+  total_refund_amount?: number;
+  balance_amount?: number;
 };
 
 export type LegalTemplatePayload = {
@@ -206,6 +217,7 @@ export type LegalInsurancePayload = {
   third_party_id: string;
   insurance_type: string;
   coverage_amount?: number;
+  premium_amount?: number;
   period_start: string;
   period_end?: string | null;
   policy_number?: string | null;
@@ -252,12 +264,19 @@ export type LegalDepositPayload = {
   type: string;
   contract_id: string;
   third_party_id?: string | null;
-  nominal: number;
+  nominal?: number;
   paid_amount?: number;
   processed_amount?: number;
   remaining_amount?: number | null;
   status?: string;
   notes?: string | null;
+  opening_transaction?: {
+    transaction_date: string;
+    action?: string;
+    amount: number;
+    notes?: string | null;
+  } | null;
+  file?: File | null;
 };
 
 export type LegalDepositTransactionPayload = {
@@ -266,6 +285,7 @@ export type LegalDepositTransactionPayload = {
   action: string;
   amount: number;
   notes?: string | null;
+  file?: File | null;
 };
 
 export type LegalDocumentContext = {
