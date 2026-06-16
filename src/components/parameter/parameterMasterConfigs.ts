@@ -9,7 +9,6 @@ import {
   ListChecks,
   ReceiptText,
   Send,
-  ShieldCheck,
   Tags,
   Workflow,
 } from "lucide-react";
@@ -56,13 +55,7 @@ const depositTypeCategoryOptions = [
   { label: "Notaris", value: "NOTARIS" },
   { label: "Asuransi", value: "ASURANSI" },
   { label: "Angsuran", value: "ANGSURAN" },
-];
-
-const mailDeliveryMediaOptions = [
-  { label: "Email", value: "EMAIL" },
-  { label: "Pos", value: "POS" },
-  { label: "Kurir", value: "KURIR" },
-  { label: "Langsung", value: "LANGSUNG" },
+  { label: "Lainnya", value: "LAINNYA" },
 ];
 
 const legalProcessCategoryOptions = [
@@ -151,32 +144,6 @@ export const financingProductParameterConfig = simpleCodeNameConfig({
   searchPlaceholder: "Cari kode, nama, atau keterangan produk...",
 });
 
-export const collectibilityParameterConfig: ParameterMasterPageConfig = {
-  title: "Setup Kolektibilitas",
-  subtitle: "Kelola master kolektibilitas dan penanda NPF.",
-  entityLabel: "kolektibilitas",
-  endpoint: "/collectibility-levels",
-  icon: ShieldCheck,
-  addLabel: "Tambah Kolektibilitas",
-  searchPlaceholder: "Cari kode, level, nama, atau keterangan...",
-  fields: [
-    { key: "code", label: "Kode", required: true, placeholder: "Masukkan kode" },
-    { key: "level", label: "Level", type: "number", required: true, placeholder: "Masukkan level" },
-    { key: "name", label: "Nama", required: true, placeholder: "Masukkan nama" },
-    { key: "is_npf", label: "Termasuk NPF", type: "boolean", defaultValue: false },
-    DESCRIPTION_FIELD,
-    STATUS_FIELD,
-  ],
-  columns: [
-    { key: "code", label: "Kode", type: "code", widthClassName: "w-[120px]" },
-    { key: "level", label: "Level", type: "number", widthClassName: "w-[88px]" },
-    { key: "name", label: "Nama", className: "min-w-[220px] font-semibold text-gray-900" },
-    { key: "is_npf", label: "NPF", type: "boolean", widthClassName: "w-[100px]" },
-    { key: "description", label: "Keterangan", className: "min-w-[240px] max-w-[320px] truncate text-gray-600" },
-    { key: "is_active", label: "Status", type: "status", widthClassName: "w-[120px]" },
-  ],
-};
-
 export const contractTypeParameterConfig = simpleCodeNameConfig({
   title: "Setup Jenis Akad",
   subtitle: "Kelola master jenis akad yang dipakai di kontrak debitur.",
@@ -199,9 +166,8 @@ export const mailDeliveryMediaParameterConfig = simpleCodeNameConfig({
     {
       key: "code",
       label: "Kode Media",
-      type: "select",
       required: true,
-      options: mailDeliveryMediaOptions,
+      placeholder: "Masukkan kode media",
     },
     { key: "name", label: "Nama Media", required: true, placeholder: "Masukkan nama media" },
     DESCRIPTION_FIELD,

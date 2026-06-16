@@ -1,3 +1,5 @@
+import type { NextConfig } from "next";
+
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || "";
 const serverActionsEncryptionKey =
   (process.env.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY || "").trim();
@@ -71,12 +73,25 @@ const contentSecurityPolicy = [
   `frame-src 'self' blob: data:${backendOrigin ? ` ${backendOrigin}` : ""}`,
 ].join("; ");
 
-const nextConfig = {
+const nextConfig: NextConfig = {
   reactStrictMode: true,
   ...(deploymentId ? { deploymentId } : {}),
   allowedDevOrigins: ["localhost", "127.0.0.1"],
   poweredByHeader: false,
   compress: true,
+  compiler: {
+    removeConsole: isProduction
+      ? {
+          exclude: ["error", "warn"],
+        }
+      : false,
+  },
+  experimental: {
+    optimizePackageImports: ["lucide-react", "recharts", "react-pdf"],
+  },
+  watchOptions: {
+    pollIntervalMs: 1000,
+  },
   async rewrites() {
     if (!backendApiUrl) return [];
 
@@ -124,4 +139,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;

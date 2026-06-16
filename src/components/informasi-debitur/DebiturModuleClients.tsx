@@ -4180,7 +4180,8 @@ function getImportConfig(type: DebtorImportType) {
     case "IDEB":
       return {
         title: "Import IDEB",
-        subtitle: "Upload file IDEB .txt / .json berisi JSON valid dan hubungkan otomatis ke debitur atau kontrak.",
+        subtitle:
+          "Upload file IDEB .txt / .json berisi JSON valid. Hasil yang cocok akan masuk ke debitur existing, yang belum cocok tetap tampil di Laporan IDEB.",
         icon: FolderOpen,
       };
     default:
@@ -4410,6 +4411,67 @@ function SlikMultiFileField({
       />
       <p className="mt-2 text-xs text-slate-500">
         Upload TXT yang berisi satu jenis segmen sesuai pilihan. Nama file, header, dan jumlah field akan divalidasi backend.
+      </p>
+      {files.length > 0 ? (
+        <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+            File Dipilih
+          </p>
+          <ul className="mt-2 space-y-1 text-sm text-slate-700">
+            {files.map((file) => (
+              <li key={`${file.name}-${file.size}`} className="break-words">
+                {file.name} ({formatNumber(Math.ceil(file.size / 1024))} KB)
+              </li>
+            ))}
+          </ul>
+          <button
+            type="button"
+            className="uiverse-modal-button uiverse-modal-button--neutral mt-3 min-h-[34px] px-3 text-xs"
+            onClick={() => onChange([])}
+          >
+            Bersihkan pilihan
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function IdebMultiFileField({
+  files,
+  onChange,
+}: {
+  files: File[];
+  onChange: (files: File[]) => void;
+}) {
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    for (const file of selectedFiles) {
+      const error = validateDebtorImportFile("IDEB", file);
+      if (error) {
+        event.target.value = "";
+        event.target.setCustomValidity(error);
+        event.target.reportValidity();
+        event.target.setCustomValidity("");
+        return;
+      }
+    }
+    onChange(selectedFiles);
+  };
+
+  return (
+    <div className="md:col-span-full">
+      <FieldLabel required>File IDEB .txt / .json</FieldLabel>
+      <input
+        id="debtor-import-ideb-files"
+        type="file"
+        multiple
+        accept=".txt,.json"
+        className="block w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 shadow-sm file:mr-4 file:rounded-md file:border-0 file:bg-gray-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-100"
+        onChange={handleChange}
+      />
+      <p className="mt-2 text-xs text-slate-500">
+        Jika hasil IDEB terbagi menjadi beberapa bagian, upload semua file bagian dalam satu kali submit.
       </p>
       {files.length > 0 ? (
         <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
@@ -4737,8 +4799,8 @@ export function DebtorImportClient({
       if (type === "SLIK" && form.import_segment === "F01" && !form.period_month.trim()) {
         throw new Error("Periode Data wajib diisi untuk import F01.");
       }
-      const selectedFile = form.files[0] ?? form.file;
-      if (selectedFile) {
+      const selectedFiles = form.files.length > 0 ? form.files : form.file ? [form.file] : [];
+      for (const selectedFile of selectedFiles) {
         const fileError = validateDebtorImportFile(type, selectedFile);
         if (fileError) throw new Error(fileError);
       }
@@ -5117,7 +5179,7 @@ export function DebtorImportClient({
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs leading-5 text-gray-600">
               <p className="mb-2 text-sm font-semibold text-gray-900">Format IDEB yang didukung</p>
               <p className="mb-2 text-xs text-gray-500">
-                Upload file IDEB mentah berekstensi .txt atau .json. Isi file tetap harus JSON valid.
+                Upload file IDEB .txt atau .json berisi JSON valid. Jika file terbagi menjadi beberapa bagian, pilih semua bagian sekaligus agar digabung menjadi satu hasil pengecekan.
               </p>
               <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-white p-3">
 {`{
@@ -5137,17 +5199,26 @@ export function DebtorImportClient({
         )}
         {!isSlikImport ? (
           <SetupFormSection title="File Upload" contentClassName="md:grid-cols-1">
-            <FileUploadField
-              id={`debtor-import-${type}`}
-              accept={type === "IDEB" ? ".txt,.json" : ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png"}
-              label={type === "IDEB" ? "File IDEB .txt / .json" : "File Upload"}
-              file={form.file}
-              validateFile={(file) => validateDebtorImportFile(type, file)}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null, files: [] }))
-              }
-              onClear={() => setForm((prev) => ({ ...prev, file: null, files: [] }))}
-            />
+            {type === "IDEB" ? (
+              <IdebMultiFileField
+                files={form.files.length > 0 ? form.files : form.file ? [form.file] : []}
+                onChange={(files) =>
+                  setForm((prev) => ({ ...prev, files, file: files[0] ?? null }))
+                }
+              />
+            ) : (
+              <FileUploadField
+                id={`debtor-import-${type}`}
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.csv,.jpg,.jpeg,.png"
+                label="File Upload"
+                file={form.file}
+                validateFile={(file) => validateDebtorImportFile(type, file)}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null, files: [] }))
+                }
+                onClear={() => setForm((prev) => ({ ...prev, file: null, files: [] }))}
+              />
+            )}
           </SetupFormSection>
         ) : null}
       </DashboardModal>
@@ -6335,8 +6406,8 @@ export function DebtorReportClient() {
                   <SetupDataTableHeaderCell>Debitur</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Jenis CIF</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Cabang / PIC</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell>No Fasilitas F01</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell>Agunan</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Jumlah Fasilitas</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Jumlah Agunan</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Total OS</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>KOL Terakhir</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Periode SLIK</SetupDataTableHeaderCell>

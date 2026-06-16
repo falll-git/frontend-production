@@ -82,6 +82,7 @@ import type {
   DebtorDocumentChecklistStatus,
   DebtorFileMeta,
   DebtorIdebComparison,
+  DebtorIdebUploadFile,
   DebtorMarketingTimelineEntry,
   DebtorWarningLetter,
   DebtorWorkflow,
@@ -91,7 +92,6 @@ import type {
   DebtorWorkflowDepositTransaction,
   DebtorWorkflowIdebUpload,
   DebtorWorkflowLegalProgress,
-  DebtorWorkflowPrint,
   DebtorDocumentPayload,
 } from "@/types/debitur.types";
 
@@ -140,7 +140,7 @@ const TABS: TabConfig[] = [
   { id: "historis", label: "Historis Kol" },
   { id: "dokumen", label: "Dokumen" },
   { id: "agunan", label: "Agunan" },
-  { id: "notaris", label: "Notaris", legal: true },
+  { id: "notaris", label: "Notaris & KJPP", legal: true },
   {
     id: "sp",
     label: "Surat Peringatan",
@@ -150,7 +150,7 @@ const TABS: TabConfig[] = [
       "/dashboard/legal/cetak/surat-peringatan",
     ],
   },
-  { id: "claim", label: "Progress Klaim Asuransi", legal: true },
+  { id: "claim", label: "Asuransi & Klaim", legal: true },
   { id: "titipan", label: "Dana Titipan", legal: true },
 ];
 
@@ -3389,6 +3389,29 @@ function IdebTab({
   const latestIdeb = useMemo(() => getLatestIdebItem(items), [items]);
   const selectedFacilities = selectedIdeb ? getIdebFacilities(selectedIdeb) : [];
   const selectedHistory = selectedIdeb ? getIdebMonthlyHistory(selectedIdeb) : [];
+  const selectedSourceFiles = useMemo<DebtorIdebUploadFile[]>(() => {
+    if (!selectedIdeb) return [];
+    if (Array.isArray(selectedIdeb.files) && selectedIdeb.files.length > 0) {
+      return selectedIdeb.files;
+    }
+
+    const fallback = Array.isArray(selectedIdeb.summary_detail?.source_files)
+      ? selectedIdeb.summary_detail.source_files
+      : [];
+
+    return fallback.map((file, index) => ({
+      id: `${selectedIdeb.id}-source-${index + 1}`,
+      part_number: file.part_number || index + 1,
+      total_parts: file.total_parts || fallback.length || 1,
+      file: {
+        name: file.file_name || `Bagian ${index + 1}`,
+        url: file.file_path ? (toPreviewableFileUrl(file.file_path) ?? null) : null,
+        mime_type: file.mime_type || null,
+        size_bytes: file.size_bytes || null,
+      },
+      created_at: null,
+    }));
+  }, [selectedIdeb]);
 
   useEffect(() => {
     let ignore = false;
@@ -3579,7 +3602,9 @@ function IdebTab({
         {selectedIdeb ? (
           <div className="space-y-6">
             <div className="flex justify-end">
-              <SetupStatusBadge status={statusLabel(selectedIdeb.status)} />
+              <SetupStatusBadge
+                status={selectedIdeb.debtor_id ? "Terhubung" : "Belum Terhubung"}
+              />
             </div>
             <IdebCreditReviewSummary item={selectedIdeb} />
 
@@ -3626,6 +3651,32 @@ function IdebTab({
             <SectionCard title="Kesimpulan">
               <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm font-semibold leading-6 text-gray-900">
                 {selectedIdeb.summary_detail?.conclusion ?? "-"}
+              </div>
+            </SectionCard>
+
+            <SectionCard title="File Asli">
+              <div className="grid gap-3 md:grid-cols-2">
+                {selectedSourceFiles.map((file) => (
+                  <div
+                    key={file.id}
+                    className="rounded-lg border border-gray-200 bg-gray-50 p-3"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+                      Bagian {file.part_number}/{file.total_parts}
+                    </p>
+                    <p className="mt-2 break-words text-sm font-semibold text-gray-900">
+                      {display(file.file?.name)}
+                    </p>
+                    {file.file ? (
+                      <div className="mt-3">
+                        <FileButton file={file.file} onOpen={onOpenFile} />
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+                {selectedSourceFiles.length === 0 ? (
+                  <p className="text-sm text-gray-500">File asli tidak tersedia.</p>
+                ) : null}
               </div>
             </SectionCard>
 
@@ -4295,117 +4346,69 @@ function NotarisTab({
 
 function SuratPeringatanTab({
   letters,
-  prints,
   onOpenFile,
 }: {
   letters: DebtorWarningLetter[];
-  prints: DebtorWorkflowPrint[];
   onOpenFile: (file: DebtorFileMeta) => void;
 }) {
-  const warningPrints = prints.filter(
-    (item) => String(item.document_type).toUpperCase() === "SURAT_PERINGATAN",
-  );
-
   return (
-    <div className="space-y-5">
-      <SectionCard
-        title="Surat Peringatan Terupload"
-        actions={
-          <LegalShortcutLink
-            href="/dashboard/legal/cetak/surat-peringatan"
-            label="Buka Cetak SP"
-          />
-        }
-      >
-        <SetupTableCard variant="nested">
-          <SetupDataTable variant="document" density="compact" className="min-w-[900px]">
-            <SetupDataTableHead>
-              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
-                  No
-                </SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Jenis</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Tanggal Terbit</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Tanggal Kirim</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                  Status
-                </SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Keterangan</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                  File
-                </SetupDataTableHeaderCell>
+    <SectionCard
+      title="Surat Peringatan Terupload"
+      actions={
+        <LegalShortcutLink
+          href="/dashboard/legal/cetak/surat-peringatan"
+          label="Buka Cetak SP"
+        />
+      }
+    >
+      <SetupTableCard variant="nested">
+        <SetupDataTable variant="document" density="compact" className="min-w-[900px]">
+          <SetupDataTableHead>
+            <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
+                No
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Jenis</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Tanggal Terbit</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Tanggal Kirim</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                Status
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Keterangan</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                File
+              </SetupDataTableHeaderCell>
+            </SetupDataTableRow>
+          </SetupDataTableHead>
+          <SetupDataTableBody>
+            {letters.map((item, index) => (
+              <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
+                <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                  {index + 1}
+                </SetupDataTableCell>
+                <SetupDataTableCell>{item.letter_type}</SetupDataTableCell>
+                <SetupDataTableCell>{item.contract?.no_kontrak ?? "-"}</SetupDataTableCell>
+                <SetupDataTableCell>{formatDateOnly(item.issued_at)}</SetupDataTableCell>
+                <SetupDataTableCell>{formatDateOnly(item.sent_at)}</SetupDataTableCell>
+                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                  <SetupStatusBadge status={statusLabel(item.delivery_status || item.status)} />
+                </SetupDataTableCell>
+                <SetupDataTableCell>{display(item.description ?? item.notes)}</SetupDataTableCell>
+                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                  <FileButton file={item.file} onOpen={onOpenFile} />
+                </SetupDataTableCell>
               </SetupDataTableRow>
-            </SetupDataTableHead>
-            <SetupDataTableBody>
-              {letters.map((item, index) => (
-                <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                    {index + 1}
-                  </SetupDataTableCell>
-                  <SetupDataTableCell>{item.letter_type}</SetupDataTableCell>
-                  <SetupDataTableCell>{item.contract?.no_kontrak ?? "-"}</SetupDataTableCell>
-                  <SetupDataTableCell>{formatDateOnly(item.issued_at)}</SetupDataTableCell>
-                  <SetupDataTableCell>{formatDateOnly(item.sent_at)}</SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <SetupStatusBadge status={statusLabel(item.delivery_status || item.status)} />
-                  </SetupDataTableCell>
-                  <SetupDataTableCell>{display(item.description ?? item.notes)}</SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <FileButton file={item.file} onOpen={onOpenFile} />
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
-              ))}
-              {letters.length === 0 ? (
-                <SetupDataTableEmptyRow colSpan={8}>
-                  Belum ada surat peringatan terupload.
-                </SetupDataTableEmptyRow>
-              ) : null}
-            </SetupDataTableBody>
-          </SetupDataTable>
-        </SetupTableCard>
-      </SectionCard>
-
-      <SectionCard title="Dokumen Surat Peringatan Tercetak">
-        <SetupTableCard variant="nested">
-          <SetupDataTable variant="workflow" density="compact" className="min-w-[760px]">
-            <SetupDataTableHead>
-              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
-                  No
-                </SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Nomor Dokumen</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Tanggal Cetak</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                  File
-                </SetupDataTableHeaderCell>
-              </SetupDataTableRow>
-            </SetupDataTableHead>
-            <SetupDataTableBody>
-              {warningPrints.map((item, index) => (
-                <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                    {index + 1}
-                  </SetupDataTableCell>
-                  <SetupDataTableCell>{item.generated_number}</SetupDataTableCell>
-                  <SetupDataTableCell>{item.contract?.no_kontrak ?? "-"}</SetupDataTableCell>
-                  <SetupDataTableCell>{formatDateOnly(item.printed_at)}</SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <FileButton file={item.generated_file} onOpen={onOpenFile} />
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
-              ))}
-              {warningPrints.length === 0 ? (
-                <SetupDataTableEmptyRow colSpan={5}>
-                  Belum ada cetak surat peringatan.
-                </SetupDataTableEmptyRow>
-              ) : null}
-            </SetupDataTableBody>
-          </SetupDataTable>
-        </SetupTableCard>
-      </SectionCard>
-    </div>
+            ))}
+            {letters.length === 0 ? (
+              <SetupDataTableEmptyRow colSpan={8}>
+                Belum ada surat peringatan terupload.
+              </SetupDataTableEmptyRow>
+            ) : null}
+          </SetupDataTableBody>
+        </SetupDataTable>
+      </SetupTableCard>
+    </SectionCard>
   );
 }
 
@@ -4421,7 +4424,7 @@ function ClaimTab({
   return (
     <div className="space-y-5">
       <SectionCard
-        title="Progress Asuransi"
+        title="Progress Polis Asuransi"
         actions={
           <LegalShortcutLink
             href="/dashboard/legal/progress/asuransi"
@@ -4483,7 +4486,7 @@ function ClaimTab({
       </SectionCard>
 
       <SectionCard
-        title="Klaim Asuransi"
+        title="Tracking Klaim Asuransi"
         actions={
           <LegalShortcutLink
             href="/dashboard/legal/progress/klaim"
@@ -4578,6 +4581,9 @@ function TitipanTab({
   deposits: DebtorWorkflowDeposit[];
   onOpenFile: (file: DebtorFileMeta) => void;
 }) {
+  const depositRowActivationRef = useRef<DoubleRowActivationState | null>(null);
+  const [selectedDepositId, setSelectedDepositId] = useState<string | null>(null);
+
   const totalDeposit = deposits.reduce((total, item) => total + depositLedgerTotal(item), 0);
   const totalPayment = deposits.reduce((total, item) => total + depositLedgerPayment(item), 0);
   const totalRefund = deposits.reduce((total, item) => total + depositLedgerRefund(item), 0);
@@ -4586,21 +4592,22 @@ function TitipanTab({
     (total, item) => total + item.transactions.length,
     0,
   );
-  const recentTransactions: Array<{
-    deposit: DebtorWorkflowDeposit;
-    transaction: DebtorWorkflowDepositTransaction;
-  }> = deposits
-    .flatMap((deposit) =>
-      deposit.transactions.map((transaction) => ({
-        deposit,
-        transaction,
-      })),
-    )
-    .sort((left, right) => {
-      const leftValue = left.transaction.transaction_date ?? left.transaction.created_at ?? "";
-      const rightValue = right.transaction.transaction_date ?? right.transaction.created_at ?? "";
-      return rightValue.localeCompare(leftValue);
-    });
+  const selectedDeposit =
+    deposits.find((item) => item.id === selectedDepositId) ??
+    (deposits.length === 1 ? deposits[0] : null);
+  const selectedTransactions: DebtorWorkflowDepositTransaction[] = selectedDeposit
+    ? [...selectedDeposit.transactions].sort((left, right) => {
+        const leftValue = left.transaction_date ?? left.created_at ?? "";
+        const rightValue = right.transaction_date ?? right.created_at ?? "";
+        return rightValue.localeCompare(leftValue);
+      })
+    : [];
+  const selectedDepositLabel = selectedDeposit
+    ? selectedDeposit.deposit_type?.name ?? selectedDeposit.type
+    : null;
+  const historyTitle = selectedDepositLabel
+    ? `Riwayat Transaksi - ${selectedDepositLabel}`
+    : "Riwayat Transaksi Titipan";
 
   return (
     <div className="space-y-5">
@@ -4662,21 +4669,71 @@ function TitipanTab({
           </SetupDataTableHead>
           <SetupDataTableBody>
             {deposits.map((item, index) => (
-              <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                  {index + 1}
-                </SetupDataTableCell>
-                <SetupDataTableCell>{item.deposit_type?.name ?? item.type}</SetupDataTableCell>
-                <SetupDataTableCell>{item.contract?.no_kontrak ?? "-"}</SetupDataTableCell>
-                <SetupDataTableCell>{item.third_party?.name ?? "-"}</SetupDataTableCell>
-                <SetupDataTableCell>{formatCurrency(depositLedgerTotal(item))}</SetupDataTableCell>
-                <SetupDataTableCell>{formatCurrency(depositLedgerPayment(item))}</SetupDataTableCell>
-                <SetupDataTableCell>{formatCurrency(depositLedgerRefund(item))}</SetupDataTableCell>
-                <SetupDataTableCell>{formatCurrency(depositLedgerBalance(item))}</SetupDataTableCell>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                  <SetupStatusBadge status={statusLabel(item.status)} />
-                </SetupDataTableCell>
-              </SetupDataTableRow>
+              (() => {
+                const isActive = item.id === selectedDeposit?.id;
+                const activateRow = () => setSelectedDepositId(item.id);
+
+                return (
+                  <SetupDataTableRow
+                    key={item.id}
+                    role={isActive ? undefined : "button"}
+                    tabIndex={isActive ? undefined : 0}
+                    title={isActive ? undefined : "Klik dua kali untuk melihat riwayat transaksi titipan"}
+                    className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} ${
+                      isActive
+                        ? "bg-[#157ec3]/5 ring-1 ring-inset ring-[#157ec3]/20"
+                        : "cursor-pointer hover:bg-[#157ec3]/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+                    }`}
+                    onClick={
+                      isActive
+                        ? undefined
+                        : () =>
+                            handleDoubleRowClick(
+                              depositRowActivationRef,
+                              item.id,
+                              activateRow,
+                            )
+                    }
+                    onDoubleClick={
+                      isActive
+                        ? undefined
+                        : () =>
+                            triggerDoubleRowActivation(
+                              depositRowActivationRef,
+                              item.id,
+                              activateRow,
+                            )
+                    }
+                    onKeyDown={
+                      isActive
+                        ? undefined
+                        : (event) => {
+                            if (event.key !== "Enter") return;
+                            event.preventDefault();
+                            triggerDoubleRowActivation(
+                              depositRowActivationRef,
+                              item.id,
+                              activateRow,
+                            );
+                          }
+                    }
+                  >
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                      {index + 1}
+                    </SetupDataTableCell>
+                    <SetupDataTableCell>{item.deposit_type?.name ?? item.type}</SetupDataTableCell>
+                    <SetupDataTableCell>{item.contract?.no_kontrak ?? "-"}</SetupDataTableCell>
+                    <SetupDataTableCell>{item.third_party?.name ?? "-"}</SetupDataTableCell>
+                    <SetupDataTableCell>{formatCurrency(depositLedgerTotal(item))}</SetupDataTableCell>
+                    <SetupDataTableCell>{formatCurrency(depositLedgerPayment(item))}</SetupDataTableCell>
+                    <SetupDataTableCell>{formatCurrency(depositLedgerRefund(item))}</SetupDataTableCell>
+                    <SetupDataTableCell>{formatCurrency(depositLedgerBalance(item))}</SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      <SetupStatusBadge status={statusLabel(item.status)} />
+                    </SetupDataTableCell>
+                  </SetupDataTableRow>
+                );
+              })()
             ))}
             {deposits.length === 0 ? (
               <SetupDataTableEmptyRow colSpan={9}>
@@ -4687,8 +4744,18 @@ function TitipanTab({
         </SetupDataTable>
       </SetupTableCard>
 
-      <SectionCard title="Riwayat Transaksi Titipan">
-        {recentTransactions.length > 0 ? (
+      <SectionCard title={historyTitle}>
+        {deposits.length === 0 ? (
+          <SetupEmptyState
+            title="Belum ada transaksi titipan."
+            description="Transaksi titipan, pembayaran, dan refund akan muncul di sini setelah dicatat."
+          />
+        ) : !selectedDeposit ? (
+          <SetupEmptyState
+            title="Pilih titipan terlebih dahulu."
+            description="Klik dua kali salah satu kantong titipan di tabel atas untuk melihat riwayat transaksinya."
+          />
+        ) : selectedTransactions.length > 0 ? (
           <SetupTableCard variant="nested">
             <SetupDataTable variant="workflow" density="compact" className="min-w-[1240px]">
               <SetupDataTableHead>
@@ -4708,22 +4775,22 @@ function TitipanTab({
                 </SetupDataTableRow>
               </SetupDataTableHead>
               <SetupDataTableBody>
-                {recentTransactions.map((entry, index) => (
+                {selectedTransactions.map((transaction, index) => (
                   <SetupDataTableRow
-                    key={entry.transaction.id}
+                    key={transaction.id}
                     className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
                   >
                     <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                       {index + 1}
                     </SetupDataTableCell>
-                    <SetupDataTableCell>{formatDateOnly(entry.transaction.transaction_date ?? entry.transaction.created_at)}</SetupDataTableCell>
-                    <SetupDataTableCell>{depositTransactionLabel(entry.transaction.raw_action ?? entry.transaction.action)}</SetupDataTableCell>
-                    <SetupDataTableCell>{entry.deposit.contract?.no_kontrak ?? "-"}</SetupDataTableCell>
-                    <SetupDataTableCell>{entry.deposit.deposit_type?.name ?? entry.deposit.type}</SetupDataTableCell>
-                    <SetupDataTableCell>{formatCurrency(entry.transaction.amount)}</SetupDataTableCell>
-                    <SetupDataTableCell>{entry.transaction.notes ?? "-"}</SetupDataTableCell>
+                    <SetupDataTableCell>{formatDateOnly(transaction.transaction_date ?? transaction.created_at)}</SetupDataTableCell>
+                    <SetupDataTableCell>{depositTransactionLabel(transaction.raw_action ?? transaction.action)}</SetupDataTableCell>
+                    <SetupDataTableCell>{selectedDeposit.contract?.no_kontrak ?? "-"}</SetupDataTableCell>
+                    <SetupDataTableCell>{selectedDeposit.deposit_type?.name ?? selectedDeposit.type}</SetupDataTableCell>
+                    <SetupDataTableCell>{formatCurrency(transaction.amount)}</SetupDataTableCell>
+                    <SetupDataTableCell>{transaction.notes ?? "-"}</SetupDataTableCell>
                     <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                      <FileButton file={entry.transaction.file} onOpen={onOpenFile} />
+                      <FileButton file={transaction.file} onOpen={onOpenFile} />
                     </SetupDataTableCell>
                   </SetupDataTableRow>
                 ))}
@@ -4738,59 +4805,6 @@ function TitipanTab({
         )}
       </SectionCard>
     </div>
-  );
-}
-
-function CetakLegalTab({
-  prints,
-  onOpenFile,
-}: {
-  prints: DebtorWorkflowPrint[];
-  onOpenFile: (file: DebtorFileMeta) => void;
-}) {
-  const legalPrints = prints.filter(
-    (item) => String(item.document_type).toUpperCase() !== "SURAT_PERINGATAN",
-  );
-
-  if (legalPrints.length === 0) return null;
-
-  return (
-    <SectionCard title="Dokumen Legal Tercetak">
-      <SetupTableCard variant="nested">
-        <SetupDataTable variant="document" density="compact" className="min-w-[820px]">
-          <SetupDataTableHead>
-            <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
-                No
-              </SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Jenis Dokumen</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Nomor Dokumen</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Tanggal Cetak</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                File
-              </SetupDataTableHeaderCell>
-            </SetupDataTableRow>
-          </SetupDataTableHead>
-          <SetupDataTableBody>
-            {legalPrints.map((item, index) => (
-              <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                  {index + 1}
-                </SetupDataTableCell>
-                <SetupDataTableCell>{documentTypeLabel(item.document_type)}</SetupDataTableCell>
-                <SetupDataTableCell>{item.generated_number}</SetupDataTableCell>
-                <SetupDataTableCell>{item.contract?.no_kontrak ?? "-"}</SetupDataTableCell>
-                <SetupDataTableCell>{formatDateOnly(item.printed_at)}</SetupDataTableCell>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                  <FileButton file={item.generated_file} onOpen={onOpenFile} />
-                </SetupDataTableCell>
-              </SetupDataTableRow>
-            ))}
-          </SetupDataTableBody>
-        </SetupDataTable>
-      </SetupTableCard>
-    </SectionCard>
   );
 }
 
@@ -5168,7 +5182,6 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
             {resolvedActiveTab === "sp" ? (
               <SuratPeringatanTab
                 letters={workflow.legal.warning_letters}
-                prints={workflow.legal.prints}
                 onOpenFile={openFile}
               />
             ) : null}
@@ -5180,13 +5193,7 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
               />
             ) : null}
             {resolvedActiveTab === "titipan" && canViewLegal ? (
-              <div className="space-y-5">
-                <TitipanTab deposits={workflow.legal.deposits} onOpenFile={openFile} />
-                <CetakLegalTab
-                  prints={workflow.legal.prints}
-                  onOpenFile={openFile}
-                />
-              </div>
+              <TitipanTab deposits={workflow.legal.deposits} onOpenFile={openFile} />
             ) : null}
           </div>
         </>

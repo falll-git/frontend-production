@@ -1,5 +1,3 @@
-"use client";
-
 import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import DashboardOverviewClient from "@/components/dashboard/DashboardOverviewClient";
 

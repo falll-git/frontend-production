@@ -326,9 +326,23 @@ export type DebtorIdebFacility = Record<string, unknown>;
 
 export type DebtorIdebMonthlyCollectibility = Record<string, unknown>;
 
+export type DebtorIdebSourceFile = {
+  part_number?: number;
+  total_parts?: number;
+  file_name?: string | null;
+  file_path?: string | null;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  checksum?: string | null;
+};
+
 export type DebtorIdebSummaryDetail = {
   schema_version?: string | null;
   source_format?: string | null;
+  total_parts?: number;
+  received_parts?: number;
+  part_numbers?: number[];
+  source_files?: DebtorIdebSourceFile[];
   period_month?: string | null;
   officer_name?: string | null;
   report_number?: string | null;
@@ -350,6 +364,14 @@ export type DebtorIdebSummaryDetail = {
   other_bprs: DebtorIdebOtherBprs[];
 };
 
+export type DebtorIdebUploadFile = {
+  id: string;
+  part_number: number;
+  total_parts: number;
+  file: DebtorFileMeta | null;
+  created_at?: string | null;
+};
+
 export type DebtorWorkflowIdebUpload = {
   id: string;
   debtor_id: string | null;
@@ -361,6 +383,7 @@ export type DebtorWorkflowIdebUpload = {
   result_summary: Record<string, unknown> | null;
   summary_detail: DebtorIdebSummaryDetail | null;
   file: DebtorFileMeta | null;
+  files?: DebtorIdebUploadFile[];
   debtor: DebtorRecord | null;
   contract: DebtorContract | null;
   created_at: string | null;
@@ -377,6 +400,25 @@ export type DebtorIdebPendingUpload = DebtorWorkflowIdebUpload & {
   current_collectibility: string | number | null;
   outstanding_pokok: number;
   updated_at: string | null;
+};
+
+export type DebtorIdebReportUpload = DebtorIdebPendingUpload & {
+  link_status: string;
+  result_date: string | null;
+  reporter_count: number;
+  facilities_count: number;
+  active_facilities_count: number;
+  paid_off_facilities_count: number;
+  active_outstanding: number;
+  paid_off_plafond: number;
+  total_plafond: number;
+  total_outstanding: number;
+  total_arrears: number;
+  worst_collectibility: string | number | null;
+  officer_name: string | null;
+  total_parts: number;
+  received_parts: number;
+  part_display: string;
 };
 
 export type DebtorIdebResolvePayload = {

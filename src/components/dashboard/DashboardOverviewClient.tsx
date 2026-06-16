@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import {
   useEffect,
   useMemo,
@@ -22,11 +23,6 @@ import {
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import DashboardModal from "@/components/ui/DashboardModal";
-import LaporanAktivitasMarketingSection from "@/components/dashboard/LaporanAktivitasMarketingSection";
-import LaporanNPFSection from "@/components/dashboard/LaporanNPFSection";
-import LaporanPihakKetigaSection from "@/components/dashboard/LaporanPihakKetigaSection";
-import LaporanTitipanSection from "@/components/dashboard/LaporanTitipanSection";
-import StorageOverviewWidget from "@/components/dashboard/StorageOverviewWidget";
 import ProtectedLink from "@/components/rbac/ProtectedLink";
 import { getRoleLabel } from "@/lib/rbac";
 import { menuService } from "@/services/menu.service";
@@ -43,6 +39,29 @@ type DashboardReportSectionProps = {
   widget: DashboardMenuNode;
   showTitle?: boolean;
 };
+const StorageOverviewWidget = dynamic(
+  () => import("@/components/dashboard/StorageOverviewWidget"),
+  {
+    ssr: false,
+    loading: () => <div className="skeleton-card h-[540px]" />,
+  },
+);
+const LaporanAktivitasMarketingSection = dynamic<DashboardReportSectionProps>(
+  () => import("@/components/dashboard/LaporanAktivitasMarketingSection"),
+  { ssr: false, loading: () => null },
+);
+const LaporanNPFSection = dynamic<DashboardReportSectionProps>(
+  () => import("@/components/dashboard/LaporanNPFSection"),
+  { ssr: false, loading: () => null },
+);
+const LaporanPihakKetigaSection = dynamic<DashboardReportSectionProps>(
+  () => import("@/components/dashboard/LaporanPihakKetigaSection"),
+  { ssr: false, loading: () => null },
+);
+const LaporanTitipanSection = dynamic<DashboardReportSectionProps>(
+  () => import("@/components/dashboard/LaporanTitipanSection"),
+  { ssr: false, loading: () => null },
+);
 const DASHBOARD_REPORT_SECTION_RENDERERS: Record<
   string,
   ComponentType<DashboardReportSectionProps>
@@ -58,7 +77,10 @@ const DASHBOARD_REPORT_SECTION_ORDER: Record<string, number> = {
   "dashboard.report.npf": 30,
   "dashboard.report.marketing_activity": 40,
 };
-const DASHBOARD_MODAL_REPORT_KEYS = new Set<string>();
+const DASHBOARD_MODAL_REPORT_KEYS = new Set<string>([
+  "dashboard.report.third_party_documents",
+  "dashboard.report.third_party_deposit_funds",
+]);
 
 function hexToRgb(value: string): string | null {
   const hex = value.replace("#", "").trim();

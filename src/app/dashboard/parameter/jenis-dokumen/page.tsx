@@ -1,6 +1,7 @@
 "use client";
 
 import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
+import ArsipDigitalScopedProviders from "@/components/arsip-digital/ArsipDigitalScopedProviders";
 import {
   SetupDataTable,
   SetupDataTableHead,
@@ -67,7 +68,7 @@ const EMPTY_FORM: FormState = {
   status: "Aktif",
 };
 
-export default function SetupJenisDokumenPage() {
+function SetupJenisDokumenPageContent() {
   const { showToast } = useAppToast();
   const { jenisDokumen, setJenisDokumen, isLoading } = useArsipDigitalMasterData();
 
@@ -537,5 +538,13 @@ export default function SetupJenisDokumenPage() {
         isLoading={isDeleting}
       />
     </DashboardPageShell>
+  );
+}
+
+export default function SetupJenisDokumenPage() {
+  return (
+    <ArsipDigitalScopedProviders>
+      <SetupJenisDokumenPageContent />
+    </ArsipDigitalScopedProviders>
   );
 }

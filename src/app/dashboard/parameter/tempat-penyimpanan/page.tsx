@@ -1,6 +1,7 @@
 "use client";
 
 import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
+import ArsipDigitalScopedProviders from "@/components/arsip-digital/ArsipDigitalScopedProviders";
 import {
   SetupDataTable,
   SetupDataTableHead,
@@ -71,7 +72,7 @@ const EMPTY_FORM: FormState = {
   status: "Aktif",
 };
 
-export default function SetupTempatPenyimpananPage() {
+function SetupTempatPenyimpananPageContent() {
   const { showToast } = useAppToast();
   const { tempatPenyimpanan, setTempatPenyimpanan, isLoading } =
     useArsipDigitalMasterData();
@@ -615,5 +616,13 @@ export default function SetupTempatPenyimpananPage() {
         isLoading={isDeleting}
       />
     </DashboardPageShell>
+  );
+}
+
+export default function SetupTempatPenyimpananPage() {
+  return (
+    <ArsipDigitalScopedProviders>
+      <SetupTempatPenyimpananPageContent />
+    </ArsipDigitalScopedProviders>
   );
 }

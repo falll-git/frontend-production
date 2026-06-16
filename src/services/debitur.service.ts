@@ -33,8 +33,11 @@ import type {
   DebtorIdebComparisonSummary,
   DebtorIdebPendingUpload,
   DebtorIdebOtherBprs,
+  DebtorIdebReportUpload,
   DebtorIdebResolvePayload,
+  DebtorIdebSourceFile,
   DebtorIdebSummaryDetail,
+  DebtorIdebUploadFile,
   DebtorImportJob,
   DebtorImportPayload,
   DebtorImportType,
@@ -84,6 +87,14 @@ function nullableString(record: UnknownRecord, ...keys: string[]): string | null
 
 function numberValue(record: UnknownRecord, key: string, fallback = 0): number {
   return readNumber(record, key) ?? fallback;
+}
+
+function numberValueAny(record: UnknownRecord, ...keys: string[]): number {
+  for (const key of keys) {
+    const value = readNumber(record, key);
+    if (value !== null && value !== undefined) return value;
+  }
+  return 0;
 }
 
 function normalizeDate(value: unknown): string | null {
@@ -866,6 +877,21 @@ function mapIdebOtherBprs(record: unknown): DebtorIdebOtherBprs | null {
   };
 }
 
+function mapIdebSourceFile(record: unknown): DebtorIdebSourceFile | null {
+  const item = asRecord(record);
+  if (!item) return null;
+
+  return {
+    part_number: numberValueAny(item, "part_number", "partNumber") || undefined,
+    total_parts: numberValueAny(item, "total_parts", "totalParts") || undefined,
+    file_name: nullableString(item, "file_name", "fileName"),
+    file_path: nullableString(item, "file_path", "filePath"),
+    mime_type: nullableString(item, "mime_type", "mimeType"),
+    size_bytes: numberValueAny(item, "size_bytes", "sizeBytes") || undefined,
+    checksum: nullableString(item, "checksum"),
+  };
+}
+
 function mapIdebSummaryDetail(record: unknown): DebtorIdebSummaryDetail | null {
   const item = asRecord(record);
   if (!item) return null;
@@ -878,6 +904,18 @@ function mapIdebSummaryDetail(record: unknown): DebtorIdebSummaryDetail | null {
   return {
     schema_version: nullableString(item, "schema_version", "schemaVersion"),
     source_format: nullableString(item, "source_format", "sourceFormat"),
+    total_parts: numberValueAny(item, "total_parts", "totalParts"),
+    received_parts: numberValueAny(item, "received_parts", "receivedParts"),
+    part_numbers: Array.isArray(item.part_numbers)
+      ? item.part_numbers
+          .map((entry) => Number(entry))
+          .filter((entry) => Number.isFinite(entry))
+      : [],
+    source_files: Array.isArray(item.source_files)
+      ? item.source_files
+          .map((entry) => mapIdebSourceFile(entry))
+          .filter((entry): entry is DebtorIdebSourceFile => entry !== null)
+      : [],
     period_month: nullableString(item, "period_month", "periodMonth"),
     officer_name: nullableString(item, "officer_name", "officerName"),
     report_number: nullableString(item, "report_number", "reportNumber"),
@@ -910,6 +948,21 @@ function mapIdebSummaryDetail(record: unknown): DebtorIdebSummaryDetail | null {
   };
 }
 
+function mapIdebUploadFile(record: unknown): DebtorIdebUploadFile | null {
+  const item = asRecord(record);
+  if (!item) return null;
+  const id = readString(item, "id");
+  if (!id) return null;
+
+  return {
+    id,
+    part_number: numberValueAny(item, "part_number", "partNumber") || 1,
+    total_parts: numberValueAny(item, "total_parts", "totalParts") || 1,
+    file: mapFile(item.file),
+    created_at: nullableString(item, "created_at", "createdAt"),
+  };
+}
+
 function mapIdebUpload(record: unknown): DebtorWorkflowIdebUpload | null {
   const item = asRecord(record);
   if (!item) return null;
@@ -926,6 +979,11 @@ function mapIdebUpload(record: unknown): DebtorWorkflowIdebUpload | null {
     result_summary: asRecord(item.result_summary) ?? null,
     summary_detail: mapIdebSummaryDetail(item.summary_detail),
     file: mapFile(item.file),
+    files: Array.isArray(item.files)
+      ? item.files
+          .map((entry) => mapIdebUploadFile(entry))
+          .filter((entry): entry is DebtorIdebUploadFile => entry !== null)
+      : [],
     debtor: mapDebtor(item.debtor, false),
     contract: mapContract(item.contract, false),
     created_at: nullableString(item, "created_at", "createdAt"),
@@ -951,6 +1009,34 @@ function mapIdebPendingUpload(record: unknown): DebtorIdebPendingUpload | null {
       readNumber(item, "current_collectibility", "currentCollectibility"),
     outstanding_pokok: numberValue(item, "outstanding_pokok"),
     updated_at: nullableString(item, "updated_at", "updatedAt"),
+  };
+}
+
+function mapIdebReportUpload(record: unknown): DebtorIdebReportUpload | null {
+  const item = asRecord(record);
+  const base = mapIdebPendingUpload(record);
+  if (!item || !base) return null;
+
+  return {
+    ...base,
+    link_status: readString(item, "link_status", "linkStatus") ?? "BELUM_TERHUBUNG",
+    result_date: nullableString(item, "result_date", "resultDate"),
+    reporter_count: numberValueAny(item, "reporter_count", "reporterCount"),
+    facilities_count: numberValueAny(item, "facilities_count", "facilitiesCount"),
+    active_facilities_count: numberValueAny(item, "active_facilities_count", "activeFacilitiesCount"),
+    paid_off_facilities_count: numberValueAny(item, "paid_off_facilities_count", "paidOffFacilitiesCount"),
+    active_outstanding: numberValueAny(item, "active_outstanding", "activeOutstanding"),
+    paid_off_plafond: numberValueAny(item, "paid_off_plafond", "paidOffPlafond"),
+    total_plafond: numberValueAny(item, "total_plafond", "totalPlafond"),
+    total_outstanding: numberValueAny(item, "total_outstanding", "totalOutstanding"),
+    total_arrears: numberValueAny(item, "total_arrears", "totalArrears"),
+    worst_collectibility:
+      readString(item, "worst_collectibility", "worstCollectibility") ??
+      readNumber(item, "worst_collectibility", "worstCollectibility"),
+    officer_name: nullableString(item, "officer_name", "officerName"),
+    total_parts: numberValueAny(item, "total_parts", "totalParts") || 1,
+    received_parts: numberValueAny(item, "received_parts", "receivedParts") || 1,
+    part_display: readString(item, "part_display", "partDisplay") ?? "-",
   };
 }
 
@@ -1845,6 +1931,28 @@ export const debiturService = {
       page: Number(params.page),
       limit: Number(params.limit),
     });
+  },
+
+  getIdebReports: async (
+    query: DebtorListQuery & { link_status?: string; period_month?: string } = {},
+  ): Promise<DebtorPageResult<DebtorIdebReportUpload>> => {
+    const params = buildQuery(query);
+    if (query.link_status) params.link_status = query.link_status;
+    if (query.period_month) params.period_month = query.period_month;
+    const res = await api.get("/debtor-ideb-reports", { params });
+    return mapPage(res.data, mapIdebReportUpload, {
+      page: Number(params.page),
+      limit: Number(params.limit),
+    });
+  },
+
+  getIdebReportDetail: async (
+    uploadId: string,
+  ): Promise<DebtorIdebReportUpload> => {
+    const res = await api.get(`/debtor-ideb-reports/${uploadId}`);
+    const mapped = mapIdebReportUpload(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons detail laporan IDEB dari server tidak valid");
+    return mapped;
   },
 
   resolveIdebUpload: async (

@@ -1,22 +1,21 @@
 "use client";
 
-import type { ComponentType } from "react";
-import * as Lucide from "lucide-react";
+import { LayoutDashboard } from "lucide-react";
+import { DynamicIcon, dynamicIconImports, type IconName } from "lucide-react/dynamic";
 
 function iconClassToKebab(iconClass: string | undefined): string | null {
   if (!iconClass?.trim()) return null;
   const tokens = iconClass.trim().split(/\s+/);
   const token =
-    tokens.find((t) => t.startsWith("lucide-") && t !== "lucide") ?? null;
+    tokens.find((item) => item.startsWith("lucide-") && item !== "lucide") ?? null;
   if (!token) return null;
   return token.replace(/^lucide-/, "");
 }
 
-function kebabToPascalCase(kebab: string): string {
-  return kebab
-    .split("-")
-    .map((s) => s.slice(0, 1).toUpperCase() + s.slice(1))
-    .join("");
+function resolveIconName(iconClass: string | undefined): IconName | null {
+  const kebab = iconClassToKebab(iconClass);
+  if (!kebab) return null;
+  return kebab in dynamicIconImports ? (kebab as IconName) : null;
 }
 
 export function MenuLucideIcon({
@@ -26,12 +25,11 @@ export function MenuLucideIcon({
   icon?: string;
   className?: string;
 }) {
-  const kebab = iconClassToKebab(icon) ?? "layout-dashboard";
-  const pascal = kebabToPascalCase(kebab);
-  const icons = Lucide as unknown as Record<
-    string,
-    ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" }> | undefined
-  >;
-  const Cmp = icons[pascal] ?? Lucide.LayoutDashboard;
-  return <Cmp className={className} aria-hidden />;
+  const iconName = resolveIconName(icon);
+
+  if (!iconName) {
+    return <LayoutDashboard className={className} aria-hidden />;
+  }
+
+  return <DynamicIcon name={iconName} className={className} aria-hidden />;
 }
