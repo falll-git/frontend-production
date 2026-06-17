@@ -134,6 +134,22 @@ function mapFile(record: unknown): DebtorFileMeta | null {
   };
 }
 
+function mapFiles(value: unknown): DebtorFileMeta[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => mapFile(item))
+    .filter((item): item is DebtorFileMeta => item !== null);
+}
+
+function hasMultipartFiles(payload: Record<string, unknown>): boolean {
+  if (typeof File === "undefined") return false;
+  return Object.values(payload).some(
+    (value) =>
+      value instanceof File ||
+      (Array.isArray(value) && value.some((item) => item instanceof File)),
+  );
+}
+
 function mapUser(record: unknown): DebtorUserSummary | null {
   const user = asRecord(record);
   if (!user) return null;
@@ -623,6 +639,7 @@ function mapDocument(record: unknown): DebtorDocument | null {
     category: readString(item, "category") ?? "LAINNYA",
     description: nullableString(item, "description"),
     file: mapFile(item.file),
+    files: mapFiles(item.files),
     document_checklist: mapParameter(item.document_checklist),
     debtor: mapDebtor(item.debtor, false),
     contract: mapContract(item.contract),
@@ -747,6 +764,7 @@ function mapMarketingActivity(record: unknown): DebtorMarketingActivity | null {
     handling_result: nullableString(item, "handling_result", "handlingResult"),
     notes: nullableString(item, "notes"),
     file: mapFile(item.file),
+    files: mapFiles(item.files),
     debtor: mapDebtor(item.debtor, false),
     contract: mapContract(item.contract, false),
     activity_type: mapParameter(item.activity_type),
@@ -815,6 +833,7 @@ function mapMarketingTimelineEntry(record: unknown): DebtorMarketingTimelineEntr
     created_by: nullableString(item, "created_by", "createdBy"),
     visit_address: nullableString(item, "visit_address", "visitAddress"),
     file: mapFile(item.file),
+    files: mapFiles(item.files),
     contract: mapContract(item.contract, false),
     activity_type: mapParameter(item.activity_type),
   };
@@ -1142,6 +1161,7 @@ function mapLegalPrint(record: unknown): DebtorWorkflowPrint | null {
     generated_number: readString(item, "generated_number", "generatedNumber") ?? "-",
     payload_snapshot: asRecord(item.payload_snapshot) ?? null,
     generated_file: mapFile(item.generated_file),
+    files: mapFiles(item.files),
     contract: mapContract(item.contract, false),
     printed_at: nullableString(item, "printed_at", "printedAt"),
     created_at: nullableString(item, "created_at", "createdAt"),
@@ -1171,6 +1191,7 @@ function mapWarningLetter(record: unknown): DebtorWarningLetter | null {
     description: nullableString(item, "description", "notes"),
     notes: nullableString(item, "description", "notes"),
     file: mapFile(item.file),
+    files: mapFiles(item.files),
     debtor: mapDebtor(item.debtor, false),
     contract: mapContract(item.contract, false),
     created_at: nullableString(item, "created_at", "createdAt"),
@@ -1213,6 +1234,7 @@ function mapWorkflowProgress(record: unknown): DebtorWorkflowLegalProgress | nul
     status,
     notes: nullableString(item, "notes"),
     file: mapFile(item.file),
+    files: mapFiles(item.files),
     contract: mapContract(item.contract, false),
     collateral: mapCollateral(item.collateral),
     third_party: mapParameter(item.third_party),
@@ -1248,6 +1270,7 @@ function mapWorkflowClaim(record: unknown): DebtorWorkflowClaim | null {
     rejection_reason: nullableString(item, "rejection_reason", "rejectionReason"),
     notes: nullableString(item, "notes"),
     file: mapFile(item.file),
+    files: mapFiles(item.files),
     contract: mapContract(item.contract, false),
     collateral: mapCollateral(item.collateral),
     insurance_progress: mapWorkflowProgress(item.insurance_progress),
@@ -1272,6 +1295,7 @@ function mapDepositTransaction(record: unknown): DebtorWorkflowDepositTransactio
     amount: numberValue(item, "amount"),
     notes: nullableString(item, "notes"),
     file: mapFile(item.file),
+    files: mapFiles(item.files),
     created_at: nullableString(item, "created_at", "createdAt"),
   };
 }
@@ -1622,10 +1646,15 @@ function readContentDispositionFileName(header: string | null | undefined) {
   return match?.[1]?.trim() || null;
 }
 
-function toImportFormData(payload: DebtorImportPayload) {
+function toImportFormData(type: DebtorImportType | string, payload: DebtorImportPayload) {
   const formData = new FormData();
   const files = payload.files?.length ? payload.files : payload.file ? [payload.file] : [];
-  files.forEach((file) => formData.append("files", file));
+  if (type === "SLIK") {
+    const firstFile = files[0] ?? payload.file;
+    if (firstFile) formData.append("file", firstFile);
+  } else {
+    files.forEach((file) => formData.append("files", file));
+  }
   if (payload.import_segment) formData.append("import_segment", payload.import_segment);
   if (payload.debtor_id) formData.append("debtor_id", payload.debtor_id);
   if (payload.contract_id) formData.append("contract_id", payload.contract_id);
@@ -1824,7 +1853,7 @@ export const debiturService = {
     kind: DebtorMarketingKind,
     payload: DebtorMarketingPayload,
   ): Promise<DebtorMarketingActivity> => {
-    const body = payload.file ? toMultipartFormData(payload) : payload;
+    const body = hasMultipartFiles(payload) ? toMultipartFormData(payload) : payload;
     const res = await api.post(`/debtor-marketing/${kind}`, body);
     const mapped = mapMarketingActivity(extractRecord(res.data));
     if (!mapped) {
@@ -1838,7 +1867,7 @@ export const debiturService = {
     id: string,
     payload: DebtorMarketingPayload,
   ): Promise<DebtorMarketingActivity> => {
-    const body = payload.file ? toMultipartFormData(payload) : payload;
+    const body = hasMultipartFiles(payload) ? toMultipartFormData(payload) : payload;
     const res = await api.put(`/debtor-marketing/${kind}/${id}`, body);
     const mapped = mapMarketingActivity(extractRecord(res.data));
     if (!mapped) {
@@ -1874,7 +1903,7 @@ export const debiturService = {
   createWarningLetter: async (
     payload: DebtorWarningLetterPayload,
   ): Promise<DebtorWarningLetter> => {
-    const body = payload.file ? toMultipartFormData(payload) : payload;
+    const body = hasMultipartFiles(payload) ? toMultipartFormData(payload) : payload;
     const res = await api.post("/debtor-warning-letters", body);
     const mapped = mapWarningLetter(extractRecord(res.data));
     if (!mapped) {
@@ -1887,7 +1916,7 @@ export const debiturService = {
     id: string,
     payload: DebtorWarningLetterPayload,
   ): Promise<DebtorWarningLetter> => {
-    const body = payload.file ? toMultipartFormData(payload) : payload;
+    const body = hasMultipartFiles(payload) ? toMultipartFormData(payload) : payload;
     const res = await api.put(`/debtor-warning-letters/${id}`, body);
     const mapped = mapWarningLetter(extractRecord(res.data));
     if (!mapped) {
@@ -1916,7 +1945,7 @@ export const debiturService = {
     type: DebtorImportType,
     payload: DebtorImportPayload,
   ): Promise<DebtorImportJob> => {
-    const res = await api.post(mapEndpoint(type), toImportFormData(payload));
+    const res = await api.post(mapEndpoint(type), toImportFormData(type, payload));
     const mapped = mapImportJob(extractRecord(res.data));
     if (!mapped) throw new Error("Respons import dari server tidak valid");
     return mapped;
@@ -2191,6 +2220,7 @@ export const debiturService = {
             handling_result: nullableString(item, "handling_result", "handlingResult"),
             notes: nullableString(item, "notes"),
             file: mapFile(item.file),
+            files: mapFiles(item.files),
             created_at: nullableString(item, "created_at", "createdAt"),
           }))
       : [];

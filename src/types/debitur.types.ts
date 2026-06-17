@@ -198,6 +198,7 @@ export type DebtorDocument = {
   category: "AWAL" | "LAINNYA" | string;
   description: string | null;
   file: DebtorFileMeta | null;
+  files?: DebtorFileMeta[];
   document_checklist: DebtorParameterSummary | null;
   debtor?: DebtorRecord | null;
   contract: DebtorContract | null;
@@ -274,6 +275,7 @@ export type DebtorMarketingActivity = {
   handling_result: string | null;
   notes: string | null;
   file: DebtorFileMeta | null;
+  files?: DebtorFileMeta[];
   debtor: DebtorRecord | null;
   contract: DebtorContract | null;
   activity_type: DebtorParameterSummary | null;
@@ -303,6 +305,7 @@ export type DebtorMarketingTimelineEntry = {
   created_by: string | null;
   visit_address: string | null;
   file: DebtorFileMeta | null;
+  files?: DebtorFileMeta[];
   contract: DebtorContract | null;
   activity_type: DebtorParameterSummary | null;
 };
@@ -490,6 +493,7 @@ export type DebtorWorkflowPrint = {
   generated_number: string;
   payload_snapshot: Record<string, unknown> | null;
   generated_file: DebtorFileMeta | null;
+  files?: DebtorFileMeta[];
   contract: DebtorContract | null;
   printed_at: string | null;
   created_at: string | null;
@@ -507,6 +511,7 @@ export type DebtorWarningLetter = {
   description: string | null;
   notes: string | null;
   file: DebtorFileMeta | null;
+  files?: DebtorFileMeta[];
   debtor: DebtorRecord | null;
   contract: DebtorContract | null;
   created_at: string | null;
@@ -613,6 +618,7 @@ export type DebtorWorkflowLegalProgress = {
   status: string;
   notes: string | null;
   file: DebtorFileMeta | null;
+  files?: DebtorFileMeta[];
   contract: DebtorContract | null;
   collateral: DebtorCollateral | null;
   third_party: DebtorParameterSummary | null;
@@ -636,6 +642,7 @@ export type DebtorWorkflowClaim = {
   rejection_reason: string | null;
   notes: string | null;
   file: DebtorFileMeta | null;
+  files?: DebtorFileMeta[];
   contract: DebtorContract | null;
   collateral: DebtorCollateral | null;
   insurance_progress: DebtorWorkflowLegalProgress | null;
@@ -652,6 +659,7 @@ export type DebtorWorkflowDepositTransaction = {
   amount: number;
   notes: string | null;
   file: DebtorFileMeta | null;
+  files?: DebtorFileMeta[];
   created_at: string | null;
 };
 
@@ -916,6 +924,7 @@ export type DebtorMarketingReportActivity = {
   handling_result: string | null;
   notes: string | null;
   file: DebtorFileMeta | null;
+  files?: DebtorFileMeta[];
   created_at: string | null;
 };
 
@@ -984,7 +993,8 @@ export type DebtorDocumentPayload = {
   document_type: string;
   category?: string;
   description?: string | null;
-  file: File;
+  file?: File | null;
+  files?: File[];
 };
 
 export type DebtorMarketingPayload = {
@@ -1003,6 +1013,7 @@ export type DebtorMarketingPayload = {
   handling_result?: string | null;
   notes?: string | null;
   file?: File | null;
+  files?: File[];
 };
 
 export type DebtorWarningLetterPayload = {
@@ -1014,6 +1025,7 @@ export type DebtorWarningLetterPayload = {
   delivery_status?: string;
   description?: string | null;
   file?: File | null;
+  files?: File[];
 };
 
 export type DebtorImportPayload = {

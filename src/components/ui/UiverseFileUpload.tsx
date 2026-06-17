@@ -18,6 +18,7 @@ type UiverseFileUploadProps = {
   fileIcon?: ReactNode;
   inputRef?: RefObject<HTMLInputElement | null>;
   isDragActive?: boolean;
+  multiple?: boolean;
   title?: string;
   description?: string;
   onChange: ChangeEventHandler<HTMLInputElement>;
@@ -37,6 +38,7 @@ export default function UiverseFileUpload({
   fileIcon,
   inputRef,
   isDragActive = false,
+  multiple = false,
   title = "Pilih file",
   description = "Klik untuk memilih file",
   onChange,
@@ -96,6 +98,7 @@ export default function UiverseFileUpload({
         id={id}
         type="file"
         accept={accept}
+        multiple={multiple}
         disabled={disabled}
         onChange={onChange}
         className="uiverse-file-upload__input"

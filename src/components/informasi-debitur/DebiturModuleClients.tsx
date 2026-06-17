@@ -7,7 +7,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ChangeEvent,
   type MutableRefObject,
   type ReactNode,
 } from "react";
@@ -40,6 +39,7 @@ import DashboardModal from "@/components/ui/DashboardModal";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import FileUploadField from "@/components/ui/FileUploadField";
+import MultiFileUploadField from "@/components/ui/MultiFileUploadField";
 import Pagination from "@/components/ui/Pagination";
 import SetupActionMenu from "@/components/ui/SetupActionMenu";
 import SetupAddButton from "@/components/ui/SetupAddButton";
@@ -223,6 +223,7 @@ type MarketingFormState = {
   handling_result: string;
   notes: string;
   file: File | null;
+  files: File[];
 };
 
 type ImportFormState = {
@@ -911,6 +912,7 @@ function emptyMarketingForm(): MarketingFormState {
     handling_result: "",
     notes: "",
     file: null,
+    files: [],
   };
 }
 
@@ -929,10 +931,12 @@ function marketingToForm(item: DebtorMarketingActivity): MarketingFormState {
     handling_result: item.handling_result ?? "",
     notes: item.notes ?? "",
     file: null,
+    files: [],
   };
 }
 
 function buildMarketingPayload(form: MarketingFormState): DebtorMarketingPayload {
+  const files = form.files.length > 0 ? form.files : form.file ? [form.file] : [];
   return {
     debtor_id: form.debtor_id,
     contract_id: form.contract_id || null,
@@ -946,7 +950,8 @@ function buildMarketingPayload(form: MarketingFormState): DebtorMarketingPayload
     handling_step: form.handling_step || null,
     handling_result: form.handling_result || null,
     notes: form.notes || null,
-    file: form.file,
+    file: files[0] ?? null,
+    files,
   };
 }
 
@@ -994,6 +999,19 @@ function validateDebtorImportFile(type: DebtorImportType, file: File) {
     return "Import IDEB hanya menerima file TXT atau JSON.";
   }
   return validateDomainUploadFile(file);
+}
+
+function validateSlikImportFile(file: File) {
+  if (file.size <= 0) {
+    return "File yang dipilih kosong atau rusak.";
+  }
+  if (file.size > SLIK_IMPORT_MAX_FILE_SIZE_BYTES) {
+    return `Ukuran file Import SLIK maksimal ${SLIK_IMPORT_MAX_FILE_SIZE_MB} MB.`;
+  }
+  if (getFileExtension(file.name) !== "txt") {
+    return "Import SLIK hanya menerima file TXT.";
+  }
+  return null;
 }
 
 function buildImportPayload(form: ImportFormState): DebtorImportPayload {
@@ -3886,7 +3904,15 @@ function MarketingFormModal({
         {config.secondaryFields.includes("conclusion") ? <TextareaField label="Kesimpulan" value={form.conclusion} onChange={(value) => onChange({ conclusion: value })} /> : null}
         {config.secondaryFields.includes("handling_result") ? <TextareaField label="Hasil Penanganan" value={form.handling_result} onChange={(value) => onChange({ handling_result: value })} /> : null}
         <TextareaField label="Catatan" value={form.notes} onChange={(value) => onChange({ notes: value })} />
-        <FileUploadField id={`debtor-marketing-file-${kind}`} file={form.file} label="File Pendukung" required={false} validateFile={validateDomainUploadFile} onChange={(event) => onChange({ file: event.target.files?.[0] ?? null })} onClear={() => onChange({ file: null })} />
+        <MultiFileUploadField
+          id={`debtor-marketing-file-${kind}`}
+          files={form.files.length > 0 ? form.files : form.file ? [form.file] : []}
+          label="File Pendukung"
+          required={false}
+          validateFile={validateDomainUploadFile}
+          helperText="Tambah satu atau beberapa file pendukung untuk aktivitas ini."
+          onChange={(files) => onChange({ files, file: files[0] ?? null })}
+        />
       </SetupFormSection>
     </DashboardModal>
   );
@@ -4360,144 +4386,6 @@ function formatImportErrorSummary(item: DebtorImportJob) {
   return item.failed_rows > 0 ? "Ada baris gagal" : "-";
 }
 
-function SlikMultiFileField({
-  files,
-  onChange,
-}: {
-  files: File[];
-  onChange: (files: File[]) => void;
-}) {
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(event.target.files ?? []);
-    for (const file of selectedFiles) {
-      if (file.size <= 0) {
-        event.target.value = "";
-        event.target.setCustomValidity("File yang dipilih kosong atau rusak.");
-        event.target.reportValidity();
-        event.target.setCustomValidity("");
-        return;
-      }
-      if (file.size > SLIK_IMPORT_MAX_FILE_SIZE_BYTES) {
-        event.target.value = "";
-        event.target.setCustomValidity(
-          `Ukuran file Import SLIK maksimal ${SLIK_IMPORT_MAX_FILE_SIZE_MB} MB.`,
-        );
-        event.target.reportValidity();
-        event.target.setCustomValidity("");
-        return;
-      }
-      const extension = file.name.trim().toLowerCase().split(".").pop();
-      if (extension !== "txt") {
-        event.target.value = "";
-        event.target.setCustomValidity("Import SLIK hanya menerima file TXT.");
-        event.target.reportValidity();
-        event.target.setCustomValidity("");
-        return;
-      }
-    }
-    onChange(selectedFiles);
-  };
-
-  return (
-    <div className="md:col-span-full">
-      <FieldLabel required>File TXT SLIK</FieldLabel>
-      <input
-        id="debtor-import-slik-files"
-        type="file"
-        multiple
-        accept=".txt"
-        className="block w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 shadow-sm file:mr-4 file:rounded-md file:border-0 file:bg-gray-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-100"
-        onChange={handleChange}
-      />
-      <p className="mt-2 text-xs text-slate-500">
-        Upload TXT yang berisi satu jenis segmen sesuai pilihan. Nama file, header, dan jumlah field akan divalidasi backend.
-      </p>
-      {files.length > 0 ? (
-        <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
-            File Dipilih
-          </p>
-          <ul className="mt-2 space-y-1 text-sm text-slate-700">
-            {files.map((file) => (
-              <li key={`${file.name}-${file.size}`} className="break-words">
-                {file.name} ({formatNumber(Math.ceil(file.size / 1024))} KB)
-              </li>
-            ))}
-          </ul>
-          <button
-            type="button"
-            className="uiverse-modal-button uiverse-modal-button--neutral mt-3 min-h-[34px] px-3 text-xs"
-            onClick={() => onChange([])}
-          >
-            Bersihkan pilihan
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function IdebMultiFileField({
-  files,
-  onChange,
-}: {
-  files: File[];
-  onChange: (files: File[]) => void;
-}) {
-  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(event.target.files ?? []);
-    for (const file of selectedFiles) {
-      const error = validateDebtorImportFile("IDEB", file);
-      if (error) {
-        event.target.value = "";
-        event.target.setCustomValidity(error);
-        event.target.reportValidity();
-        event.target.setCustomValidity("");
-        return;
-      }
-    }
-    onChange(selectedFiles);
-  };
-
-  return (
-    <div className="md:col-span-full">
-      <FieldLabel required>File IDEB .txt / .json</FieldLabel>
-      <input
-        id="debtor-import-ideb-files"
-        type="file"
-        multiple
-        accept=".txt,.json"
-        className="block w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 shadow-sm file:mr-4 file:rounded-md file:border-0 file:bg-gray-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-100"
-        onChange={handleChange}
-      />
-      <p className="mt-2 text-xs text-slate-500">
-        Jika hasil IDEB terbagi menjadi beberapa bagian, upload semua file bagian dalam satu kali submit.
-      </p>
-      {files.length > 0 ? (
-        <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
-            File Dipilih
-          </p>
-          <ul className="mt-2 space-y-1 text-sm text-slate-700">
-            {files.map((file) => (
-              <li key={`${file.name}-${file.size}`} className="break-words">
-                {file.name} ({formatNumber(Math.ceil(file.size / 1024))} KB)
-              </li>
-            ))}
-          </ul>
-          <button
-            type="button"
-            className="uiverse-modal-button uiverse-modal-button--neutral mt-3 min-h-[34px] px-3 text-xs"
-            onClick={() => onChange([])}
-          >
-            Bersihkan pilihan
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function IdebResolvePreviewItem({
   label,
   value,
@@ -4569,7 +4457,14 @@ function IdebResolveModal({
             <IdebResolvePreviewItem label="KOL" value={<SetupCollectibilityBadge value={item.current_collectibility ?? item.summary_detail?.current_collectibility} wrap />} />
             <IdebResolvePreviewItem label="Baki Debet" value={formatCurrency(item.outstanding_pokok ?? item.summary_detail?.outstanding_pokok)} />
             <IdebResolvePreviewItem label="Jumlah Fasilitas" value={formatNumber(facilitiesCount)} />
-            <IdebResolvePreviewItem label="File" value={item.file?.name ?? "-"} />
+            <IdebResolvePreviewItem
+              label="File"
+              value={
+                item.files && item.files.length > 0
+                  ? `${item.files.length} file sumber`
+                  : item.file?.name ?? "-"
+              }
+            />
           </SetupFormSection>
 
           <SetupFormSection title="Target Debitur">
@@ -5168,7 +5063,28 @@ export function DebtorImportClient({
                   ? "Urutan import: D01/D02 dan F01 lebih dulu, lalu A01. Jika F01 belum ada, agunan akan ditandai menunggu relasi."
                   : "Urutan import: D01/D02 untuk membuat CIF, lalu F01 untuk fasilitas, lalu A01 untuk agunan."}
             </div>
-            <SlikMultiFileField files={form.files} onChange={(files) => setForm((prev) => ({ ...prev, files, file: files[0] ?? null }))} />
+            <FileUploadField
+              id="debtor-import-slik-file"
+              accept=".txt"
+              label="File TXT SLIK"
+              file={form.file}
+              validateFile={validateSlikImportFile}
+              helperText="Upload satu file TXT untuk satu jenis segmen sesuai pilihan. Nama file, header, dan jumlah field akan divalidasi backend."
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  file: event.target.files?.[0] ?? null,
+                  files: [],
+                }))
+              }
+              onClear={() =>
+                setForm((prev) => ({
+                  ...prev,
+                  file: null,
+                  files: [],
+                }))
+              }
+            />
           </SetupFormSection>
         ) : showTargetFields ? (
           <SetupFormSection title="Target IDEB">
@@ -5200,8 +5116,14 @@ export function DebtorImportClient({
         {!isSlikImport ? (
           <SetupFormSection title="File Upload" contentClassName="md:grid-cols-1">
             {type === "IDEB" ? (
-              <IdebMultiFileField
+              <MultiFileUploadField
+                id="debtor-import-ideb-files"
+                accept=".txt,.json"
+                label="File IDEB .txt / .json"
                 files={form.files.length > 0 ? form.files : form.file ? [form.file] : []}
+                validateFile={(file) => validateDebtorImportFile("IDEB", file)}
+                maxFiles={20}
+                helperText="Jika hasil IDEB terbagi menjadi beberapa bagian, pilih semua bagian sekaligus atau tambahkan file lagi sebelum submit."
                 onChange={(files) =>
                   setForm((prev) => ({ ...prev, files, file: files[0] ?? null }))
                 }

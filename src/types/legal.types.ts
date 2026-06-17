@@ -38,6 +38,7 @@ export type LegalTemplate = {
   content_template: string | null;
   is_active: boolean;
   file: DebtorFileMeta | null;
+  files?: DebtorFileMeta[];
   created_at: string | null;
   updated_at: string | null;
 };
@@ -51,6 +52,7 @@ export type LegalPrintHistory = {
   generated_number: string;
   payload_snapshot: Record<string, unknown> | null;
   generated_file: DebtorFileMeta | null;
+  files?: DebtorFileMeta[];
   template: LegalTemplate | null;
   numbering_template: ParameterMasterRecord | null;
   contract: DebtorContract | null;
@@ -81,6 +83,7 @@ export type LegalProgressRecord = {
   deed_number?: string | null;
   notes: string | null;
   file: DebtorFileMeta | null;
+  files?: DebtorFileMeta[];
   contract: DebtorContract | null;
   collateral: DebtorCollateral | null;
   third_party: ParameterMasterRecord | null;
@@ -104,6 +107,7 @@ export type LegalClaim = {
   rejection_reason: string | null;
   notes: string | null;
   file: DebtorFileMeta | null;
+  files?: DebtorFileMeta[];
   contract: DebtorContract | null;
   collateral: DebtorCollateral | null;
   insurance_progress: LegalProgressRecord | null;
@@ -144,6 +148,7 @@ export type LegalDepositTransaction = {
   amount: number;
   notes: string | null;
   file: DebtorFileMeta | null;
+  files?: DebtorFileMeta[];
   created_at: string | null;
 };
 
@@ -185,6 +190,7 @@ export type LegalTemplatePayload = {
   content_template?: string | null;
   is_active?: boolean;
   file?: File | null;
+  files?: File[];
 };
 
 export type LegalPrintPayload = {
@@ -195,6 +201,7 @@ export type LegalPrintPayload = {
   document_type: LegalDocumentType | string;
   payload_snapshot?: Record<string, unknown>;
   file?: File | null;
+  files?: File[];
 };
 
 export type LegalNotaryPayload = {
@@ -209,6 +216,7 @@ export type LegalNotaryPayload = {
   deed_number?: string | null;
   notes?: string | null;
   file?: File | null;
+  files?: File[];
 };
 
 export type LegalInsurancePayload = {
@@ -224,6 +232,7 @@ export type LegalInsurancePayload = {
   status?: string;
   notes?: string | null;
   file?: File | null;
+  files?: File[];
 };
 
 export type LegalKjppPayload = {
@@ -240,6 +249,7 @@ export type LegalKjppPayload = {
   appraisal_value?: number | null;
   notes?: string | null;
   file?: File | null;
+  files?: File[];
 };
 
 export type LegalClaimPayload = {
@@ -257,6 +267,7 @@ export type LegalClaimPayload = {
   rejection_reason?: string | null;
   notes?: string | null;
   file?: File | null;
+  files?: File[];
 };
 
 export type LegalDepositPayload = {
@@ -277,6 +288,7 @@ export type LegalDepositPayload = {
     notes?: string | null;
   } | null;
   file?: File | null;
+  files?: File[];
 };
 
 export type LegalDepositTransactionPayload = {
@@ -286,6 +298,7 @@ export type LegalDepositTransactionPayload = {
   amount: number;
   notes?: string | null;
   file?: File | null;
+  files?: File[];
 };
 
 export type LegalDocumentContext = {

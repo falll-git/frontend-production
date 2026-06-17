@@ -33,7 +33,7 @@ import BasicDateInput from "@/components/ui/BasicDateInput";
 import DashboardModal from "@/components/ui/DashboardModal";
 import DeleteConfirmModal from "@/components/ui/DeleteConfirmModal";
 import FeatureHeader from "@/components/ui/FeatureHeader";
-import FileUploadField from "@/components/ui/FileUploadField";
+import MultiFileUploadField from "@/components/ui/MultiFileUploadField";
 import Pagination from "@/components/ui/Pagination";
 import ProtectedLink from "@/components/rbac/ProtectedLink";
 import { useDocumentPreviewContext } from "@/components/ui/DocumentPreviewContext";
@@ -61,6 +61,7 @@ import SetupSelect from "@/components/ui/SetupSelect";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
 import SetupTextarea from "@/components/ui/SetupTextarea";
 import SetupTextInput from "@/components/ui/SetupTextInput";
+import SetupFilePreviewGroup from "@/components/ui/SetupFilePreviewGroup";
 import {
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
@@ -77,7 +78,12 @@ import {
 import { debiturService } from "@/services/debitur.service";
 import { legalService } from "@/services/legal.service";
 import type { PaginationMeta } from "@/types/api.types";
-import type { DebtorCollateral, DebtorContract, DebtorRecord } from "@/types/debitur.types";
+import type {
+  DebtorCollateral,
+  DebtorContract,
+  DebtorFileMeta,
+  DebtorRecord,
+} from "@/types/debitur.types";
 import type {
   LegalClaim,
   LegalClaimPayload,
@@ -141,6 +147,7 @@ type TemplateFormState = {
   content_template: string;
   is_active: string;
   file: File | null;
+  files: File[];
 };
 
 type PrintFormState = {
@@ -149,6 +156,7 @@ type PrintFormState = {
   template_id: string;
   numbering_template_id: string;
   file: File | null;
+  files: File[];
 };
 
 type ProgressFormState = {
@@ -171,6 +179,7 @@ type ProgressFormState = {
   status: string;
   notes: string;
   file: File | null;
+  files: File[];
 };
 
 type ClaimFormState = {
@@ -188,6 +197,7 @@ type ClaimFormState = {
   rejection_reason: string;
   notes: string;
   file: File | null;
+  files: File[];
 };
 
 type DepositFormState = {
@@ -199,6 +209,7 @@ type DepositFormState = {
   opening_transaction_amount: string;
   opening_transaction_notes: string;
   opening_transaction_file: File | null;
+  opening_transaction_files: File[];
 };
 
 type DepositTransactionFormState = {
@@ -207,6 +218,7 @@ type DepositTransactionFormState = {
   amount: string;
   notes: string;
   file: File | null;
+  files: File[];
 };
 
 const EMPTY_META: PaginationMeta = {
@@ -533,6 +545,32 @@ function insuranceStatusValue(status: string | null | undefined) {
 }
 
 type OpenDocumentPreview = (fileUrl: string, fileName: string) => void;
+
+function resolvePreviewFiles(
+  files?: DebtorFileMeta[] | null,
+  file?: DebtorFileMeta | null,
+) {
+  const source = Array.isArray(files) && files.length > 0 ? files : file ? [file] : [];
+  const seen = new Set<string>();
+  const normalized: DebtorFileMeta[] = [];
+
+  for (const entry of source) {
+    if (!entry || (!entry.url && !entry.name)) continue;
+    const key = [entry.url ?? "", entry.name ?? ""].join("::");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(entry);
+  }
+
+  return normalized;
+}
+
+function firstPreviewFile(
+  files?: DebtorFileMeta[] | null,
+  file?: DebtorFileMeta | null,
+) {
+  return resolvePreviewFiles(files, file).find((entry) => Boolean(entry.url)) ?? null;
+}
 
 function openFile(
   url: string | null | undefined,
@@ -1059,6 +1097,7 @@ function emptyTemplateForm(type: LegalDocumentType = "AKAD"): TemplateFormState 
     content_template: "",
     is_active: "true",
     file: null,
+    files: [],
   };
 }
 
@@ -1070,17 +1109,20 @@ function templateToForm(item: LegalTemplate): TemplateFormState {
     content_template: item.content_template ?? "",
     is_active: item.is_active ? "true" : "false",
     file: null,
+    files: [],
   };
 }
 
 function buildTemplatePayload(form: TemplateFormState): LegalTemplatePayload {
+  const files = form.files.length > 0 ? form.files : form.file ? [form.file] : [];
   return {
     template_type: form.template_type,
     version: toNumberInput(form.version) || 1,
     title: form.title,
     content_template: form.content_template || null,
     is_active: form.is_active === "true",
-    file: form.file,
+    file: files[0] ?? null,
+    files,
   };
 }
 
@@ -1368,14 +1410,14 @@ export function LegalTemplateClient() {
               ))}
             </div>
           </div>
-          <FileUploadField
+          <MultiFileUploadField
             id="legal-template-file"
             required={false}
             label="File Template"
-            file={form.file}
+            files={form.files.length > 0 ? form.files : form.file ? [form.file] : []}
             validateFile={validateDomainUploadFile}
-            onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
-            onClear={() => setForm((prev) => ({ ...prev, file: null }))}
+            helperText="Tambah satu atau beberapa file template pendukung bila diperlukan."
+            onChange={(files) => setForm((prev) => ({ ...prev, files, file: files[0] ?? null }))}
           />
         </SetupFormSection>
       </DashboardModal>
@@ -1399,10 +1441,12 @@ function emptyPrintForm(): PrintFormState {
     template_id: "",
     numbering_template_id: "",
     file: null,
+    files: [],
   };
 }
 
 function buildPrintPayload(form: PrintFormState, documentType: LegalDocumentType): LegalPrintPayload {
+  const files = form.files.length > 0 ? form.files : form.file ? [form.file] : [];
   return {
     document_type: documentType,
     contract_id: form.contract_id,
@@ -1410,7 +1454,8 @@ function buildPrintPayload(form: PrintFormState, documentType: LegalDocumentType
     template_id: form.template_id,
     numbering_template_id: form.numbering_template_id || null,
     payload_snapshot: {},
-    file: form.file,
+    file: files[0] ?? null,
+    files,
   };
 }
 
@@ -1584,23 +1629,13 @@ export function LegalPrintClient({ documentType, title }: { documentType: LegalD
                 </SetupDataTableCell>
                 <SetupDataTableCell>{formatDateOnly(item.printed_at ?? item.created_at)}</SetupDataTableCell>
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                  {item.generated_file?.url ? (
-                    <button
-                      type="button"
-                      className="uiverse-modal-button uiverse-modal-button--neutral min-h-[36px] px-3 text-sm"
-                      onClick={() =>
-                        openFile(
-                          item.generated_file?.url,
-                          item.generated_file?.name,
-                          openPreview,
-                        )
-                      }
-                    >
-                      Preview
-                    </button>
-                  ) : (
-                    "-"
-                  )}
+                  <SetupFilePreviewGroup
+                    file={item.generated_file}
+                    files={item.files}
+                    onOpen={(previewFile) =>
+                      openFile(previewFile.url, previewFile.name, openPreview)
+                    }
+                  />
                 </SetupDataTableCell>
               </SetupDataTableRow>
             ))}
@@ -1682,14 +1717,14 @@ export function LegalPrintClient({ documentType, title }: { documentType: LegalD
           </div>
         </SetupFormSection>
         <SetupFormSection title="File Pendukung" contentClassName="md:grid-cols-1">
-          <FileUploadField
+          <MultiFileUploadField
             id="legal-print-file"
             required={false}
             label="File Final"
-            file={form.file}
+            files={form.files.length > 0 ? form.files : form.file ? [form.file] : []}
             validateFile={validateDomainUploadFile}
-            onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
-            onClear={() => setForm((prev) => ({ ...prev, file: null }))}
+            helperText="Tambah satu atau beberapa file final atau lampiran pendukung."
+            onChange={(files) => setForm((prev) => ({ ...prev, files, file: files[0] ?? null }))}
           />
         </SetupFormSection>
       </DashboardModal>
@@ -1718,6 +1753,7 @@ function emptyProgressForm(status: string): ProgressFormState {
     status,
     notes: "",
     file: null,
+    files: [],
   };
 }
 
@@ -1770,6 +1806,7 @@ function kjppToForm(item: LegalProgressRecord): ProgressFormState {
 }
 
 function buildNotaryPayload(form: ProgressFormState): LegalNotaryPayload {
+  const files = form.files.length > 0 ? form.files : form.file ? [form.file] : [];
   return {
     contract_id: form.contract_id,
     collateral_id: form.collateral_id || null,
@@ -1781,11 +1818,13 @@ function buildNotaryPayload(form: ProgressFormState): LegalNotaryPayload {
     status: form.status,
     deed_number: form.deed_number || null,
     notes: form.notes || null,
-    file: form.file,
+    file: files[0] ?? null,
+    files,
   };
 }
 
 function buildKjppPayload(form: ProgressFormState): LegalKjppPayload {
+  const files = form.files.length > 0 ? form.files : form.file ? [form.file] : [];
   return {
     contract_id: form.contract_id,
     collateral_id: form.collateral_id || null,
@@ -1799,11 +1838,13 @@ function buildKjppPayload(form: ProgressFormState): LegalKjppPayload {
     collateral_object: form.collateral_object || null,
     appraisal_value: toOptionalNumber(form.appraisal_value),
     notes: form.notes || null,
-    file: form.file,
+    file: files[0] ?? null,
+    files,
   };
 }
 
 function buildInsurancePayload(form: ProgressFormState): LegalInsurancePayload {
+  const files = form.files.length > 0 ? form.files : form.file ? [form.file] : [];
   return {
     contract_id: form.contract_id,
     collateral_id: form.collateral_id || null,
@@ -1816,7 +1857,8 @@ function buildInsurancePayload(form: ProgressFormState): LegalInsurancePayload {
     policy_number: form.policy_number || null,
     status: form.status,
     notes: form.notes || null,
-    file: form.file,
+    file: files[0] ?? null,
+    files,
   };
 }
 
@@ -2054,9 +2096,12 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
                         key: "file",
                         label: "Preview",
                         icon: FileArchive,
-                        disabled: !item.file?.url,
-                        onClick: () =>
-                          openFile(item.file?.url, item.file?.name, openPreview),
+                        disabled: !firstPreviewFile(item.files, item.file)?.url,
+                        onClick: () => {
+                          const previewFile = firstPreviewFile(item.files, item.file);
+                          if (!previewFile?.url) return;
+                          openFile(previewFile.url, previewFile.name, openPreview);
+                        },
                       },
                       {
                         key: "edit",
@@ -2162,14 +2207,14 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
         </SetupFormSection>
         <SetupFormSection title="Catatan dan File" contentClassName="md:grid-cols-1">
           <TextareaField label="Catatan" value={form.notes} onChange={(value) => setForm((prev) => ({ ...prev, notes: value }))} />
-          <FileUploadField
+          <MultiFileUploadField
             id={`legal-progress-${type}-file`}
             required={false}
             label="File Pendukung"
-            file={form.file}
+            files={form.files.length > 0 ? form.files : form.file ? [form.file] : []}
             validateFile={validateDomainUploadFile}
-            onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
-            onClear={() => setForm((prev) => ({ ...prev, file: null }))}
+            helperText="Tambah satu atau beberapa file pendukung untuk progress pihak ketiga ini."
+            onChange={(files) => setForm((prev) => ({ ...prev, files, file: files[0] ?? null }))}
           />
         </SetupFormSection>
       </DashboardModal>
@@ -2258,25 +2303,21 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
             <LegalDetailSection
               title="Dokumen"
               rows={[
-                { label: "Nama File", value: detailTarget.file?.name ?? "-" },
+                {
+                  label: "Jumlah File",
+                  value: String(resolvePreviewFiles(detailTarget.files, detailTarget.file).length || 0),
+                },
                 {
                   label: "Aksi",
-                  value: detailTarget.file?.url ? (
-                    <button
-                      type="button"
-                      className="uiverse-modal-button uiverse-modal-button--neutral min-h-[36px] px-3 text-sm"
-                      onClick={() =>
-                        openFile(
-                          detailTarget.file?.url,
-                          detailTarget.file?.name,
-                          openPreview,
-                        )
+                  value: (
+                    <SetupFilePreviewGroup
+                      file={detailTarget.file}
+                      files={detailTarget.files}
+                      onOpen={(previewFile) =>
+                        openFile(previewFile.url, previewFile.name, openPreview)
                       }
-                    >
-                      Preview
-                    </button>
-                  ) : (
-                    "-"
+                      align="start"
+                    />
                   ),
                 },
               ]}
@@ -2313,6 +2354,7 @@ function emptyClaimForm(): ClaimFormState {
     rejection_reason: "",
     notes: "",
     file: null,
+    files: [],
   };
 }
 
@@ -2332,10 +2374,12 @@ function claimToForm(item: LegalClaim): ClaimFormState {
     rejection_reason: item.rejection_reason ?? "",
     notes: item.notes ?? "",
     file: null,
+    files: [],
   };
 }
 
 function buildClaimPayload(form: ClaimFormState): LegalClaimPayload {
+  const files = form.files.length > 0 ? form.files : form.file ? [form.file] : [];
   return {
     contract_id: form.contract_id,
     collateral_id: form.collateral_id || null,
@@ -2350,7 +2394,8 @@ function buildClaimPayload(form: ClaimFormState): LegalClaimPayload {
     disbursed_at: form.disbursed_at || null,
     rejection_reason: form.rejection_reason || null,
     notes: form.notes || null,
-    file: form.file,
+    file: files[0] ?? null,
+    files,
   };
 }
 
@@ -2500,9 +2545,12 @@ export function LegalClaimClient() {
                         key: "view",
                         label: "Preview",
                         icon: FileText,
-                        disabled: !item.file?.url,
-                        onClick: () =>
-                          openFile(item.file?.url, item.file?.name, openPreview),
+                        disabled: !firstPreviewFile(item.files, item.file)?.url,
+                        onClick: () => {
+                          const previewFile = firstPreviewFile(item.files, item.file);
+                          if (!previewFile?.url) return;
+                          openFile(previewFile.url, previewFile.name, openPreview);
+                        },
                       },
                       { key: "edit", label: "Ubah", icon: Pencil, disabled: !canUpdate, onClick: () => openEdit(item) },
                       { key: "delete", label: "Hapus", icon: Trash2, tone: "red", disabled: !canDelete, onClick: () => setDeleteTarget(item) },
@@ -2599,7 +2647,15 @@ export function LegalClaimClient() {
         <SetupFormSection title="Catatan dan File" contentClassName="md:grid-cols-1">
           <TextareaField label="Alasan Ditolak" value={form.rejection_reason} onChange={(value) => setForm((prev) => ({ ...prev, rejection_reason: value }))} />
           <TextareaField label="Catatan" value={form.notes} onChange={(value) => setForm((prev) => ({ ...prev, notes: value }))} />
-          <FileUploadField id="legal-claim-file" required={false} label="File Klaim" file={form.file} validateFile={validateDomainUploadFile} onChange={(event) => setForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))} onClear={() => setForm((prev) => ({ ...prev, file: null }))} />
+          <MultiFileUploadField
+            id="legal-claim-file"
+            required={false}
+            label="File Klaim"
+            files={form.files.length > 0 ? form.files : form.file ? [form.file] : []}
+            validateFile={validateDomainUploadFile}
+            helperText="Tambah satu atau beberapa file pendukung klaim."
+            onChange={(files) => setForm((prev) => ({ ...prev, files, file: files[0] ?? null }))}
+          />
         </SetupFormSection>
       </DashboardModal>
       <DeleteConfirmModal
@@ -2625,6 +2681,7 @@ function emptyDepositForm(): DepositFormState {
     opening_transaction_amount: "",
     opening_transaction_notes: "",
     opening_transaction_file: null,
+    opening_transaction_files: [],
   };
 }
 
@@ -2638,6 +2695,7 @@ function depositToForm(item: LegalDeposit): DepositFormState {
     opening_transaction_amount: "",
     opening_transaction_notes: "",
     opening_transaction_file: null,
+    opening_transaction_files: [],
   };
 }
 
@@ -2655,6 +2713,12 @@ function buildDepositPayload(
   };
   if (!selected) {
     const amount = toOptionalNumber(form.opening_transaction_amount);
+    const openingFiles =
+      form.opening_transaction_files.length > 0
+        ? form.opening_transaction_files
+        : form.opening_transaction_file
+          ? [form.opening_transaction_file]
+          : [];
     if (amount && amount > 0 && form.opening_transaction_date) {
       payload.opening_transaction = {
         transaction_date: form.opening_transaction_date,
@@ -2662,7 +2726,8 @@ function buildDepositPayload(
         amount,
         notes: form.opening_transaction_notes || null,
       };
-      payload.file = form.opening_transaction_file;
+      payload.file = openingFiles[0] ?? null;
+      payload.files = openingFiles;
     }
   }
   return payload;
@@ -2675,6 +2740,7 @@ function emptyDepositTransactionForm(): DepositTransactionFormState {
     amount: "0",
     notes: "",
     file: null,
+    files: [],
   };
 }
 
@@ -2776,7 +2842,10 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
         showToast("Tanggal titipan awal wajib diisi jika nominal titipan awal diisi", "warning");
         return;
       }
-      if (form.opening_transaction_file && (!openingAmount || openingAmount <= 0)) {
+      if (
+        (form.opening_transaction_files.length > 0 || form.opening_transaction_file) &&
+        (!openingAmount || openingAmount <= 0)
+      ) {
         showToast("Nominal titipan awal wajib diisi jika mengunggah file pendukung", "warning");
         return;
       }
@@ -2825,7 +2894,16 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
       action: transactionForm.action,
       amount: toNumberInput(transactionForm.amount),
       notes: transactionForm.notes || null,
-      file: transactionForm.file,
+      file:
+        transactionForm.files.length > 0
+          ? transactionForm.files[0] ?? null
+          : transactionForm.file,
+      files:
+        transactionForm.files.length > 0
+          ? transactionForm.files
+          : transactionForm.file
+            ? [transactionForm.file]
+            : [],
     };
     setIsSaving(true);
     try {
@@ -2939,14 +3017,26 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
             <DateField label="Tanggal Titipan" value={form.opening_transaction_date} onChange={(value) => setForm((prev) => ({ ...prev, opening_transaction_date: value }))} />
             <TextField label="Nominal Titipan" value={form.opening_transaction_amount} type="number" onChange={(value) => setForm((prev) => ({ ...prev, opening_transaction_amount: value }))} />
             <TextareaField label="Catatan Titipan Awal" value={form.opening_transaction_notes} onChange={(value) => setForm((prev) => ({ ...prev, opening_transaction_notes: value }))} />
-            <FileUploadField
+            <MultiFileUploadField
               id="legal-deposit-opening-file"
               label="File Pendukung"
               required={false}
-              file={form.opening_transaction_file}
+              files={
+                form.opening_transaction_files.length > 0
+                  ? form.opening_transaction_files
+                  : form.opening_transaction_file
+                    ? [form.opening_transaction_file]
+                    : []
+              }
               validateFile={validateDomainUploadFile}
-              onChange={(event) => setForm((prev) => ({ ...prev, opening_transaction_file: event.target.files?.[0] ?? null }))}
-              onClear={() => setForm((prev) => ({ ...prev, opening_transaction_file: null }))}
+              helperText="Tambah satu atau beberapa file pendukung titipan awal."
+              onChange={(files) =>
+                setForm((prev) => ({
+                  ...prev,
+                  opening_transaction_files: files,
+                  opening_transaction_file: files[0] ?? null,
+                }))
+              }
             />
           </SetupFormSection>
         ) : null}
@@ -2969,14 +3059,16 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
           <SelectField label="Jenis Transaksi" value={transactionForm.action} options={DEPOSIT_TRANSACTION_ACTION_OPTIONS} includeEmpty={false} onChange={(value) => setTransactionForm((prev) => ({ ...prev, action: value }))} />
           <TextField label="Nominal" value={transactionForm.amount} type="number" required onChange={(value) => setTransactionForm((prev) => ({ ...prev, amount: value }))} />
           <TextareaField label="Catatan" value={transactionForm.notes} onChange={(value) => setTransactionForm((prev) => ({ ...prev, notes: value }))} />
-          <FileUploadField
+          <MultiFileUploadField
             id="legal-deposit-transaction-file"
             label="File Pendukung"
             required={false}
-            file={transactionForm.file}
+            files={transactionForm.files.length > 0 ? transactionForm.files : transactionForm.file ? [transactionForm.file] : []}
             validateFile={validateDomainUploadFile}
-            onChange={(event) => setTransactionForm((prev) => ({ ...prev, file: event.target.files?.[0] ?? null }))}
-            onClear={() => setTransactionForm((prev) => ({ ...prev, file: null }))}
+            helperText="Tambah satu atau beberapa file bukti transaksi."
+            onChange={(files) =>
+              setTransactionForm((prev) => ({ ...prev, files, file: files[0] ?? null }))
+            }
           />
         </SetupFormSection>
       </DashboardModal>
@@ -3016,17 +3108,14 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
                     <SetupDataTableCell><SetupTableMoney>{formatCurrency(transaction.amount)}</SetupTableMoney></SetupDataTableCell>
                     <SetupDataTableCell>{transaction.notes || "-"}</SetupDataTableCell>
                     <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                      {transaction.file?.url ? (
-                        <button
-                          type="button"
-                          className="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:text-sky-700"
-                          onClick={() => openFile(transaction.file?.url, transaction.file?.name, openPreview)}
-                        >
-                          Lihat File
-                        </button>
-                      ) : (
-                        "-"
-                      )}
+                      <SetupFilePreviewGroup
+                        file={transaction.file}
+                        files={transaction.files}
+                        label="Lihat File"
+                        onOpen={(previewFile) =>
+                          openFile(previewFile.url, previewFile.name, openPreview)
+                        }
+                      />
                     </SetupDataTableCell>
                   </SetupDataTableRow>
                 ))}

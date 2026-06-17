@@ -26,7 +26,7 @@ import {
 import ProtectedLink from "@/components/rbac/ProtectedLink";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import DashboardModal from "@/components/ui/DashboardModal";
-import FileUploadField from "@/components/ui/FileUploadField";
+import MultiFileUploadField from "@/components/ui/MultiFileUploadField";
 import SetupAddButton from "@/components/ui/SetupAddButton";
 import SetupCollectibilityBadge from "@/components/ui/SetupCollectibilityBadge";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
@@ -36,6 +36,7 @@ import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
 import SetupTextarea from "@/components/ui/SetupTextarea";
 import SetupTextInput from "@/components/ui/SetupTextInput";
 import SetupViewButton from "@/components/ui/SetupViewButton";
+import SetupFilePreviewGroup from "@/components/ui/SetupFilePreviewGroup";
 import {
   SetupDataTable,
   SetupDataTableBody,
@@ -196,6 +197,7 @@ type DebtorDocumentUploadFormState = {
   category: "AWAL" | "LAINNYA";
   description: string;
   file: File | null;
+  files: File[];
 };
 
 function formatCurrency(value: number | null | undefined) {
@@ -657,6 +659,24 @@ function periodLabel(value: string | null | undefined) {
   }).format(new Date(Number(match[1]), Number(match[2]) - 1, 1));
 }
 
+function periodSortValue(value: string | null | undefined) {
+  if (!value) return Number.NEGATIVE_INFINITY;
+  const match = /^(\d{4})-(\d{2})/.exec(value);
+  if (!match) return Number.NEGATIVE_INFINITY;
+  return Number(match[1]) * 100 + Number(match[2]);
+}
+
+function sortSlikSnapshotsByPeriod<T extends { period_month: string | null | undefined }>(
+  items: T[],
+  direction: "desc" | "asc",
+) {
+  return [...items].sort((left, right) => {
+    const leftValue = periodSortValue(left.period_month);
+    const rightValue = periodSortValue(right.period_month);
+    return direction === "desc" ? rightValue - leftValue : leftValue - rightValue;
+  });
+}
+
 function hasAnyMenuCapability(
   role: string | null,
   roleId: string | null | undefined,
@@ -683,6 +703,7 @@ function emptyDocumentUploadForm(
     category: "LAINNYA",
     description: "",
     file: null,
+    files: [],
   };
 }
 
@@ -697,6 +718,7 @@ function documentUploadFormFromChecklist(
     category: normalizeDocumentCategory(item.category, item.is_required),
     description: item.description ?? "",
     file: null,
+    files: [],
   };
 }
 
@@ -713,20 +735,22 @@ function normalizeDocumentCategory(
 function buildDocumentUploadPayload(
   form: DebtorDocumentUploadFormState,
 ): DebtorDocumentPayload {
-  if (!form.file) throw new Error("File dokumen wajib dipilih");
+  const files = form.files.length > 0 ? form.files : form.file ? [form.file] : [];
+  if (files.length === 0) throw new Error("File dokumen wajib dipilih");
   return {
     contract_id: form.contract_id || null,
     document_checklist_id: form.document_checklist_id || null,
     document_type: form.document_type.trim(),
     category: form.category,
     description: form.description.trim() || null,
-    file: form.file,
+    file: files[0] ?? null,
+    files,
   };
 }
 
 function validateDocumentUploadForm(form: DebtorDocumentUploadFormState) {
   if (!form.document_type.trim()) return "Jenis dokumen wajib diisi";
-  if (!form.file) return "File dokumen wajib dipilih";
+  if (form.files.length === 0 && !form.file) return "File dokumen wajib dipilih";
   return null;
 }
 
@@ -915,13 +939,13 @@ function DebtorDocumentUploadModal({
             onChange={(event) => onChange({ description: event.target.value })}
           />
         </div>
-        <FileUploadField
+        <MultiFileUploadField
           id="debtor-detail-document-file"
-          file={form.file}
+          files={form.files.length > 0 ? form.files : form.file ? [form.file] : []}
           label="File Dokumen"
           validateFile={validateDomainUploadFile}
-          onChange={(event) => onChange({ file: event.target.files?.[0] ?? null })}
-          onClear={() => onChange({ file: null })}
+          helperText="Tambah satu atau beberapa file dokumen untuk debitur ini."
+          onChange={(files) => onChange({ files, file: files[0] ?? null })}
         />
       </SetupFormSection>
     </DashboardModal>
@@ -930,20 +954,21 @@ function DebtorDocumentUploadModal({
 
 function FileButton({
   file,
+  files,
   label = "Preview",
   onOpen,
 }: {
   file: DebtorFileMeta | null | undefined;
+  files?: DebtorFileMeta[] | null | undefined;
   label?: string;
   onOpen: (file: DebtorFileMeta) => void;
 }) {
-  if (!file?.url) return <span className="text-gray-400">-</span>;
-
   return (
-    <SetupViewButton
+    <SetupFilePreviewGroup
+      file={file}
+      files={files}
       label={label}
-      title={file.name ? `Preview ${file.name}` : "Preview dokumen"}
-      onClick={() => onOpen(file)}
+      onOpen={onOpen}
     />
   );
 }
@@ -1122,6 +1147,27 @@ function DataUtamaTab({
     "awal/akhir sama",
   );
   const restructuringStatusLabel = hasRestructuringDetails ? "Pernah Restruk" : "Tidak Ada";
+  const historicalSlikSnapshots = sortSlikSnapshotsByPeriod(
+    mainContract?.slik_snapshots ?? [],
+    "desc",
+  );
+  const historicalPeriodOptions = historicalSlikSnapshots
+    .map((snapshot) => snapshot.period_month)
+    .filter((value): value is string => Boolean(value));
+  const [historicalSortDirection, setHistoricalSortDirection] = useState<"desc" | "asc">("desc");
+  const [historicalPeriodFilter, setHistoricalPeriodFilter] = useState("ALL");
+  const effectiveHistoricalPeriodFilter =
+    historicalPeriodFilter === "ALL" || historicalPeriodOptions.includes(historicalPeriodFilter)
+      ? historicalPeriodFilter
+      : "ALL";
+  const filteredHistoricalSlikSnapshots = sortSlikSnapshotsByPeriod(
+    (effectiveHistoricalPeriodFilter === "ALL"
+      ? historicalSlikSnapshots
+      : historicalSlikSnapshots.filter(
+          (snapshot) => snapshot.period_month === effectiveHistoricalPeriodFilter,
+        )) ?? [],
+    historicalSortDirection,
+  );
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
@@ -1789,6 +1835,191 @@ function DataUtamaTab({
           )}
         </SectionCard>
       </div>
+
+      <div className="lg:col-span-2">
+        <SectionCard title="Historical SLIK F01">
+          {mainContract ? (
+            <>
+              <div className="mb-4 flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50/80 p-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">
+                    Riwayat audit untuk fasilitas {facilityNumber(mainContract)}
+                  </p>
+                  <p className="mt-1 text-xs font-medium text-gray-500">
+                    Menampilkan histori snapshot F01 kontrak {contractNumber(mainContract)}.
+                    Upload bulan terbaru akan menjadi kondisi aktif, sementara bulan sebelumnya tetap
+                    tersimpan di bagian ini.
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="min-w-[220px]">
+                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+                      Filter Bulan / Tahun
+                    </p>
+                    <SetupSelect
+                      value={effectiveHistoricalPeriodFilter}
+                      onChange={(event) => setHistoricalPeriodFilter(event.target.value)}
+                    >
+                      <option value="ALL">Semua Periode</option>
+                      {historicalPeriodOptions.map((period) => (
+                        <option key={period} value={period}>
+                          {periodLabel(period)}
+                        </option>
+                      ))}
+                    </SetupSelect>
+                  </div>
+                  <div className="min-w-[180px]">
+                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+                      Urutan
+                    </p>
+                    <SetupSelect
+                      value={historicalSortDirection}
+                      onChange={(event) =>
+                        setHistoricalSortDirection(event.target.value === "asc" ? "asc" : "desc")
+                      }
+                    >
+                      <option value="desc">Terbaru ke Terlama</option>
+                      <option value="asc">Terlama ke Terbaru</option>
+                    </SetupSelect>
+                  </div>
+                </div>
+              </div>
+
+              {filteredHistoricalSlikSnapshots.length > 0 ? (
+                <SetupTableScroll>
+                  <SetupDataTable variant="nested" density="compact" className="min-w-[1520px]">
+                    <SetupDataTableHead>
+                      <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                        <SetupDataTableHeaderCell>Periode</SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell>No Fasilitas F01</SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell>Plafon</SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell>Baki Debet</SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell>KOL</SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell>DPD</SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell>Kondisi</SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell>Jatuh Tempo</SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell>Restrukturisasi</SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell>Keterangan F01</SetupDataTableHeaderCell>
+                      </SetupDataTableRow>
+                    </SetupDataTableHead>
+                    <SetupDataTableBody>
+                      {filteredHistoricalSlikSnapshots.map((snapshot) => {
+                        const snapshotHasRestructuring = Boolean(
+                          (snapshot.restructuring_frequency ?? 0) > 0 ||
+                            hasDisplayValue(snapshot.initial_restructuring_date) ||
+                            hasDisplayValue(snapshot.final_restructuring_date) ||
+                            hasDisplayValue(snapshot.restructuring_method_display) ||
+                            hasDisplayValue(snapshot.restructuring_method_code),
+                        );
+
+                        return (
+                          <SetupDataTableRow
+                            key={snapshot.id}
+                            className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
+                          >
+                            <SetupDataTableCell>{periodLabel(snapshot.period_month)}</SetupDataTableCell>
+                            <SetupDataTableCell className="font-semibold tabular-nums">
+                              <div className="space-y-1">
+                                <SetupTableCode>{display(snapshot.facility_number)}</SetupTableCode>
+                                <SetupTableSecondaryText>
+                                  Kontrak: {contractNumber(mainContract)}
+                                </SetupTableSecondaryText>
+                              </div>
+                            </SetupDataTableCell>
+                            <SetupDataTableCell>
+                              {formatOptionalCurrency(snapshot.plafond)}
+                            </SetupDataTableCell>
+                            <SetupDataTableCell>
+                              {formatOptionalCurrency(snapshot.baki_debet)}
+                            </SetupDataTableCell>
+                            <SetupDataTableCell>
+                              <SetupCollectibilityBadge
+                                value={
+                                  snapshot.collectibility_display ??
+                                  snapshot.collectibility_code ??
+                                  "-"
+                                }
+                              />
+                            </SetupDataTableCell>
+                            <SetupDataTableCell>
+                              {snapshot.days_past_due === null || snapshot.days_past_due === undefined
+                                ? "-"
+                                : `${formatNumber(snapshot.days_past_due)} hari`}
+                            </SetupDataTableCell>
+                            <SetupDataTableCell>
+                              {slikDisplay(snapshot.condition_display, snapshot.condition_code)}
+                            </SetupDataTableCell>
+                            <SetupDataTableCell>
+                              {formatDateOnly(snapshot.due_date)}
+                            </SetupDataTableCell>
+                            <SetupDataTableCell>
+                              {snapshotHasRestructuring ? (
+                                <div className="space-y-1">
+                                  <SetupStatusBadge
+                                    status="Pernah Restruk"
+                                    tone="amber"
+                                    showIcon={false}
+                                  />
+                                  <SetupTableSecondaryText>
+                                    Frekuensi:{" "}
+                                    {snapshot.restructuring_frequency === null ||
+                                    snapshot.restructuring_frequency === undefined
+                                      ? "-"
+                                      : `${formatNumber(snapshot.restructuring_frequency)} kali`}
+                                  </SetupTableSecondaryText>
+                                  <SetupTableSecondaryText>
+                                    {compactPairDisplay(
+                                      "Awal",
+                                      formatDateOnly(snapshot.initial_restructuring_date),
+                                      "Akhir",
+                                      formatDateOnly(snapshot.final_restructuring_date),
+                                      "awal/akhir sama",
+                                    )}
+                                  </SetupTableSecondaryText>
+                                </div>
+                              ) : (
+                                <SetupStatusBadge
+                                  status="Tidak Ada"
+                                  tone="gray"
+                                  showIcon={false}
+                                />
+                              )}
+                            </SetupDataTableCell>
+                            <SetupDataTableCell className="max-w-[360px] align-top">
+                              <div className="space-y-1">
+                                <p
+                                  className="line-clamp-2 text-sm text-gray-900"
+                                  title={snapshot.description ?? undefined}
+                                >
+                                  {display(snapshot.description)}
+                                </p>
+                                {snapshotHasRestructuring ? (
+                                  <SetupTableSecondaryText>
+                                    {slikDisplay(
+                                      snapshot.restructuring_method_display,
+                                      snapshot.restructuring_method_code,
+                                    )}
+                                  </SetupTableSecondaryText>
+                                ) : null}
+                              </div>
+                            </SetupDataTableCell>
+                          </SetupDataTableRow>
+                        );
+                      })}
+                    </SetupDataTableBody>
+                  </SetupDataTable>
+                </SetupTableScroll>
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-4 py-3 text-sm text-gray-600">
+                  Belum ada historical SLIK F01 untuk fasilitas ini.
+                </div>
+              )}
+            </>
+          ) : (
+            <EmptyState>Pilih fasilitas terlebih dahulu untuk melihat historical SLIK F01.</EmptyState>
+          )}
+        </SectionCard>
+      </div>
     </div>
   );
 }
@@ -2089,7 +2320,7 @@ function SummaryTab({
               </div>
             </div>
             <div className="flex justify-end">
-              <FileButton file={selectedEntry.file} onOpen={onOpenFile} />
+              <FileButton file={selectedEntry.file} files={selectedEntry.files} onOpen={onOpenFile} />
             </div>
           </div>
         ) : null}
@@ -2267,6 +2498,12 @@ function getIdebFacilityArrears(facility: IdebRecord) {
   );
 }
 
+function getIdebFacilityDaysPastDue(facility: IdebRecord) {
+  return (
+    idebNumber(facility, ["days_past_due", "dpd", "jumlah_hari_tunggakan"]) ?? null
+  );
+}
+
 function getIdebFacilityCondition(facility: IdebRecord) {
   return idebText(facility, ["condition", "condition_code", "status"]) ?? "-";
 }
@@ -2381,6 +2618,11 @@ function getIdebResume(item: DebtorWorkflowIdebUpload) {
     (total, facility) => total + getIdebFacilityArrears(facility),
     0,
   );
+  const worstDaysPastDue = facilities.reduce<number | null>((current, facility) => {
+    const value = getIdebFacilityDaysPastDue(facility);
+    if (value === null || value === undefined) return current;
+    return current === null ? value : Math.max(current, value);
+  }, null);
   const reporterNames = getIdebReporterNames(facilities);
   const activeFacilitySummaries = activeFacilities.map((facility) => {
     const reporter = idebText(facility, ["reporter_name", "reporter_code"]) ?? "-";
@@ -2407,6 +2649,7 @@ function getIdebResume(item: DebtorWorkflowIdebUpload) {
     writeOffArrears,
     totalPlafond: getIdebTotalPlafond(summary, facilities),
     totalArrears,
+    worstDaysPastDue,
     reporterCount: getIdebReporterCount(summary, facilities),
     reporterNames,
     worstCollectibility: getIdebWorstCollectibility(item, summary, facilities),
@@ -2592,7 +2835,7 @@ function IdebCreditPositionTable({ facilities }: { facilities: IdebRecord[] }) {
   return (
     <SectionCard title="Ringkasan Posisi Fasilitas Kredit">
       <SetupTableCard variant="portfolio">
-        <SetupDataTable variant="portfolio" density="compact" className="min-w-[1240px]">
+        <SetupDataTable variant="portfolio" density="compact" className="min-w-[1360px]">
           <SetupDataTableHead>
             <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
               <SetupDataTableHeaderCell>Pelapor</SetupDataTableHeaderCell>
@@ -2607,6 +2850,9 @@ function IdebCreditPositionTable({ facilities }: { facilities: IdebRecord[] }) {
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                 Kolektibilitas
               </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                DPD / Hari Tunggakan
+              </SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
                 Tunggakan
               </SetupDataTableHeaderCell>
@@ -2618,6 +2864,7 @@ function IdebCreditPositionTable({ facilities }: { facilities: IdebRecord[] }) {
               const reporter = idebText(facility, ["reporter_name", "reporter_code"]) ?? "-";
               const branch = idebText(facility, ["branch_name", "branch_code"]);
               const accountNumber = getIdebFacilityAccount(facility);
+              const daysPastDue = getIdebFacilityDaysPastDue(facility);
 
               return (
                 <SetupDataTableRow
@@ -2649,6 +2896,9 @@ function IdebCreditPositionTable({ facilities }: { facilities: IdebRecord[] }) {
                       wrap
                     />
                   </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                    {daysPastDue === null ? "-" : `${formatNumber(daysPastDue)} hari`}
+                  </SetupDataTableCell>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                     {formatCurrency(getIdebFacilityArrears(facility))}
                   </SetupDataTableCell>
@@ -2677,13 +2927,16 @@ function IdebCreditPositionTable({ facilities }: { facilities: IdebRecord[] }) {
                 <SetupDataTableCell className="bg-blue-900 text-center font-extrabold text-white">
                   -
                 </SetupDataTableCell>
+                <SetupDataTableCell className="bg-blue-900 text-center font-extrabold text-white">
+                  -
+                </SetupDataTableCell>
                 <SetupDataTableCell className="bg-blue-900 text-right font-extrabold text-white">
                   {formatCurrency(totalArrears)}
                 </SetupDataTableCell>
                 <SetupDataTableCell className="bg-blue-900 text-white">-</SetupDataTableCell>
               </SetupDataTableRow>
             ) : (
-              <SetupDataTableEmptyRow colSpan={8}>
+              <SetupDataTableEmptyRow colSpan={9}>
                 Belum ada data fasilitas IDEB di hasil ini.
               </SetupDataTableEmptyRow>
             )}
@@ -2726,6 +2979,11 @@ function IdebCreditReviewSummary({ item }: { item: DebtorWorkflowIdebUpload }) {
               Jumlah fasilitas: {formatNumber(resume.facilities.length)}
               <br />
               Total tunggakan: {formatCurrency(resume.totalArrears)}
+              <br />
+              DPD tertinggi:{" "}
+              {resume.worstDaysPastDue === null
+                ? "-"
+                : `${formatNumber(resume.worstDaysPastDue)} hari`}
             </>
           }
         >
@@ -2873,6 +3131,11 @@ function IdebResumeSection({ item }: { item: DebtorWorkflowIdebUpload }) {
         </IdebMetricCard>
         <IdebMetricCard label="Total Tunggakan">
           {formatCurrency(resume.totalArrears)}
+        </IdebMetricCard>
+        <IdebMetricCard label="DPD Tertinggi">
+          {resume.worstDaysPastDue === null
+            ? "-"
+            : `${formatNumber(resume.worstDaysPastDue)} hari`}
         </IdebMetricCard>
       </div>
 
@@ -3373,11 +3636,9 @@ function IdebComparisonTable({
 function IdebTab({
   debtorId,
   items,
-  onOpenFile,
 }: {
   debtorId: string;
   items: DebtorWorkflowIdebUpload[];
-  onOpenFile: (file: DebtorFileMeta) => void;
 }) {
   const [selectedIdeb, setSelectedIdeb] = useState<DebtorWorkflowIdebUpload | null>(null);
   const [comparison, setComparison] = useState<DebtorIdebComparison | null>(null);
@@ -3465,6 +3726,10 @@ function IdebTab({
     }
   };
 
+  if (items.length === 0) {
+    return <EmptyState>Belum ada hasil IDEB untuk debitur ini.</EmptyState>;
+  }
+
   return (
     <>
       {latestIdeb ? (
@@ -3472,9 +3737,7 @@ function IdebTab({
           <IdebProfileSection item={latestIdeb} />
           <IdebResumeSection item={latestIdeb} />
         </div>
-      ) : (
-        <EmptyState>Belum ada hasil IDEB untuk debitur ini.</EmptyState>
-      )}
+      ) : null}
 
       <div className="mt-6">
         <h2 className="text-lg font-bold text-gray-900">List Historis IDEB</h2>
@@ -3575,11 +3838,6 @@ function IdebTab({
                 </SetupDataTableRow>
               );
             })}
-            {items.length === 0 ? (
-              <SetupDataTableEmptyRow colSpan={10}>
-                Belum ada hasil IDEB untuk debitur ini.
-              </SetupDataTableEmptyRow>
-            ) : null}
           </SetupDataTableBody>
         </SetupDataTable>
       </SetupTableCard>
@@ -3667,11 +3925,11 @@ function IdebTab({
                     <p className="mt-2 break-words text-sm font-semibold text-gray-900">
                       {display(file.file?.name)}
                     </p>
-                    {file.file ? (
-                      <div className="mt-3">
-                        <FileButton file={file.file} onOpen={onOpenFile} />
-                      </div>
-                    ) : null}
+                    <p className="mt-2 text-xs text-gray-500">
+                      {file.file?.size_bytes
+                        ? `Ukuran: ${formatNumber(Math.round(file.file.size_bytes / 1024))} KB`
+                        : "Ukuran file tidak tersedia"}
+                    </p>
                   </div>
                 ))}
                 {selectedSourceFiles.length === 0 ? (
@@ -3694,7 +3952,6 @@ function IdebTab({
                     : "Export Resume PDF"}
                 </span>
               </button>
-              <FileButton file={selectedIdeb.file} onOpen={onOpenFile} />
             </div>
           </div>
         ) : null}
@@ -3914,7 +4171,7 @@ function DokumenTab({
                     <SetupStatusBadge status="Ada" showIcon={false} />
                   </SetupDataTableCell>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <FileButton file={item.file} label="Lihat File" onOpen={onOpenFile} />
+                    <FileButton file={item.file} files={item.files} label="Lihat File" onOpen={onOpenFile} />
                   </SetupDataTableCell>
                 </SetupDataTableRow>
               ))}
@@ -3942,8 +4199,8 @@ function DocumentTableAction({
   onOpenFile: (file: DebtorFileMeta) => void;
   onUpload: () => void;
 }) {
-  if (document?.file) {
-    return <FileButton file={document.file} label="Lihat File" onOpen={onOpenFile} />;
+  if (document?.file || (document?.files?.length ?? 0) > 0) {
+    return <FileButton file={document?.file} files={document?.files} label="Lihat File" onOpen={onOpenFile} />;
   }
 
   if (!canUpload) return <span className="text-gray-400">-</span>;
@@ -4328,7 +4585,7 @@ function NotarisTab({
                   <SetupStatusBadge status={statusLabel(item.status)} />
                 </SetupDataTableCell>
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                  <FileButton file={item.file} onOpen={onOpenFile} />
+                  <FileButton file={item.file} files={item.files} onOpen={onOpenFile} />
                 </SetupDataTableCell>
               </SetupDataTableRow>
             ))}
@@ -4396,7 +4653,7 @@ function SuratPeringatanTab({
                 </SetupDataTableCell>
                 <SetupDataTableCell>{display(item.description ?? item.notes)}</SetupDataTableCell>
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                  <FileButton file={item.file} onOpen={onOpenFile} />
+                  <FileButton file={item.file} files={item.files} onOpen={onOpenFile} />
                 </SetupDataTableCell>
               </SetupDataTableRow>
             ))}
@@ -4471,7 +4728,7 @@ function ClaimTab({
                     <SetupStatusBadge status={statusLabel(item.status)} />
                   </SetupDataTableCell>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <FileButton file={item.file} onOpen={onOpenFile} />
+                    <FileButton file={item.file} files={item.files} onOpen={onOpenFile} />
                   </SetupDataTableCell>
                 </SetupDataTableRow>
               ))}
@@ -4533,7 +4790,7 @@ function ClaimTab({
                     <SetupStatusBadge status={statusLabel(item.status)} />
                   </SetupDataTableCell>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <FileButton file={item.file} onOpen={onOpenFile} />
+                    <FileButton file={item.file} files={item.files} onOpen={onOpenFile} />
                   </SetupDataTableCell>
                 </SetupDataTableRow>
               ))}
@@ -4790,7 +5047,7 @@ function TitipanTab({
                     <SetupDataTableCell>{formatCurrency(transaction.amount)}</SetupDataTableCell>
                     <SetupDataTableCell>{transaction.notes ?? "-"}</SetupDataTableCell>
                     <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                      <FileButton file={transaction.file} onOpen={onOpenFile} />
+                      <FileButton file={transaction.file} files={transaction.files} onOpen={onOpenFile} />
                     </SetupDataTableCell>
                   </SetupDataTableRow>
                 ))}
@@ -4862,7 +5119,7 @@ function KJPPSection({
                   <SetupStatusBadge status={statusLabel(item.status)} />
                 </SetupDataTableCell>
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                  <FileButton file={item.file} onOpen={onOpenFile} />
+                  <FileButton file={item.file} files={item.files} onOpen={onOpenFile} />
                 </SetupDataTableCell>
               </SetupDataTableRow>
             ))}
@@ -5144,7 +5401,6 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
               <IdebTab
                 debtorId={workflow.debtor.id}
                 items={workflow.ideb_uploads}
-                onOpenFile={openFile}
               />
             ) : null}
             {resolvedActiveTab === "historis" ? (

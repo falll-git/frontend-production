@@ -189,6 +189,15 @@ function appendMultipartValue(
   }
 
   if (Array.isArray(value)) {
+    if (value.every((item) => isFileLike(item))) {
+      value.forEach((item) => {
+        if (isFileLike(item)) {
+          formData.append(key, item);
+        }
+      });
+      return;
+    }
+
     formData.append(key, JSON.stringify(value));
     return;
   }

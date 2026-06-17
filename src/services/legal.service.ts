@@ -105,6 +105,13 @@ function mapFile(record: unknown): DebtorFileMeta | null {
   };
 }
 
+function mapFiles(value: unknown): DebtorFileMeta[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => mapFile(item))
+    .filter((item): item is DebtorFileMeta => item !== null);
+}
+
 function mapDebtor(record: unknown): DebtorRecord | null {
   const debtor = asRecord(record);
   const id = debtor ? readString(debtor, "id") : null;
@@ -272,6 +279,7 @@ function mapTemplate(record: unknown): LegalTemplate | null {
     content_template: nullableString(item, "content_template", "contentTemplate"),
     is_active: booleanValue(item, "is_active", true),
     file: mapFile(item.file),
+    files: mapFiles(item.files),
     created_at: nullableString(item, "created_at", "createdAt"),
     updated_at: nullableString(item, "updated_at", "updatedAt"),
   };
@@ -292,6 +300,7 @@ function mapPrint(record: unknown): LegalPrintHistory | null {
     generated_number: generatedNumber,
     payload_snapshot: asRecord(item.payload_snapshot),
     generated_file: mapFile(item.generated_file),
+    files: mapFiles(item.files),
     template: mapTemplate(item.template),
     numbering_template: mapParameter(item.numbering_template),
     contract: mapContract(item.contract),
@@ -334,6 +343,7 @@ function mapProgress(record: unknown): LegalProgressRecord | null {
     deed_number: nullableString(item, "deed_number", "deedNumber"),
     notes: nullableString(item, "notes"),
     file: mapFile(item.file),
+    files: mapFiles(item.files),
     contract: mapContract(item.contract),
     collateral: mapCollateral(item.collateral),
     third_party: mapParameter(item.third_party),
@@ -363,6 +373,7 @@ function mapClaim(record: unknown): LegalClaim | null {
     rejection_reason: nullableString(item, "rejection_reason", "rejectionReason"),
     notes: nullableString(item, "notes"),
     file: mapFile(item.file),
+    files: mapFiles(item.files),
     contract: mapContract(item.contract),
     collateral: mapCollateral(item.collateral),
     insurance_progress: mapProgress(item.insurance_progress),
@@ -385,6 +396,7 @@ function mapDepositTransaction(record: unknown): LegalDepositTransaction | null 
     amount: numberValue(item, "amount"),
     notes: nullableString(item, "notes"),
     file: mapFile(item.file),
+    files: mapFiles(item.files),
     created_at: nullableString(item, "created_at", "createdAt"),
   };
 }
@@ -489,7 +501,11 @@ function buildParams(query: LegalListQuery = {}) {
 
 function multipartBody<T extends object>(payload: T): T | FormData {
   return typeof File !== "undefined" &&
-    Object.values(payload).some((value) => value instanceof File)
+    Object.values(payload).some(
+      (value) =>
+        value instanceof File ||
+        (Array.isArray(value) && value.some((item) => item instanceof File)),
+    )
     ? toMultipartFormData(payload)
     : payload;
 }
