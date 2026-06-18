@@ -240,7 +240,6 @@ function mapPrintableItem(item: CorrespondencePrintableItem): PrintableRecord {
           record.media,
           record.sifat,
           record.statusLabel,
-          record.targetKirimAt ?? "",
           record.responseDueDate ?? "",
           record.tenggatWaktu ?? "",
           record.keteranganTenggat ?? "",
@@ -881,10 +880,7 @@ export default function CetakDokumenClient() {
                             Sifat
                           </SetupDataTableHeaderCell>
                           <SetupDataTableHeaderCell className="text-center">
-                            Target Kirim
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell className="text-center">
-                            Follow-up
+                            Batas Follow-up
                           </SetupDataTableHeaderCell>
                           <SetupDataTableHeaderCell className="text-center">
                             Status
@@ -1001,9 +997,6 @@ export default function CetakDokumenClient() {
                               </SetupDataTableCell>
                               <SetupDataTableCell className="text-center font-medium text-gray-700">
                                 {record.record.sifat}
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="text-center text-gray-700">
-                                {formatDeadlineValue(record.record.targetKirimAt)}
                               </SetupDataTableCell>
                               <SetupDataTableCell className="text-center text-gray-700">
                                 {formatDeadlineValue(record.record.tenggatWaktu)}

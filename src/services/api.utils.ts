@@ -174,6 +174,28 @@ function isFileLike(value: unknown): value is File | Blob {
   return typeof File !== "undefined" && value instanceof File;
 }
 
+function hasMultipartFileArray(value: unknown): boolean {
+  return Array.isArray(value) && value.some((item) => isFileLike(item));
+}
+
+function shouldSkipMultipartKey(
+  payload: Record<string, unknown>,
+  key: string,
+): boolean {
+  if (key === "file" && hasMultipartFileArray(payload.files)) {
+    return true;
+  }
+
+  if (key.endsWith("_file")) {
+    const pluralKey = `${key.slice(0, -5)}_files`;
+    if (hasMultipartFileArray(payload[pluralKey])) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function appendMultipartValue(
   formData: FormData,
   key: string,
@@ -219,6 +241,9 @@ export function toMultipartFormData<T extends object>(payload: T): FormData {
   const formData = new FormData();
 
   Object.entries(payload as Record<string, unknown>).forEach(([key, value]) => {
+    if (shouldSkipMultipartKey(payload as Record<string, unknown>, key)) {
+      return;
+    }
     appendMultipartValue(formData, key, value);
   });
 

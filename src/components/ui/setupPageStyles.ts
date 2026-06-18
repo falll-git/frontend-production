@@ -44,6 +44,18 @@ export const SETUP_PAGE_WIDTH_XL_CLASS = "w-full";
 
 export const SETUP_PAGE_WIDTH_2XL_CLASS = "w-full";
 
+export const SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS =
+  "mx-auto w-full max-w-[720px]";
+
+export const SETUP_PARAMETER_PAGE_WIDTH_MD_CLASS =
+  "mx-auto w-full max-w-[960px]";
+
+export const SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS =
+  "mx-auto w-full max-w-[1120px]";
+
+export const SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS =
+  "mx-auto w-full max-w-[1280px]";
+
 export const SETUP_PAGE_SEARCH_LABEL_CLASS =
   "mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500";
 

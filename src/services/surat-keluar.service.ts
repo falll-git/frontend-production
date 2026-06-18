@@ -52,13 +52,6 @@ export function mapSuratKeluarRecord(
   const recipientName = readString(record, "name");
   const mailNumber = readString(record, "mail_number", "mailNumber");
   const sendDate = readString(record, "send_date", "sendDate");
-  const sendDueDate = readNullableString(
-    record,
-    "send_due_date",
-    "sendDueDate",
-    "target_kirim_at",
-    "targetKirimAt",
-  );
   const responseDueDate = readNullableString(
     record,
     "response_due_date",
@@ -124,9 +117,8 @@ export function mapSuratKeluarRecord(
     statusLabel: formatOutgoingStatusLabel(record),
     mailNumberRaw: mailNumber,
     mediaRaw: deliveryMedia ?? undefined,
-    targetKirimAt: sendDueDate,
     responseDueDate,
-    tenggatWaktu: followUpDueDate ?? responseDueDate ?? sendDueDate,
+    tenggatWaktu: followUpDueDate ?? responseDueDate,
     keteranganTenggat:
       readNullableString(record, "follow_up_note", "followUpNote", "note") ??
       undefined,

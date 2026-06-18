@@ -1,5 +1,5 @@
-import { LegalPrintClient } from "@/components/legal/LegalModuleClients";
+import { notFound } from "next/navigation";
 
 export default function SuratSamsatPage() {
-  return <LegalPrintClient documentType="SAMSAT" title="Surat Samsat" />;
+  notFound();
 }

@@ -33,6 +33,7 @@ import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
 import {
   getSetupPageEmptyStateCopy,
+  SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { menuService } from "@/services/menu.service";
@@ -847,11 +848,12 @@ export default function SetupRoleMenuPage() {
         title="Setup Akses Menu per Role"
         subtitle="Pilih role yang mau diatur, lalu tentukan menu mana yang boleh dibuka atau dikelola."
         icon={<KeyRound />}
+        className={SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS}
         actions={null}
       />
 
       <div
-        className={`${SETUP_PAGE_SEARCH_CARD_CLASS} role-menu-filter-card max-w-[1280px]`}
+        className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS} role-menu-filter-card`}
       >
         <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_minmax(220px,320px)] lg:items-end">
           <SetupSearchInput
@@ -911,7 +913,11 @@ export default function SetupRoleMenuPage() {
         </div>
       </div>
 
-      <SetupTableCard variant="matrix" scroll={false} className="role-menu-table-card">
+      <SetupTableCard
+        variant="matrix"
+        scroll={false}
+        className="role-menu-table-card inline-block w-auto max-w-full align-top"
+      >
         <SetupTableScroll className="role-menu-table-scroll">
           <SetupDataTable variant="matrix" density="compact" className={PERMISSION_TABLE_CLASS}>
             <SetupDataTableColGroup>

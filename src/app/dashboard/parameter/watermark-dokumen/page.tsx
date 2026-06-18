@@ -28,6 +28,7 @@ import FileUploadField from "@/components/ui/FileUploadField";
 import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { watermarkService } from "@/services/watermark.service";
+import { SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS } from "@/components/ui/setupPageStyles";
 import type {
   WatermarkOption,
   WatermarkOptions,
@@ -505,6 +506,7 @@ export default function SetupWatermarkDokumenPage() {
         title="Setup Watermark Dokumen"
         subtitle="Konfigurasi watermark file dokumen."
         icon={<Stamp />}
+        className={SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS}
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
             <button
@@ -589,7 +591,9 @@ export default function SetupWatermarkDokumenPage() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div
+        className={`grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_420px] ${SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS}`}
+      >
         <div className="space-y-6">
           <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">

@@ -49,8 +49,8 @@ import {
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+  SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_WIDTH_LG_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { documentTypeService } from "@/services/document-type.service";
 
@@ -272,12 +272,13 @@ function SetupJenisDokumenPageContent() {
         title="Setup Jenis Dokumen"
         subtitle="Kelola master jenis dokumen."
         icon={<Shield />}
+        className={SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS}
         actions={
           <SetupAddButton label="Tambah Jenis" onClick={openCreate} />
         }
       />
 
-      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_LG_CLASS}`}>
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS}`}>
         <SetupSearchInput
           label="Cari Data"
           value={query}
@@ -286,7 +287,7 @@ function SetupJenisDokumenPageContent() {
         />
       </div>
 
-      <SetupTableCard variant="crud" className="mx-auto max-w-[1120px]">
+      <SetupTableCard variant="crud" className={SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS}>
           <SetupDataTable variant="crud" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS} min-w-[820px]`}>
               <SetupDataTableColGroup>
                 <SetupDataTableCol className="w-[56px]" />

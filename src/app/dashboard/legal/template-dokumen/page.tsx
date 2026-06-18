@@ -1,5 +1,5 @@
-import { LegalTemplateClient } from "@/components/legal/LegalModuleClients";
+import { notFound } from "next/navigation";
 
 export default function TemplateDokumenLegalPage() {
-  return <LegalTemplateClient />;
+  notFound();
 }

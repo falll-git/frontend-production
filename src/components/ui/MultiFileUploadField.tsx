@@ -62,6 +62,27 @@ function formatBytes(size: number) {
   return `${size} B`;
 }
 
+function selectedFileSummary(files: File[], totalSize: number) {
+  if (files.length === 0) {
+    return {
+      fileName: "Belum ada file dipilih",
+      meta: DOCUMENT_FILE_EMPTY_META,
+    };
+  }
+
+  if (files.length === 1) {
+    return {
+      fileName: files[0]?.name ?? "1 file dipilih",
+      meta: formatUploadFileSize(files[0]),
+    };
+  }
+
+  return {
+    fileName: `${files.length} file dipilih`,
+    meta: `Total ${formatBytes(totalSize)}`,
+  };
+}
+
 export default function MultiFileUploadField({
   id,
   accept = DOCUMENT_FILE_ACCEPT,
@@ -85,12 +106,10 @@ export default function MultiFileUploadField({
     [files],
   );
 
-  const fileName =
-    files.length > 0 ? `${files.length} file dipilih` : "Belum ada file dipilih";
-  const resolvedMeta =
-    files.length > 0
-      ? `Total ${formatBytes(totalSize)}`
-      : emptyFileMeta;
+  const fileSummary = useMemo(
+    () => selectedFileSummary(files, totalSize),
+    [files, totalSize],
+  );
 
   const handleChange: ChangeEventHandler<HTMLInputElement> = (event) => {
     const selectedFiles = Array.from(event.target.files ?? []);
@@ -133,19 +152,19 @@ export default function MultiFileUploadField({
         accept={accept}
         disabled={disabled}
         multiple
-        fileName={fileName}
-        fileMeta={resolvedMeta}
+        fileName={fileSummary.fileName}
+        fileMeta={files.length === 0 ? emptyFileMeta : fileSummary.meta}
         fileIcon={<FileText className="h-5 w-5" />}
         title={title ?? (files.length > 0 ? "Tambah file" : "Pilih file")}
         description={description}
         onChange={handleChange}
         onClear={() => onChange([])}
       />
-      {files.length > 0 ? (
+      {files.length > 1 ? (
         <div className="mt-3 rounded-xl border border-slate-200 bg-white">
           <div className="border-b border-slate-100 px-4 py-3">
             <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-              File Terpilih
+              Daftar File
             </p>
           </div>
           <div className="divide-y divide-slate-100">

@@ -40,8 +40,8 @@ import {
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+  SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_WIDTH_XL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { useClientPagination } from "@/hooks/useClientPagination";
@@ -95,6 +95,8 @@ export type ParameterMasterPageConfig = {
   fixedPayload?: ParameterMasterPayload;
   tableMinWidthClassName?: string;
   sortKey?: string;
+  layoutWidthClassName?: string;
+  tableWidthClassName?: string;
 };
 
 function valueToText(value: ParameterMasterValue | undefined): string {
@@ -418,6 +420,10 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
 
   const Icon = config.icon;
   const tableColSpan = config.columns.length + 2;
+  const layoutWidthClassName =
+    config.layoutWidthClassName ?? SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS;
+  const tableWidthClassName =
+    config.tableWidthClassName ?? layoutWidthClassName;
 
   return (
     <DashboardPageShell spacing="md">
@@ -425,12 +431,13 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
         title={config.title}
         subtitle={config.subtitle}
         icon={<Icon />}
+        className={layoutWidthClassName}
         actions={
           canCreate ? <SetupAddButton label={config.addLabel} onClick={openCreate} /> : null
         }
       />
 
-      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_XL_CLASS}`}>
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${layoutWidthClassName}`}>
         <SetupSearchInput
           label="Cari Data"
           value={query}
@@ -439,7 +446,7 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
         />
       </div>
 
-      <SetupTableCard variant="crud" className="mx-auto max-w-[1280px]">
+      <SetupTableCard variant="crud" className={tableWidthClassName}>
           <SetupDataTable
             variant="crud"
             density="compact"

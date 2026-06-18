@@ -388,6 +388,31 @@ function getTenggatStatus(value: string | undefined, today: Date) {
   };
 }
 
+function getOutgoingFollowUpStatus(record: SuratKeluar, today: Date) {
+  if (record.followUpStatus === "NONE" || !record.tenggatWaktu) {
+    return {
+      label: "-",
+      variant: "none" as const,
+    };
+  }
+
+  if (record.isFollowUpOverdue) {
+    return {
+      label: record.followUpStatusLabel ?? "Lewat batas follow-up",
+      variant: "overdue" as const,
+    };
+  }
+
+  if (record.followUpStatus === "ACTIVE") {
+    return {
+      label: record.followUpStatusLabel ?? "Perlu follow-up",
+      variant: "active" as const,
+    };
+  }
+
+  return getTenggatStatus(record.tenggatWaktu, today);
+}
+
 function summarize(values: string[], limit = 2) {
   if (values.length === 0) {
     return "-";
@@ -444,6 +469,11 @@ function formatDetailTenggatValue(value: string | undefined) {
 
 function formatDetailTenggatStatus(value: string | undefined, today: Date) {
   const status = getTenggatStatus(value, today);
+  return status.variant === "none" ? "-" : status.label;
+}
+
+function formatOutgoingFollowUpStatus(record: SuratKeluar, today: Date) {
+  const status = getOutgoingFollowUpStatus(record, today);
   return status.variant === "none" ? "-" : status.label;
 }
 
@@ -994,7 +1024,6 @@ type EditFormState = {
   regarding: string;
   description: string;
   deliveryMedia: string;
-  targetKirimAt: string;
   responseDueDate: string;
   keteranganTenggat: string;
   originDivisionId: string;
@@ -1028,7 +1057,6 @@ const EMPTY_EDIT_FORM: EditFormState = {
   regarding: "",
   description: "",
   deliveryMedia: "",
-  targetKirimAt: "",
   responseDueDate: "",
   keteranganTenggat: "",
   originDivisionId: "",
@@ -1062,7 +1090,6 @@ function buildEditInitialState(target: DetailState): EditFormState {
       deliveryMedia: normalizeDeliveryMediaValue(
         target.record.mediaRaw ?? target.record.media,
       ),
-      targetKirimAt: toDateInputValue(target.record.targetKirimAt ?? ""),
       responseDueDate: toDateInputValue(target.record.responseDueDate ?? ""),
       keteranganTenggat: target.record.keteranganTenggat ?? "",
     };
@@ -1230,9 +1257,6 @@ function EditCorrespondenceModal({
           mail_number: form.documentNumber.trim(),
           send_date: toApiDateTime(form.documentDate),
           delivery_media: form.deliveryMedia,
-          send_due_date: form.targetKirimAt
-            ? toApiDateTime(form.targetKirimAt)
-            : "",
           response_due_date: form.responseDueDate
             ? toApiDateTime(form.responseDueDate)
             : "",
@@ -1463,21 +1487,7 @@ function EditCorrespondenceModal({
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Target Pengiriman
-                  </label>
-                  <BasicDateInput
-                    value={form.targetKirimAt}
-                    onChange={(nextValue) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        targetKirimAt: nextValue,
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
-                    Batas Follow-up Balasan
+                    Batas Follow-up / Balasan
                   </label>
                   <BasicDateInput
                     value={form.responseDueDate}
@@ -2631,12 +2641,12 @@ export default function LaporanPersuratanClient() {
           },
           {
             icon: CalendarDays,
-            label: "Memiliki Tenggat Waktu",
+            label: "Memiliki Batas Follow-up",
             value: `${tenggatStats.suratKeluar.memilikiTenggat}`,
           },
           {
             icon: AlertTriangle,
-            label: "Melewati tenggat waktu",
+            label: "Melewati batas follow-up",
             value: `${tenggatStats.suratKeluar.melewatiTenggat}`,
           },
         ],
@@ -2931,9 +2941,8 @@ export default function LaporanPersuratanClient() {
             { header: "Media", key: "media", width: 16 },
             { header: "Tempat Penyimpanan", key: "penyimpanan", width: 32 },
             { header: "Status", key: "status", width: 16 },
-            { header: "Target Pengiriman", key: "targetKirim", width: 18 },
             { header: "Batas Follow-up", key: "tenggatWaktu", width: 18 },
-            { header: "Status Tenggat", key: "statusTenggat", width: 18 },
+            { header: "Status Follow-up", key: "statusTenggat", width: 18 },
             { header: "Catatan Follow-up", key: "catatanFollowUp", width: 36 },
             { header: "File", key: "fileName", width: 30 },
           ],
@@ -2947,12 +2956,8 @@ export default function LaporanPersuratanClient() {
             media: record.media,
             penyimpanan: record.physicalStorageLabel ?? "-",
             status: record.statusLabel,
-            targetKirim: formatDetailTenggatValue(record.targetKirimAt),
             tenggatWaktu: formatDetailTenggatValue(record.tenggatWaktu),
-            statusTenggat: formatDetailTenggatStatus(
-              record.tenggatWaktu,
-              today,
-            ),
+            statusTenggat: formatOutgoingFollowUpStatus(record, today),
             catatanFollowUp: record.keteranganTenggat ?? "-",
             fileName: record.fileName || "-",
           })),
@@ -3784,14 +3789,11 @@ export default function LaporanPersuratanClient() {
                       <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
                         Status
                       </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Target Pengiriman
-                      </SetupDataTableHeaderCell>
                       <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
                         Batas Follow-up
                       </SetupDataTableHeaderCell>
                       <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
-                        Status Tenggat
+                        Status Follow-up
                       </SetupDataTableHeaderCell>
                       <SetupDataTableHeaderCell className={REPORT_ACTION_HEADER_CELL_CLASS}>
                         Aksi
@@ -3854,22 +3856,17 @@ export default function LaporanPersuratanClient() {
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
                           <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
-                            {formatDetailTenggatValue(record.targetKirimAt)}
-                          </span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
                             {formatDetailTenggatValue(record.tenggatWaktu)}
                           </span>
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
                           {(() => {
-                            const tenggatStatus = getTenggatStatus(
-                              record.tenggatWaktu,
+                            const followUpStatus = getOutgoingFollowUpStatus(
+                              record,
                               today,
                             );
 
-                            if (tenggatStatus.variant === "none") {
+                            if (followUpStatus.variant === "none") {
                               return (
                                 <span className={TABLE_EMPTY_TEXT_CLASS}>-</span>
                               );
@@ -3878,11 +3875,11 @@ export default function LaporanPersuratanClient() {
                             return (
                               <SetupStatusBadge
                                 status={
-                                  tenggatStatus.variant === "overdue"
+                                  followUpStatus.variant === "overdue"
                                     ? "Terlambat"
                                     : "Aktif"
                                 }
-                                label={tenggatStatus.label}
+                                label={followUpStatus.label}
                               />
                             );
                           })()}
@@ -4367,21 +4364,15 @@ export default function LaporanPersuratanClient() {
                 value={formatDisplayDate(selectedDetail.record.tanggalKirim)}
               />
               <DetailRow
-                label="Target Pengiriman"
-                value={formatDetailTenggatValue(
-                  selectedDetail.record.targetKirimAt,
-                )}
-              />
-              <DetailRow
-                label="Batas Follow-up"
+                label="Batas Follow-up / Balasan"
                 value={formatDetailTenggatValue(
                   selectedDetail.record.tenggatWaktu,
                 )}
               />
               <DetailRow
-                label="Status Tenggat"
-                value={formatDetailTenggatStatus(
-                  selectedDetail.record.tenggatWaktu,
+                label="Status Follow-up"
+                value={formatOutgoingFollowUpStatus(
+                  selectedDetail.record,
                   today,
                 )}
               />

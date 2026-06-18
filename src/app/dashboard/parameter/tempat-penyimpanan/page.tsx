@@ -49,8 +49,8 @@ import {
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+  SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_WIDTH_XL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { storageService } from "@/services/storage.service";
 
@@ -308,12 +308,13 @@ function SetupTempatPenyimpananPageContent() {
         title="Setup Tempat Penyimpanan"
         subtitle="Kelola master lokasi penyimpanan dokumen fisik."
         icon={<Warehouse />}
+        className={SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS}
         actions={
           <SetupAddButton label="Tambah Tempat" onClick={openCreate} />
         }
       />
 
-      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_XL_CLASS}`}>
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS}`}>
         <SetupSearchInput
           label="Cari Data"
           value={query}
@@ -322,7 +323,7 @@ function SetupTempatPenyimpananPageContent() {
         />
       </div>
 
-      <SetupTableCard variant="crud" className="mx-auto max-w-[1280px]">
+      <SetupTableCard variant="crud" className={SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS}>
           <SetupDataTable variant="crud" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS} min-w-[1080px]`}>
               <SetupDataTableColGroup>
                 <SetupDataTableCol className="w-[56px]" />

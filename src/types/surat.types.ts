@@ -133,7 +133,6 @@ export interface SuratKeluar {
   statusLabel: string;
   mailNumberRaw?: string;
   mediaRaw?: string;
-  targetKirimAt?: string;
   responseDueDate?: string;
   tenggatWaktu?: string;
   keteranganTenggat?: string;

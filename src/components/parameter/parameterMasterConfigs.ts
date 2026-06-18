@@ -14,6 +14,11 @@ import {
 } from "lucide-react";
 
 import type { ParameterMasterPageConfig } from "@/components/parameter/ParameterMasterPage";
+import {
+  SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
+  SETUP_PARAMETER_PAGE_WIDTH_MD_CLASS,
+  SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS,
+} from "@/components/ui/setupPageStyles";
 
 const STATUS_FIELD = {
   key: "is_active",
@@ -69,10 +74,24 @@ function simpleCodeNameConfig(
   overrides: Pick<
     ParameterMasterPageConfig,
     "title" | "subtitle" | "entityLabel" | "endpoint" | "icon" | "addLabel" | "searchPlaceholder"
-  > & Partial<Pick<ParameterMasterPageConfig, "fields" | "columns" | "tableMinWidthClassName">>,
+  > &
+    Partial<
+      Pick<
+        ParameterMasterPageConfig,
+        | "fields"
+        | "columns"
+        | "tableMinWidthClassName"
+        | "layoutWidthClassName"
+        | "tableWidthClassName"
+      >
+    >,
 ): ParameterMasterPageConfig {
   return {
     ...overrides,
+    layoutWidthClassName:
+      overrides.layoutWidthClassName ?? SETUP_PARAMETER_PAGE_WIDTH_MD_CLASS,
+    tableWidthClassName:
+      overrides.tableWidthClassName ?? SETUP_PARAMETER_PAGE_WIDTH_MD_CLASS,
     fields:
       overrides.fields ??
       [
@@ -118,6 +137,8 @@ export const branchParameterConfig: ParameterMasterPageConfig = {
   icon: Building2,
   addLabel: "Tambah Cabang",
   searchPlaceholder: "Cari kode, nama, alamat, atau telepon...",
+  layoutWidthClassName: SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
+  tableWidthClassName: SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
   fields: [
     { key: "code", label: "Kode Cabang", required: true, placeholder: "Masukkan kode cabang" },
     { key: "name", label: "Nama Cabang", required: true, placeholder: "Masukkan nama cabang" },
@@ -193,6 +214,8 @@ export const documentChecklistParameterConfig: ParameterMasterPageConfig = {
   icon: ClipboardCheck,
   addLabel: "Tambah Checklist",
   searchPlaceholder: "Cari kode, nama, kategori, atau jenis dokumen...",
+  layoutWidthClassName: SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
+  tableWidthClassName: SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
   fields: [
     { key: "code", label: "Kode", required: true, placeholder: "Masukkan kode" },
     { key: "name", label: "Nama Dokumen", required: true, placeholder: "Masukkan nama dokumen" },
@@ -221,6 +244,8 @@ export const numberingTemplateParameterConfig: ParameterMasterPageConfig = {
   icon: ReceiptText,
   addLabel: "Tambah Template",
   searchPlaceholder: "Cari kode, modul, jenis dokumen, atau template...",
+  layoutWidthClassName: SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS,
+  tableWidthClassName: SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS,
   fields: [
     { key: "code", label: "Kode", required: true, placeholder: "Masukkan kode" },
     { key: "name", label: "Nama Template", required: true, placeholder: "Masukkan nama template" },
@@ -254,6 +279,8 @@ export const depositTypeParameterConfig = simpleCodeNameConfig({
   icon: Tags,
   addLabel: "Tambah Titipan",
   searchPlaceholder: "Cari kode, nama, kategori, atau keterangan titipan...",
+  layoutWidthClassName: SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
+  tableWidthClassName: SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
   fields: [
     { key: "code", label: "Kode", required: true, placeholder: "Masukkan kode" },
     { key: "name", label: "Nama Titipan", required: true, placeholder: "Masukkan nama titipan" },
@@ -277,6 +304,8 @@ export const legalProcessTypeParameterConfig = simpleCodeNameConfig({
   icon: Workflow,
   addLabel: "Tambah Proses Legal",
   searchPlaceholder: "Cari kode, nama, kategori, atau keterangan proses...",
+  layoutWidthClassName: SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
+  tableWidthClassName: SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
   fields: [
     { key: "code", label: "Kode", required: true, placeholder: "Masukkan kode" },
     { key: "name", label: "Nama Proses", required: true, placeholder: "Masukkan nama proses" },
@@ -314,6 +343,8 @@ function thirdPartyConfig(
     icon,
     addLabel,
     searchPlaceholder: "Cari kode, nama, kontak, telepon, atau email...",
+    layoutWidthClassName: SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
+    tableWidthClassName: SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
     filters: { category },
     fixedPayload: { category },
     fields: [

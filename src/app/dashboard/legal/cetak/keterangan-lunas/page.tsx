@@ -1,5 +1,5 @@
-import { LegalPrintClient } from "@/components/legal/LegalModuleClients";
+import { notFound } from "next/navigation";
 
 export default function KeteranganLunasPage() {
-  return <LegalPrintClient documentType="SKL" title="Surat Keterangan Lunas" />;
+  notFound();
 }

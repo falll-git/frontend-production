@@ -134,11 +134,27 @@ function mapFile(record: unknown): DebtorFileMeta | null {
   };
 }
 
+function dedupeFileMetas(files: DebtorFileMeta[]): DebtorFileMeta[] {
+  const seen = new Set<string>();
+  const deduped: DebtorFileMeta[] = [];
+
+  for (const file of files) {
+    const key = [file.url ?? "", file.name ?? "", file.size_bytes ?? ""].join("::");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(file);
+  }
+
+  return deduped;
+}
+
 function mapFiles(value: unknown): DebtorFileMeta[] {
   if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => mapFile(item))
-    .filter((item): item is DebtorFileMeta => item !== null);
+  return dedupeFileMetas(
+    value
+      .map((item) => mapFile(item))
+      .filter((item): item is DebtorFileMeta => item !== null),
+  );
 }
 
 function hasMultipartFiles(payload: Record<string, unknown>): boolean {

@@ -94,6 +94,7 @@ import type {
   DebtorWorkflowIdebUpload,
   DebtorWorkflowLegalProgress,
   DebtorDocumentPayload,
+  DebtorWarningLetterPayload,
 } from "@/types/debitur.types";
 
 type TabType =
@@ -135,7 +136,7 @@ const TABS: TabConfig[] = [
     label: "Hasil IDEB",
     permissions: [
       "/dashboard/informasi-debitur/admin/upload-ideb",
-      "/dashboard/legal/laporan",
+      "/dashboard/informasi-debitur/laporan-ideb",
     ],
   },
   { id: "historis", label: "Historis Kol" },
@@ -145,11 +146,7 @@ const TABS: TabConfig[] = [
   {
     id: "sp",
     label: "Surat Peringatan",
-    permissions: [
-      DEBTOR_LIST_URL,
-      DEBTOR_MASTER_URL,
-      "/dashboard/legal/cetak/surat-peringatan",
-    ],
+    permissions: [DEBTOR_LIST_URL, DEBTOR_MASTER_URL],
   },
   { id: "claim", label: "Asuransi & Klaim", legal: true },
   { id: "titipan", label: "Dana Titipan", legal: true },
@@ -199,6 +196,23 @@ type DebtorDocumentUploadFormState = {
   file: File | null;
   files: File[];
 };
+
+type DebtorWarningLetterUploadFormState = {
+  contract_id: string;
+  letter_type: string;
+  issued_at: string;
+  sent_at: string;
+  delivery_status: string;
+  description: string;
+  file: File | null;
+  files: File[];
+};
+
+const WARNING_LETTER_DELIVERY_STATUS_OPTIONS = [
+  { value: "BELUM_DIKIRIM", label: "Belum Dikirim" },
+  { value: "DIKIRIM", label: "Dikirim" },
+  { value: "DITERIMA", label: "Diterima" },
+];
 
 function formatCurrency(value: number | null | undefined) {
   return new Intl.NumberFormat("id-ID", {
@@ -751,6 +765,55 @@ function buildDocumentUploadPayload(
 function validateDocumentUploadForm(form: DebtorDocumentUploadFormState) {
   if (!form.document_type.trim()) return "Jenis dokumen wajib diisi";
   if (form.files.length === 0 && !form.file) return "File dokumen wajib dipilih";
+  return null;
+}
+
+function emptyWarningLetterUploadForm(
+  contractId = "",
+): DebtorWarningLetterUploadFormState {
+  return {
+    contract_id: contractId,
+    letter_type: "",
+    issued_at: "",
+    sent_at: "",
+    delivery_status: "BELUM_DIKIRIM",
+    description: "",
+    file: null,
+    files: [],
+  };
+}
+
+function buildWarningLetterUploadPayload(
+  debtorId: string,
+  form: DebtorWarningLetterUploadFormState,
+): DebtorWarningLetterPayload {
+  const files = form.files.length > 0 ? form.files : form.file ? [form.file] : [];
+  if (files.length === 0) throw new Error("File surat peringatan wajib dipilih");
+  return {
+    debtor_id: debtorId,
+    contract_id: form.contract_id || null,
+    letter_type: form.letter_type.trim(),
+    issued_at: form.issued_at,
+    sent_at: form.sent_at || null,
+    delivery_status: form.delivery_status,
+    description: form.description.trim() || null,
+    file: files[0] ?? null,
+    files,
+  };
+}
+
+function validateWarningLetterUploadForm(
+  form: DebtorWarningLetterUploadFormState,
+  contractCount: number,
+) {
+  if (contractCount > 0 && !form.contract_id) {
+    return "Kontrak surat peringatan wajib dipilih";
+  }
+  if (!form.letter_type.trim()) return "Jenis surat peringatan wajib diisi";
+  if (!form.issued_at) return "Tanggal terbit wajib diisi";
+  if (form.files.length === 0 && !form.file) {
+    return "File surat peringatan wajib dipilih";
+  }
   return null;
 }
 
@@ -2021,6 +2084,129 @@ function DataUtamaTab({
         </SectionCard>
       </div>
     </div>
+  );
+}
+
+function DebtorWarningLetterUploadModal({
+  isOpen,
+  form,
+  contracts,
+  isSaving,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  isOpen: boolean;
+  form: DebtorWarningLetterUploadFormState;
+  contracts: DebtorContract[];
+  isSaving: boolean;
+  onChange: (patch: Partial<DebtorWarningLetterUploadFormState>) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <DashboardModal
+      isOpen={isOpen}
+      title="Upload Surat Peringatan"
+      onClose={onClose}
+      closeDisabled={isSaving}
+      maxWidth="3xl"
+      bodyClassName="space-y-4 p-6"
+      footer={
+        <>
+          <button
+            type="button"
+            className="uiverse-modal-button uiverse-modal-button--neutral"
+            disabled={isSaving}
+            onClick={onClose}
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            className="uiverse-modal-button uiverse-modal-button--primary"
+            disabled={isSaving}
+            onClick={onSave}
+          >
+            <Upload className="h-4 w-4" aria-hidden="true" />
+            <span>{isSaving ? "Mengupload..." : "Upload"}</span>
+          </button>
+        </>
+      }
+    >
+      <SetupFormSection title="Data Surat" contentClassName="md:grid-cols-2">
+        <div>
+          <FormFieldLabel required>Jenis Surat Peringatan</FormFieldLabel>
+          <SetupTextInput
+            value={form.letter_type}
+            placeholder="Contoh: SP 1"
+            onChange={(event) => onChange({ letter_type: event.target.value })}
+          />
+        </div>
+        <div>
+          <FormFieldLabel required={contracts.length > 0}>Kontrak</FormFieldLabel>
+          <SetupSelect
+            value={form.contract_id}
+            onChange={(event) => onChange({ contract_id: event.target.value })}
+          >
+            <option value="">
+              {contracts.length > 0 ? "Pilih kontrak" : "Tanpa kontrak khusus"}
+            </option>
+            {contracts.map((contract) => (
+              <option key={contract.id} value={contract.id}>
+                {contract.no_kontrak}
+              </option>
+            ))}
+          </SetupSelect>
+        </div>
+        <div>
+          <FormFieldLabel required>Tanggal Terbit</FormFieldLabel>
+          <SetupTextInput
+            type="date"
+            value={form.issued_at}
+            onChange={(event) => onChange({ issued_at: event.target.value })}
+          />
+        </div>
+        <div>
+          <FormFieldLabel>Tanggal Kirim</FormFieldLabel>
+          <SetupTextInput
+            type="date"
+            value={form.sent_at}
+            onChange={(event) => onChange({ sent_at: event.target.value })}
+          />
+        </div>
+        <div>
+          <FormFieldLabel>Status Pengiriman</FormFieldLabel>
+          <SetupSelect
+            value={form.delivery_status}
+            onChange={(event) => onChange({ delivery_status: event.target.value })}
+          >
+            {WARNING_LETTER_DELIVERY_STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </SetupSelect>
+        </div>
+        <div className="md:col-span-2">
+          <FormFieldLabel>Keterangan</FormFieldLabel>
+          <SetupTextarea
+            value={form.description}
+            onChange={(event) => onChange({ description: event.target.value })}
+          />
+        </div>
+      </SetupFormSection>
+      <SetupFormSection title="File Surat" contentClassName="md:grid-cols-1">
+        <MultiFileUploadField
+          id="debtor-warning-letter-file"
+          files={form.files.length > 0 ? form.files : form.file ? [form.file] : []}
+          label="File Surat Peringatan"
+          validateFile={validateDomainUploadFile}
+          helperText="Upload file surat peringatan yang sudah terbit atau sudah dikirim."
+          onChange={(files) => onChange({ files, file: files[0] ?? null })}
+        />
+      </SetupFormSection>
+    </DashboardModal>
   );
 }
 
@@ -4603,19 +4789,26 @@ function NotarisTab({
 
 function SuratPeringatanTab({
   letters,
+  canUpload,
   onOpenFile,
+  onUpload,
 }: {
   letters: DebtorWarningLetter[];
+  canUpload: boolean;
   onOpenFile: (file: DebtorFileMeta) => void;
+  onUpload: () => void;
 }) {
   return (
     <SectionCard
-      title="Surat Peringatan Terupload"
+      title="Arsip Surat Peringatan"
       actions={
-        <LegalShortcutLink
-          href="/dashboard/legal/cetak/surat-peringatan"
-          label="Buka Cetak SP"
-        />
+        canUpload ? (
+          <SetupAddButton
+            label="Upload Surat Peringatan"
+            icon={<Upload className="uiverse-add-user-button__svg" aria-hidden="true" />}
+            onClick={onUpload}
+          />
+        ) : null
       }
     >
       <SetupTableCard variant="nested">
@@ -4659,7 +4852,7 @@ function SuratPeringatanTab({
             ))}
             {letters.length === 0 ? (
               <SetupDataTableEmptyRow colSpan={8}>
-                Belum ada surat peringatan terupload.
+                Belum ada arsip surat peringatan untuk debitur ini.
               </SetupDataTableEmptyRow>
             ) : null}
           </SetupDataTableBody>
@@ -5152,12 +5345,16 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
     useState<DebtorDocumentChecklistStatus | null>(null);
   const [isDocumentUploadModalOpen, setIsDocumentUploadModalOpen] = useState(false);
   const [isSavingDocumentUpload, setIsSavingDocumentUpload] = useState(false);
+  const [warningLetterUploadForm, setWarningLetterUploadForm] =
+    useState<DebtorWarningLetterUploadFormState>(emptyWarningLetterUploadForm);
+  const [isWarningLetterUploadModalOpen, setIsWarningLetterUploadModalOpen] =
+    useState(false);
+  const [isSavingWarningLetterUpload, setIsSavingWarningLetterUpload] = useState(false);
   const [collateralTypes, setCollateralTypes] = useState<ParameterMasterRecord[]>([]);
 
   const canUploadDocument = hasDebtorMasterCapability(role, user?.role_id, "create");
 
   const canViewLegal = hasAnyMenuCapability(role, user?.role_id, [
-    "/dashboard/legal/laporan",
     "/dashboard/legal/progress/notaris",
     "/dashboard/legal/progress/asuransi",
     "/dashboard/legal/progress/kjpp",
@@ -5165,7 +5362,6 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
     "/dashboard/legal/titipan/asuransi",
     "/dashboard/legal/titipan/notaris",
     "/dashboard/legal/titipan/angsuran",
-    "/dashboard/legal/cetak/surat-peringatan",
   ]);
 
   const visibleTabs = useMemo(
@@ -5302,11 +5498,24 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
     setIsDocumentUploadModalOpen(true);
   };
 
+  const openWarningLetterUpload = () => {
+    if (!canUploadDocument) return;
+    setWarningLetterUploadForm(
+      emptyWarningLetterUploadForm(getDefaultDocumentContractId()),
+    );
+    setIsWarningLetterUploadModalOpen(true);
+  };
+
   const closeDocumentUploadModal = () => {
     setIsDocumentUploadModalOpen(false);
     setDocumentUploadMode("other");
     setDocumentUploadChecklist(null);
     setDocumentUploadForm(emptyDocumentUploadForm());
+  };
+
+  const closeWarningLetterUploadModal = () => {
+    setIsWarningLetterUploadModalOpen(false);
+    setWarningLetterUploadForm(emptyWarningLetterUploadForm());
   };
 
   const saveDocumentUpload = async () => {
@@ -5332,6 +5541,34 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
       );
     } finally {
       setIsSavingDocumentUpload(false);
+    }
+  };
+
+  const saveWarningLetterUpload = async () => {
+    const validation = validateWarningLetterUploadForm(
+      warningLetterUploadForm,
+      workflow?.contracts.length ?? 0,
+    );
+    if (validation) {
+      showToast(validation, "warning");
+      return;
+    }
+
+    setIsSavingWarningLetterUpload(true);
+    try {
+      await debiturService.createWarningLetter(
+        buildWarningLetterUploadPayload(debtorId, warningLetterUploadForm),
+      );
+      showToast("Surat peringatan berhasil diupload", "success");
+      closeWarningLetterUploadModal();
+      await loadWorkflow();
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Gagal upload surat peringatan",
+        "error",
+      );
+    } finally {
+      setIsSavingWarningLetterUpload(false);
     }
   };
 
@@ -5438,7 +5675,9 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
             {resolvedActiveTab === "sp" ? (
               <SuratPeringatanTab
                 letters={workflow.legal.warning_letters}
+                canUpload={canUploadDocument}
                 onOpenFile={openFile}
+                onUpload={openWarningLetterUpload}
               />
             ) : null}
             {resolvedActiveTab === "claim" && canViewLegal ? (
@@ -5466,6 +5705,17 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
         }
         onClose={closeDocumentUploadModal}
         onSave={() => void saveDocumentUpload()}
+      />
+      <DebtorWarningLetterUploadModal
+        isOpen={isWarningLetterUploadModalOpen}
+        form={warningLetterUploadForm}
+        contracts={workflow?.contracts ?? []}
+        isSaving={isSavingWarningLetterUpload}
+        onChange={(patch) =>
+          setWarningLetterUploadForm((prev) => ({ ...prev, ...patch }))
+        }
+        onClose={closeWarningLetterUploadModal}
+        onSave={() => void saveWarningLetterUpload()}
       />
     </DashboardPageShell>
   );

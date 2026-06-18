@@ -202,9 +202,6 @@ export default function InputSuratKeluarPage() {
         storage_id: formData.storageId,
         delivery_media: normalizeMediaValue(formData.mediaPengiriman),
         send_date: toApiDateTime(formData.tanggalPengiriman),
-        send_due_date: deadline?.targetKirimAt
-          ? toApiDateTime(deadline.targetKirimAt)
-          : undefined,
         response_due_date: deadline?.responseDueDate
           ? toApiDateTime(deadline.responseDueDate)
           : undefined,
@@ -508,8 +505,8 @@ export default function InputSuratKeluarPage() {
       <TenggatWaktuModal
         isOpen={isDeadlineModalOpen}
         mode="outgoing"
-        title="Target dan Follow-up Surat Keluar"
-        subtitle="Atur target pengiriman atau batas follow-up balasan jika surat keluar perlu dipantau."
+        title="Batas Follow-up Surat Keluar"
+        subtitle="Atur batas follow-up atau balasan jika surat keluar perlu dipantau."
         noteLabel="Catatan follow-up"
         notePlaceholder="Contoh: hubungi penerima jika belum ada balasan sampai tenggat."
         onSkip={() => void submitSuratKeluar()}

@@ -43,8 +43,8 @@ import {
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+  SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_WIDTH_SM_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { letterPriorityService } from "@/services/letter-priority.service";
 import type { LetterPriority } from "@/types/master.types";
@@ -227,12 +227,13 @@ export default function SetupPrioritasSuratPage() {
         title="Setup Prioritas Surat"
         subtitle="Kelola master sifat atau prioritas surat."
         icon={<Mail />}
+        className={SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS}
         actions={
           <SetupAddButton label="Tambah Prioritas" onClick={openCreate} />
         }
       />
 
-      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_SM_CLASS}`}>
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS}`}>
         <SetupSearchInput
           label="Cari Data"
           value={query}
@@ -241,7 +242,7 @@ export default function SetupPrioritasSuratPage() {
         />
       </div>
 
-      <SetupTableCard variant="crud" className="mx-auto max-w-[720px]">
+      <SetupTableCard variant="crud" className={SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS}>
           <SetupDataTable variant="crud" density="compact" className={SETUP_PAGE_MODERN_TABLE_CLASS}>
             <SetupDataTableColGroup>
               <SetupDataTableCol className="w-[56px]" />

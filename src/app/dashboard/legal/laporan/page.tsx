@@ -1,5 +1,5 @@
-import { LegalReportClient } from "@/components/legal/LegalModuleClients";
+import { notFound } from "next/navigation";
 
 export default function LaporanLegalPage() {
-  return <LegalReportClient />;
+  notFound();
 }

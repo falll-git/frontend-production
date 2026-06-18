@@ -24,7 +24,6 @@ import SetupStatusBadge, {
 import { storageUsageService } from "@/services/storage-usage.service";
 import type { DashboardMenuNode } from "@/types/rbac.types";
 import type {
-  StorageUsageBreakdownItem,
   StorageUsageDashboardData,
   StorageUsageStatusKey,
   StorageUsageTrendPoint,
@@ -34,7 +33,7 @@ type StorageOverviewWidgetProps = {
   widget: DashboardMenuNode;
 };
 
-type StorageUnit = "MB" | "GB";
+type StorageUnit = "KB" | "MB" | "GB";
 
 type StorageChartPoint = StorageUsageTrendPoint & {
   used_value: number;
@@ -72,6 +71,11 @@ function formatGb(value: number) {
 function formatStorageSize(bytes: number, fallbackGb = 0) {
   const safeBytes = Math.max(Number(bytes) || 0, 0);
   if (safeBytes === 0) return "0 MB";
+
+  if (safeBytes < MB_BYTES) {
+    const kb = safeBytes / 1024;
+    return `${numberFormatter.format(Math.max(kb, 0.1))} KB`;
+  }
 
   if (safeBytes < GB_BYTES) {
     const mb = safeBytes / MB_BYTES;
@@ -131,12 +135,14 @@ function resolveChartUnit(points: StorageUsageTrendPoint[]): StorageUnit {
     (max, point) => Math.max(max, point.used_bytes),
     0,
   );
+  if (maxUsedBytes < MB_BYTES) return "KB";
   return maxUsedBytes >= GB_BYTES ? "GB" : "MB";
 }
 
 function toUnitValue(bytes: number, unit: StorageUnit) {
-  const divisor = unit === "GB" ? GB_BYTES : MB_BYTES;
-  const digits = unit === "GB" ? 4 : 2;
+  const divisor =
+    unit === "GB" ? GB_BYTES : unit === "MB" ? MB_BYTES : 1024;
+  const digits = unit === "GB" ? 4 : unit === "MB" ? 2 : 1;
   return Number(((Number(bytes) || 0) / divisor).toFixed(digits));
 }
 
@@ -148,10 +154,38 @@ function getLatestDelta(data: StorageUsageDashboardData) {
   return data.trend[data.trend.length - 1]?.delta_bytes ?? 0;
 }
 
-function getLargestModule(
-  breakdown: StorageUsageBreakdownItem[],
-): StorageUsageBreakdownItem | null {
-  return breakdown.length > 0 ? breakdown[0] : null;
+function resolveChartUpperBound(maxValue: number, unit: StorageUnit) {
+  if (maxValue <= 0) {
+    if (unit === "KB") return 128;
+    if (unit === "MB") return 1;
+    return 0.01;
+  }
+
+  if (unit === "KB") {
+    if (maxValue <= 64) return 64;
+    if (maxValue <= 128) return 128;
+    if (maxValue <= 256) return 256;
+    if (maxValue <= 512) return 512;
+    return Math.ceil((maxValue * 1.15) / 128) * 128;
+  }
+
+  if (unit === "MB") {
+    if (maxValue <= 0.25) return 0.25;
+    if (maxValue <= 0.5) return 0.5;
+    if (maxValue <= 1) return 1;
+    if (maxValue <= 2) return 2;
+    if (maxValue <= 5) return 5;
+    if (maxValue <= 10) return 10;
+    return Math.ceil(maxValue * 1.15);
+  }
+
+  if (maxValue <= 0.01) return 0.01;
+  if (maxValue <= 0.05) return 0.05;
+  if (maxValue <= 0.1) return 0.1;
+  if (maxValue <= 0.25) return 0.25;
+  if (maxValue <= 0.5) return 0.5;
+  if (maxValue <= 1) return 1;
+  return Math.ceil(maxValue * 1.15 * 10) / 10;
 }
 
 function useElementSize() {
@@ -310,53 +344,6 @@ function MetricRow({
   );
 }
 
-function StorageBreakdown({ items }: { items: StorageUsageBreakdownItem[] }) {
-  if (items.length === 0) {
-    return (
-      <div className="border-t border-gray-100 pt-4">
-        <p className="text-sm font-semibold text-gray-900">Rincian per modul</p>
-        <p className="mt-2 text-sm text-gray-500">
-          Belum ada file yang tercatat di storage.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="border-t border-gray-100 pt-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-gray-900">Rincian per modul</p>
-        <span className="text-xs font-semibold text-gray-500">
-          {items.length} modul
-        </span>
-      </div>
-      <div className="grid gap-3 md:grid-cols-2">
-        {items.slice(0, 4).map((item) => (
-          <div key={item.module_key} className="min-w-0">
-            <div className="mb-1 flex items-center justify-between gap-3 text-xs">
-              <span className="truncate font-semibold text-gray-700">
-                {item.module_label}
-              </span>
-              <span className="flex-none font-bold text-gray-900">
-                {formatStorageSize(item.used_bytes, item.used_gb)}
-              </span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-gray-100">
-              <div
-                className="h-full rounded-full bg-[#1773B0]"
-                style={{ width: `${Math.min(item.percentage_of_total, 100)}%` }}
-              />
-            </div>
-            <p className="mt-1 text-xs text-gray-500">
-              {integerFormatter.format(item.file_count)} file
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function StorageTrendChart({ data }: { data: StorageUsageDashboardData }) {
   const [lineChartRef, lineChartSize] = useElementSize();
   const chartUnit = useMemo(() => resolveChartUnit(data.trend), [data.trend]);
@@ -368,6 +355,18 @@ function StorageTrendChart({ data }: { data: StorageUsageDashboardData }) {
         delta_value: toUnitValue(item.delta_bytes, chartUnit),
       })),
     [chartUnit, data.trend],
+  );
+  const maxUsedValue = useMemo(
+    () =>
+      chartData.reduce(
+        (max, item) => Math.max(max, item.used_value),
+        0,
+      ),
+    [chartData],
+  );
+  const yAxisUpperBound = useMemo(
+    () => resolveChartUpperBound(maxUsedValue, chartUnit),
+    [chartUnit, maxUsedValue],
   );
   const estimatedCount = data.trend.filter((item) => item.is_estimated).length;
   const latestDelta = getLatestDelta(data);
@@ -409,7 +408,7 @@ function StorageTrendChart({ data }: { data: StorageUsageDashboardData }) {
           </p>
         </div>
       ) : (
-        <div ref={lineChartRef} className="h-[260px] min-w-0">
+        <div ref={lineChartRef} className="h-[340px] min-w-0">
           {lineChartSize.width > 0 && lineChartSize.height > 0 ? (
             <LineChart
               data={chartData}
@@ -420,14 +419,11 @@ function StorageTrendChart({ data }: { data: StorageUsageDashboardData }) {
               <CartesianGrid stroke="#e5e7eb" strokeDasharray="4 4" vertical={false} />
               <YAxis
                 axisLine={false}
-                domain={[
-                  0,
-                  (dataMax: number) =>
-                    Math.max(dataMax * 1.2, chartUnit === "GB" ? 0.01 : 1),
-                ]}
+                domain={[0, yAxisUpperBound]}
                 tick={{ fill: "#64748b", fontSize: 12 }}
                 tickFormatter={(value) => formatUnitValue(Number(value), chartUnit)}
                 tickLine={false}
+                tickCount={6}
                 width={72}
               />
               <XAxis
@@ -511,7 +507,6 @@ export default function StorageOverviewWidget({
   const statusTone = getStatusTone(data.usage.status_key);
   const progressColor = getProgressColor(data.usage.status_key);
   const latestDelta = getLatestDelta(data);
-  const largestModule = getLargestModule(data.breakdown);
   const remainingLabel = data.usage.overage_gb > 0 ? "Kelebihan" : "Sisa";
   const remainingValue = formatStorageSize(
     data.usage.overage_gb > 0
@@ -555,10 +550,6 @@ export default function StorageOverviewWidget({
             <MetricRow
               label="File tersimpan"
               value={integerFormatter.format(data.usage.file_count)}
-            />
-            <MetricRow
-              label="Terbanyak di"
-              value={largestModule?.module_label ?? "-"}
             />
           </div>
 
@@ -640,7 +631,6 @@ export default function StorageOverviewWidget({
           </div>
 
           <StorageTrendChart data={data} />
-          <StorageBreakdown items={data.breakdown} />
         </div>
       </div>
     </section>

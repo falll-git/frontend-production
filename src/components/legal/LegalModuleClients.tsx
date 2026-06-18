@@ -813,20 +813,6 @@ function buildLegalFlowSteps(summary: LegalSummaryReport | null, isLoading: bool
 
   return [
     {
-      label: "Setup Template",
-      description: "Master dokumen dan penomoran legal sebelum proses cetak.",
-      href: "/dashboard/legal/template-dokumen",
-      value: value(summary?.templates),
-      icon: FileArchive,
-    },
-    {
-      label: "Cetak Dokumen",
-      description: "Akad, haftsheet, surat peringatan, surat pengantar, SKL, Samsat, dan dokumen lainnya.",
-      href: "/dashboard/legal/cetak/akad",
-      value: value(summary?.prints),
-      icon: Printer,
-    },
-    {
       label: "Pihak Ketiga Notaris",
       description: "Pantau akta, nomor akta, tanggal terima, dan selesai.",
       href: "/dashboard/legal/progress/notaris",
@@ -867,7 +853,7 @@ function buildLegalFlowSteps(summary: LegalSummaryReport | null, isLoading: bool
 function LegalFlowBoard({
   steps,
   title = "Flow Operasional Legal",
-  subtitle = "Urutan kerja legal mengikuti proses dokumen, pihak ketiga, klaim, dan dana titipan.",
+  subtitle = "Urutan kerja legal mengikuti progress pihak ketiga, klaim asuransi, dan dana titipan.",
 }: {
   steps: LegalFlowStep[];
   title?: string;
@@ -1155,8 +1141,6 @@ export function LegalOverviewClient() {
   const flowSteps = useMemo(() => buildLegalFlowSteps(summary, isLoading), [isLoading, summary]);
 
   const cards = [
-    { label: "Template", value: summary?.templates ?? 0, icon: FileArchive, href: "/dashboard/legal/template-dokumen" },
-    { label: "Cetak Dokumen", value: summary?.prints ?? 0, icon: Printer, href: "/dashboard/legal/cetak/akad" },
     { label: "Progress Notaris", value: summary?.notary ?? 0, icon: Landmark, href: "/dashboard/legal/progress/notaris" },
     { label: "Progress Asuransi", value: summary?.insurance ?? 0, icon: ShieldCheck, href: "/dashboard/legal/progress/asuransi" },
     { label: "Klaim", value: summary?.claims ?? 0, icon: FileCheck2, href: "/dashboard/legal/progress/klaim" },
@@ -1167,7 +1151,7 @@ export function LegalOverviewClient() {
     <DashboardPageShell spacing="md">
       <FeatureHeader
         title="Manajemen Legal"
-        subtitle="Template, dokumen legal, pihak ketiga, dana titipan, klaim, dan laporan legal."
+        subtitle="Progress pihak ketiga, tracking klaim asuransi, dan dana titipan."
         icon={<Landmark />}
       />
       <LegalFlowBoard steps={flowSteps} />

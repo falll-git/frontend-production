@@ -1,5 +1,5 @@
-import { LegalPrintClient } from "@/components/legal/LegalModuleClients";
+import { notFound } from "next/navigation";
 
 export default function CetakAkadPage() {
-  return <LegalPrintClient documentType="AKAD" title="Dokumen Akad" />;
+  notFound();
 }

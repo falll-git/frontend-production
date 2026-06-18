@@ -1,5 +1,5 @@
-import { LegalPrintClient } from "@/components/legal/LegalModuleClients";
+import { notFound } from "next/navigation";
 
 export default function SuratPeringatanPage() {
-  return <LegalPrintClient documentType="SURAT_PERINGATAN" title="Surat Peringatan" />;
+  notFound();
 }

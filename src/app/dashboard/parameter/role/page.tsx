@@ -42,8 +42,8 @@ import {
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+  SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
-  SETUP_PAGE_WIDTH_SM_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { roleService } from "@/services/role.service";
 import type { RoleRecord } from "@/types/master.types";
@@ -225,12 +225,13 @@ export default function SetupRolePage() {
         title="Setup Role"
         subtitle="Atur role yang dipakai di sistem."
         icon={<Shield />}
+        className={SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS}
         actions={
           <SetupAddButton label="Tambah Role" onClick={openCreate} />
         }
       />
 
-      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_SM_CLASS}`}>
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS}`}>
         <SetupSearchInput
           label="Cari Data"
           value={query}
@@ -239,7 +240,7 @@ export default function SetupRolePage() {
         />
       </div>
 
-      <SetupTableCard variant="crud" className="mx-auto max-w-[720px]">
+      <SetupTableCard variant="crud" className={SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS}>
           <SetupDataTable variant="crud" density="compact" className={SETUP_PAGE_MODERN_TABLE_CLASS}>
             <SetupDataTableColGroup>
               <SetupDataTableCol className="w-[56px]" />

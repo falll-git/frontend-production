@@ -67,31 +67,35 @@ export default function SetupFilePreviewGroup({
   return (
     <div
       className={[
-        "flex flex-col gap-2",
+        "flex w-full max-w-[240px] flex-col gap-2",
         align === "center" ? "items-center" : "items-start",
       ].join(" ")}
     >
       <span className="text-xs font-medium text-slate-500">
         {previewFiles.length} file
       </span>
-      {previewFiles.map((previewFile, index) =>
-        previewFile.url ? (
-          <SetupViewButton
+      <div className="w-full space-y-2">
+        {previewFiles.map((previewFile, index) => (
+          <div
             key={previewFileKey(previewFile, index)}
-            label={`File ${index + 1}`}
-            title={previewFile.name ? `Preview ${previewFile.name}` : `Preview file ${index + 1}`}
-            onClick={() => onOpen(previewFile)}
-          />
-        ) : (
-          <span
-            key={previewFileKey(previewFile, index)}
-            className="text-xs text-slate-500"
-            title={previewFile.name ?? undefined}
+            className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2"
           >
-            {previewFile.name ?? `File ${index + 1}`}
-          </span>
-        ),
-      )}
+            <span
+              className="min-w-0 flex-1 truncate text-xs text-slate-600"
+              title={previewFile.name ?? `File ${index + 1}`}
+            >
+              {previewFile.name ?? `File ${index + 1}`}
+            </span>
+            {previewFile.url ? (
+              <SetupViewButton
+                label="Lihat"
+                title={previewFile.name ? `Preview ${previewFile.name}` : `Preview file ${index + 1}`}
+                onClick={() => onOpen(previewFile)}
+              />
+            ) : null}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -12,7 +12,6 @@ import {
 export type TenggatWaktuPayload = {
   tenggatWaktu?: string;
   keteranganTenggat?: string;
-  targetKirimAt?: string;
   responseDueDate?: string;
 };
 
@@ -44,17 +43,21 @@ export default function TenggatWaktuModal({
   showNoteField = true,
 }: TenggatWaktuModalProps) {
   const [tenggatWaktu, setTenggatWaktu] = useState("");
-  const [targetKirimAt, setTargetKirimAt] = useState("");
   const [responseDueDate, setResponseDueDate] = useState("");
   const [keteranganTenggat, setKeteranganTenggat] = useState("");
   const isOutgoing = mode === "outgoing";
+  const skipLabel = isOutgoing
+    ? "Simpan tanpa batas follow-up"
+    : "Simpan tanpa tenggat";
+  const saveLabel = isOutgoing
+    ? "Simpan dengan batas follow-up"
+    : "Simpan dengan tenggat";
 
   const handleSave = () => {
     const trimmedNote = keteranganTenggat.trim();
 
     onSave({
       tenggatWaktu: tenggatWaktu || undefined,
-      targetKirimAt: targetKirimAt || undefined,
       responseDueDate: responseDueDate || undefined,
       keteranganTenggat: trimmedNote || undefined,
     });
@@ -74,14 +77,14 @@ export default function TenggatWaktuModal({
             onClick={onSkip}
             className={SETUP_PAGE_BACK_BUTTON_CLASS}
           >
-            Simpan tanpa tenggat
+            {skipLabel}
           </button>
           <button
             type="button"
             onClick={handleSave}
             className={SETUP_PAGE_PRIMARY_BUTTON_CLASS}
           >
-            Simpan dengan tenggat
+            {saveLabel}
           </button>
         </>
       }
@@ -99,23 +102,10 @@ export default function TenggatWaktuModal({
         ) : null}
 
         {isOutgoing ? (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div>
             <div>
               <label className="mb-2 block text-sm font-medium text-gray-700">
-                Target Pengiriman
-              </label>
-              <BasicDateInput
-                value={targetKirimAt}
-                onChange={setTargetKirimAt}
-                placeholder="Pilih tanggal target..."
-              />
-              <p className="mt-2 text-xs text-slate-500">
-                Gunakan jika tanggal target berbeda dari tanggal pengiriman.
-              </p>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Batas Follow-up Balasan
+                Batas Follow-up / Balasan
               </label>
               <BasicDateInput
                 value={responseDueDate}
@@ -123,7 +113,7 @@ export default function TenggatWaktuModal({
                 placeholder="Pilih tanggal follow-up..."
               />
               <p className="mt-2 text-xs text-slate-500">
-                Gunakan jika surat keluar perlu dipantau sampai ada balasan.
+                Kosongkan jika surat keluar tidak perlu dipantau sampai ada balasan.
               </p>
             </div>
           </div>
