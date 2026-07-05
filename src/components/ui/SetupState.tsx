@@ -1,7 +1,7 @@
 import {
   AlertTriangle,
+  Clock3,
   Inbox,
-  LoaderCircle,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -27,7 +27,7 @@ const VARIANT_CLASS: Record<SetupStateVariant, string> = {
 
 const VARIANT_ICON: Record<SetupStateVariant, LucideIcon> = {
   empty: Inbox,
-  loading: LoaderCircle,
+  loading: Clock3,
   error: AlertTriangle,
 };
 
@@ -55,7 +55,6 @@ export default function SetupState({
           className={cn(
             "mt-0.5 shrink-0",
             compact ? "size-4" : "size-5",
-            variant === "loading" ? "animate-spin" : "",
           )}
           aria-hidden="true"
           strokeWidth={1.7}

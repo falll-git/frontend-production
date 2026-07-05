@@ -19,8 +19,8 @@ import {
   Plus,
 } from "lucide-react";
 
-import NewtonsCradleLoader from "@/components/ui/NewtonsCradleLoader";
 import SetupModalCloseButton from "@/components/ui/SetupModalCloseButton";
+import { SetupDocumentPreviewSkeleton } from "@/components/ui/SetupSkeleton";
 import {
   detectDocumentFileType,
   type DocumentFileType,
@@ -281,14 +281,7 @@ function DocumentPreview({
         <div className="doc-preview-content">
           {isLoading && canPreviewInline ? (
             <div className="doc-preview-loading">
-              <NewtonsCradleLoader
-                size={56}
-                color="#157ec3"
-                label="Memuat dokumen..."
-              />
-              <p className="mt-4 font-medium text-gray-600">
-                Memuat dokumen...
-              </p>
+              <SetupDocumentPreviewSkeleton className="w-full max-w-4xl bg-transparent p-0" />
             </div>
           ) : null}
 

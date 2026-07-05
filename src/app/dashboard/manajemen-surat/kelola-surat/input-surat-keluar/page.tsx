@@ -8,9 +8,6 @@ import FeatureHeader from "@/components/ui/FeatureHeader";
 import BasicDateInput from "@/components/ui/BasicDateInput";
 import FileUploadField from "@/components/ui/FileUploadField";
 import PhysicalStorageSelect from "@/components/manajemen-surat/PhysicalStorageSelect";
-import TenggatWaktuModal, {
-  type TenggatWaktuPayload,
-} from "@/components/surat/TenggatWaktuModal";
 import SetupSelect from "@/components/ui/SetupSelect";
 import SetupTextInput from "@/components/ui/SetupTextInput";
 import SetupTextarea from "@/components/ui/SetupTextarea";
@@ -75,7 +72,6 @@ export default function InputSuratKeluarPage() {
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isDeadlineModalOpen, setIsDeadlineModalOpen] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [letterPriorities, setLetterPriorities] = useState<
     { id: string; name: string }[]
@@ -184,17 +180,15 @@ export default function InputSuratKeluarPage() {
   };
 
   const handleReset = () => {
-    setIsDeadlineModalOpen(false);
     setFormData(INITIAL_FORM_STATE);
     setFile(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const submitSuratKeluar = async (deadline?: TenggatWaktuPayload) => {
+  const submitSuratKeluar = async () => {
     if (!ensureCapability(SURAT_KELUAR_MENU_URL, "create")) return;
 
     setIsLoading(true);
-    setIsDeadlineModalOpen(false);
 
     try {
       await suratKeluarService.create({
@@ -202,10 +196,6 @@ export default function InputSuratKeluarPage() {
         storage_id: formData.storageId,
         delivery_media: normalizeMediaValue(formData.mediaPengiriman),
         send_date: toApiDateTime(formData.tanggalPengiriman),
-        response_due_date: deadline?.responseDueDate
-          ? toApiDateTime(deadline.responseDueDate)
-          : undefined,
-        follow_up_note: deadline?.keteranganTenggat,
         mail_number: formData.namaSurat.trim(),
         name: formData.namaPenerima.trim(),
         file: file ?? undefined,
@@ -260,7 +250,7 @@ export default function InputSuratKeluarPage() {
       return;
     }
 
-    setIsDeadlineModalOpen(true);
+    void submitSuratKeluar();
   };
 
   return (
@@ -488,10 +478,7 @@ export default function InputSuratKeluarPage() {
               className={SETUP_PAGE_PRIMARY_BUTTON_CLASS}
             >
               {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Menyimpan...
-                </span>
+                "Menyimpan..."
               ) : (
                 <>
                   <Send className="w-4 h-4" />
@@ -502,16 +489,6 @@ export default function InputSuratKeluarPage() {
           </div>
         </form>
       </div>
-      <TenggatWaktuModal
-        isOpen={isDeadlineModalOpen}
-        mode="outgoing"
-        title="Batas Follow-up Surat Keluar"
-        subtitle="Atur batas follow-up atau balasan jika surat keluar perlu dipantau."
-        noteLabel="Catatan follow-up"
-        notePlaceholder="Contoh: hubungi penerima jika belum ada balasan sampai tenggat."
-        onSkip={() => void submitSuratKeluar()}
-        onSave={(deadline) => void submitSuratKeluar(deadline)}
-      />
     </DashboardPageShell>
   );
 }

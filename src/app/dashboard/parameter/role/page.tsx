@@ -10,6 +10,7 @@ import {
   SetupDataTableCell,
   SetupDataTableColGroup,
   SetupDataTableCol,
+  SetupDataTableEmptyRow,
   SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useEffect, useMemo, useState } from "react";
@@ -32,16 +33,17 @@ import SetupTextInput from "@/components/ui/SetupTextInput";
 import { useClientPagination } from "@/hooks/useClientPagination";
 import { SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import {
+  getSetupPageEmptyStateCopy,
   SETUP_PAGE_MODERN_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
-  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
   SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+  SETUP_PAGE_WIDTH_XL_CLASS,
   SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
 } from "@/components/ui/setupPageStyles";
@@ -225,22 +227,25 @@ export default function SetupRolePage() {
         title="Setup Role"
         subtitle="Atur role yang dipakai di sistem."
         icon={<Shield />}
-        className={SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS}
+        className={SETUP_PAGE_WIDTH_XL_CLASS}
         actions={
           <SetupAddButton label="Tambah Role" onClick={openCreate} />
         }
       />
 
-      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS}`}>
-        <SetupSearchInput
-          label="Cari Data"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Cari nama role..."
-        />
+      <div className={SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS}>
+        <div className={SETUP_PAGE_SEARCH_CARD_CLASS}>
+          <SetupSearchInput
+            label="Cari Data"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Cari nama role..."
+          />
+        </div>
       </div>
 
-      <SetupTableCard variant="crud" className={SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS}>
+      <div className={SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS}>
+        <SetupTableCard variant="crud">
           <SetupDataTable variant="crud" density="compact" className={SETUP_PAGE_MODERN_TABLE_CLASS}>
             <SetupDataTableColGroup>
               <SetupDataTableCol className="w-[56px]" />
@@ -301,27 +306,21 @@ export default function SetupRolePage() {
               ))}
 
               {isFetching && (
-                <SetupDataTableRow>
-                  <SetupDataTableCell
-                    colSpan={3}
-                    className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
-                  >
-                    Memuat data role...
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
+                <SetupDataTableEmptyRow colSpan={3} tone="parameter">
+                  Memuat data role...
+                </SetupDataTableEmptyRow>
               )}
 
               {!isFetching && filtered.length === 0 && (
-                <SetupDataTableRow>
-                  <SetupDataTableCell
-                    colSpan={3}
-                    className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
-                  >
-                    {query.trim()
-                      ? "Tidak ada role yang cocok dengan pencarian."
-                      : "Belum ada role. Tambah role baru kalau diperlukan."}
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
+                <SetupDataTableEmptyRow
+                  colSpan={3}
+                  tone="parameter"
+                  isFiltered={Boolean(query.trim())}
+                >
+                  {query.trim()
+                    ? "Tidak ada role yang cocok dengan pencarian."
+                    : getSetupPageEmptyStateCopy("role")}
+                </SetupDataTableEmptyRow>
               )}
             </SetupDataTableBody>
           </SetupDataTable>
@@ -333,7 +332,8 @@ export default function SetupRolePage() {
           isLoading={isFetching}
           onPageChange={setPage}
         />
-      </SetupTableCard>
+        </SetupTableCard>
+      </div>
 
       <DashboardModal
         isOpen={isModalOpen}

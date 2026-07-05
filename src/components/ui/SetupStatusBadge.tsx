@@ -97,6 +97,7 @@ function getStatusConfig(status: string, size: "sm" | "md") {
       };
     case "nonaktif":
     case "ditolak":
+    case "dicabut":
     case "hapus":
     case "gagal":
     case "failed":

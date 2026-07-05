@@ -10,15 +10,18 @@ type WatermarkFileStatusProps = {
 export default function WatermarkFileStatus({
   watermark,
 }: WatermarkFileStatusProps) {
-  const statusLabel =
-    watermark?.status_label && watermark.status_label.trim()
-      ? watermark.status_label
-      : "Nonaktif";
+  const isActive = Boolean(
+    watermark?.applied ||
+      watermark?.status_key === "APPLIED" ||
+      watermark?.file_url,
+  );
+  const statusLabel = isActive ? "Aktif" : "Nonaktif";
 
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
       <SetupStatusBadge
-        status={statusLabel as Parameters<typeof SetupStatusBadge>[0]["status"]}
+        status={statusLabel}
+        tone={isActive ? "emerald" : "red"}
       />
       {watermark?.error_message ? (
         <span className="text-xs font-medium text-red-600">

@@ -8,6 +8,7 @@ import {
   SetupDataTableRow,
   SetupDataTableHeaderCell,
   SetupDataTableCell,
+  SetupDataTableEmptyRow,
   SetupDataTableColGroup,
   SetupDataTableCol,
   SetupTableCard,
@@ -21,8 +22,13 @@ import {
   type ReactNode,
 } from "react";
 import {
+  Eye,
+  FileBadge2,
   FileText,
+  MapPinned,
   Pencil,
+  ShieldCheck,
+  UserRound,
   Save,
   Trash2,
 } from "lucide-react";
@@ -43,15 +49,15 @@ import SetupExcelButton from "@/components/ui/SetupExcelButton";
 import SetupSelect from "@/components/ui/SetupSelect";
 import SetupTextInput from "@/components/ui/SetupTextInput";
 import SetupTextarea from "@/components/ui/SetupTextarea";
-import SetupActionMenu from "@/components/ui/SetupActionMenu";
+import SetupActionMenu, {
+  type SetupActionMenuItem,
+} from "@/components/ui/SetupActionMenu";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
-import WatermarkFileStatus from "@/components/ui/WatermarkFileStatus";
 import {
   SETUP_PAGE_MODERN_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
-  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
   SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
@@ -199,32 +205,49 @@ const getDocumentOwnerDivisionId = (doc: DokumenRow) =>
   doc.owner?.division_id ??
   "";
 
-type ReadOnlyFieldProps = {
+type DetailInfoItemProps = {
   label: string;
-  children: ReactNode;
-  className?: string;
-  contentClassName?: string;
+  value?: ReactNode;
   helper?: ReactNode;
+  className?: string;
+  align?: "start" | "center";
 };
 
-function ReadOnlyField({
+function DetailInfoItem({
+  label,
+  value = EMPTY_LABEL,
+  helper,
+  className = "",
+  align = "start",
+}: DetailInfoItemProps) {
+  return (
+    <div
+      className={`space-y-1 rounded-xl border border-gray-200 bg-white px-4 py-3 ${align === "center" ? "text-center" : ""} ${className}`.trim()}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+        {label}
+      </p>
+      <div className="text-sm font-semibold text-slate-900">{value}</div>
+      {helper ? <div className="text-xs text-slate-500">{helper}</div> : null}
+    </div>
+  );
+}
+
+function DetailKeyValueRow({
   label,
   children,
   className = "",
-  contentClassName = "",
-  helper,
-}: ReadOnlyFieldProps) {
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className={className}>
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        {label}
-      </label>
-      <div
-        className={`min-h-[48px] rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800 ${contentClassName}`.trim()}
-      >
-        {children}
-      </div>
-      {helper ? <p className="mt-2 text-xs text-slate-500">{helper}</p> : null}
+    <div
+      className={`grid gap-2 border-b border-slate-100 py-3 last:border-b-0 md:grid-cols-[168px_minmax(0,1fr)] ${className}`.trim()}
+    >
+      <div className="text-sm font-medium text-slate-500">{label}</div>
+      <div className="text-sm text-slate-900">{children}</div>
     </div>
   );
 }
@@ -786,9 +809,18 @@ export default function ListDokumenPage() {
                     <SetupDataTableCell
                       className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
                       onClick={(event) => event.stopPropagation()}
+                      onDoubleClick={(event) => event.stopPropagation()}
                     >
                       {(() => {
-                        const actionItems = [];
+                        const actionItems: SetupActionMenuItem[] = [
+                          {
+                            key: "detail",
+                            label: "Detail",
+                            icon: Eye,
+                            tone: "blue" as const,
+                            onClick: () => handleRowClick(doc),
+                          },
+                        ];
 
                         if (canUpdateDokumen && canManageDokumenRecord(doc)) {
                           actionItems.push({
@@ -824,11 +856,18 @@ export default function ListDokumenPage() {
                   </SetupDataTableRow>
                 ))
               ) : (
-                <SetupDataTableRow>
-                  <SetupDataTableCell colSpan={9} className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}>
-                    Tidak ada dokumen ditemukan.
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
+                <SetupDataTableEmptyRow
+                  colSpan={9}
+                  icon={FileText}
+                  isFiltered={searchTerm.trim().length > 0 || filterJenis !== "Semua"}
+                  description={
+                    searchTerm.trim() || filterJenis !== "Semua"
+                      ? "Ubah kata kunci atau jenis dokumen untuk melihat arsip lain."
+                      : "Dokumen arsip yang sudah diinput akan muncul di tabel ini."
+                  }
+                >
+                  Tidak ada dokumen arsip ditemukan.
+                </SetupDataTableEmptyRow>
               )}
             </SetupDataTableBody>
           </SetupDataTable>
@@ -864,85 +903,119 @@ export default function ListDokumenPage() {
             <section className="space-y-4">
               <InputDokumenSectionTitle
                 title="Informasi Dokumen"
-                description="Ringkasan identitas dokumen digital, status ketersediaan, dan file yang tersimpan."
+                description="Ringkasan identitas dokumen, file arsip, dan status watermark yang terpasang."
               />
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <ReadOnlyField
-                  label="Kode Dokumen"
-                  className="xl:col-span-2"
-                  contentClassName="font-semibold text-gray-900"
-                >
-                  {selectedDoc.kode}
-                </ReadOnlyField>
-                <ReadOnlyField
-                  label="Tanggal Input"
-                  contentClassName="font-medium text-gray-900"
-                >
-                  {formatDocumentDate(selectedDoc.tglInput)}
-                </ReadOnlyField>
-                <ReadOnlyField
-                  label="User Input"
-                  contentClassName="font-medium text-gray-900"
-                >
-                  {formatPersonName(selectedDoc.userInput)}
-                </ReadOnlyField>
-                <ReadOnlyField
-                  label="Nama Dokumen"
-                  className="xl:col-span-2"
-                  contentClassName="font-semibold text-gray-900"
-                >
-                  {selectedDoc.namaDokumen}
-                </ReadOnlyField>
-                <ReadOnlyField
-                  label="Jenis Dokumen"
-                  contentClassName="font-medium text-gray-900"
-                >
-                  {selectedDoc.jenisDokumen}
-                </ReadOnlyField>
-                <ReadOnlyField label="Status">
-                  <SetupStatusBadge status={selectedDoc.statusPinjam} />
-                </ReadOnlyField>
-                <ReadOnlyField
-                  label="Keterangan"
-                  className="md:col-span-2 xl:col-span-4"
-                  contentClassName="leading-7 text-gray-700"
-                >
-                  {selectedDoc.detail || EMPTY_LABEL}
-                </ReadOnlyField>
-              </div>
-
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">Dokumen</p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {selectedDoc.fileUrl
-                        ? "File dokumen tersedia untuk dibuka dari halaman ini."
-                        : "Belum ada file dokumen yang bisa ditampilkan."}
-                    </p>
-                    <div className="mt-3">
-                      <WatermarkFileStatus
-                        watermark={selectedDoc.watermark}
+              <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.9fr)]">
+                <div className="space-y-4 self-start rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                  <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Identitas Dokumen
+                      </p>
+                      <div className="space-y-1">
+                        <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
+                          {selectedDoc.namaDokumen}
+                        </h3>
+                        <p className="text-base font-medium text-slate-500">
+                          {selectedDoc.kode}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <SetupStatusBadge status={selectedDoc.statusPinjam} />
+                      <SetupStatusBadge
+                        status={selectedDoc.restrict ? "Restrict" : "Non-restrict"}
+                        tone={selectedDoc.restrict ? "blue" : "slate"}
                       />
                     </div>
                   </div>
-                  <SetupViewButton
-                    onClick={() =>
-                      selectedDoc.fileUrl
-                        ? openPreview(
-                            selectedDoc.fileUrl,
-                            selectedDoc.fileName || selectedDoc.namaDokumen,
-                          )
-                        : undefined
-                    }
-                    disabled={!selectedDoc.fileUrl}
-                    label="Preview"
-                    title={
-                      selectedDoc.fileUrl
-                        ? "Preview dokumen"
-                        : "File dokumen belum tersedia"
-                    }
-                  />
+
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <DetailInfoItem
+                      label="Tanggal Input"
+                      value={formatDocumentDate(selectedDoc.tglInput)}
+                    />
+                    <DetailInfoItem
+                      label="User Input"
+                      value={formatPersonName(selectedDoc.userInput)}
+                    />
+                    <DetailInfoItem
+                      label="Jenis Dokumen"
+                      value={selectedDoc.jenisDokumen}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Keterangan
+                    </p>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-700">
+                      {selectedDoc.detail || EMPTY_LABEL}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3 self-start rounded-2xl border border-gray-200 bg-slate-50 p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm">
+                      <FileBadge2 className="size-5" strokeWidth={1.9} />
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-semibold text-slate-950">
+                        File Dokumen
+                      </h4>
+                      <p className="text-sm text-slate-500">
+                        Dokumen arsip tetap single file pada modul ini.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                    {(() => {
+                      const isWatermarkActive = Boolean(
+                        selectedDoc.watermark?.applied ||
+                          selectedDoc.watermark?.status_key === "APPLIED" ||
+                          selectedDoc.watermark?.file_url,
+                      );
+
+                      return (
+                        <>
+                    <DetailKeyValueRow label="Nama File">
+                      <span className="font-medium text-slate-900">
+                        {selectedDoc.fileName || selectedDoc.namaDokumen || EMPTY_LABEL}
+                      </span>
+                    </DetailKeyValueRow>
+                    <DetailKeyValueRow label="Status Watermark">
+                      <SetupStatusBadge
+                        status={isWatermarkActive ? "Aktif" : "Nonaktif"}
+                        label={isWatermarkActive ? "Aktif" : "Nonaktif"}
+                        tone={isWatermarkActive ? "emerald" : "red"}
+                      />
+                    </DetailKeyValueRow>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="flex items-center justify-end pt-1">
+                    <SetupViewButton
+                      onClick={() =>
+                        selectedDoc.fileUrl
+                          ? openPreview(
+                              selectedDoc.fileUrl,
+                              selectedDoc.fileName || selectedDoc.namaDokumen,
+                            )
+                          : undefined
+                      }
+                      disabled={!selectedDoc.fileUrl}
+                      label="Preview"
+                      title={
+                        selectedDoc.fileUrl
+                          ? "Preview dokumen"
+                          : "File dokumen belum tersedia"
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             </section>
@@ -950,107 +1023,124 @@ export default function ListDokumenPage() {
             <section className="space-y-4">
               <InputDokumenSectionTitle
                 title="Kepemilikan dan Akses"
-                description="Informasi pemilik dokumen, pembuat, dan user yang diberi akses langsung."
+                description="Informasi pemilik dokumen, pembuat arsip, dan user yang diberi akses langsung."
               />
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                <ReadOnlyField
-                  label="PIC/Pemilik Dokumen"
-                  contentClassName="space-y-1"
-                >
-                  <p className="text-base font-semibold text-gray-900">
-                    {getUserDisplayName(getDocumentOwner(selectedDoc))}
-                  </p>
-                  {getUserMeta(getDocumentOwner(selectedDoc)) ? (
-                    <p className="text-sm text-slate-500">
-                      {getUserMeta(getDocumentOwner(selectedDoc))}
+              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center gap-2 text-slate-900">
+                      <UserRound className="size-4 text-sky-600" strokeWidth={1.9} />
+                      <p className="text-sm font-semibold">PIC / Pemilik Dokumen</p>
+                    </div>
+                    <p className="text-lg font-semibold text-slate-950">
+                      {getUserDisplayName(getDocumentOwner(selectedDoc))}
                     </p>
-                  ) : (
                     <p className="text-sm text-slate-500">
-                      Informasi kontak tidak tersedia.
+                      {getUserMeta(getDocumentOwner(selectedDoc)) ||
+                        "Informasi kontak tidak tersedia."}
                     </p>
-                  )}
-                </ReadOnlyField>
-                <ReadOnlyField
-                  label="Divisi Pemilik"
-                  contentClassName="font-semibold text-gray-900"
-                >
-                  {getDocumentOwnerDivision(selectedDoc)}
-                </ReadOnlyField>
-                <ReadOnlyField label="Dibuat Oleh" contentClassName="space-y-1">
-                  <p className="text-base font-semibold text-gray-900">
-                    {getUserDisplayName(selectedDoc.creator)}
-                  </p>
-                  {getUserMeta(selectedDoc.creator) ? (
-                    <p className="text-sm text-slate-500">
-                      {getUserMeta(selectedDoc.creator)}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-slate-500">
-                      Informasi kontak tidak tersedia.
-                    </p>
-                  )}
-                </ReadOnlyField>
-              </div>
-
-              <ReadOnlyField label="User Terkait">
-                {selectedDoc.relatedUsers.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {selectedDoc.relatedUsers.map((item) => {
-                      const meta = getRelatedUserMeta(item);
-
-                      return (
-                        <span
-                          key={item.id}
-                          className="inline-flex max-w-full items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-[0_1px_2px_rgba(15,23,42,0.03)]"
-                        >
-                          <span className="truncate font-semibold text-gray-900">
-                            {getUserDisplayName(item)}
-                          </span>
-                          {meta ? (
-                            <span className="truncate text-slate-500">
-                              {meta}
-                            </span>
-                          ) : null}
-                        </span>
-                      );
-                    })}
                   </div>
-                ) : (
-                  <p className="text-sm text-slate-500">Tidak ada user terkait.</p>
-                )}
-              </ReadOnlyField>
+                  <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center gap-2 text-slate-900">
+                      <ShieldCheck className="size-4 text-emerald-600" strokeWidth={1.9} />
+                      <p className="text-sm font-semibold">Dibuat Oleh</p>
+                    </div>
+                    <p className="text-lg font-semibold text-slate-950">
+                      {getUserDisplayName(selectedDoc.creator)}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {getUserMeta(selectedDoc.creator) ||
+                        "Informasi kontak tidak tersedia."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-2">
+                  <DetailInfoItem
+                    label="Divisi Pemilik"
+                    value={getDocumentOwnerDivision(selectedDoc)}
+                  />
+                  <DetailInfoItem
+                    label="User Terkait"
+                    value={
+                      selectedDoc.relatedUsers.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {selectedDoc.relatedUsers.map((item) => {
+                            const meta = getRelatedUserMeta(item);
+
+                            return (
+                              <span
+                                key={item.id}
+                                className="inline-flex max-w-full items-center gap-2 rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700"
+                              >
+                                <span className="truncate">
+                                  {getUserDisplayName(item)}
+                                </span>
+                                {meta ? (
+                                  <span className="truncate text-sky-600/80">
+                                    {meta}
+                                  </span>
+                                ) : null}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className="text-sm font-medium text-slate-500">
+                          Tidak ada user terkait.
+                        </span>
+                      )
+                    }
+                    className="md:col-span-2"
+                  />
+                </div>
+              </div>
             </section>
 
             <section className="space-y-4">
               <InputDokumenSectionTitle
                 title="Lokasi Penyimpanan"
-                description="Struktur lokasi fisik tempat dokumen ini terdaftar."
+                description="Lokasi fisik tempat dokumen ini disimpan dan ditelusuri."
               />
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <ReadOnlyField
-                  label="Kantor"
-                  contentClassName="font-semibold text-gray-900"
-                >
-                  {selectedDoc.officeName || EMPTY_LABEL}
-                </ReadOnlyField>
-                <ReadOnlyField
-                  label="Kode Kantor"
-                  contentClassName="font-semibold text-gray-900"
-                >
-                  {selectedDoc.officeCode || EMPTY_LABEL}
-                </ReadOnlyField>
-                <ReadOnlyField
-                  label="Lemari"
-                  contentClassName="font-semibold text-gray-900"
-                >
-                  {selectedDoc.cabinetCode || EMPTY_LABEL}
-                </ReadOnlyField>
-                <ReadOnlyField
-                  label="Rak"
-                  contentClassName="font-semibold text-gray-900"
-                >
-                  {selectedDoc.rackName || EMPTY_LABEL}
-                </ReadOnlyField>
+              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center gap-2 text-slate-900">
+                    <MapPinned className="size-4 text-sky-600" strokeWidth={1.9} />
+                    <p className="text-sm font-semibold">Jalur Lokasi Dokumen</p>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-medium text-slate-700">
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
+                      {selectedDoc.officeName || EMPTY_LABEL}
+                    </span>
+                    <span className="text-slate-400">{">"}</span>
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
+                      {selectedDoc.cabinetCode || EMPTY_LABEL}
+                    </span>
+                    <span className="text-slate-400">{">"}</span>
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
+                      {selectedDoc.rackName || EMPTY_LABEL}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-4">
+                  <DetailInfoItem
+                    label="Kode Kantor"
+                    value={selectedDoc.officeCode || EMPTY_LABEL}
+                  />
+                  <DetailInfoItem
+                    label="Kantor"
+                    value={selectedDoc.officeName || EMPTY_LABEL}
+                  />
+                  <DetailInfoItem
+                    label="Lemari"
+                    value={selectedDoc.cabinetCode || EMPTY_LABEL}
+                  />
+                  <DetailInfoItem
+                    label="Rak"
+                    value={selectedDoc.rackName || EMPTY_LABEL}
+                  />
+                </div>
               </div>
             </section>
 

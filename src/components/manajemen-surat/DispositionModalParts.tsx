@@ -41,10 +41,10 @@ export function DispositionDetailItem({
 
   return (
     <div className={className}>
-      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
         {label}
       </p>
-      <p className="mt-1.5 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-slate-800">
+      <p className="mt-1.5 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-slate-900">
         {displayValue}
       </p>
     </div>
@@ -64,10 +64,10 @@ export function DispositionSectionPanel({
 }) {
   return (
     <section
-      className={`rounded-lg border border-slate-200 bg-white p-5 shadow-sm ${className}`.trim()}
+      className={`rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)] ${className}`.trim()}
     >
       <div className="mb-4 flex items-center gap-3">
-        <span className="inline-flex shrink-0 text-slate-900">
+        <span className="inline-flex shrink-0 text-sky-600">
           {icon}
         </span>
         <h3 className="text-sm font-bold text-slate-900">{title}</h3>

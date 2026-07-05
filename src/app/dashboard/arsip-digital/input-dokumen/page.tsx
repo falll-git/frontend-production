@@ -35,8 +35,6 @@ const DEBTOR_READ_MENU_URLS = [
   "/dashboard/informasi-debitur/marketing/hasil-kunjungan",
   "/dashboard/informasi-debitur/marketing/langkah-penanganan",
   "/dashboard/informasi-debitur/laporan",
-  "/dashboard/informasi-debitur/laporan/npf",
-  "/dashboard/informasi-debitur/laporan/aktivitas-marketing",
 ];
 
 type RestrictOption = "Ya" | "Tidak";

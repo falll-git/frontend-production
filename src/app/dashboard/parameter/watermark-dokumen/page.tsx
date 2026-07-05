@@ -26,9 +26,13 @@ import SetupTextInput from "@/components/ui/SetupTextInput";
 import SetupTextarea from "@/components/ui/SetupTextarea";
 import FileUploadField from "@/components/ui/FileUploadField";
 import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
+import { SetupSkeletonBlock } from "@/components/ui/SetupSkeleton";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { watermarkService } from "@/services/watermark.service";
-import { SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS } from "@/components/ui/setupPageStyles";
+import {
+  SETUP_PAGE_WIDTH_XL_CLASS,
+  SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS,
+} from "@/components/ui/setupPageStyles";
 import type {
   WatermarkOption,
   WatermarkOptions,
@@ -506,9 +510,9 @@ export default function SetupWatermarkDokumenPage() {
         title="Setup Watermark Dokumen"
         subtitle="Konfigurasi watermark file dokumen."
         icon={<Stamp />}
-        className={SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS}
+        className={SETUP_PAGE_WIDTH_XL_CLASS}
         actions={
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
             <button
               type="button"
               onClick={resetForm}
@@ -519,7 +523,7 @@ export default function SetupWatermarkDokumenPage() {
                 isApplyingExisting ||
                 !settings
               }
-              className="uiverse-modal-button uiverse-modal-button--neutral"
+              className="uiverse-modal-button uiverse-modal-button--neutral w-full justify-center sm:w-auto"
             >
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
               <span>Reset</span>
@@ -535,7 +539,7 @@ export default function SetupWatermarkDokumenPage() {
                 isDeletingImage ||
                 isApplyingExisting
               }
-              className="uiverse-modal-button uiverse-modal-button--neutral"
+              className="uiverse-modal-button uiverse-modal-button--neutral w-full justify-center sm:w-auto"
             >
               {isApplyingExisting ? (
                 <div
@@ -564,7 +568,7 @@ export default function SetupWatermarkDokumenPage() {
                 isDeletingImage ||
                 isApplyingExisting
               }
-              className="uiverse-modal-button uiverse-modal-button--primary"
+              className="uiverse-modal-button uiverse-modal-button--primary w-full justify-center sm:w-auto"
             >
               {isSaving ? (
                 <>
@@ -637,9 +641,16 @@ export default function SetupWatermarkDokumenPage() {
                     );
                   })}
                   {options.watermark_types.length === 0 && (
-                    <span className="text-sm text-gray-500">
-                      {isFetching ? "Memuat tipe..." : "Tipe belum tersedia."}
-                    </span>
+                    isFetching ? (
+                      <>
+                        <SetupSkeletonBlock className="h-11 w-28" />
+                        <SetupSkeletonBlock className="h-11 w-32" />
+                      </>
+                    ) : (
+                      <span className="text-sm text-gray-500">
+                        Tipe belum tersedia.
+                      </span>
+                    )
                   )}
                 </div>
               </div>
@@ -673,7 +684,14 @@ export default function SetupWatermarkDokumenPage() {
               ))}
               {options.target_modules.length === 0 && (
                 <div className="rounded-lg border border-dashed border-gray-300 p-6 text-sm text-gray-500 md:col-span-2">
-                  {isFetching ? "Memuat target modul..." : "Target modul belum tersedia."}
+                  {isFetching ? (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <SetupSkeletonBlock className="h-5 w-48" />
+                      <SetupSkeletonBlock className="h-5 w-40" />
+                    </div>
+                  ) : (
+                    "Target modul belum tersedia."
+                  )}
                 </div>
               )}
             </div>

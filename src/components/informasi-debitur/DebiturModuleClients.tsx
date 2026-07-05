@@ -3,6 +3,7 @@
 import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import {
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -85,6 +86,7 @@ import {
   SETUP_PAGE_SEGMENTED_GROUP_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import { DOCUMENT_UPLOAD_MAX_SIZE_LABEL } from "@/lib/upload-limits";
 import { formatDateOnly } from "@/lib/utils/date";
 import { exportToExcel } from "@/lib/utils/exportExcel";
 import { validateDomainUploadFile } from "@/lib/utils/file";
@@ -141,6 +143,12 @@ type DebtorReportOverview = {
   facilities: DebtorFacilityReport["summary"] | null;
   collaterals: DebtorCollateralReport["summary"] | null;
   completeness: DebtorCompletenessReport["summary"] | null;
+};
+
+type DebtorListViewDefinition = {
+  title: string;
+  description: string;
+  icon: LucideIcon;
 };
 
 const SLIK_IMPORT_MAX_FILE_SIZE_MB = 500;
@@ -291,6 +299,26 @@ const collateralLinkStatusOptions: Option[] = [
   { value: "unlinked", label: "Belum Terhubung" },
 ];
 
+const debtorListViewOrder: DebtorListView[] = ["cif", "financing", "collateral"];
+
+const debtorListViewDefinitions: Record<DebtorListView, DebtorListViewDefinition> = {
+  cif: {
+    title: "CIF D01/D02",
+    description: "Identitas debitur sebagai parent data SLIK.",
+    icon: Users,
+  },
+  financing: {
+    title: "Pembiayaan F01",
+    description: "Fasilitas pembiayaan yang terhubung ke CIF.",
+    icon: BriefcaseBusiness,
+  },
+  collateral: {
+    title: "Agunan A01",
+    description: "Agunan yang terhubung ke debitur atau fasilitas.",
+    icon: FileArchive,
+  },
+};
+
 const completenessIssueOptions: Option[] = [
   { value: "", label: "Semua Isu" },
   { value: "REQUIRED_DOCUMENTS_INCOMPLETE", label: "Dokumen wajib belum lengkap" },
@@ -365,6 +393,10 @@ function formatCurrency(value: number | null | undefined) {
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(Number(value ?? 0));
+}
+
+function formatCurrencyOrDash(value: number | null | undefined) {
+  return value === null || value === undefined ? "-" : formatCurrency(value);
 }
 
 function downloadBrowserFile(blob: Blob, fileName: string) {
@@ -605,6 +637,10 @@ function statusLabel(status: string | null | undefined) {
   if (["INACTIVE", "NONAKTIF"].includes(normalized)) return "Nonaktif";
   if (["CLOSED", "LUNAS", "SELESAI", "DONE"].includes(normalized)) return "Selesai";
   if (["PENDING", "MENUNGGU"].includes(normalized)) return "Menunggu";
+  if (normalized === "PROCESSING") return "Diproses";
+  if (normalized === "COMPLETED") return "Selesai";
+  if (normalized === "COMPLETED_WITH_ERRORS") return "Selesai dengan Error";
+  if (normalized === "FAILED") return "Gagal";
   if (["IN_PROGRESS", "PROGRESS", "DALAM_PROSES"].includes(normalized)) {
     return "Dalam Proses";
   }
@@ -1014,6 +1050,39 @@ function validateSlikImportFile(file: File) {
   return null;
 }
 
+const SLIK_FILE_NAME_PATTERN =
+  /^(\d{4})\.(\d{6})\.(\d{4})\.(\d{2})\.([A-Z]\d{2})\.(\d+)\.txt$/i;
+
+function parseSlikFileName(fileName: string) {
+  const match = fileName.trim().match(SLIK_FILE_NAME_PATTERN);
+  if (!match) return null;
+  return {
+    segment: String(match[5] ?? "").toUpperCase(),
+    period_month: `${match[3]}-${match[4]}`,
+  };
+}
+
+function validateSlikImportFileForForm(file: File, form: ImportFormState) {
+  const baseError = validateSlikImportFile(file);
+  if (baseError) return baseError;
+
+  const meta = parseSlikFileName(file.name);
+  if (!meta) {
+    return "Nama file SLIK wajib mengikuti format KODEJENIS.KODEPELAPOR.YYYY.MM.SEGMEN.URUTAN.txt.";
+  }
+  if (!["D01", "D02", "F01", "A01"].includes(meta.segment)) {
+    return "Segmen file SLIK belum menjadi target import. Gunakan D01, D02, F01, atau A01.";
+  }
+  if (meta.segment !== form.import_segment) {
+    return `File berisi segmen ${meta.segment}, tidak sesuai pilihan import ${form.import_segment}.`;
+  }
+  if (form.period_month && meta.period_month !== form.period_month) {
+    return `Periode file ${meta.period_month} tidak sesuai Periode Data ${form.period_month}.`;
+  }
+
+  return null;
+}
+
 function buildImportPayload(form: ImportFormState): DebtorImportPayload {
   const files = form.files.length > 0 ? form.files : form.file ? [form.file] : [];
   if (files.length === 0) throw new Error("File import wajib dipilih");
@@ -1230,9 +1299,14 @@ function DetailItem({
   wide = false,
 }: {
   label: string;
-  value: string | number | null | undefined;
+  value: ReactNode | null | undefined;
   wide?: boolean;
 }) {
+  const displayValue =
+    typeof value === "string" || typeof value === "number"
+      ? normalizeDisplay(value)
+      : value || "-";
+
   return (
     <div
       className={`rounded-lg border border-gray-200 bg-gray-50 p-4 ${
@@ -1242,9 +1316,9 @@ function DetailItem({
       <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-400">
         {label}
       </p>
-      <p className="mt-2 break-words text-sm font-semibold text-gray-900">
-        {normalizeDisplay(value)}
-      </p>
+      <div className="mt-2 break-words text-sm font-semibold text-gray-900">
+        {displayValue}
+      </div>
     </div>
   );
 }
@@ -1727,6 +1801,315 @@ function DebtorDetailModal({
   );
 }
 
+function ContractDetailModal({
+  contract,
+  isOpen,
+  onClose,
+}: {
+  contract: DebtorContract | null;
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  const latestCollectibility = contract?.latest_collectibility ?? null;
+  const latestSnapshot = contract?.latest_slik_snapshot ?? null;
+  const marketingUser = contract?.marketing_user
+    ? contract.marketing_user.division_name
+      ? `${contract.marketing_user.name} / ${contract.marketing_user.division_name}`
+      : contract.marketing_user.name
+    : null;
+  const debtorIdentity = contract?.debtor
+    ? [
+        contract.debtor.debtor_number,
+        contract.debtor.identity_number,
+      ].filter(Boolean).join(" / ")
+    : null;
+
+  return (
+    <DashboardModal
+      isOpen={isOpen && contract !== null}
+      title="Detail Kontrak"
+      description={contract?.no_kontrak ?? undefined}
+      onClose={onClose}
+      maxWidth="5xl"
+      bodyClassName="max-h-[70vh] overflow-y-auto p-6"
+      footer={
+        <button
+          type="button"
+          className="uiverse-modal-button uiverse-modal-button--neutral"
+          onClick={onClose}
+        >
+          Tutup
+        </button>
+      }
+    >
+      {contract ? (
+        <div className="space-y-6">
+          <section>
+            <div className="mb-4 space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
+                Informasi Kontrak
+              </h3>
+              <p className="text-sm leading-6 text-gray-500">
+                Ringkasan fasilitas pembiayaan, debitur, dan status kontrak.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <DetailItem label="Nomor Kontrak" value={contract.no_kontrak} />
+              <DetailItem label="Status" value={<SetupStatusBadge status={statusLabel(contract.status)} />} />
+              <DetailItem label="Debitur" value={contract.debtor?.name} />
+              <DetailItem label="Identitas Debitur" value={debtorIdentity} />
+              <DetailItem label="Produk Pembiayaan" value={contract.product?.name} />
+              <DetailItem label="Jenis Akad" value={contract.akad_type?.name} />
+              <DetailItem label="Cabang" value={contract.branch?.name} />
+              <DetailItem label="PIC / Marketing" value={marketingUser} />
+              <DetailItem label="Tenor" value={contract.tenor ? `${contract.tenor} bulan` : null} />
+              <DetailItem label="Tanggal Akad" value={formatDateOnly(contract.tanggal_akad)} />
+              <DetailItem
+                label="Tanggal Jatuh Tempo"
+                value={formatDateOnly(contract.tanggal_jatuh_tempo)}
+              />
+              <DetailItem label="Diperbarui" value={formatDateOnly(contract.updated_at)} />
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-4 space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
+                Nilai Pembiayaan
+              </h3>
+              <p className="text-sm leading-6 text-gray-500">
+                Posisi plafon, pokok, margin, dan outstanding kontrak.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <DetailItem label="Plafond" value={formatCurrency(contract.plafond)} />
+              <DetailItem label="Pokok" value={formatCurrency(contract.pokok)} />
+              <DetailItem label="Margin" value={formatCurrency(contract.margin)} />
+              <DetailItem
+                label="Outstanding Pokok"
+                value={formatCurrency(contract.outstanding_pokok)}
+              />
+              <DetailItem
+                label="Outstanding Margin"
+                value={formatCurrency(contract.outstanding_margin)}
+              />
+              <DetailItem
+                label="Total Outstanding"
+                value={formatCurrency(contract.total_outstanding)}
+              />
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-4 space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
+                Kolektibilitas dan SLIK
+              </h3>
+              <p className="text-sm leading-6 text-gray-500">
+                Snapshot F01 dan kolektibilitas terakhir yang terhubung ke kontrak.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <DetailItem
+                label="Kolektibilitas"
+                value={<SetupCollectibilityBadge value={collectibilityLabel(latestCollectibility)} />}
+              />
+              <DetailItem label="Periode KOL" value={periodLabel(latestCollectibility?.period_month)} />
+              <DetailItem
+                label="DPD"
+                value={
+                  latestCollectibility?.dpd === null || latestCollectibility?.dpd === undefined
+                    ? null
+                    : `${latestCollectibility.dpd} hari`
+                }
+              />
+              <DetailItem label="Periode F01" value={periodLabel(latestSnapshot?.period_month)} />
+              <DetailItem label="No Fasilitas F01" value={latestSnapshot?.facility_number} />
+              <DetailItem
+                label="Baki Debet F01"
+                value={formatCurrencyOrDash(latestSnapshot?.baki_debet)}
+              />
+              <DetailItem
+                label="Kondisi F01"
+                value={slikDisplay(latestSnapshot?.condition_display, latestSnapshot?.condition_code)}
+              />
+              <DetailItem
+                label="Kolektibilitas F01"
+                value={slikDisplay(
+                  latestSnapshot?.collectibility_display,
+                  latestSnapshot?.collectibility_code,
+                )}
+              />
+              <DetailItem label="Jatuh Tempo F01" value={formatDateOnly(latestSnapshot?.due_date)} />
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-4 space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
+                Objek dan Agunan
+              </h3>
+              <p className="text-sm leading-6 text-gray-500">
+                Keterangan objek pembiayaan dan jaminan yang tercatat pada kontrak.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <DetailItem label="Objek Pembiayaan" value={contract.objek_pembiayaan} />
+              <DetailItem label="Agunan" value={contract.agunan} />
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </DashboardModal>
+  );
+}
+
+function CollateralDetailModal({
+  collateral,
+  collateralTypeLabels,
+  isOpen,
+  onClose,
+}: {
+  collateral: DebtorCollateral | null;
+  collateralTypeLabels: Map<string, string>;
+  isOpen: boolean;
+  onClose: () => void;
+}) {
+  const debtorIdentity = collateral?.debtor
+    ? [
+        collateral.debtor.debtor_number,
+        collateral.debtor.identity_number,
+      ].filter(Boolean).join(" / ")
+    : null;
+  const collateralType =
+    collateral?.collateral_type_display ??
+    (collateral?.collateral_type
+      ? collateralTypeLabels.get(collateral.collateral_type.toUpperCase()) ??
+        collateral.collateral_type
+      : null);
+  const isLinked = Boolean(
+    collateral?.debtor_id ||
+      collateral?.debtor?.id ||
+      collateral?.contract_id ||
+      collateral?.contract?.id,
+  );
+
+  return (
+    <DashboardModal
+      isOpen={isOpen && collateral !== null}
+      title="Detail Agunan A01"
+      description={collateral?.collateral_number ?? undefined}
+      onClose={onClose}
+      maxWidth="5xl"
+      bodyClassName="max-h-[70vh] overflow-y-auto p-6"
+      footer={
+        <button
+          type="button"
+          className="uiverse-modal-button uiverse-modal-button--neutral"
+          onClick={onClose}
+        >
+          Tutup
+        </button>
+      }
+    >
+      {collateral ? (
+        <div className="space-y-6">
+          <section>
+            <div className="mb-4 space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
+                Informasi Agunan
+              </h3>
+              <p className="text-sm leading-6 text-gray-500">
+                Data agunan dari A01 beserta status relasinya ke CIF atau fasilitas F01.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <DetailItem label="Nomor / Kode Agunan" value={collateral.collateral_number} />
+              <DetailItem label="Jenis Agunan" value={collateralType} />
+              <DetailItem
+                label="Status Link"
+                value={
+                  <SetupStatusBadge
+                    status={isLinked ? "Terhubung" : "Belum Terhubung"}
+                    tone={isLinked ? "emerald" : "amber"}
+                    showIcon={false}
+                  />
+                }
+              />
+              <DetailItem label="Status Agunan" value={collateral.collateral_status_display ?? collateral.collateral_status_code} />
+              <DetailItem label="Periode A01" value={periodLabel(collateral.period_month ?? collateral.last_import_period_month)} />
+              <DetailItem label="Operasi A01" value={slikDisplay(collateral.operation_display, collateral.operation_code)} />
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-4 space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
+                Relasi CIF dan F01
+              </h3>
+              <p className="text-sm leading-6 text-gray-500">
+                Hubungan agunan dengan debitur dan fasilitas pembiayaan.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <DetailItem label="Nama Debitur" value={collateral.debtor?.name} />
+              <DetailItem label="Identitas Debitur" value={debtorIdentity} />
+              <DetailItem label="Nomor Fasilitas F01" value={collateral.facility_number} />
+              <DetailItem label="Nomor Kontrak" value={collateral.contract?.no_kontrak} />
+              <DetailItem label="Status Kontrak" value={statusLabel(collateral.contract?.status)} />
+              <DetailItem label="Segmen Fasilitas" value={collateral.facility_segment_code} />
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-4 space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
+                Nilai dan Pengikatan
+              </h3>
+              <p className="text-sm leading-6 text-gray-500">
+                Nilai agunan, penilaian, dan informasi pengikatan yang tersedia dari A01.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <DetailItem label="Nilai Pasar" value={formatCurrencyOrDash(collateral.market_value)} />
+              <DetailItem label="Nilai Appraisal" value={formatCurrencyOrDash(collateral.appraisal_value)} />
+              <DetailItem
+                label="Nilai Appraisal Independen"
+                value={formatCurrencyOrDash(collateral.independent_appraisal_value)}
+              />
+              <DetailItem label="Tanggal Appraisal Pelapor" value={formatDateOnly(collateral.reporter_appraisal_date)} />
+              <DetailItem label="Appraiser Independen" value={collateral.independent_appraiser_name} />
+              <DetailItem label="Tanggal Appraisal Independen" value={formatDateOnly(collateral.independent_appraisal_date)} />
+              <DetailItem label="Jenis Pengikatan" value={slikDisplay(collateral.binding_type_display, collateral.binding_type_code)} />
+              <DetailItem label="Tanggal Pengikatan" value={formatDateOnly(collateral.binding_date)} />
+              <DetailItem label="Rating" value={collateral.rating} />
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-4 space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
+                Pemilik dan Lokasi
+              </h3>
+              <p className="text-sm leading-6 text-gray-500">
+                Informasi pemilik, bukti kepemilikan, alamat, dan catatan agunan.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <DetailItem label="Pemilik" value={collateral.owner_name} />
+              <DetailItem label="Bukti Kepemilikan" value={collateral.proof_number} />
+              <DetailItem label="Lokasi Dati II" value={slikDisplay(collateral.location_city_display, collateral.location_city_code)} />
+              <DetailItem label="Cabang Pelapor" value={collateral.branch_code} />
+              <DetailItem label="Alamat" value={collateral.address} wide />
+              <DetailItem label="Keterangan" value={collateral.description} wide />
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </DashboardModal>
+  );
+}
+
 function DebtorFormModal({
   isOpen,
   title,
@@ -1752,10 +2135,11 @@ function DebtorFormModal({
     <DashboardModal
       isOpen={isOpen}
       title={title}
+      description="Lengkapi identitas CIF, relasi internal, dan profil SLIK yang relevan."
       onClose={onClose}
       closeDisabled={isSaving}
       maxWidth="4xl"
-      bodyClassName="space-y-4 p-6"
+      bodyClassName="max-h-[70vh] space-y-4 overflow-y-auto p-6"
       footer={
         <ModalFooter
           onClose={onClose}
@@ -1764,7 +2148,10 @@ function DebtorFormModal({
         />
       }
     >
-      <SetupFormSection title="Identitas Debitur">
+      <SetupFormSection
+        title="Identitas Debitur"
+        description="Data utama CIF yang menjadi dasar relasi kontrak, dokumen, dan laporan."
+      >
         <TextField label="Nomor Debitur" value={form.debtor_number} onChange={(value) => onChange({ debtor_number: value })} />
         <TextField label="Nomor Identitas" value={form.identity_number} onChange={(value) => onChange({ identity_number: value })} />
         <TextField label="Nama Debitur" value={form.name} onChange={(value) => onChange({ name: value })} required />
@@ -1789,14 +2176,20 @@ function DebtorFormModal({
         />
         <TextField label="Telepon" value={form.phone} onChange={(value) => onChange({ phone: value })} />
       </SetupFormSection>
-      <SetupFormSection title="Relasi Internal">
+      <SetupFormSection
+        title="Relasi Internal"
+        description="Cabang, PIC, dan status operasional debitur di sistem."
+      >
         <SelectField label="Cabang" value={form.branch_id} options={branches} onChange={(value) => onChange({ branch_id: value })} />
         <SelectField label="PIC / Marketing" value={form.marketing_user_id} options={users} onChange={(value) => onChange({ marketing_user_id: value })} searchable searchPlaceholder="Cari nama PIC atau divisi..." />
         <TextField label="Nomor Pembiayaan" value={form.financing_number} onChange={(value) => onChange({ financing_number: value })} />
         <SelectField label="Status" value={form.status} options={debtorStatusOptions.filter((option) => option.value)} includeEmpty={false} onChange={(value) => onChange({ status: value })} />
       </SetupFormSection>
       {form.customer_type === "INDIVIDUAL" ? (
-        <SetupFormSection title="CIF Perorangan">
+        <SetupFormSection
+          title="CIF Perorangan"
+          description="Profil tambahan khusus CIF individu dari data SLIK."
+        >
           <TextField
             label="Nama Sesuai Identitas"
             value={form.individual_profile.name_as_identity}
@@ -1908,7 +2301,10 @@ function DebtorFormModal({
         </SetupFormSection>
       ) : null}
       {form.customer_type === "LEGAL_ENTITY" ? (
-        <SetupFormSection title="CIF Badan Hukum/Yayasan">
+        <SetupFormSection
+          title="CIF Badan Hukum/Yayasan"
+          description="Profil tambahan khusus CIF badan hukum atau yayasan dari data SLIK."
+        >
           <TextField
             label="Nama Badan Usaha"
             value={form.legal_entity_profile.business_name}
@@ -2007,7 +2403,11 @@ function DebtorFormModal({
           />
         </SetupFormSection>
       ) : null}
-      <SetupFormSection title="Alamat dan Catatan" contentClassName="md:grid-cols-1">
+      <SetupFormSection
+        title="Alamat dan Catatan"
+        description="Alamat utama dan keterangan internal debitur."
+        contentClassName="md:grid-cols-1"
+      >
         <TextareaField label="Alamat" value={form.address} onChange={(value) => onChange({ address: value })} />
         <TextareaField label="Keterangan" value={form.description} onChange={(value) => onChange({ description: value })} />
       </SetupFormSection>
@@ -2046,6 +2446,7 @@ function ContractFormModal({
     <DashboardModal
       isOpen={isOpen}
       title={title}
+      description="Hubungkan fasilitas ke debitur, akad, nilai pembiayaan, dan agunan."
       onClose={onClose}
       closeDisabled={isSaving}
       maxWidth="5xl"
@@ -2058,7 +2459,11 @@ function ContractFormModal({
         />
       }
     >
-      <SetupFormSection title="Identitas Kontrak" contentClassName="md:grid-cols-3">
+      <SetupFormSection
+        title="Identitas Kontrak"
+        description="Relasi kontrak ke debitur, produk, cabang, dan PIC penanggung jawab."
+        contentClassName="md:grid-cols-3"
+      >
         <SelectField label="Debitur" value={form.debtor_id} options={debtors} onChange={(value) => onChange({ debtor_id: value })} required searchable loadOptions={loadDebtorSearchOptions} searchPlaceholder="Cari nama atau nomor debitur..." />
         <TextField label="Nomor Kontrak" value={form.no_kontrak} onChange={(value) => onChange({ no_kontrak: value })} required />
         <SelectField label="Produk Pembiayaan" value={form.product_id} options={products} onChange={(value) => onChange({ product_id: value })} required />
@@ -2066,12 +2471,20 @@ function ContractFormModal({
         <SelectField label="Cabang" value={form.branch_id} options={branches} onChange={(value) => onChange({ branch_id: value })} />
         <SelectField label="PIC / Marketing" value={form.marketing_user_id} options={users} onChange={(value) => onChange({ marketing_user_id: value })} searchable searchPlaceholder="Cari nama PIC atau divisi..." />
       </SetupFormSection>
-      <SetupFormSection title="Tanggal dan Status" contentClassName="md:grid-cols-3">
+      <SetupFormSection
+        title="Tanggal dan Status"
+        description="Tanggal akad, jatuh tempo, dan status aktif kontrak."
+        contentClassName="md:grid-cols-3"
+      >
         <DateField label="Tanggal Akad" value={form.tanggal_akad} onChange={(value) => onChange({ tanggal_akad: value })} required />
         <DateField label="Tanggal Jatuh Tempo" value={form.tanggal_jatuh_tempo} onChange={(value) => onChange({ tanggal_jatuh_tempo: value })} />
         <SelectField label="Status" value={form.status} options={contractStatusOptions} includeEmpty={false} onChange={(value) => onChange({ status: value })} />
       </SetupFormSection>
-      <SetupFormSection title="Nilai Pembiayaan" contentClassName="md:grid-cols-3">
+      <SetupFormSection
+        title="Nilai Pembiayaan"
+        description="Nilai plafond, pokok, margin, tenor, dan posisi outstanding."
+        contentClassName="md:grid-cols-3"
+      >
         <TextField label="Plafond" value={form.plafond} type="number" onChange={(value) => onChange({ plafond: value })} />
         <TextField label="Pokok" value={form.pokok} type="number" onChange={(value) => onChange({ pokok: value })} />
         <TextField label="Margin" value={form.margin} type="number" onChange={(value) => onChange({ margin: value })} />
@@ -2079,7 +2492,11 @@ function ContractFormModal({
         <TextField label="Outstanding Pokok" value={form.outstanding_pokok} type="number" onChange={(value) => onChange({ outstanding_pokok: value })} />
         <TextField label="Outstanding Margin" value={form.outstanding_margin} type="number" onChange={(value) => onChange({ outstanding_margin: value })} />
       </SetupFormSection>
-      <SetupFormSection title="Objek dan Agunan" contentClassName="md:grid-cols-1">
+      <SetupFormSection
+        title="Objek dan Agunan"
+        description="Ringkasan objek pembiayaan dan jaminan kontrak."
+        contentClassName="md:grid-cols-1"
+      >
         <TextareaField label="Objek Pembiayaan" value={form.objek_pembiayaan} onChange={(value) => onChange({ objek_pembiayaan: value })} />
         <TextareaField label="Agunan" value={form.agunan} onChange={(value) => onChange({ agunan: value })} />
       </SetupFormSection>
@@ -2281,7 +2698,7 @@ function useCollateralTable(enabled: boolean) {
       setMeta(result.meta);
     } catch (error) {
       showToast(
-        error instanceof Error ? error.message : "Gagal memuat data jaminan",
+        error instanceof Error ? error.message : "Gagal memuat data agunan",
         "error",
       );
     } finally {
@@ -2489,14 +2906,17 @@ function DebtorTable({
               <SetupStatusBadge status={statusLabel(item.status)} />
             </SetupDataTableCell>
             {showActions ? (
-              <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+              <SetupDataTableCell
+                className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                onDoubleClick={(event) => event.stopPropagation()}
+              >
                 <SetupActionMenu
                   label={`Aksi ${item.name}`}
                   menuLabel={`Aksi untuk ${item.name}`}
                   items={[
                     {
                       key: "view",
-                      label: "Lihat",
+                      label: "Detail",
                       icon: Eye,
                       onClick: () => onView(item),
                     },
@@ -2561,6 +2981,7 @@ function FinancingTable({
   isLoading,
   isFiltered = false,
   emptyAction,
+  onViewContract,
   onViewDebtor,
 }: {
   items: DebtorContract[];
@@ -2568,6 +2989,7 @@ function FinancingTable({
   isLoading: boolean;
   isFiltered?: boolean;
   emptyAction?: ReactNode;
+  onViewContract: (contract: DebtorContract) => void;
   onViewDebtor: (debtorId: string) => void;
 }) {
   return (
@@ -2608,12 +3030,14 @@ function FinancingTable({
         {items.map((item, index) => {
           const snapshot = item.latest_slik_snapshot;
           const debtorId = item.debtor_id || item.debtor?.id;
+          const daysPastDue =
+            snapshot?.days_past_due ?? item.latest_collectibility?.dpd ?? null;
 
           return (
             <SetupDataTableRow
               key={item.id}
-              className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} ${debtorId ? "cursor-pointer" : ""}`}
-              onDoubleClick={() => debtorId && onViewDebtor(debtorId)}
+              className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer`}
+              onDoubleClick={() => onViewContract(item)}
             >
               <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                 {(meta.page - 1) * meta.limit + index + 1}
@@ -2627,7 +3051,14 @@ function FinancingTable({
                 </div>
               </SetupDataTableCell>
               <SetupDataTableCell className="font-semibold">
-                <SetupTablePrimaryText>{item.debtor?.name ?? "-"}</SetupTablePrimaryText>
+                <div className="space-y-1">
+                  <SetupTablePrimaryText>{item.debtor?.name ?? "-"}</SetupTablePrimaryText>
+                  <SetupTableSecondaryText>
+                    {[item.debtor?.debtor_number, item.debtor?.identity_number]
+                      .filter(Boolean)
+                      .join(" / ") || "CIF belum tersedia"}
+                  </SetupTableSecondaryText>
+                </div>
               </SetupDataTableCell>
               <SetupDataTableCell>
                 {[
@@ -2652,26 +3083,47 @@ function FinancingTable({
                 </SetupTableMoney>
               </SetupDataTableCell>
               <SetupDataTableCell>
-                <SetupCollectibilityBadge
-                  value={
-                    snapshot?.collectibility_display ??
-                    collectibilityLabel(item.latest_collectibility) ??
-                    "-"
-                  }
-                />
+                <div className="space-y-1">
+                  <SetupCollectibilityBadge
+                    value={
+                      snapshot?.collectibility_display ??
+                      collectibilityLabel(item.latest_collectibility) ??
+                      "-"
+                    }
+                  />
+                  <SetupTableSecondaryText>
+                    DPD: {daysPastDue === null ? "-" : `${daysPastDue} hari`}
+                  </SetupTableSecondaryText>
+                </div>
               </SetupDataTableCell>
               <SetupDataTableCell>
-                {formatDateOnly(snapshot?.due_date ?? item.tanggal_jatuh_tempo)}
+                <div className="space-y-1">
+                  <SetupTablePrimaryText>
+                    {formatDateOnly(snapshot?.due_date ?? item.tanggal_jatuh_tempo)}
+                  </SetupTablePrimaryText>
+                  <SetupTableSecondaryText>
+                    Kondisi: {slikDisplay(snapshot?.condition_display, snapshot?.condition_code)}
+                  </SetupTableSecondaryText>
+                </div>
               </SetupDataTableCell>
-              <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+              <SetupDataTableCell
+                className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                onDoubleClick={(event) => event.stopPropagation()}
+              >
                 <SetupActionMenu
                   label={`Aksi pembiayaan ${item.no_kontrak}`}
                   menuLabel={`Aksi untuk ${item.no_kontrak}`}
                   items={[
                     {
                       key: "view",
-                      label: "Detail Debitur",
+                      label: "Detail Kontrak",
                       icon: Eye,
+                      onClick: () => onViewContract(item),
+                    },
+                    {
+                      key: "debtor",
+                      label: "Detail Debitur",
+                      icon: Users,
                       disabled: !debtorId,
                       onClick: () => {
                         if (debtorId) onViewDebtor(debtorId);
@@ -2714,6 +3166,7 @@ function CollateralTable({
   isLoading,
   isFiltered = false,
   emptyAction,
+  onViewCollateral,
   onViewDebtor,
   collateralTypeLabels,
 }: {
@@ -2722,6 +3175,7 @@ function CollateralTable({
   isLoading: boolean;
   isFiltered?: boolean;
   emptyAction?: ReactNode;
+  onViewCollateral: (collateral: DebtorCollateral) => void;
   onViewDebtor: (debtorId: string) => void;
   collateralTypeLabels: Map<string, string>;
 }) {
@@ -2744,7 +3198,7 @@ function CollateralTable({
           <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
             No
           </SetupDataTableHeaderCell>
-          <SetupDataTableHeaderCell>No / Kode Jaminan</SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>No / Kode Agunan</SetupDataTableHeaderCell>
           <SetupDataTableHeaderCell>No Fasilitas F01</SetupDataTableHeaderCell>
           <SetupDataTableHeaderCell>Nama Nasabah</SetupDataTableHeaderCell>
           <SetupDataTableHeaderCell>Jenis Agunan</SetupDataTableHeaderCell>
@@ -2760,12 +3214,13 @@ function CollateralTable({
       <SetupDataTableBody>
         {items.map((item, index) => {
           const debtorId = item.debtor_id || item.debtor?.id || item.contract?.debtor_id || "";
+          const isLinked = Boolean(debtorId || item.contract_id || item.contract?.id);
 
           return (
             <SetupDataTableRow
               key={item.id}
-              className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} ${debtorId ? "cursor-pointer" : ""}`}
-              onDoubleClick={() => debtorId && onViewDebtor(debtorId)}
+              className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer`}
+              onDoubleClick={() => onViewCollateral(item)}
             >
               <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                 {(meta.page - 1) * meta.limit + index + 1}
@@ -2781,10 +3236,22 @@ function CollateralTable({
                   <SetupTableSecondaryText>
                     Kontrak: {item.contract?.no_kontrak ?? "-"}
                   </SetupTableSecondaryText>
+                  <SetupStatusBadge
+                    status={isLinked ? "Terhubung" : "Belum Terhubung"}
+                    tone={isLinked ? "emerald" : "amber"}
+                    showIcon={false}
+                  />
                 </div>
               </SetupDataTableCell>
               <SetupDataTableCell>
-                <SetupTablePrimaryText>{item.debtor?.name ?? "-"}</SetupTablePrimaryText>
+                <div className="space-y-1">
+                  <SetupTablePrimaryText>{item.debtor?.name ?? "-"}</SetupTablePrimaryText>
+                  <SetupTableSecondaryText>
+                    {[item.debtor?.debtor_number, item.debtor?.identity_number]
+                      .filter(Boolean)
+                      .join(" / ") || "CIF belum tersedia"}
+                  </SetupTableSecondaryText>
+                </div>
               </SetupDataTableCell>
               <SetupDataTableCell>
                 <SetupTablePrimaryText>
@@ -2811,15 +3278,24 @@ function CollateralTable({
                   {item.address ?? item.description ?? "-"}
                 </SetupTableSecondaryText>
               </SetupDataTableCell>
-              <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+              <SetupDataTableCell
+                className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                onDoubleClick={(event) => event.stopPropagation()}
+              >
                 <SetupActionMenu
-                  label={`Aksi jaminan ${item.collateral_number}`}
+                  label={`Aksi agunan ${item.collateral_number}`}
                   menuLabel={`Aksi untuk ${item.collateral_number}`}
                   items={[
                     {
                       key: "view",
-                      label: "Detail Debitur",
+                      label: "Detail Agunan",
                       icon: Eye,
+                      onClick: () => onViewCollateral(item),
+                    },
+                    {
+                      key: "debtor",
+                      label: "Detail Debitur",
+                      icon: Users,
                       disabled: !debtorId,
                       onClick: () => {
                         if (debtorId) onViewDebtor(debtorId);
@@ -2833,7 +3309,7 @@ function CollateralTable({
         })}
         {isLoading ? (
           <SetupDataTableEmptyRow colSpan={10}>
-            Memuat data jaminan...
+            Memuat data agunan...
           </SetupDataTableEmptyRow>
         ) : null}
         {!isLoading && items.length === 0 ? (
@@ -2844,11 +3320,11 @@ function CollateralTable({
             description={
               isFiltered
                 ? "Coba ubah jenis agunan, status link, atau kata kunci."
-                : "Import A01 untuk melihat jaminan dan relasinya ke fasilitas."
+                : "Import A01 untuk melihat agunan dan relasinya ke fasilitas."
             }
             action={!isFiltered ? emptyAction : undefined}
           >
-            {isFiltered ? "Tidak ada jaminan yang cocok." : "Belum ada data jaminan A01."}
+            {isFiltered ? "Tidak ada agunan yang cocok." : "Belum ada data agunan A01."}
           </SetupDataTableEmptyRow>
         ) : null}
       </SetupDataTableBody>
@@ -2862,6 +3338,7 @@ function ContractTable({
   isLoading,
   canUpdate,
   canDelete,
+  onView,
   onEdit,
   onDelete,
 }: {
@@ -2870,6 +3347,7 @@ function ContractTable({
   isLoading: boolean;
   canUpdate: boolean;
   canDelete: boolean;
+  onView: (contract: DebtorContract) => void;
   onEdit: (contract: DebtorContract) => void;
   onDelete: (contract: DebtorContract) => void;
 }) {
@@ -2909,7 +3387,8 @@ function ContractTable({
         {items.map((item, index) => (
           <SetupDataTableRow
             key={item.id}
-            className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
+            className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer`}
+            onDoubleClick={() => onView(item)}
           >
             <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
               {(meta.page - 1) * meta.limit + index + 1}
@@ -2931,11 +3410,20 @@ function ContractTable({
             <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
               <SetupStatusBadge status={statusLabel(item.status)} />
             </SetupDataTableCell>
-            <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+            <SetupDataTableCell
+              className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+              onDoubleClick={(event) => event.stopPropagation()}
+            >
               <SetupActionMenu
                 label={`Aksi kontrak ${item.no_kontrak}`}
                 menuLabel={`Aksi untuk ${item.no_kontrak}`}
                 items={[
+                  {
+                    key: "view",
+                    label: "Detail",
+                    icon: Eye,
+                    onClick: () => onView(item),
+                  },
                   {
                     key: "edit",
                     label: "Edit",
@@ -3022,13 +3510,18 @@ function DebtorSearchPanel({
   );
 }
 
-function DebtorListScopeNote() {
+function DebtorListScopeNote({ activeView }: { activeView: DebtorListView }) {
+  const definition = debtorListViewDefinitions[activeView];
+
   return (
     <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 shadow-sm">
-      <p className="font-semibold text-gray-900">List gabungan per nasabah</p>
+      <p className="font-semibold text-gray-900">
+        {definition.title} tetap bagian dari relasi D01/D02 - F01 - A01
+      </p>
       <p className="mt-1">
-        Fasilitas, agunan, kolektibilitas, outstanding, dan periode SLIK ditarik
-        sebagai ringkasan per CIF. Detail relasi tetap dibuka dari baris debitur.
+        CIF menjadi parent data, fasilitas F01 terhubung ke CIF, dan agunan A01
+        terhubung ke debitur atau fasilitas. View ini hanya mengubah sudut baca,
+        bukan memisahkan workflow data.
       </p>
     </div>
   );
@@ -3102,10 +3595,10 @@ function CollateralSearchPanel({
   return (
     <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} grid gap-4 lg:grid-cols-[1fr_220px_220px]`}>
       <SetupSearchInput
-        label="Cari Jaminan"
+        label="Cari Agunan"
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
-        placeholder="Cari nomor jaminan, fasilitas, pemilik, bukti, atau nasabah..."
+        placeholder="Cari nomor agunan, fasilitas, pemilik, bukti, atau nasabah..."
       />
       <div>
         <FieldLabel>Jenis Agunan</FieldLabel>
@@ -3188,12 +3681,14 @@ function DebtorListSummaryCards({
 }
 
 export function DebtorListClient() {
-  const [activeView] = useState<DebtorListView>("cif");
+  const [activeView, setActiveView] = useState<DebtorListView>("cif");
   const { showToast } = useAppToast();
   const { hasCapability } = useProtectedAction();
   const table = useDebtorTable();
   const financingTable = useFinancingListTable(activeView === "financing");
   const collateralTable = useCollateralTable(activeView === "collateral");
+  const [selectedContract, setSelectedContract] = useState<DebtorContract | null>(null);
+  const [selectedCollateral, setSelectedCollateral] = useState<DebtorCollateral | null>(null);
   const [collateralTypes, setCollateralTypes] = useState<ParameterMasterRecord[]>([]);
   const router = useRouter();
   const collateralTypeOptions = useMemo(
@@ -3204,11 +3699,6 @@ export function DebtorListClient() {
     () => parameterLabelMap(collateralTypes),
     [collateralTypes],
   );
-  const selectedCollateralTypeLabel =
-    collateralTypeOptions.find(
-      (option) => option.value === collateralTable.collateralType,
-    )?.label ?? collateralTable.collateralType;
-
   useEffect(() => {
     let ignore = false;
 
@@ -3284,15 +3774,68 @@ export function DebtorListClient() {
       collateralTable.collateralType ||
       collateralTable.linkStatus,
   );
+  const financingOutstanding = financingTable.items.reduce(
+    (total, item) =>
+      total +
+      Number(item.latest_slik_snapshot?.baki_debet ?? item.total_outstanding ?? 0),
+    0,
+  );
+  const financingNpfCount = financingTable.items.filter(
+    (item) => item.latest_collectibility?.is_npf,
+  ).length;
+  const collateralLinkedCount = collateralTable.items.filter((item) =>
+    Boolean(item.debtor_id || item.debtor?.id || item.contract_id || item.contract?.id),
+  ).length;
+  const collateralValue = collateralTable.items.reduce(
+    (total, item) => total + Number(item.market_value ?? item.appraisal_value ?? 0),
+    0,
+  );
 
   return (
     <DashboardPageShell spacing="md">
       <FeatureHeader
         title="List Debitur"
-        subtitle="Eksplorasi data CIF, pembiayaan F01, dan jaminan A01 hasil import SLIK."
+        subtitle="Eksplorasi data CIF, pembiayaan F01, dan agunan A01 hasil import SLIK."
         icon={<Users />}
       />
-      <DebtorListScopeNote />
+      <div className={`${SETUP_PAGE_SEGMENTED_GROUP_CLASS} w-full flex-wrap`}>
+        {debtorListViewOrder.map((view) => {
+          const definition = debtorListViewDefinitions[view];
+          const Icon = definition.icon;
+          const isActive = activeView === view;
+
+          return (
+            <button
+              key={view}
+              type="button"
+              onClick={() => setActiveView(view)}
+              className={`${SETUP_PAGE_SEGMENTED_BUTTON_BASE_CLASS} flex min-w-[220px] flex-1 items-start gap-3 whitespace-normal text-left ${
+                isActive
+                  ? SETUP_PAGE_SEGMENTED_BUTTON_ACTIVE_CLASS
+                  : SETUP_PAGE_SEGMENTED_BUTTON_INACTIVE_CLASS
+              }`}
+            >
+              <Icon
+                className={`mt-0.5 h-5 w-5 shrink-0 ${
+                  isActive ? "text-white" : "text-slate-500"
+                }`}
+                aria-hidden="true"
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-bold">{definition.title}</span>
+                <span
+                  className={`mt-1 block break-words text-xs leading-5 ${
+                    isActive ? "text-white/80" : "text-gray-500"
+                  }`}
+                >
+                  {definition.description}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <DebtorListScopeNote activeView={activeView} />
       {activeView === "cif" ? (
         <>
           <DebtorSearchPanel
@@ -3324,19 +3867,15 @@ export function DebtorListClient() {
               icon={BriefcaseBusiness}
             />
             <StatCard
-              label="Periode Dipilih"
-              value={periodLabel(financingTable.periodMonth)}
-              description="F01 menyimpan posisi OS per periode"
+              label="Total Baki Debet"
+              value={formatCurrency(financingOutstanding)}
+              description="Akumulasi F01 pada halaman ini"
               icon={BarChart3}
             />
             <StatCard
-              label="Filter KOL"
-              value={
-                collectibilityLevelOptions.find(
-                  (option) => option.value === financingTable.collectibilityLevel,
-                )?.label ?? "Semua KOL"
-              }
-              description="Kolektibilitas fasilitas"
+              label="Indikasi NPF"
+              value={formatNumber(financingNpfCount)}
+              description="KOL NPF pada halaman ini"
               icon={PieChart}
             />
           </div>
@@ -3355,26 +3894,22 @@ export function DebtorListClient() {
           />
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <StatCard
-              label="Total Jaminan"
+              label="Total Agunan"
               value={formatNumber(collateralTable.meta.total)}
               description="Sesuai filter aktif"
               icon={FileArchive}
             />
             <StatCard
-              label="Jenis Agunan"
-              value={collateralTable.collateralType ? selectedCollateralTypeLabel : "Semua"}
-              description="Filter A01"
-              icon={FolderOpen}
+              label="Terhubung"
+              value={`${formatNumber(collateralLinkedCount)} / ${formatNumber(collateralTable.items.length)}`}
+              description="Relasi A01 pada halaman ini"
+              icon={FileCheck2}
             />
             <StatCard
-              label="Status Link"
-              value={
-                collateralLinkStatusOptions.find(
-                  (option) => option.value === collateralTable.linkStatus,
-                )?.label ?? "Semua Link"
-              }
-              description="Relasi ke CIF atau fasilitas"
-              icon={FileCheck2}
+              label="Nilai Agunan"
+              value={formatCurrency(collateralValue)}
+              description="Nilai pasar/appraisal halaman ini"
+              icon={FolderOpen}
             />
           </div>
         </>
@@ -3408,6 +3943,7 @@ export function DebtorListClient() {
               isLoading={financingTable.isLoading}
               isFiltered={isFinancingFiltered}
               emptyAction={importSlikAction ?? undefined}
+              onViewContract={setSelectedContract}
               onViewDebtor={openDetailById}
             />
             <Pagination
@@ -3429,6 +3965,7 @@ export function DebtorListClient() {
               isFiltered={isCollateralFiltered}
               emptyAction={importSlikAction ?? undefined}
               collateralTypeLabels={collateralTypeLabels}
+              onViewCollateral={setSelectedCollateral}
               onViewDebtor={openDetailById}
             />
             <Pagination
@@ -3442,6 +3979,17 @@ export function DebtorListClient() {
           </>
         ) : null}
       </SetupTableCard>
+      <ContractDetailModal
+        contract={selectedContract}
+        isOpen={selectedContract !== null}
+        onClose={() => setSelectedContract(null)}
+      />
+      <CollateralDetailModal
+        collateral={selectedCollateral}
+        collateralTypeLabels={collateralTypeLabels}
+        isOpen={selectedCollateral !== null}
+        onClose={() => setSelectedCollateral(null)}
+      />
     </DashboardPageShell>
   );
 }
@@ -3469,6 +4017,7 @@ export function DebtorMasterClient() {
   const [deleteDebtor, setDeleteDebtor] = useState<DebtorRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [contractDetail, setContractDetail] = useState<DebtorContract | null>(null);
   const [editingContract, setEditingContract] = useState<DebtorContract | null>(null);
   const [deleteContract, setDeleteContract] = useState<DebtorContract | null>(null);
   const [contractForm, setContractForm] = useState<ContractFormState>(
@@ -3740,6 +4289,7 @@ export function DebtorMasterClient() {
               isLoading={contractTable.isLoading}
               canUpdate={canUpdate}
               canDelete={canDelete}
+              onView={setContractDetail}
               onEdit={openEditContract}
               onDelete={setDeleteContract}
             />
@@ -3759,6 +4309,11 @@ export function DebtorMasterClient() {
         debtor={detail}
         isOpen={detail !== null}
         onClose={() => setDetail(null)}
+      />
+      <ContractDetailModal
+        contract={contractDetail}
+        isOpen={contractDetail !== null}
+        onClose={() => setContractDetail(null)}
       />
       <DebtorFormModal
         isOpen={isDebtorModalOpen}
@@ -3918,6 +4473,144 @@ function MarketingFormModal({
   );
 }
 
+function MarketingDetailModal({
+  item,
+  kind,
+  onClose,
+}: {
+  item: DebtorMarketingActivity | null;
+  kind: DebtorMarketingKind;
+  onClose: () => void;
+}) {
+  const config = getMarketingConfig(kind);
+  const files = item
+    ? item.files && item.files.length > 0
+      ? item.files
+      : item.file
+        ? [item.file]
+        : []
+    : [];
+  const debtorIdentity = item?.debtor
+    ? [item.debtor.debtor_number, item.debtor.identity_number]
+        .filter(Boolean)
+        .join(" / ")
+    : null;
+
+  return (
+    <DashboardModal
+      isOpen={item !== null}
+      title={`Detail ${config.title}`}
+      description={item?.debtor?.name ?? undefined}
+      onClose={onClose}
+      maxWidth="5xl"
+      bodyClassName="max-h-[70vh] overflow-y-auto p-6"
+      footer={
+        <button
+          type="button"
+          className="uiverse-modal-button uiverse-modal-button--neutral"
+          onClick={onClose}
+        >
+          Tutup
+        </button>
+      }
+    >
+      {item ? (
+        <div className="space-y-6">
+          <section>
+            <div className="mb-4 space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
+                Target Aktivitas
+              </h3>
+              <p className="text-sm leading-6 text-gray-500">
+                Relasi aktivitas marketing ke debitur, kontrak, dan status tindak lanjut.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <DetailItem label="Jenis Aktivitas" value={activityKindLabel(item.activity_kind)} />
+              <DetailItem
+                label="Status"
+                value={<SetupStatusBadge status={statusLabel(item.status)} />}
+              />
+              <DetailItem label="Dibuat Oleh" value={item.created_by} />
+              <DetailItem label="Debitur" value={item.debtor?.name} />
+              <DetailItem label="Identitas Debitur" value={debtorIdentity} />
+              <DetailItem label="Kontrak" value={item.contract?.no_kontrak} />
+              <DetailItem label="Tanggal Aktivitas" value={formatDateOnly(item.activity_date)} />
+              <DetailItem label="Target Tanggal" value={formatDateOnly(item.target_date)} />
+              <DetailItem label="Tipe Aktivitas" value={item.activity_type?.name} />
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-4 space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
+                Isi Aktivitas
+              </h3>
+              <p className="text-sm leading-6 text-gray-500">
+                Ringkasan rencana, hasil, atau langkah penanganan yang dicatat.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <DetailItem
+                label={config.primaryLabel}
+                value={marketingMainText(item)}
+                wide
+              />
+              {item.visit_address ? (
+                <DetailItem label="Alamat Kunjungan" value={item.visit_address} wide />
+              ) : null}
+              {item.conclusion ? (
+                <DetailItem label="Kesimpulan" value={item.conclusion} wide />
+              ) : null}
+              {item.handling_result ? (
+                <DetailItem label="Hasil Penanganan" value={item.handling_result} wide />
+              ) : null}
+              <DetailItem label="Catatan" value={item.notes} wide />
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-4 space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
+                File Pendukung
+              </h3>
+              <p className="text-sm leading-6 text-gray-500">
+                Lampiran yang ikut disimpan pada aktivitas marketing.
+              </p>
+            </div>
+            {files.length > 0 ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {files.map((file, index) => (
+                  <div
+                    key={`${file.url ?? file.name ?? index}-${index}`}
+                    className="flex min-w-0 items-start gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-[#157ec3] shadow-sm">
+                      <FileArchive className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="break-words text-sm font-semibold text-gray-900">
+                        {file.name ?? `File ${index + 1}`}
+                      </p>
+                      <p className="mt-1 text-xs font-medium text-gray-500">
+                        File pendukung aktivitas
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-5 text-sm font-medium text-gray-500">
+                Tidak ada file pendukung.
+              </div>
+            )}
+          </section>
+        </div>
+      ) : null}
+    </DashboardModal>
+  );
+}
+
 export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
   const pathname = usePathname() ?? "";
   const config = getMarketingConfig(kind);
@@ -3937,6 +4630,7 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
   const [isLoading, setIsLoading] = useState(true);
   const [form, setForm] = useState<MarketingFormState>(emptyMarketingForm);
   const [editing, setEditing] = useState<DebtorMarketingActivity | null>(null);
+  const [detail, setDetail] = useState<DebtorMarketingActivity | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [deleting, setDeleting] = useState<DebtorMarketingActivity | null>(null);
@@ -4106,7 +4800,8 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
             {items.map((item, index) => (
               <SetupDataTableRow
                 key={item.id}
-                className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
+                className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer`}
+                onDoubleClick={() => setDetail(item)}
               >
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                   {(meta.page - 1) * meta.limit + index + 1}
@@ -4118,17 +4813,28 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
                   {item.contract?.no_kontrak ?? "-"}
                 </SetupDataTableCell>
                 <SetupDataTableCell title={marketingMainText(item)}>
-                  {marketingMainText(item)}
+                  <SetupTablePrimaryText className="line-clamp-2">
+                    {marketingMainText(item)}
+                  </SetupTablePrimaryText>
                 </SetupDataTableCell>
                 <SetupDataTableCell>{formatDateOnly(item.activity_date)}</SetupDataTableCell>
                 <SetupDataTableCell>{formatDateOnly(item.target_date)}</SetupDataTableCell>
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
                   <SetupStatusBadge status={statusLabel(item.status)} />
                 </SetupDataTableCell>
-                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                <SetupDataTableCell
+                  className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                  onDoubleClick={(event) => event.stopPropagation()}
+                >
                   <SetupActionMenu
                     label={`Aksi ${config.title}`}
                     items={[
+                      {
+                        key: "detail",
+                        label: "Detail",
+                        icon: Eye,
+                        onClick: () => setDetail(item),
+                      },
                       {
                         key: "edit",
                         label: "Edit",
@@ -4173,14 +4879,19 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
       </SetupTableCard>
       <MarketingFormModal
         isOpen={isModalOpen}
-          kind={kind}
-          form={form}
-          debtors={debtorContracts.debtorOptions}
-          contracts={debtorContracts.contracts}
-          isSaving={isSaving}
+        kind={kind}
+        form={form}
+        debtors={debtorContracts.debtorOptions}
+        contracts={debtorContracts.contracts}
+        isSaving={isSaving}
         onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
         onClose={closeModal}
         onSave={() => void saveMarketing()}
+      />
+      <MarketingDetailModal
+        item={detail}
+        kind={kind}
+        onClose={() => setDetail(null)}
       />
       <DeleteConfirmModal
         isOpen={deleting !== null}
@@ -4207,7 +4918,7 @@ function getImportConfig(type: DebtorImportType) {
       return {
         title: "Import IDEB",
         subtitle:
-          "Upload file IDEB .txt / .json berisi JSON valid. Hasil yang cocok akan masuk ke debitur existing, yang belum cocok tetap tampil di Laporan IDEB.",
+          "Unggah hasil pengecekan IDEB untuk dicocokkan dengan data debitur.",
         icon: FolderOpen,
       };
     default:
@@ -4386,6 +5097,199 @@ function formatImportErrorSummary(item: DebtorImportJob) {
   return item.failed_rows > 0 ? "Ada baris gagal" : "-";
 }
 
+function formatImportDateTime(value: string | null | undefined) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function ImportDetailItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="min-w-0 border-b border-gray-100 pb-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+        {label}
+      </p>
+      <div className="mt-1 break-words text-sm font-semibold leading-6 text-gray-900">
+        {value || "-"}
+      </div>
+    </div>
+  );
+}
+
+function ImportJobDetailModal({
+  item,
+  canRetry,
+  isRetrying,
+  onClose,
+  onRetry,
+}: {
+  item: DebtorImportJob | null;
+  canRetry: boolean;
+  isRetrying: boolean;
+  onClose: () => void;
+  onRetry: (item: DebtorImportJob) => void;
+}) {
+  const progress = isPlainRecord(item?.processing_summary)
+    ? item.processing_summary
+    : null;
+  const errorSummary = isPlainRecord(item?.error_summary)
+    ? item.error_summary
+    : null;
+  const errorSamples = Array.isArray(errorSummary?.samples)
+    ? errorSummary.samples.filter(isPlainRecord)
+    : [];
+  const processedRows =
+    typeof progress?.processed_rows === "number"
+      ? progress.processed_rows
+      : (item?.success_rows ?? 0) + (item?.failed_rows ?? 0);
+  const totalRows =
+    typeof progress?.total_rows === "number"
+      ? progress.total_rows
+      : item?.total_rows ?? 0;
+  const segments = Array.isArray(item?.segments) ? item.segments : [];
+  const isIdebJob = item?.type === "IDEB";
+  const progressUnit = isIdebJob ? "file" : "baris";
+
+  return (
+    <DashboardModal
+      isOpen={item !== null}
+      title="Detail Job Import"
+      description={item ? `${item.type} - ${formatImportFileNames(item)}` : undefined}
+      onClose={onClose}
+      closeDisabled={isRetrying}
+      maxWidth="4xl"
+      footer={
+        <>
+          <button
+            type="button"
+            className="uiverse-modal-button uiverse-modal-button--neutral"
+            onClick={onClose}
+            disabled={isRetrying}
+          >
+            Tutup
+          </button>
+          {item && canRetry && item.type === "SLIK" && item.status === "FAILED" ? (
+            <button
+              type="button"
+              className="uiverse-modal-button uiverse-modal-button--primary"
+              onClick={() => onRetry(item)}
+              disabled={isRetrying}
+            >
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              <span>{isRetrying ? "Menjadwalkan..." : "Coba Lagi"}</span>
+            </button>
+          ) : null}
+        </>
+      }
+    >
+      {item ? (
+        <div className="space-y-8">
+          <section>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-600">
+              Ringkasan Proses
+            </h3>
+            <div className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+              <ImportDetailItem label="Status" value={<SetupStatusBadge status={statusLabel(item.status)} />} />
+              <ImportDetailItem label="Tipe" value={item.type} />
+              <ImportDetailItem label="Periode Data" value={item.period_month ?? "-"} />
+              {!isIdebJob ? (
+                <ImportDetailItem label="Segmen" value={formatImportSegments(item)} />
+              ) : null}
+              <ImportDetailItem label="File" value={getImportFileNamesTitle(item)} />
+              <ImportDetailItem
+                label="Progress"
+                value={`${formatNumber(processedRows)} / ${formatNumber(totalRows)} ${progressUnit}`}
+              />
+              <ImportDetailItem label="Berhasil" value={formatNumber(item.success_rows)} />
+              <ImportDetailItem label="Gagal" value={formatNumber(item.failed_rows)} />
+              <ImportDetailItem label="Dibuat" value={formatImportDateTime(item.created_at)} />
+              {!isIdebJob ? (
+                <ImportDetailItem label="Mulai Diproses" value={formatImportDateTime(item.started_at)} />
+              ) : null}
+              <ImportDetailItem label="Selesai Diproses" value={formatImportDateTime(item.completed_at)} />
+              {!isIdebJob ? (
+                <ImportDetailItem
+                  label="File Aktif"
+                  value={
+                    typeof progress?.current_file === "string"
+                      ? progress.current_file
+                      : "-"
+                  }
+                />
+              ) : null}
+            </div>
+          </section>
+
+          {segments.length > 0 ? (
+            <section>
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-600">
+                Proses Per Segmen
+              </h3>
+              <div className="mt-4 overflow-x-auto rounded-lg border border-gray-200">
+                <SetupDataTable density="compact" className="min-w-[680px]">
+                  <SetupDataTableHead>
+                    <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                      <SetupDataTableHeaderCell>Segmen</SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell>Nama File</SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell>Baris File</SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell>Baris Diproses</SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell>Status</SetupDataTableHeaderCell>
+                    </SetupDataTableRow>
+                  </SetupDataTableHead>
+                  <SetupDataTableBody>
+                    {segments.map((segment, index) => (
+                      <SetupDataTableRow key={`${segment.id ?? segment.file_name ?? "segment"}-${index}`}>
+                        <SetupDataTableCell>{segment.segment ?? "-"}</SetupDataTableCell>
+                        <SetupDataTableCell>{segment.file_name ?? "-"}</SetupDataTableCell>
+                        <SetupDataTableCell>{formatNumber(segment.declared_rows)}</SetupDataTableCell>
+                        <SetupDataTableCell>{formatNumber(segment.actual_rows)}</SetupDataTableCell>
+                        <SetupDataTableCell>
+                          <SetupStatusBadge status={statusLabel(segment.status)} />
+                        </SetupDataTableCell>
+                      </SetupDataTableRow>
+                    ))}
+                  </SetupDataTableBody>
+                </SetupDataTable>
+              </div>
+            </section>
+          ) : null}
+
+          {item.error_summary || item.failed_rows > 0 ? (
+            <section>
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-600">
+                Catatan Error
+              </h3>
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50/60 p-4 text-sm leading-6 text-red-800">
+                <p className="font-semibold">{formatImportErrorSummary(item)}</p>
+                {errorSamples.length > 0 ? (
+                  <ul className="mt-3 space-y-2">
+                    {errorSamples.slice(0, 10).map((sample, index) => (
+                      <li key={`${String(sample.file ?? "error")}-${index}`}>
+                        {typeof sample.file === "string" ? `${sample.file}: ` : ""}
+                        {typeof sample.message === "string" ? sample.message : "Error import"}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+        </div>
+      ) : null}
+    </DashboardModal>
+  );
+}
+
 function IdebResolvePreviewItem({
   label,
   value,
@@ -4394,7 +5298,7 @@ function IdebResolvePreviewItem({
   value: ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+    <div className="min-w-0 border-b border-gray-100 pb-3">
       <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
         {label}
       </p>
@@ -4412,8 +5316,11 @@ function IdebResolveModal({
   debtorOptions,
   contractOptions,
   isSaving,
+  isExporting,
+  canResolve,
   onChange,
   onClose,
+  onExport,
   onSave,
 }: {
   isOpen: boolean;
@@ -4422,8 +5329,11 @@ function IdebResolveModal({
   debtorOptions: Option[];
   contractOptions: Option[];
   isSaving: boolean;
+  isExporting: boolean;
+  canResolve: boolean;
   onChange: (patch: Partial<IdebResolveFormState>) => void;
   onClose: () => void;
+  onExport: (item: DebtorIdebPendingUpload) => void;
   onSave: () => void;
 }) {
   const facilitiesCount = Array.isArray(item?.summary_detail?.facilities)
@@ -4433,41 +5343,62 @@ function IdebResolveModal({
   return (
     <DashboardModal
       isOpen={isOpen}
-      title="Hubungkan IDEB"
-      description="Pilih debitur target supaya hasil IDEB tampil di detail debitur."
+      title="Detail IDEB Belum Terhubung"
+      description={item?.period_month ?? item?.summary_detail?.period_month ?? undefined}
       onClose={onClose}
       closeDisabled={isSaving}
       maxWidth="3xl"
       footer={
-        <ModalFooter
-          onClose={onClose}
-          onSave={onSave}
-          isSaving={isSaving}
-          saveLabel="Hubungkan"
-        />
+        <>
+          <button
+            type="button"
+            className="uiverse-modal-button uiverse-modal-button--neutral"
+            onClick={onClose}
+            disabled={isSaving || isExporting}
+          >
+            Tutup
+          </button>
+          {item ? (
+            <button
+              type="button"
+              className="uiverse-modal-button uiverse-modal-button--neutral"
+              onClick={() => onExport(item)}
+              disabled={isSaving || isExporting}
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              <span>{isExporting ? "Export..." : "Export PDF"}</span>
+            </button>
+          ) : null}
+          {canResolve ? (
+            <button
+              type="button"
+              className="uiverse-modal-button uiverse-modal-button--primary"
+              onClick={onSave}
+              disabled={isSaving || isExporting}
+            >
+              <FileCheck2 className="h-4 w-4" aria-hidden="true" />
+              <span>{isSaving ? "Menghubungkan..." : "Hubungkan IDEB"}</span>
+            </button>
+          ) : null}
+        </>
       }
     >
       {item ? (
         <div className="space-y-5">
-          <SetupFormSection title="Preview IDEB">
+          <SetupFormSection title="Ringkasan IDEB">
             <IdebResolvePreviewItem label="Nama Debitur" value={item.debtor_name ?? item.summary_detail?.debtor_name ?? "-"} />
             <IdebResolvePreviewItem label="No Identitas" value={item.identity_number ?? item.summary_detail?.identity_number ?? "-"} />
             <IdebResolvePreviewItem label="Periode" value={item.period_month ?? item.summary_detail?.period_month ?? "-"} />
-            <IdebResolvePreviewItem label="Format" value={item.source_format ?? item.summary_detail?.source_format ?? "-"} />
+            <IdebResolvePreviewItem label="Tanggal IDEB" value={formatDateOnly(item.summary_detail?.result_date)} />
             <IdebResolvePreviewItem label="KOL" value={<SetupCollectibilityBadge value={item.current_collectibility ?? item.summary_detail?.current_collectibility} wrap />} />
             <IdebResolvePreviewItem label="Baki Debet" value={formatCurrency(item.outstanding_pokok ?? item.summary_detail?.outstanding_pokok)} />
             <IdebResolvePreviewItem label="Jumlah Fasilitas" value={formatNumber(facilitiesCount)} />
-            <IdebResolvePreviewItem
-              label="File"
-              value={
-                item.files && item.files.length > 0
-                  ? `${item.files.length} file sumber`
-                  : item.file?.name ?? "-"
-              }
-            />
+            <IdebResolvePreviewItem label="Petugas IDEB" value={item.summary_detail?.officer_name ?? "-"} />
+            <IdebResolvePreviewItem label="Diunggah Oleh" value={item.uploader?.name ?? item.uploader?.username ?? "-"} />
+            <IdebResolvePreviewItem label="No Laporan" value={item.summary_detail?.report_number ?? "-"} />
           </SetupFormSection>
 
-          <SetupFormSection title="Target Debitur">
+          {canResolve ? <SetupFormSection title="Target Debitur">
             <SelectField
               label="Debitur Target"
               value={form.debtor_id}
@@ -4488,7 +5419,7 @@ function IdebResolveModal({
               loadOptions={(query) => loadContractSearchOptions(query, form.debtor_id)}
               searchPlaceholder="Cari nomor kontrak atau nama debitur..."
             />
-          </SetupFormSection>
+          </SetupFormSection> : null}
         </div>
       ) : null}
     </DashboardModal>
@@ -4496,6 +5427,7 @@ function IdebResolveModal({
 }
 
 type DebtorImportClientMode = "upload" | "monitoring";
+type ImportMonitoringTab = "history" | "pending-ideb";
 
 export function DebtorImportClient({
   type = "SLIK",
@@ -4520,10 +5452,22 @@ export function DebtorImportClient({
   const router = useRouter();
   const debtorContracts = useDebtorContractOptions();
   const canCreate = !isMonitoringMode && hasCapability(pathname, "create");
+  const canAccessPage = isMonitoringMode || canCreate;
   const canOpenSlikImport = hasCapability(
     "/dashboard/informasi-debitur/admin/upload-slik",
     "create",
   );
+  const canResolveIdeb = hasCapability(
+    "/dashboard/informasi-debitur/admin/upload-ideb",
+    "create",
+  );
+  const canRetrySlik = canOpenSlikImport;
+  const [monitoringTab, setMonitoringTab] = useState<ImportMonitoringTab>("history");
+  const [importSearch, setImportSearch] = useState("");
+  const deferredImportSearch = useDeferredValue(importSearch);
+  const [importTypeFilter, setImportTypeFilter] = useState("");
+  const [importStatusFilter, setImportStatusFilter] = useState("");
+  const [importPeriodFilter, setImportPeriodFilter] = useState("");
   const [items, setItems] = useState<DebtorImportJob[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
   const [page, setPage] = useState(1);
@@ -4535,6 +5479,8 @@ export function DebtorImportClient({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<ImportFormState>(emptyImportForm);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedImportJob, setSelectedImportJob] = useState<DebtorImportJob | null>(null);
+  const [retryingImportJobId, setRetryingImportJobId] = useState<string | null>(null);
   const [selectedPendingIdeb, setSelectedPendingIdeb] =
     useState<DebtorIdebPendingUpload | null>(null);
   const [resolveForm, setResolveForm] = useState<IdebResolveFormState>(
@@ -4543,6 +5489,7 @@ export function DebtorImportClient({
   const [isResolvingIdeb, setIsResolvingIdeb] = useState(false);
   const [exportingIdebId, setExportingIdebId] = useState<string | null>(null);
   const isMountedRef = useRef(false);
+  const accessRedirectedRef = useRef(false);
   const loadRequestIdRef = useRef(0);
   const pendingIdebRequestIdRef = useRef(0);
 
@@ -4556,7 +5503,23 @@ export function DebtorImportClient({
     };
   }, []);
 
+  useEffect(() => {
+    if (canAccessPage) {
+      accessRedirectedRef.current = false;
+      return;
+    }
+    if (accessRedirectedRef.current) return;
+
+    accessRedirectedRef.current = true;
+    ensureCapability(pathname, "create", { redirectTo: "/dashboard" });
+  }, [canAccessPage, ensureCapability, pathname]);
+
   const load = useCallback(async () => {
+    if (!canAccessPage) {
+      if (isMountedRef.current) setIsLoading(false);
+      return;
+    }
+
     const requestId = loadRequestIdRef.current + 1;
     loadRequestIdRef.current = requestId;
 
@@ -4565,7 +5528,14 @@ export function DebtorImportClient({
       const result = await debiturService.getImportJobs({
         page,
         limit: SETUP_TABLE_PAGE_SIZE,
-        ...(isMonitoringMode ? {} : { type }),
+        ...(isMonitoringMode
+          ? {
+              search: deferredImportSearch.trim() || undefined,
+              type: importTypeFilter || undefined,
+              status: importStatusFilter || undefined,
+              period_month: importPeriodFilter || undefined,
+            }
+          : { type }),
       });
       if (!isMountedRef.current || loadRequestIdRef.current !== requestId) return;
       setItems(result.items);
@@ -4582,11 +5552,37 @@ export function DebtorImportClient({
         setIsLoading(false);
       }
     }
-  }, [isMonitoringMode, page, showToast, type]);
+  }, [
+    canAccessPage,
+    deferredImportSearch,
+    importPeriodFilter,
+    importStatusFilter,
+    importTypeFilter,
+    isMonitoringMode,
+    page,
+    showToast,
+    type,
+  ]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const hasActiveImportJobs = items.some((item) =>
+    ["PENDING", "PROCESSING"].includes(item.status),
+  );
+
+  useEffect(() => {
+    if (!isMonitoringMode || monitoringTab !== "history" || !hasActiveImportJobs) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      void load();
+    }, 8000);
+
+    return () => window.clearInterval(timer);
+  }, [hasActiveImportJobs, isMonitoringMode, load, monitoringTab]);
 
   const loadPendingIdeb = useCallback(async () => {
     if (!isMonitoringMode) return;
@@ -4647,6 +5643,14 @@ export function DebtorImportClient({
 
   const saveResolveIdeb = async () => {
     if (!selectedPendingIdeb) return;
+    if (
+      !ensureCapability(
+        "/dashboard/informasi-debitur/admin/upload-ideb",
+        "create",
+      )
+    ) {
+      return;
+    }
     if (!resolveForm.debtor_id) {
       showToast("Debitur target wajib dipilih", "warning");
       return;
@@ -4687,6 +5691,32 @@ export function DebtorImportClient({
     }
   };
 
+  const retrySlikImport = async (item: DebtorImportJob) => {
+    if (
+      !ensureCapability(
+        "/dashboard/informasi-debitur/admin/upload-slik",
+        "create",
+      )
+    ) {
+      return;
+    }
+
+    setRetryingImportJobId(item.id);
+    try {
+      const updated = await debiturService.retrySlikImportJob(item.id);
+      setSelectedImportJob(updated);
+      showToast("Job Import SLIK dijadwalkan ulang", "success");
+      await load();
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Gagal menjadwalkan ulang Import SLIK",
+        "error",
+      );
+    } finally {
+      setRetryingImportJobId(null);
+    }
+  };
+
   const saveImport = async () => {
     if (isMonitoringMode) return;
     setIsSaving(true);
@@ -4696,11 +5726,19 @@ export function DebtorImportClient({
       }
       const selectedFiles = form.files.length > 0 ? form.files : form.file ? [form.file] : [];
       for (const selectedFile of selectedFiles) {
-        const fileError = validateDebtorImportFile(type, selectedFile);
+        const fileError =
+          type === "SLIK"
+            ? validateSlikImportFile(selectedFile)
+            : validateDebtorImportFile(type, selectedFile);
         if (fileError) throw new Error(fileError);
       }
       await debiturService.createImportJob(type, buildImportPayload(form));
-      showToast("File import tersimpan", "success");
+      showToast(
+        type === "IDEB"
+          ? "Hasil IDEB berhasil diimpor"
+          : "Job Import SLIK berhasil dibuat dan siap diproses",
+        "success",
+      );
       closeModal();
       await load();
     } catch (error) {
@@ -4715,6 +5753,7 @@ export function DebtorImportClient({
 
   const showTargetFields = type === "IDEB";
   const isSlikImport = type === "SLIK";
+  const importUnitLabel = isMonitoringMode ? "Item" : type === "IDEB" ? "File" : "Baris";
   const filteredContractOptions = toContractOptions(
     form.debtor_id
       ? debtorContracts.contracts.filter((contract) => contract.debtor_id === form.debtor_id)
@@ -4725,6 +5764,8 @@ export function DebtorImportClient({
       ? debtorContracts.contracts.filter((contract) => contract.debtor_id === resolveForm.debtor_id)
       : debtorContracts.contracts,
   );
+
+  if (!canAccessPage) return null;
 
   return (
     <DashboardPageShell spacing="md">
@@ -4737,8 +5778,16 @@ export function DebtorImportClient({
             <button
               type="button"
               className="uiverse-modal-button uiverse-modal-button--neutral"
-              onClick={() => void load()}
-              disabled={isLoading}
+              onClick={() =>
+                void (isMonitoringMode && monitoringTab === "pending-ideb"
+                  ? loadPendingIdeb()
+                  : load())
+              }
+              disabled={
+                isMonitoringMode && monitoringTab === "pending-ideb"
+                  ? isLoadingPendingIdeb
+                  : isLoading
+              }
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
               <span>Refresh</span>
@@ -4748,27 +5797,104 @@ export function DebtorImportClient({
         }
       />
       {isMonitoringMode ? (
-        <SetupTableCard variant="workflow">
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-600">
-                IDEB Belum Terhubung
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                Hasil IDEB yang belum otomatis cocok ke debitur bisa dihubungkan manual dari sini.
-              </p>
-            </div>
+        <section className={`${SETUP_PAGE_SEARCH_CARD_CLASS} space-y-4`}>
+          <div className={`${SETUP_PAGE_SEGMENTED_GROUP_CLASS} w-full flex-wrap sm:w-fit`}>
             <button
               type="button"
-              className="uiverse-modal-button uiverse-modal-button--neutral min-h-[36px] px-3 text-xs"
-              onClick={() => void loadPendingIdeb()}
-              disabled={isLoadingPendingIdeb}
+              className={`${SETUP_PAGE_SEGMENTED_BUTTON_BASE_CLASS} ${
+                monitoringTab === "history"
+                  ? SETUP_PAGE_SEGMENTED_BUTTON_ACTIVE_CLASS
+                  : SETUP_PAGE_SEGMENTED_BUTTON_INACTIVE_CLASS
+              }`}
+              onClick={() => setMonitoringTab("history")}
             >
-              <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              <span>Refresh Pending</span>
+              Riwayat Import
+            </button>
+            <button
+              type="button"
+              className={`${SETUP_PAGE_SEGMENTED_BUTTON_BASE_CLASS} ${
+                monitoringTab === "pending-ideb"
+                  ? SETUP_PAGE_SEGMENTED_BUTTON_ACTIVE_CLASS
+                  : SETUP_PAGE_SEGMENTED_BUTTON_INACTIVE_CLASS
+              }`}
+              onClick={() => setMonitoringTab("pending-ideb")}
+            >
+              IDEB Perlu Dihubungkan
+              {pendingIdebMeta.total > 0 ? (
+                <span className="ml-2 rounded-full bg-white/80 px-2 py-0.5 text-xs font-semibold text-gray-700">
+                  {formatNumber(pendingIdebMeta.total)}
+                </span>
+              ) : null}
             </button>
           </div>
-          <SetupDataTable variant="workflow" density="compact" className="min-w-[1120px]">
+
+          {monitoringTab === "history" ? (
+            <div className="grid gap-4 md:grid-cols-[minmax(280px,1fr)_180px_220px_180px]">
+              <SetupSearchInput
+                id="monitoring-import-search"
+                label="Cari Import"
+                value={importSearch}
+                onChange={(event) => {
+                  setImportSearch(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="Cari nama file atau tipe import..."
+              />
+              <div>
+                <FieldLabel>Tipe Import</FieldLabel>
+                <SetupSelect
+                  value={importTypeFilter}
+                  onChange={(event) => {
+                    setImportTypeFilter(event.target.value);
+                    setPage(1);
+                  }}
+                >
+                  <option value="">Semua Tipe</option>
+                  <option value="SLIK">SLIK</option>
+                  <option value="IDEB">IDEB</option>
+                </SetupSelect>
+              </div>
+              <div>
+                <FieldLabel>Status</FieldLabel>
+                <SetupSelect
+                  value={importStatusFilter}
+                  onChange={(event) => {
+                    setImportStatusFilter(event.target.value);
+                    setPage(1);
+                  }}
+                >
+                  <option value="">Semua Status</option>
+                  <option value="PENDING">Menunggu</option>
+                  <option value="PROCESSING">Diproses</option>
+                  <option value="COMPLETED">Selesai</option>
+                  <option value="COMPLETED_WITH_ERRORS">Selesai dengan Error</option>
+                  <option value="FAILED">Gagal</option>
+                </SetupSelect>
+              </div>
+              <div>
+                <FieldLabel>Periode Data</FieldLabel>
+                <SetupTextInput
+                  type="month"
+                  value={importPeriodFilter}
+                  onChange={(event) => {
+                    setImportPeriodFilter(event.target.value);
+                    setPage(1);
+                  }}
+                />
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm leading-6 text-gray-600">
+              Hasil IDEB yang belum cocok otomatis dapat diperiksa, diexport,
+              lalu dihubungkan ke debitur oleh user yang memiliki izin Import IDEB.
+            </p>
+          )}
+        </section>
+      ) : null}
+
+      {isMonitoringMode && monitoringTab === "pending-ideb" ? (
+        <SetupTableCard variant="workflow">
+          <SetupDataTable variant="workflow" density="compact" className="min-w-[1080px]">
             <SetupDataTableHead>
               <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
@@ -4777,7 +5903,7 @@ export function DebtorImportClient({
                 <SetupDataTableHeaderCell>Debitur IDEB</SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell>Identitas</SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell>Periode</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Format</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell>Petugas IDEB</SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   KOL
                 </SetupDataTableHeaderCell>
@@ -4794,7 +5920,20 @@ export function DebtorImportClient({
             </SetupDataTableHead>
             <SetupDataTableBody>
               {pendingIdebItems.map((item, index) => (
-                <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
+                <SetupDataTableRow
+                  key={item.id}
+                  className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer`}
+                  role="button"
+                  tabIndex={0}
+                  title="Klik dua kali untuk melihat detail IDEB"
+                  onDoubleClick={() => openResolveIdeb(item)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      openResolveIdeb(item);
+                    }
+                  }}
+                >
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                     {(pendingIdebMeta.page - 1) * pendingIdebMeta.limit + index + 1}
                   </SetupDataTableCell>
@@ -4815,7 +5954,7 @@ export function DebtorImportClient({
                     {item.period_month ?? item.summary_detail?.period_month ?? "-"}
                   </SetupDataTableCell>
                   <SetupDataTableCell>
-                    {item.source_format ?? item.summary_detail?.source_format ?? "-"}
+                    {item.summary_detail?.officer_name ?? "-"}
                   </SetupDataTableCell>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
                     <SetupCollectibilityBadge
@@ -4829,27 +5968,40 @@ export function DebtorImportClient({
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
                     <SetupStatusBadge status={idebExternalStatusLabel(item.external_status)} />
                   </SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <div className="flex flex-wrap justify-center gap-2">
-                      <button
-                        type="button"
-                        className="uiverse-modal-button uiverse-modal-button--neutral min-h-[34px] px-3 text-xs"
-                        disabled={exportingIdebId === item.id}
-                        onClick={() => void exportIdebResumePdf(item)}
-                      >
-                        <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                        <span>
-                          {exportingIdebId === item.id ? "Export..." : "PDF"}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="uiverse-modal-button uiverse-modal-button--neutral min-h-[34px] px-3 text-xs"
-                        onClick={() => openResolveIdeb(item)}
-                      >
-                        Hubungkan IDEB
-                      </button>
-                    </div>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                    onDoubleClick={(event) => event.stopPropagation()}
+                  >
+                    <SetupActionMenu
+                      label={`Aksi IDEB ${item.debtor_name ?? item.identity_number ?? ""}`}
+                      items={[
+                        {
+                          key: "detail",
+                          label: "Detail",
+                          icon: Eye,
+                          onClick: () => openResolveIdeb(item),
+                        },
+                        {
+                          key: "export",
+                          label:
+                            exportingIdebId === item.id ? "Mengekspor..." : "Export PDF",
+                          icon: Download,
+                          disabled: exportingIdebId === item.id,
+                          onClick: () => exportIdebResumePdf(item),
+                        },
+                        ...(canResolveIdeb
+                          ? [
+                              {
+                                key: "resolve",
+                                label: "Hubungkan IDEB",
+                                icon: FileCheck2,
+                                tone: "blue" as const,
+                                onClick: () => openResolveIdeb(item),
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
                   </SetupDataTableCell>
                 </SetupDataTableRow>
               ))}
@@ -4875,6 +6027,8 @@ export function DebtorImportClient({
           />
         </SetupTableCard>
       ) : null}
+
+      {!isMonitoringMode || monitoringTab === "history" ? (
       <SetupTableCard variant="report">
         <SetupDataTable variant="report" density="compact" className="min-w-[1120px]">
           <SetupDataTableColGroup>
@@ -4889,6 +6043,7 @@ export function DebtorImportClient({
             <SetupDataTableCol className="w-[88px]" />
             <SetupDataTableCol className="w-[180px]" />
             <SetupDataTableCol className="w-[120px]" />
+            <SetupDataTableCol className="w-[72px]" />
           </SetupDataTableColGroup>
           <SetupDataTableHead>
             <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
@@ -4902,18 +6057,31 @@ export function DebtorImportClient({
               </SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Nama File</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Segmen</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Total Baris</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Total {importUnitLabel}</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Berhasil</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Gagal</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Catatan Error</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Dibuat</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                Aksi
+              </SetupDataTableHeaderCell>
             </SetupDataTableRow>
           </SetupDataTableHead>
           <SetupDataTableBody>
             {items.map((item, index) => (
               <SetupDataTableRow
                 key={item.id}
-                className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
+                className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer`}
+                role="button"
+                tabIndex={0}
+                title="Klik dua kali untuk melihat detail job import"
+                onDoubleClick={() => setSelectedImportJob(item)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedImportJob(item);
+                  }
+                }}
               >
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                   {(meta.page - 1) * meta.limit + index + 1}
@@ -4948,16 +6116,47 @@ export function DebtorImportClient({
                   </span>
                 </SetupDataTableCell>
                 <SetupDataTableCell>{formatDateOnly(item.created_at)}</SetupDataTableCell>
+                <SetupDataTableCell
+                  className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                  onDoubleClick={(event) => event.stopPropagation()}
+                >
+                  <SetupActionMenu
+                    label={`Aksi job import ${formatImportFileNames(item)}`}
+                    items={[
+                      {
+                        key: "detail",
+                        label: "Detail",
+                        icon: Eye,
+                        onClick: () => setSelectedImportJob(item),
+                      },
+                      ...(canRetrySlik && item.type === "SLIK" && item.status === "FAILED"
+                        ? [
+                            {
+                              key: "retry",
+                              label:
+                                retryingImportJobId === item.id
+                                  ? "Menjadwalkan..."
+                                  : "Coba Lagi",
+                              icon: RefreshCw,
+                              tone: "blue" as const,
+                              disabled: retryingImportJobId === item.id,
+                              onClick: () => retrySlikImport(item),
+                            },
+                          ]
+                        : []),
+                    ]}
+                  />
+                </SetupDataTableCell>
               </SetupDataTableRow>
             ))}
             {isLoading ? (
-              <SetupDataTableEmptyRow colSpan={11}>
+              <SetupDataTableEmptyRow colSpan={12}>
                 Memuat riwayat import...
               </SetupDataTableEmptyRow>
             ) : null}
             {!isLoading && items.length === 0 ? (
               <SetupDataTableEmptyRow
-                colSpan={11}
+                colSpan={12}
                 tone="import"
                 description={
                   isMonitoringMode
@@ -4998,6 +6197,7 @@ export function DebtorImportClient({
           onPageChange={setPage}
         />
       </SetupTableCard>
+      ) : null}
       <DashboardModal
         isOpen={isModalOpen}
         title={config.title}
@@ -5049,7 +6249,7 @@ export function DebtorImportClient({
               <TextField
                 label="Periode Data"
                 value={form.period_month}
-                placeholder="YYYY-MM"
+                type="month"
                 required
                 onChange={(value) =>
                   setForm((prev) => ({ ...prev, period_month: value }))
@@ -5058,54 +6258,37 @@ export function DebtorImportClient({
             ) : null}
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm leading-6 text-gray-600">
               {form.import_segment === "F01"
-                ? "Urutan import: D01/D02 lebih dulu, lalu F01. F01 menambah atau mengupdate posisi pembiayaan sesuai Periode Data."
+                ? "Urutan import: D01/D02 lebih dulu, lalu F01. Periode Data wajib sama dengan periode pada header file."
                 : form.import_segment === "A01"
                   ? "Urutan import: D01/D02 dan F01 lebih dulu, lalu A01. Jika F01 belum ada, agunan akan ditandai menunggu relasi."
                   : "Urutan import: D01/D02 untuk membuat CIF, lalu F01 untuk fasilitas, lalu A01 untuk agunan."}
             </div>
-            <FileUploadField
-              id="debtor-import-slik-file"
+            <MultiFileUploadField
+              id="debtor-import-slik-files"
               accept=".txt"
               label="File TXT SLIK"
-              file={form.file}
-              validateFile={validateSlikImportFile}
-              helperText="Upload satu file TXT untuk satu jenis segmen sesuai pilihan. Nama file, header, dan jumlah field akan divalidasi backend."
-              onChange={(event) =>
+              files={form.files.length > 0 ? form.files : form.file ? [form.file] : []}
+              validateFile={(file) => validateSlikImportFileForForm(file, form)}
+              maxFiles={20}
+              emptyFileMeta={`TXT maksimal ${SLIK_IMPORT_MAX_FILE_SIZE_MB} MB.`}
+              helperText="Bisa pilih beberapa file untuk segmen yang sama. Nama file wajib mengikuti KODEJENIS.KODEPELAPOR.YYYY.MM.SEGMEN.URUTAN.txt; header dan jumlah field divalidasi saat job diproses."
+              onChange={(files) =>
                 setForm((prev) => ({
                   ...prev,
-                  file: event.target.files?.[0] ?? null,
-                  files: [],
-                }))
-              }
-              onClear={() =>
-                setForm((prev) => ({
-                  ...prev,
-                  file: null,
-                  files: [],
+                  file: files[0] ?? null,
+                  files,
                 }))
               }
             />
           </SetupFormSection>
         ) : showTargetFields ? (
-          <SetupFormSection title="Target IDEB">
+          <SetupFormSection title="Target IDEB (Opsional)">
             <SelectField label="Debitur Target" value={form.debtor_id} options={debtorContracts.debtorOptions} onChange={(value) => setForm((prev) => ({ ...prev, debtor_id: value, contract_id: "" }))} emptyLabel="Tanpa target debitur" searchable loadOptions={loadDebtorSearchOptions} searchPlaceholder="Cari nama atau nomor debitur..." />
             <SelectField label="Kontrak Target" value={form.contract_id} options={filteredContractOptions} onChange={(value) => setForm((prev) => ({ ...prev, contract_id: value }))} emptyLabel="Tanpa target kontrak" searchable loadOptions={(query) => loadContractSearchOptions(query, form.debtor_id)} searchPlaceholder="Cari nomor kontrak atau nama debitur..." />
-            <TextField label="Periode Data" value={form.period_month} placeholder="YYYY-MM" onChange={(value) => setForm((prev) => ({ ...prev, period_month: value }))} />
-            <TextField label="Referensi" value={form.raw_reference} onChange={(value) => setForm((prev) => ({ ...prev, raw_reference: value }))} />
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs leading-5 text-gray-600">
-              <p className="mb-2 text-sm font-semibold text-gray-900">Format IDEB yang didukung</p>
-              <p className="mb-2 text-xs text-gray-500">
-                Upload file IDEB .txt atau .json berisi JSON valid. Jika file terbagi menjadi beberapa bagian, pilih semua bagian sekaligus agar digabung menjadi satu hasil pengecekan.
-              </p>
-              <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-white p-3">
-{`{
-  "schema_version": "ideb-v1",
-  "periode": "2026-04",
-  "debitur": { "nama": "Nama Nasabah", "no_identitas": "3201..." },
-  "ringkasan": { "kolektibilitas_terburuk": "1", "kesimpulan": "Aman" },
-  "fasilitas": [{ "pelapor": "BPRS", "no_rekening": "PB/2026/0001", "kol": "1" }]
-}`}
-              </pre>
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm leading-6 text-gray-600 md:col-span-2">
+              Periode dan referensi dibaca dari file. Jika target dikosongkan,
+              sistem mencocokkan identitas atau nomor kontrak secara otomatis;
+              hasil yang belum cocok masuk ke Monitoring Import untuk dihubungkan.
             </div>
           </SetupFormSection>
         ) : (
@@ -5119,11 +6302,12 @@ export function DebtorImportClient({
               <MultiFileUploadField
                 id="debtor-import-ideb-files"
                 accept=".txt,.json"
-                label="File IDEB .txt / .json"
+                label="File Hasil IDEB"
                 files={form.files.length > 0 ? form.files : form.file ? [form.file] : []}
                 validateFile={(file) => validateDebtorImportFile("IDEB", file)}
                 maxFiles={20}
-                helperText="Jika hasil IDEB terbagi menjadi beberapa bagian, pilih semua bagian sekaligus atau tambahkan file lagi sebelum submit."
+                emptyFileMeta={`TXT atau JSON, maksimal ${DOCUMENT_UPLOAD_MAX_SIZE_LABEL} per file.`}
+                helperText="Maksimal 20 file. Jika hasil IDEB terdiri dari beberapa bagian, pilih seluruh bagiannya; ID hasil, nomor bagian, dan kelengkapannya divalidasi saat upload."
                 onChange={(files) =>
                   setForm((prev) => ({ ...prev, files, file: files[0] ?? null }))
                 }
@@ -5151,9 +6335,23 @@ export function DebtorImportClient({
         debtorOptions={debtorContracts.debtorOptions}
         contractOptions={resolveContractOptions}
         isSaving={isResolvingIdeb}
+        isExporting={
+          selectedPendingIdeb !== null && exportingIdebId === selectedPendingIdeb.id
+        }
+        canResolve={canResolveIdeb}
         onChange={(patch) => setResolveForm((prev) => ({ ...prev, ...patch }))}
         onClose={closeResolveIdeb}
+        onExport={(item) => void exportIdebResumePdf(item)}
         onSave={() => void saveResolveIdeb()}
+      />
+      <ImportJobDetailModal
+        item={selectedImportJob}
+        canRetry={canRetrySlik}
+        isRetrying={
+          selectedImportJob !== null && retryingImportJobId === selectedImportJob.id
+        }
+        onClose={() => setSelectedImportJob(null)}
+        onRetry={(item) => void retrySlikImport(item)}
       />
     </DashboardPageShell>
   );
@@ -5786,6 +6984,39 @@ export function DebtorReportClient() {
     router.push(`/dashboard/informasi-debitur/${debtorId}`);
   };
 
+  const reportCollateralDebtorId = (item: DebtorCollateralReport["items"][number]) =>
+    item.debtor_id ?? item.debtor?.id ?? item.contract?.debtor_id ?? null;
+
+  const reportIssueDebtor = (item: DebtorCompletenessReport["items"][number]) =>
+    item.debtor ?? item.contract?.debtor ?? item.collateral?.debtor ?? null;
+
+  const reportIssueDebtorId = (item: DebtorCompletenessReport["items"][number]) => {
+    const debtor = reportIssueDebtor(item);
+    return (
+      item.debtor_id ??
+      debtor?.id ??
+      item.contract?.debtor_id ??
+      item.collateral?.debtor_id ??
+      item.collateral?.contract?.debtor_id ??
+      null
+    );
+  };
+
+  const reportIssueContractNumber = (item: DebtorCompletenessReport["items"][number]) =>
+    item.contract?.no_kontrak ?? item.collateral?.contract?.no_kontrak ?? "-";
+
+  const reportIssueFacilityNumber = (item: DebtorCompletenessReport["items"][number]) =>
+    item.contract?.latest_slik_snapshot?.facility_number ??
+    item.collateral?.facility_number ??
+    "-";
+
+  const reportIssuePeriod = (item: DebtorCompletenessReport["items"][number]) =>
+    item.period_month ??
+    item.contract?.latest_slik_snapshot?.period_month ??
+    item.contract?.latest_collectibility?.period_month ??
+    reportIssueDebtor(item)?.latest_slik_period_month ??
+    null;
+
   useEffect(() => {
     let ignore = false;
 
@@ -6023,7 +7254,10 @@ export function DebtorReportClient() {
               nilai_pasar: formatCurrency(item.market_value),
               nilai_appraisal: formatCurrency(item.appraisal_value),
               lokasi: item.location_city_display ?? item.location_city_code ?? "-",
-              status_link: item.debtor_id || item.contract_id ? "Terhubung" : "Belum Terhubung",
+              status_link:
+                reportCollateralDebtorId(item) || item.contract_id || item.contract?.id
+                  ? "Terhubung"
+                  : "Belum Terhubung",
             })),
           );
           if (exportPage >= result.meta.lastPage) break;
@@ -6034,18 +7268,21 @@ export function DebtorReportClient() {
             buildActiveQuery(exportPage, exportLimit),
           );
           rows.push(
-            ...result.items.map((item, index) => ({
-              no: (exportPage - 1) * exportLimit + index + 1,
-              jenis_isu: item.issue_label,
-              debitur: item.debtor?.name ?? item.contract?.debtor?.name ?? item.collateral?.debtor?.name ?? "-",
-              no_debitur: item.debtor?.debtor_number ?? item.contract?.debtor?.debtor_number ?? item.collateral?.debtor?.debtor_number ?? "-",
-              kontrak: item.contract?.no_kontrak ?? item.collateral?.contract?.no_kontrak ?? "-",
-              fasilitas_f01: item.contract?.latest_slik_snapshot?.facility_number ?? item.collateral?.facility_number ?? "-",
-              agunan: item.collateral?.collateral_number ?? "-",
-              periode_slik: periodLabel(item.period_month),
-              dampak: item.impact,
-              rekomendasi: item.recommendation,
-            })),
+            ...result.items.map((item, index) => {
+              const debtor = reportIssueDebtor(item);
+              return {
+                no: (exportPage - 1) * exportLimit + index + 1,
+                jenis_isu: item.issue_label,
+                debitur: debtor?.name ?? "-",
+                no_debitur: debtor?.debtor_number ?? "-",
+                kontrak: reportIssueContractNumber(item),
+                fasilitas_f01: reportIssueFacilityNumber(item),
+                agunan: item.collateral?.collateral_number ?? "-",
+                periode_slik: periodLabel(reportIssuePeriod(item)),
+                dampak: item.impact,
+                rekomendasi: item.recommendation,
+              };
+            }),
           );
           if (exportPage >= result.meta.lastPage) break;
         }
@@ -6110,20 +7347,20 @@ export function DebtorReportClient() {
                 setActiveReport(kind);
                 setPage(1);
               }}
-              className={`group flex min-h-[210px] flex-col rounded-lg border bg-white p-5 text-left shadow-sm transition ${
+              className={`group flex min-h-[210px] min-w-0 flex-col rounded-lg border bg-white p-5 text-left shadow-sm transition ${
                 isActive
                   ? "border-blue-200 ring-2 ring-blue-100"
                   : "border-gray-200 hover:border-gray-300 hover:shadow-md"
               }`}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <Icon className="h-7 w-7 text-slate-700" aria-hidden="true" />
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">
                       {card.totalLabel}
                     </p>
-                    <p className="mt-1 text-2xl font-black text-slate-900">
+                    <p className="mt-1 break-words text-2xl font-black text-slate-900">
                       {typeof card.totalValue === "number"
                         ? formatNumber(card.totalValue)
                         : card.totalValue}
@@ -6140,10 +7377,10 @@ export function DebtorReportClient() {
                   {card.rows.map((row) => (
                     <div
                       key={row.label}
-                      className="flex items-center justify-between gap-3 text-sm"
+                      className="flex min-w-0 items-start justify-between gap-3 text-sm"
                     >
-                      <span className="text-slate-500">{row.label}</span>
-                      <span className="max-w-[62%] truncate font-bold text-slate-900">
+                      <span className="min-w-0 break-words text-slate-500">{row.label}</span>
+                      <span className="min-w-0 max-w-[62%] break-words text-right font-bold text-slate-900">
                         {row.value}
                       </span>
                     </div>
@@ -6321,7 +7558,7 @@ export function DebtorReportClient() {
 
         <SetupTableCard variant="report" className="border-0 shadow-none">
           {activeReport === "portfolio" ? (
-            <SetupDataTable variant="report" density="compact" className="min-w-[1390px]">
+            <SetupDataTable variant="report" density="compact" className="min-w-[1480px]">
               <SetupDataTableHead>
                 <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                   <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
@@ -6334,6 +7571,7 @@ export function DebtorReportClient() {
                   <SetupDataTableHeaderCell>KOL Terakhir</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Periode SLIK</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Status</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
                 </SetupDataTableRow>
               </SetupDataTableHead>
               <SetupDataTableBody>
@@ -6406,17 +7644,35 @@ export function DebtorReportClient() {
                       </SetupDataTableCell>
                       <SetupDataTableCell>{periodLabel(item.latest_slik_period_month)}</SetupDataTableCell>
                       <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}><SetupStatusBadge status={statusLabel(item.status)} /></SetupDataTableCell>
+                      <SetupDataTableCell
+                        className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                        onClick={(event) => event.stopPropagation()}
+                        onDoubleClick={(event) => event.stopPropagation()}
+                      >
+                        <SetupActionMenu
+                          label={`Aksi laporan debitur ${item.name}`}
+                          menuLabel={`Aksi untuk ${item.name}`}
+                          items={[
+                            {
+                              key: "detail",
+                              label: "Detail Debitur",
+                              icon: Eye,
+                              onClick: () => openDebtorDetail(item.id),
+                            },
+                          ]}
+                        />
+                      </SetupDataTableCell>
                     </SetupDataTableRow>
                   );
                 })}
-                {isLoading ? <SetupDataTableEmptyRow colSpan={10}>Memuat laporan portfolio...</SetupDataTableEmptyRow> : null}
-                {!isLoading && (portfolio?.items.length ?? 0) === 0 ? <SetupDataTableEmptyRow colSpan={10}>Belum ada data portfolio sesuai filter.</SetupDataTableEmptyRow> : null}
+                {isLoading ? <SetupDataTableEmptyRow colSpan={11}>Memuat laporan portfolio...</SetupDataTableEmptyRow> : null}
+                {!isLoading && (portfolio?.items.length ?? 0) === 0 ? <SetupDataTableEmptyRow colSpan={11}>Belum ada data portfolio sesuai filter.</SetupDataTableEmptyRow> : null}
               </SetupDataTableBody>
             </SetupDataTable>
           ) : null}
 
           {activeReport === "facilities" ? (
-            <SetupDataTable variant="report" density="compact" className="min-w-[1430px]">
+            <SetupDataTable variant="report" density="compact" className="min-w-[1520px]">
               <SetupDataTableHead>
                 <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                   <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
@@ -6429,50 +7685,52 @@ export function DebtorReportClient() {
                   <SetupDataTableHeaderCell>KOL</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Kondisi</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Jatuh Tempo</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
                 </SetupDataTableRow>
               </SetupDataTableHead>
               <SetupDataTableBody>
                 {(facilities?.items ?? []).map((item, index) => {
                   const snapshot = item.latest_slik_snapshot;
+                  const debtorId = item.debtor_id ?? item.debtor?.id ?? null;
 
                   return (
                     <SetupDataTableRow
                       key={item.id}
                       className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} ${
-                        item.debtor_id ? "cursor-pointer hover:bg-[#157ec3]/5" : ""
+                        debtorId ? "cursor-pointer hover:bg-[#157ec3]/5" : ""
                       }`}
-                      role={item.debtor_id ? "button" : undefined}
-                      tabIndex={item.debtor_id ? 0 : undefined}
-                      title={item.debtor_id ? "Klik dua kali untuk melihat detail debitur" : undefined}
+                      role={debtorId ? "button" : undefined}
+                      tabIndex={debtorId ? 0 : undefined}
+                      title={debtorId ? "Klik dua kali untuk melihat detail debitur" : undefined}
                       onClick={
-                        item.debtor_id
+                        debtorId
                           ? () =>
                               handleDoubleRowClick(
                                 reportRowActivationRef,
                                 `facility-${item.id}`,
-                                () => openDebtorDetail(item.debtor_id),
+                                () => openDebtorDetail(debtorId),
                               )
                           : undefined
                       }
                       onDoubleClick={
-                        item.debtor_id
+                        debtorId
                           ? () =>
                               triggerDoubleRowActivation(
                                 reportRowActivationRef,
                                 `facility-${item.id}`,
-                                () => openDebtorDetail(item.debtor_id),
+                                () => openDebtorDetail(debtorId),
                               )
                           : undefined
                       }
                       onKeyDown={
-                        item.debtor_id
+                        debtorId
                           ? (event) => {
                               if (event.key !== "Enter") return;
                               event.preventDefault();
                               triggerDoubleRowActivation(
                                 reportRowActivationRef,
                                 `facility-${item.id}`,
-                                () => openDebtorDetail(item.debtor_id),
+                                () => openDebtorDetail(debtorId),
                               );
                             }
                           : undefined
@@ -6527,17 +7785,36 @@ export function DebtorReportClient() {
                         />
                       </SetupDataTableCell>
                       <SetupDataTableCell>{formatDateOnly(snapshot?.due_date ?? item.tanggal_jatuh_tempo)}</SetupDataTableCell>
+                      <SetupDataTableCell
+                        className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                        onClick={(event) => event.stopPropagation()}
+                        onDoubleClick={(event) => event.stopPropagation()}
+                      >
+                        <SetupActionMenu
+                          label={`Aksi laporan fasilitas ${item.no_kontrak}`}
+                          menuLabel={`Aksi untuk ${item.no_kontrak}`}
+                          items={[
+                            {
+                              key: "detail",
+                              label: "Detail Debitur",
+                              icon: Eye,
+                              disabled: !debtorId,
+                              onClick: () => openDebtorDetail(debtorId),
+                            },
+                          ]}
+                        />
+                      </SetupDataTableCell>
                     </SetupDataTableRow>
                   );
                 })}
-                {isLoading ? <SetupDataTableEmptyRow colSpan={10}>Memuat laporan fasilitas...</SetupDataTableEmptyRow> : null}
-                {!isLoading && (facilities?.items.length ?? 0) === 0 ? <SetupDataTableEmptyRow colSpan={10}>Belum ada data fasilitas sesuai filter.</SetupDataTableEmptyRow> : null}
+                {isLoading ? <SetupDataTableEmptyRow colSpan={11}>Memuat laporan fasilitas...</SetupDataTableEmptyRow> : null}
+                {!isLoading && (facilities?.items.length ?? 0) === 0 ? <SetupDataTableEmptyRow colSpan={11}>Belum ada data fasilitas sesuai filter.</SetupDataTableEmptyRow> : null}
               </SetupDataTableBody>
             </SetupDataTable>
           ) : null}
 
           {activeReport === "collaterals" ? (
-            <SetupDataTable variant="report" density="compact" className="min-w-[1390px]">
+            <SetupDataTable variant="report" density="compact" className="min-w-[1480px]">
               <SetupDataTableHead>
                 <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                   <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
@@ -6550,11 +7827,13 @@ export function DebtorReportClient() {
                   <SetupDataTableHeaderCell>Nilai Appraisal</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Lokasi</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Status Link</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
                 </SetupDataTableRow>
               </SetupDataTableHead>
               <SetupDataTableBody>
                 {(collaterals?.items ?? []).map((item, index) => {
-                  const debtorId = item.debtor_id ?? item.contract?.debtor_id;
+                  const debtorId = reportCollateralDebtorId(item);
+                  const isLinked = Boolean(debtorId || item.contract_id || item.contract?.id);
 
                   return (
                     <SetupDataTableRow
@@ -6620,18 +7899,37 @@ export function DebtorReportClient() {
                       <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.market_value)}</SetupTableMoney></SetupDataTableCell>
                       <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.appraisal_value)}</SetupTableMoney></SetupDataTableCell>
                       <SetupDataTableCell>{item.location_city_display ?? item.location_city_code ?? "-"}</SetupDataTableCell>
-                      <SetupDataTableCell><SetupStatusBadge status={debtorId ? "Terhubung" : "Belum Terhubung"} /></SetupDataTableCell>
+                      <SetupDataTableCell><SetupStatusBadge status={isLinked ? "Terhubung" : "Belum Terhubung"} /></SetupDataTableCell>
+                      <SetupDataTableCell
+                        className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                        onClick={(event) => event.stopPropagation()}
+                        onDoubleClick={(event) => event.stopPropagation()}
+                      >
+                        <SetupActionMenu
+                          label={`Aksi laporan agunan ${item.collateral_number}`}
+                          menuLabel={`Aksi untuk ${item.collateral_number}`}
+                          items={[
+                            {
+                              key: "detail",
+                              label: "Detail Debitur",
+                              icon: Eye,
+                              disabled: !debtorId,
+                              onClick: () => openDebtorDetail(debtorId),
+                            },
+                          ]}
+                        />
+                      </SetupDataTableCell>
                     </SetupDataTableRow>
                   );
                 })}
-                {isLoading ? <SetupDataTableEmptyRow colSpan={10}>Memuat laporan agunan...</SetupDataTableEmptyRow> : null}
-                {!isLoading && (collaterals?.items.length ?? 0) === 0 ? <SetupDataTableEmptyRow colSpan={10}>Belum ada data agunan sesuai filter.</SetupDataTableEmptyRow> : null}
+                {isLoading ? <SetupDataTableEmptyRow colSpan={11}>Memuat laporan agunan...</SetupDataTableEmptyRow> : null}
+                {!isLoading && (collaterals?.items.length ?? 0) === 0 ? <SetupDataTableEmptyRow colSpan={11}>Belum ada data agunan sesuai filter.</SetupDataTableEmptyRow> : null}
               </SetupDataTableBody>
             </SetupDataTable>
           ) : null}
 
           {activeReport === "completeness" ? (
-            <SetupDataTable variant="report" density="compact" className="min-w-[1230px]">
+            <SetupDataTable variant="report" density="compact" className="min-w-[1320px]">
               <SetupDataTableHead>
                 <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                   <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
@@ -6642,20 +7940,15 @@ export function DebtorReportClient() {
                   <SetupDataTableHeaderCell>Periode</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Dampak</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Rekomendasi</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
                 </SetupDataTableRow>
               </SetupDataTableHead>
               <SetupDataTableBody>
                 {(completeness?.items ?? []).map((item, index) => {
-                  const debtor = item.debtor ?? item.contract?.debtor ?? item.collateral?.debtor ?? null;
-                  const debtorId = item.debtor_id ?? debtor?.id ?? item.contract?.debtor_id ?? item.collateral?.debtor_id ?? null;
-                  const contractNumber =
-                    item.contract?.no_kontrak ??
-                    item.collateral?.contract?.no_kontrak ??
-                    "-";
-                  const facilityNumber =
-                    item.contract?.latest_slik_snapshot?.facility_number ??
-                    item.collateral?.facility_number ??
-                    "-";
+                  const debtor = reportIssueDebtor(item);
+                  const debtorId = reportIssueDebtorId(item);
+                  const contractNumber = reportIssueContractNumber(item);
+                  const facilityNumber = reportIssueFacilityNumber(item);
                   const rowKey = item.id || `${item.issue_type}-${index}`;
 
                   return (
@@ -6726,7 +8019,7 @@ export function DebtorReportClient() {
                       <SetupDataTableCell>
                         {item.collateral?.collateral_number ? <SetupTableCode>{item.collateral.collateral_number}</SetupTableCode> : "-"}
                       </SetupDataTableCell>
-                      <SetupDataTableCell>{periodLabel(item.period_month)}</SetupDataTableCell>
+                      <SetupDataTableCell>{periodLabel(reportIssuePeriod(item))}</SetupDataTableCell>
                       <SetupDataTableCell>
                         <span className="line-clamp-2 text-sm text-slate-600" title={item.impact}>
                           {item.impact}
@@ -6737,11 +8030,30 @@ export function DebtorReportClient() {
                           {item.recommendation}
                         </span>
                       </SetupDataTableCell>
+                      <SetupDataTableCell
+                        className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                        onClick={(event) => event.stopPropagation()}
+                        onDoubleClick={(event) => event.stopPropagation()}
+                      >
+                        <SetupActionMenu
+                          label={`Aksi isu kelengkapan ${item.issue_label}`}
+                          menuLabel={`Aksi untuk ${item.issue_label}`}
+                          items={[
+                            {
+                              key: "detail",
+                              label: "Detail Debitur",
+                              icon: Eye,
+                              disabled: !debtorId,
+                              onClick: () => openDebtorDetail(debtorId),
+                            },
+                          ]}
+                        />
+                      </SetupDataTableCell>
                     </SetupDataTableRow>
                   );
                 })}
-                {isLoading ? <SetupDataTableEmptyRow colSpan={8}>Memuat laporan kelengkapan SLIK...</SetupDataTableEmptyRow> : null}
-                {!isLoading && (completeness?.items.length ?? 0) === 0 ? <SetupDataTableEmptyRow colSpan={8}>Belum ada isu kelengkapan sesuai filter.</SetupDataTableEmptyRow> : null}
+                {isLoading ? <SetupDataTableEmptyRow colSpan={9}>Memuat laporan kelengkapan SLIK...</SetupDataTableEmptyRow> : null}
+                {!isLoading && (completeness?.items.length ?? 0) === 0 ? <SetupDataTableEmptyRow colSpan={9}>Belum ada isu kelengkapan sesuai filter.</SetupDataTableEmptyRow> : null}
               </SetupDataTableBody>
             </SetupDataTable>
           ) : null}

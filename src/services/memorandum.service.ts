@@ -433,12 +433,6 @@ export function mapMemorandumRecord(
       readNullableString(record, "note", "catatan") ??
       latestDispositionWithNote?.catatan ??
       undefined,
-    followUpStatus:
-      readString(record, "follow_up_status", "followUpStatus") ?? undefined,
-    followUpStatusLabel:
-      readString(record, "follow_up_status_label", "followUpStatusLabel") ??
-      undefined,
-    isFollowUpOverdue: Boolean(record.is_follow_up_overdue),
   };
 }
 

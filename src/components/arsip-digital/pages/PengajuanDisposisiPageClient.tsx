@@ -9,12 +9,13 @@ import {
   SetupDataTableRow,
   SetupDataTableHeaderCell,
   SetupDataTableCell,
+  SetupDataTableEmptyRow,
   SetupDataTableColGroup,
   SetupDataTableCol,
   SetupTableCard,
 } from "@/components/ui/SetupDataTable";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Send, FileText } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { CalendarDays, FileText, Send, UserRound } from "lucide-react";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import BasicDateInput from "@/components/ui/BasicDateInput";
@@ -27,7 +28,6 @@ import {
   SETUP_PAGE_MODERN_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
-  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
   SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
@@ -68,6 +68,30 @@ const PENGAJUAN_TABLE_COLUMN_WIDTHS: Array<string | null> = [
   "152px",
   "108px",
 ];
+
+function ModalInfoItem({
+  label,
+  value,
+  helper,
+  className = "",
+}: {
+  label: string;
+  value: ReactNode;
+  helper?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`space-y-1 rounded-xl border border-gray-200 bg-white px-4 py-3 ${className}`.trim()}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+        {label}
+      </p>
+      <div className="text-sm font-semibold text-slate-900">{value}</div>
+      {helper ? <div className="text-xs text-slate-500">{helper}</div> : null}
+    </div>
+  );
+}
 
 export default function PengajuanDisposisiPageClient() {
   const { showToast } = useAppToast();
@@ -321,14 +345,13 @@ export default function PengajuanDisposisiPageClient() {
             </SetupDataTableHead>
             <SetupDataTableBody className="divide-y divide-gray-200">
               {isDocsLoading ? (
-                <SetupDataTableRow>
-                  <SetupDataTableCell
-                    colSpan={7}
-                    className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
-                  >
-                    Memuat dokumen yang bisa diajukan...
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
+                <SetupDataTableEmptyRow
+                  colSpan={7}
+                  state="loading"
+                  description="Daftar dokumen sedang disiapkan sesuai akses Anda."
+                >
+                  Memuat dokumen yang bisa diajukan...
+                </SetupDataTableEmptyRow>
               ) : filteredDokumen.length > 0 ? (
                 paginatedDokumen.map((doc) => (
                 <SetupDataTableRow
@@ -399,14 +422,18 @@ export default function PengajuanDisposisiPageClient() {
                 </SetupDataTableRow>
                 ))
               ) : (
-                <SetupDataTableRow>
-                  <SetupDataTableCell
-                    colSpan={7}
-                    className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
-                  >
-                    Tidak ada dokumen yang bisa diajukan.
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
+                <SetupDataTableEmptyRow
+                  colSpan={7}
+                  icon={Send}
+                  isFiltered={searchTerm.trim().length > 0}
+                  description={
+                    searchTerm.trim()
+                      ? "Ubah kata kunci pencarian untuk melihat dokumen lain yang bisa diajukan."
+                      : "Dokumen yang dapat diajukan aksesnya akan muncul setelah tersedia dan sesuai akses Anda."
+                  }
+                >
+                  Tidak ada dokumen yang bisa diajukan.
+                </SetupDataTableEmptyRow>
               )}
             </SetupDataTableBody>
           </SetupDataTable>
@@ -425,8 +452,9 @@ export default function PengajuanDisposisiPageClient() {
         title="Ajukan Disposisi"
         description={`${selectedDocuments.length} dokumen dipilih`}
         onClose={() => setShowModal(false)}
-        maxWidth="xl"
-        bodyClassName="space-y-6 p-6"
+        maxWidth="4xl"
+        bodyClassName="max-h-[calc(90vh-164px)] overflow-y-auto p-6"
+        footerClassName="flex flex-col justify-end gap-3 border-t border-gray-100 bg-gray-50 p-6 sm:flex-row"
         footer={
           <>
             <button
@@ -439,86 +467,153 @@ export default function PengajuanDisposisiPageClient() {
             <SetupPrimaryButton
               onClick={() => void handleSubmit()}
               disabled={!alasan.trim() || !tanggalExpired || isLoading}
-              icon={
-                isLoading ? (
-                  <div className="uiverse-modal-button__spinner h-4 w-4 animate-spin rounded-full border-2 border-current/20 border-t-current" />
-                ) : (
-                  <Send className="h-4 w-4" aria-hidden="true" />
-                )
-              }
+              icon={<Send className="h-4 w-4" aria-hidden="true" />}
             >
               {isLoading ? "Mengirim..." : "Kirim Pengajuan"}
             </SetupPrimaryButton>
           </>
         }
       >
-        <section className="space-y-3">
-          <InputDokumenSectionTitle
-            title="Dokumen yang diajukan"
-            description="Ringkasan dokumen yang akan dimasukkan ke pengajuan ini."
-          />
-          <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50/60">
-            <div className="max-h-44 divide-y divide-gray-200 overflow-y-auto">
-              {selectedDocuments.map((doc) => (
-                <div key={doc.id} className="flex items-start gap-3 px-4 py-3">
-                  <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center text-gray-400">
-                    <FileText className="h-5 w-5" aria-hidden="true" />
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p
-                        className="truncate text-sm font-semibold text-gray-900"
-                        title={doc.namaDokumen}
-                      >
-                        {doc.namaDokumen}
-                      </p>
-                      <span className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
-                        {doc.kode}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600">
-                      Pemilik:{" "}
-                      <span className="font-semibold text-slate-700">
-                        {formatPersonName(doc.pemilik)}
-                      </span>
+        <div className="space-y-8">
+          <section className="space-y-4">
+            <InputDokumenSectionTitle
+              title="Dokumen yang Diajukan"
+              description="Ringkasan dokumen yang akan dimasukkan ke pengajuan disposisi."
+            />
+            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.85fr)]">
+              <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Paket Pengajuan
                     </p>
-                    <p
-                      className="truncate text-xs text-slate-500"
-                      title={doc.detail}
-                    >
-                      Keterangan: {doc.detail}
+                    <div className="space-y-1">
+                      <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
+                        {selectedDocuments.length} Dokumen
+                      </h3>
+                      <p className="text-base font-medium text-slate-500">
+                        Siap dikirim untuk persetujuan akses.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-slate-50 text-sky-600">
+                    <FileText className="size-5" strokeWidth={1.9} aria-hidden="true" />
+                  </div>
+                </div>
+
+                <div className="max-h-64 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50">
+                  {selectedDocuments.map((doc) => (
+                    <div key={doc.id} className="flex items-start gap-3 px-4 py-3">
+                      <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white text-sky-600 shadow-sm">
+                        <FileText className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p
+                            className="truncate text-sm font-semibold text-gray-900"
+                            title={doc.namaDokumen}
+                          >
+                            {doc.namaDokumen}
+                          </p>
+                          <span className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
+                            {doc.kode}
+                          </span>
+                        </div>
+                        <p
+                          className="truncate text-xs text-slate-500"
+                          title={doc.detail}
+                        >
+                          {doc.detail || "-"}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4 rounded-2xl border border-gray-200 bg-slate-50 p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm">
+                    <UserRound className="size-5" strokeWidth={1.9} aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h4 className="text-lg font-semibold text-slate-950">
+                      Pemilik Dokumen
+                    </h4>
+                    <p className="text-sm text-slate-500">
+                      Ringkasan PIC dari dokumen yang dipilih.
                     </p>
                   </div>
                 </div>
-              ))}
+                <div className="grid gap-3">
+                  {selectedDocuments.slice(0, 4).map((doc) => (
+                    <ModalInfoItem
+                      key={doc.id}
+                      label={doc.kode}
+                      value={formatPersonName(doc.pemilik)}
+                      helper={doc.namaDokumen}
+                    />
+                  ))}
+                  {selectedDocuments.length > 4 ? (
+                    <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-500">
+                      +{selectedDocuments.length - 4} dokumen lain
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
-            Alasan Pengajuan <span className="text-red-500">*</span>
-          </label>
-          <SetupTextarea
-            value={alasan}
-            onChange={(event) => setAlasan(event.target.value)}
-            placeholder="Jelaskan alasan Anda membutuhkan akses ke dokumen ini..."
-            className="min-h-[128px] resize-none"
-            rows={4}
-          />
-          <p className="text-xs text-slate-500">
-            Jelaskan kebutuhan akses dengan singkat dan jelas.
-          </p>
-        </div>
+          <section className="space-y-4">
+            <InputDokumenSectionTitle
+              title="Detail Pengajuan"
+              description="Isi alasan dan batas waktu akses yang diminta."
+            />
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+              <div className="space-y-5">
+                <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white text-sky-600">
+                      <CalendarDays className="size-5" strokeWidth={1.9} aria-hidden="true" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950">
+                        Masa Berlaku Akses
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Tanggal akses otomatis berakhir.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="max-w-xl space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Tanggal Expired Akses <span className="text-red-500">*</span>
+                    </label>
+                    <BasicDateInput
+                      value={tanggalExpired}
+                      onChange={setTanggalExpired}
+                    />
+                  </div>
+                </div>
 
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
-            Tanggal Expired Akses <span className="text-red-500">*</span>
-          </label>
-          <BasicDateInput
-            value={tanggalExpired}
-            onChange={setTanggalExpired}
-          />
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Alasan Pengajuan <span className="text-red-500">*</span>
+                  </label>
+                  <SetupTextarea
+                    value={alasan}
+                    onChange={(event) => setAlasan(event.target.value)}
+                    placeholder="Jelaskan alasan Anda membutuhkan akses ke dokumen ini..."
+                    className="min-h-[148px] resize-none"
+                    rows={5}
+                  />
+                  <p className="text-xs text-slate-500">
+                    Jelaskan kebutuhan akses dengan singkat dan jelas.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </DashboardModal>
     </DashboardPageShell>

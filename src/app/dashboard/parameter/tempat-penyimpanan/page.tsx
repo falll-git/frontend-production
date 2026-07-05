@@ -49,7 +49,8 @@ import {
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
-  SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS,
+  SETUP_PAGE_WIDTH_XL_CLASS,
+  SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { storageService } from "@/services/storage.service";
@@ -308,22 +309,25 @@ function SetupTempatPenyimpananPageContent() {
         title="Setup Tempat Penyimpanan"
         subtitle="Kelola master lokasi penyimpanan dokumen fisik."
         icon={<Warehouse />}
-        className={SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS}
+        className={SETUP_PAGE_WIDTH_XL_CLASS}
         actions={
           <SetupAddButton label="Tambah Tempat" onClick={openCreate} />
         }
       />
 
-      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS}`}>
-        <SetupSearchInput
-          label="Cari Data"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Cari kantor, lemari, rak, kapasitas, atau status..."
-        />
+      <div className={SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS}>
+        <div className={SETUP_PAGE_SEARCH_CARD_CLASS}>
+          <SetupSearchInput
+            label="Cari Data"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Cari kantor, lemari, rak, kapasitas, atau status..."
+          />
+        </div>
       </div>
 
-      <SetupTableCard variant="crud" className={SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS}>
+      <div className={SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS}>
+        <SetupTableCard variant="crud">
           <SetupDataTable variant="crud" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS} min-w-[1080px]`}>
               <SetupDataTableColGroup>
                 <SetupDataTableCol className="w-[56px]" />
@@ -455,7 +459,8 @@ function SetupTempatPenyimpananPageContent() {
           isLoading={isLoading}
           onPageChange={setPage}
         />
-      </SetupTableCard>
+        </SetupTableCard>
+      </div>
 
       <DashboardModal
         isOpen={isModalOpen}

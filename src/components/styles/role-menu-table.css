@@ -1,31 +1,27 @@
 .role-menu-table-card {
-  width: fit-content !important;
-  max-width: 100%;
+  display: block !important;
+  width: 100% !important;
+  max-width: 980px !important;
 }
 
 .role-menu-table-scroll {
-  width: fit-content;
+  width: 100%;
   max-width: 100%;
   overflow-x: auto;
 }
 
-.role-menu-permission-table {
-  width: 760px !important;
-  min-width: 760px !important;
-}
-
 .role-menu-permission-table th.role-menu-name-cell {
-  text-align: left !important;
+  text-align: center !important;
 }
 
 .role-menu-permission-table td.role-menu-name-cell,
 .role-menu-permission-table td.role-menu-name-cell * {
-  text-align: left !important;
+  text-align: center !important;
 }
 
 .role-menu-permission-table td.role-menu-name-cell .role-menu-name-content {
-  justify-content: flex-start !important;
-  padding-left: calc(var(--role-menu-depth, 0) * 14px);
+  justify-content: center !important;
+  padding-left: 0 !important;
 }
 
 .role-menu-filter-card .app-input,
@@ -58,24 +54,23 @@
     display: block !important;
     width: 100% !important;
     max-width: 100% !important;
-    overflow: visible !important;
   }
 
   .role-menu-permission-table {
-    width: 100% !important;
-    min-width: 0 !important;
+    width: 952px !important;
+    min-width: 952px !important;
   }
 
   .role-menu-permission-table td.role-menu-name-cell,
   .role-menu-permission-table td.role-menu-name-cell * {
-    text-align: left !important;
+    text-align: center !important;
   }
 
   .role-menu-permission-table td.role-menu-name-cell .flex {
-    justify-content: flex-start !important;
+    justify-content: center !important;
   }
 
   .role-menu-permission-table td.role-menu-name-cell .role-menu-name-content {
-    padding-left: 0;
+    padding-left: 0 !important;
   }
 }

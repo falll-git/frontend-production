@@ -39,6 +39,9 @@ function mapAccessRequestStatusLabel(
     case "Rejected":
     case "Ditolak":
       return "Ditolak";
+    case "Revoked":
+    case "Dicabut":
+      return "Dicabut";
     case "Pending":
     case "Menunggu Persetujuan":
     default:
@@ -103,7 +106,7 @@ type GetAllDisposisiParams = {
   limit?: number;
   search?: string;
   scope?: "requested" | "owned";
-  status?: "PENDING" | "APPROVED" | "REJECTED";
+  status?: "PENDING" | "APPROVED" | "REJECTED" | "REVOKED";
   report?: "history";
   document_id?: string;
   office_id?: string;
@@ -191,6 +194,20 @@ export const disposisiArsipService = {
 
     if (!mapped) {
       throw new Error("Respons penolakan akses dokumen dari server tidak valid");
+    }
+
+    return mapped;
+  },
+  revoke: async (
+    id: string,
+    payload: { action_note?: string } = {},
+  ): Promise<Disposisi> => {
+    const res = await api.patch(`/digital-document-access-requests/${id}/revoke`, payload);
+    const record = extractRecord(res.data);
+    const mapped = record ? mapDisposisi(record) : null;
+
+    if (!mapped) {
+      throw new Error("Respons pencabutan akses dokumen dari server tidak valid");
     }
 
     return mapped;

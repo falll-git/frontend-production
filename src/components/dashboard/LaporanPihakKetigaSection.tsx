@@ -33,7 +33,7 @@ type PihakKetigaKategori = "NOTARIS" | "ASURANSI" | "KJPP";
 
 type PihakKetigaSummaryItem = {
   kategori: PihakKetigaKategori;
-  totalDokumen: number;
+  totalProgress: number;
   prosesBerjalan: number;
   laporanSelesai: number;
   lewatExpired: number;
@@ -148,7 +148,7 @@ function isExpiredStatus(status: string) {
 function createEmptySummary(kategori: PihakKetigaKategori): PihakKetigaSummaryItem {
   return {
     kategori,
-    totalDokumen: 0,
+    totalProgress: 0,
     prosesBerjalan: 0,
     laporanSelesai: 0,
     lewatExpired: 0,
@@ -163,7 +163,7 @@ function appendRows(
     const total = readGroupCount(row);
     const status = readStatus(row);
 
-    summary.totalDokumen += total;
+    summary.totalProgress += total;
     if (isExpiredStatus(status)) {
       summary.lewatExpired += total;
       return;
@@ -269,7 +269,7 @@ export default function LaporanPihakKetigaSection({
           setErrorMessage(
             error instanceof Error
               ? error.message
-              : "Gagal memuat laporan pihak ketiga",
+              : "Gagal memuat progress pihak ketiga",
           );
         }
       } finally {
@@ -284,10 +284,10 @@ export default function LaporanPihakKetigaSection({
     };
   }, []);
 
-  const documentSummary = useMemo(() => mapReportSummary(report), [report]);
+  const progressSummary = useMemo(() => mapReportSummary(report), [report]);
   const selectedSummary = useMemo(
-    () => documentSummary.find((item) => item.kategori === selectedKategori) ?? null,
-    [documentSummary, selectedKategori],
+    () => progressSummary.find((item) => item.kategori === selectedKategori) ?? null,
+    [progressSummary, selectedKategori],
   );
   const modalRows = useMemo(
     () => getModalRows(report, selectedKategori),
@@ -301,7 +301,7 @@ export default function LaporanPihakKetigaSection({
         <div className="mb-4">
           <h2 className="flex items-center gap-2 text-xl font-bold text-gray-800">
             <Users2 className="h-6 w-6 text-gray-600" aria-hidden="true" />
-            {widget?.name ?? "Laporan Pihak Ketiga - Dokumen"}
+            {widget?.name ?? "Laporan Progress Pihak Ketiga"}
           </h2>
         </div>
 
@@ -311,8 +311,8 @@ export default function LaporanPihakKetigaSection({
           </div>
         ) : null}
 
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {documentSummary.map((item, index) => {
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {progressSummary.map((item, index) => {
             const meta = kategoriMeta[item.kategori];
             const CategoryIcon = meta.icon;
             const expiredTone = item.lewatExpired > 0 ? "text-red-600" : "text-gray-400";
@@ -322,23 +322,23 @@ export default function LaporanPihakKetigaSection({
                 type="button"
                 key={item.kategori}
                 onClick={() => setSelectedKategori(item.kategori)}
-                className="group animate-slide-up rounded-2xl border border-gray-100 bg-white p-6 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+                className="group animate-slide-up rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition hover:border-[rgba(21,126,195,0.42)] hover:bg-gray-50"
                 style={{ animationDelay: `${index * 0.1}s` }}
                 title={`Lihat laporan ${meta.label}`}
               >
-                <div className="mb-6 flex items-start gap-4">
+                <div className="mb-5 flex items-start gap-4">
                   <div className="flex min-w-0 flex-1 items-center gap-4">
                     <div
-                      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg transition-transform group-hover:scale-110"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"
                       style={{
-                        background: `linear-gradient(135deg, ${meta.accentColor} 0%, ${meta.accentColor}cc 100%)`,
-                        boxShadow: `0 16px 28px ${meta.accentColor}2b`,
+                        backgroundColor: `${meta.accentColor}14`,
+                        color: meta.accentColor,
                       }}
                     >
-                      <CategoryIcon className="h-7 w-7" aria-hidden="true" />
+                      <CategoryIcon className="h-5 w-5" aria-hidden="true" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-lg font-bold text-gray-900">
+                      <p className="text-base font-bold text-gray-900">
                         {meta.label}
                       </p>
                     </div>
@@ -346,15 +346,15 @@ export default function LaporanPihakKetigaSection({
 
                   <div className="flex w-[7.375rem] shrink-0 flex-col items-end text-right">
                     <span className="mb-1 text-xs font-semibold uppercase leading-tight tracking-wider text-gray-400">
-                      Total Dokumen
+                      Total Progress
                     </span>
-                    <span className="text-2xl font-bold tabular-nums text-gray-800">
-                      {isLoading ? "-" : formatNumber(item.totalDokumen)}
+                    <span className="text-xl font-bold tabular-nums text-gray-800">
+                      {isLoading ? "-" : formatNumber(item.totalProgress)}
                     </span>
                   </div>
                 </div>
 
-                <div className="rounded-xl bg-gray-50 p-4">
+                <div className="rounded-lg bg-gray-50 p-4">
                   <div className="flex items-center justify-between gap-4 text-sm">
                     <span className="flex items-center gap-2 text-gray-500">
                       <Activity className="h-4 w-4 text-gray-500" aria-hidden="true" />
@@ -368,7 +368,7 @@ export default function LaporanPihakKetigaSection({
                   <div className="flex items-center justify-between gap-4 text-sm">
                     <span className="flex items-center gap-2 text-emerald-700">
                       <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-                      Laporan Selesai
+                      Selesai
                     </span>
                     <span className="font-semibold text-emerald-600">
                       {isLoading ? "-" : formatNumber(item.laporanSelesai)}
@@ -386,7 +386,7 @@ export default function LaporanPihakKetigaSection({
                   </div>
                 </div>
 
-                <div className="mt-6 flex items-center justify-between font-medium text-gray-900 transition-transform group-hover:translate-x-1">
+                <div className="mt-5 flex items-center justify-between font-medium text-gray-900">
                   <span className="text-sm">Lihat Detail</span>
                   <ChevronRight className="h-5 w-5" aria-hidden="true" />
                 </div>
@@ -398,8 +398,8 @@ export default function LaporanPihakKetigaSection({
 
       <DashboardModal
         isOpen={selectedKategori !== null}
-        title={selectedMeta ? `Laporan Pihak Ketiga - ${selectedMeta.label}` : "Laporan Pihak Ketiga"}
-        description="Ringkasan progress dokumen pihak ketiga berdasarkan data legal."
+        title={selectedMeta ? `Progress Pihak Ketiga - ${selectedMeta.label}` : "Progress Pihak Ketiga"}
+        description="Ringkasan status progress pihak ketiga berdasarkan data legal."
         maxWidth="5xl"
         bodyClassName="space-y-5 p-4 sm:p-5"
         onClose={() => setSelectedKategori(null)}
@@ -407,8 +407,8 @@ export default function LaporanPihakKetigaSection({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <SummaryMetricCard
             icon={ClipboardList}
-            label="Total Dokumen"
-            value={isLoading ? "-" : formatNumber(selectedSummary?.totalDokumen ?? 0)}
+            label="Total Progress"
+            value={isLoading ? "-" : formatNumber(selectedSummary?.totalProgress ?? 0)}
           />
           <SummaryMetricCard
             icon={Activity}
@@ -417,7 +417,7 @@ export default function LaporanPihakKetigaSection({
           />
           <SummaryMetricCard
             icon={CheckCircle2}
-            label="Laporan Selesai"
+            label="Selesai"
             value={isLoading ? "-" : formatNumber(selectedSummary?.laporanSelesai ?? 0)}
             tone="success"
           />
@@ -452,14 +452,14 @@ export default function LaporanPihakKetigaSection({
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>{formatNumber(readGroupCount(item.record))}</SetupDataTableCell>
                 </SetupDataTableRow>
               ))}
-              {isLoading ? <SetupDataTableEmptyRow colSpan={5}>Memuat laporan pihak ketiga...</SetupDataTableEmptyRow> : null}
+              {isLoading ? <SetupDataTableEmptyRow colSpan={5}>Memuat progress pihak ketiga...</SetupDataTableEmptyRow> : null}
               {!isLoading && modalRows.length === 0 ? (
                 <SetupDataTableEmptyRow
                   colSpan={5}
                   tone="legal"
                   description="Laporan akan terisi dari progress pihak ketiga pada modul Legal."
                 >
-                  Belum ada laporan untuk kategori ini.
+                  Belum ada progress untuk kategori ini.
                 </SetupDataTableEmptyRow>
               ) : null}
             </SetupDataTableBody>

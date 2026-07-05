@@ -1,4 +1,7 @@
 import type { ReactNode } from "react";
+import { FileSearch } from "lucide-react";
+
+import SetupEmptyState from "@/components/ui/SetupEmptyState";
 
 export default function EmptyReportState({
   children,
@@ -6,8 +9,12 @@ export default function EmptyReportState({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/50 px-4 py-6 text-center text-sm font-medium text-slate-500">
-      {children}
-    </div>
+    <SetupEmptyState
+      title={children}
+      description="Data akan muncul setelah ada aktivitas yang sesuai dengan laporan ini."
+      icon={FileSearch}
+      tone="neutral"
+      variant="panel"
+    />
   );
 }

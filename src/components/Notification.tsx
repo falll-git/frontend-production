@@ -13,6 +13,7 @@ import {
   Archive,
   Bell,
   BellRing,
+  CalendarClock,
   CheckCheck,
   CircleAlert,
   FileText,
@@ -31,14 +32,29 @@ import {
   type AppNotification,
   notificationService,
 } from "@/services/notification.service";
+import SetupEmptyState from "@/components/ui/SetupEmptyState";
+import SetupStatusBadge, {
+  type SetupStatusTone,
+} from "@/components/ui/SetupStatusBadge";
 import type { PaginationMeta } from "@/types/api.types";
 
 const PAGE_LIMIT = 10;
 
 type NotificationTone = "info" | "warning" | "danger" | "success";
+type NotificationAccent =
+  | "info"
+  | "due"
+  | "danger"
+  | "success"
+  | "access"
+  | "loan"
+  | "incoming"
+  | "memo"
+  | "outgoing";
 
 type NotificationVisual = {
   tone: NotificationTone;
+  accent: NotificationAccent;
   moduleLabel: string;
   stateLabel: string;
   Icon: LucideIcon;
@@ -64,6 +80,14 @@ function moduleLabel(moduleName: string): string {
   return "Pemberitahuan";
 }
 
+function normalizeEventType(item: AppNotification): string {
+  return String(item.eventType || "").trim().toUpperCase();
+}
+
+function normalizeEntityType(item: AppNotification): string {
+  return String(item.entityType || "").trim().toUpperCase();
+}
+
 function isLegacySuccess(item: AppNotification): boolean {
   const text = `${item.title} ${item.message}`.toLowerCase();
   return (
@@ -74,7 +98,7 @@ function isLegacySuccess(item: AppNotification): boolean {
 }
 
 function resolveTone(item: AppNotification): NotificationTone {
-  const normalized = String(item.eventType || "").trim().toUpperCase();
+  const normalized = normalizeEventType(item);
 
   if (normalized === "REJECTED" || normalized === "OVERDUE") return "danger";
   if (normalized === "DUE_SOON" || normalized === "ACTION_REQUIRED") {
@@ -93,12 +117,13 @@ function resolveTone(item: AppNotification): NotificationTone {
 }
 
 function resolveEntityIcon(item: AppNotification): LucideIcon {
-  const eventType = String(item.eventType || "").trim().toUpperCase();
+  const eventType = normalizeEventType(item);
   if (eventType === "APPROVED" || eventType === "COMPLETED") return ShieldCheck;
   if (eventType === "REJECTED") return ShieldX;
-  if (eventType === "OVERDUE" || eventType === "DUE_SOON") return TriangleAlert;
+  if (eventType === "OVERDUE") return TriangleAlert;
+  if (eventType === "DUE_SOON") return CalendarClock;
 
-  const normalized = String(item.entityType || "").trim().toUpperCase();
+  const normalized = normalizeEntityType(item);
 
   switch (normalized) {
     case "DIGITAL_DOCUMENT_ACCESS_REQUEST":
@@ -117,7 +142,7 @@ function resolveEntityIcon(item: AppNotification): LucideIcon {
 }
 
 function stateLabel(item: AppNotification): string {
-  const normalized = String(item.eventType || "").trim().toUpperCase();
+  const normalized = normalizeEventType(item);
 
   switch (normalized) {
     case "ACTION_REQUIRED":
@@ -139,13 +164,57 @@ function stateLabel(item: AppNotification): string {
   }
 }
 
+function resolveAccent(item: AppNotification): NotificationAccent {
+  const eventType = normalizeEventType(item);
+  if (eventType === "REJECTED" || eventType === "OVERDUE") return "danger";
+  if (eventType === "DUE_SOON") return "due";
+  if (
+    eventType === "APPROVED" ||
+    eventType === "COMPLETED" ||
+    eventType === "RETURNED" ||
+    isLegacySuccess(item)
+  ) {
+    return "success";
+  }
+
+  switch (normalizeEntityType(item)) {
+    case "DIGITAL_DOCUMENT_ACCESS_REQUEST":
+      return "access";
+    case "DIGITAL_DOCUMENT_LOAN":
+      return "loan";
+    case "INCOMING_MAIL_DISPOSITION":
+      return "incoming";
+    case "MEMORANDUM_DISPOSITION":
+      return "memo";
+    case "OUTGOING_MAIL":
+      return "outgoing";
+    default:
+      return "info";
+  }
+}
+
 function buildVisual(item: AppNotification): NotificationVisual {
   return {
     tone: resolveTone(item),
+    accent: resolveAccent(item),
     moduleLabel: moduleLabel(item.module),
     stateLabel: stateLabel(item),
     Icon: resolveEntityIcon(item),
   };
+}
+
+function getNotificationBadgeTone(tone: NotificationTone): SetupStatusTone {
+  switch (tone) {
+    case "warning":
+      return "amber";
+    case "danger":
+      return "red";
+    case "success":
+      return "emerald";
+    case "info":
+    default:
+      return "blue";
+  }
 }
 
 const DEFAULT_META: PaginationMeta = {
@@ -439,12 +508,14 @@ export default function Notification() {
             ) : null}
 
             {!errorMessage && !hasItems ? (
-              <div className="notif-empty">
-                <span className="notif-empty-title">Belum ada notifikasi</span>
-                <span className="notif-empty-subtitle">
-                  Pemberitahuan dari arsip digital dan manajemen surat akan tampil di sini.
-                </span>
-              </div>
+              <SetupEmptyState
+                title="Belum ada notifikasi"
+                description="Pemberitahuan dari arsip digital dan manajemen surat akan tampil di sini."
+                icon={BellRing}
+                tone="neutral"
+                variant="compact"
+                className="notif-empty"
+              />
             ) : (
               items.map((item) => {
                 const visual = buildVisual(item);
@@ -453,7 +524,7 @@ export default function Notification() {
                 return (
                   <div
                     key={item.id}
-                    className={`notif-item notif-tone-${visual.tone} ${
+                    className={`notif-item notif-accent-${visual.accent} ${
                       item.isRead ? "notif-item-read" : ""
                     }`}
                   >
@@ -468,14 +539,19 @@ export default function Notification() {
                       </span>
                       <span className="notif-content">
                         <span className="notif-item-labels">
-                          <span className="notif-module-badge">
-                            {visual.moduleLabel}
-                          </span>
-                          <span
-                            className={`notif-state-badge notif-state-${visual.tone}`}
-                          >
-                            {visual.stateLabel}
-                          </span>
+                          <SetupStatusBadge
+                            status={visual.moduleLabel}
+                            tone="slate"
+                            showIcon={false}
+                            size="sm"
+                            className="notif-module-badge"
+                          />
+                          <SetupStatusBadge
+                            status={visual.stateLabel}
+                            tone={getNotificationBadgeTone(visual.tone)}
+                            size="sm"
+                            className="notif-state-badge"
+                          />
                         </span>
                         <span className="notif-item-title">{item.title}</span>
                         <span className="notif-item-message">{item.message}</span>
@@ -484,7 +560,13 @@ export default function Notification() {
                             {formatTime(item.createdAt)}
                           </span>
                           {!item.isRead ? (
-                            <span className="notif-unread-inline">Baru</span>
+                            <SetupStatusBadge
+                              status="Baru"
+                              tone="blue"
+                              showIcon={false}
+                              size="sm"
+                              className="notif-unread-inline"
+                            />
                           ) : null}
                         </span>
                       </span>

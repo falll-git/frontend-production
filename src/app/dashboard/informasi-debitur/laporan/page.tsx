@@ -1,5 +1,5 @@
-import { DebtorCompletenessAuditReportClient } from "@/components/informasi-debitur/DebiturModuleClients";
+import { DebtorReportClient } from "@/components/informasi-debitur/DebiturModuleClients";
 
 export default function LaporanDebiturPage() {
-  return <DebtorCompletenessAuditReportClient />;
+  return <DebtorReportClient />;
 }

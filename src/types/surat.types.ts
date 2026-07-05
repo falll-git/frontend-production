@@ -133,12 +133,6 @@ export interface SuratKeluar {
   statusLabel: string;
   mailNumberRaw?: string;
   mediaRaw?: string;
-  responseDueDate?: string;
-  tenggatWaktu?: string;
-  keteranganTenggat?: string;
-  followUpStatus?: string;
-  followUpStatusLabel?: string;
-  isFollowUpOverdue?: boolean;
   createdBy?: string;
   creatorDivisionId?: string;
 }
@@ -195,9 +189,6 @@ export interface Memorandum {
   last_holder_name?: string | null;
   tenggatWaktu?: string;
   keteranganTenggat?: string;
-  followUpStatus?: string;
-  followUpStatusLabel?: string;
-  isFollowUpOverdue?: boolean;
 }
 
 export interface IncomingDispositionPayload {
@@ -243,9 +234,6 @@ export interface OutgoingMailPayload {
   name: string;
   file?: File;
   address: string;
-  send_due_date?: string;
-  response_due_date?: string;
-  follow_up_note?: string;
 }
 
 export interface MemorandumPayload {

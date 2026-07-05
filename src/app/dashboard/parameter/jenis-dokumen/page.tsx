@@ -11,6 +11,7 @@ import {
   SetupDataTableCell,
   SetupDataTableColGroup,
   SetupDataTableCol,
+  SetupDataTableEmptyRow,
   SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useEffect, useMemo, useState } from "react";
@@ -42,13 +43,13 @@ import {
   SETUP_PAGE_MODERN_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
-  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
   SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+  SETUP_PAGE_WIDTH_XL_CLASS,
   SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
 } from "@/components/ui/setupPageStyles";
@@ -272,22 +273,25 @@ function SetupJenisDokumenPageContent() {
         title="Setup Jenis Dokumen"
         subtitle="Kelola master jenis dokumen."
         icon={<Shield />}
-        className={SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS}
+        className={SETUP_PAGE_WIDTH_XL_CLASS}
         actions={
           <SetupAddButton label="Tambah Jenis" onClick={openCreate} />
         }
       />
 
-      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS}`}>
-        <SetupSearchInput
-          label="Cari Data"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Cari kode, nama jenis dokumen, atau keterangan..."
-        />
+      <div className={SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS}>
+        <div className={SETUP_PAGE_SEARCH_CARD_CLASS}>
+          <SetupSearchInput
+            label="Cari Data"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Cari kode, nama jenis dokumen, atau keterangan..."
+          />
+        </div>
       </div>
 
-      <SetupTableCard variant="crud" className={SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS}>
+      <div className={SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS}>
+        <SetupTableCard variant="crud">
           <SetupDataTable variant="crud" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS} min-w-[820px]`}>
               <SetupDataTableColGroup>
                 <SetupDataTableCol className="w-[56px]" />
@@ -380,25 +384,24 @@ function SetupJenisDokumenPageContent() {
                 ))}
 
                 {isLoading && (
-                  <SetupDataTableRow>
-                    <SetupDataTableCell
-                      colSpan={5}
-                      className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
-                    >
-                      Memuat data jenis dokumen...
-                    </SetupDataTableCell>
-                  </SetupDataTableRow>
+                  <SetupDataTableEmptyRow colSpan={5} state="loading">
+                    Memuat data jenis dokumen...
+                  </SetupDataTableEmptyRow>
                 )}
 
                 {!isLoading && filtered.length === 0 && (
-                  <SetupDataTableRow>
-                    <SetupDataTableCell
-                      colSpan={5}
-                      className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
-                    >
-                      {getSetupPageEmptyStateCopy("jenis dokumen")}
-                    </SetupDataTableCell>
-                  </SetupDataTableRow>
+                  <SetupDataTableEmptyRow
+                    colSpan={5}
+                    tone="parameter"
+                    isFiltered={Boolean(query.trim())}
+                    description={
+                      query.trim()
+                        ? "Coba ubah kata kunci pencarian."
+                        : "Tambahkan jenis dokumen agar tersedia di modul arsip digital."
+                    }
+                  >
+                    {getSetupPageEmptyStateCopy("jenis dokumen")}
+                  </SetupDataTableEmptyRow>
                 )}
               </SetupDataTableBody>
           </SetupDataTable>
@@ -410,7 +413,8 @@ function SetupJenisDokumenPageContent() {
           isLoading={isLoading}
           onPageChange={setPage}
         />
-      </SetupTableCard>
+        </SetupTableCard>
+      </div>
 
       <DashboardModal
         isOpen={isModalOpen}

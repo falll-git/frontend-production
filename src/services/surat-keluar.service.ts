@@ -52,18 +52,6 @@ export function mapSuratKeluarRecord(
   const recipientName = readString(record, "name");
   const mailNumber = readString(record, "mail_number", "mailNumber");
   const sendDate = readString(record, "send_date", "sendDate");
-  const responseDueDate = readNullableString(
-    record,
-    "response_due_date",
-    "responseDueDate",
-  );
-  const followUpDueDate = readNullableString(
-    record,
-    "follow_up_due_date",
-    "followUpDueDate",
-    "due_date",
-    "dueDate",
-  );
   const address = readString(record, "address");
   const deliveryMedia = readString(record, "delivery_media", "deliveryMedia");
   const statusCode = readNumber(record, "status") ?? undefined;
@@ -117,17 +105,6 @@ export function mapSuratKeluarRecord(
     statusLabel: formatOutgoingStatusLabel(record),
     mailNumberRaw: mailNumber,
     mediaRaw: deliveryMedia ?? undefined,
-    responseDueDate,
-    tenggatWaktu: followUpDueDate ?? responseDueDate,
-    keteranganTenggat:
-      readNullableString(record, "follow_up_note", "followUpNote", "note") ??
-      undefined,
-    followUpStatus:
-      readString(record, "follow_up_status", "followUpStatus") ?? undefined,
-    followUpStatusLabel:
-      readString(record, "follow_up_status_label", "followUpStatusLabel") ??
-      undefined,
-    isFollowUpOverdue: Boolean(record.is_follow_up_overdue),
     createdBy:
       readString(record, "created_by", "createdBy") ??
       (creatorRecord ? readString(creatorRecord, "id") : null) ??

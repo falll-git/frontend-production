@@ -11,6 +11,7 @@ import {
   toMultipartFormData,
 } from "@/services/api.utils";
 import type {
+  DebtorActivityLog,
   DebtorBranchSummary,
   DebtorCollateral,
   DebtorCollateralReport,
@@ -33,10 +34,13 @@ import type {
   DebtorIdebComparisonSummary,
   DebtorIdebPendingUpload,
   DebtorIdebOtherBprs,
+  DebtorIdebReporterGroup,
+  DebtorIdebReportSummary,
   DebtorIdebReportUpload,
   DebtorIdebResolvePayload,
   DebtorIdebSourceFile,
   DebtorIdebSummaryDetail,
+  DebtorIdebUploader,
   DebtorIdebUploadFile,
   DebtorImportJob,
   DebtorImportPayload,
@@ -998,6 +1002,130 @@ function mapIdebUploadFile(record: unknown): DebtorIdebUploadFile | null {
   };
 }
 
+function mapIdebUploader(record: unknown): DebtorIdebUploader | null {
+  const item = asRecord(record);
+  if (!item) return null;
+  const id = readString(item, "id");
+  const name = readString(item, "name");
+  const username = readString(item, "username");
+  const email = readString(item, "email");
+  const divisionId = readString(item, "division_id", "divisionId");
+  if (!id || !name || !username || !email || !divisionId) return null;
+
+  const division = asRecord(item.division);
+  const divisionRecord = division
+    ? {
+        id: readString(division, "id") ?? "",
+        name: readString(division, "name") ?? "",
+      }
+    : null;
+
+  return {
+    id,
+    name,
+    username,
+    email,
+    division_id: divisionId,
+    division: divisionRecord?.id && divisionRecord.name ? divisionRecord : null,
+  };
+}
+
+function mapIdebReporterGroup(record: unknown): DebtorIdebReporterGroup | null {
+  const item = asRecord(record);
+  if (!item) return null;
+  const key = readString(item, "key");
+  const reporterName = readString(item, "reporter_name", "reporterName");
+  if (!key || !reporterName) return null;
+
+  return {
+    key,
+    reporter_code: nullableString(item, "reporter_code", "reporterCode"),
+    reporter_name: reporterName,
+    facility_count: numberValueAny(item, "facility_count", "facilityCount"),
+    active_facility_count: numberValueAny(item, "active_facility_count", "activeFacilityCount"),
+    paid_off_facility_count: numberValueAny(item, "paid_off_facility_count", "paidOffFacilityCount"),
+    write_off_facility_count: numberValueAny(item, "write_off_facility_count", "writeOffFacilityCount"),
+    worst_collectibility:
+      readString(item, "worst_collectibility", "worstCollectibility") ??
+      readNumber(item, "worst_collectibility", "worstCollectibility"),
+    active_worst_collectibility:
+      readString(item, "active_worst_collectibility", "activeWorstCollectibility") ??
+      readNumber(item, "active_worst_collectibility", "activeWorstCollectibility"),
+    highest_days_past_due: numberValueAny(item, "highest_days_past_due", "highestDaysPastDue"),
+    total_plafond: numberValueAny(item, "total_plafond", "totalPlafond"),
+    total_outstanding: numberValueAny(item, "total_outstanding", "totalOutstanding"),
+    total_arrears: numberValueAny(item, "total_arrears", "totalArrears"),
+    active_outstanding: numberValueAny(item, "active_outstanding", "activeOutstanding"),
+    active_arrears: numberValueAny(item, "active_arrears", "activeArrears"),
+    paid_off_plafond: numberValueAny(item, "paid_off_plafond", "paidOffPlafond"),
+    write_off_plafond: numberValueAny(item, "write_off_plafond", "writeOffPlafond"),
+    write_off_outstanding: numberValueAny(item, "write_off_outstanding", "writeOffOutstanding"),
+    write_off_arrears: numberValueAny(item, "write_off_arrears", "writeOffArrears"),
+    collateral_count: numberValueAny(item, "collateral_count", "collateralCount"),
+  };
+}
+
+function mapIdebReportSummary(record: unknown): DebtorIdebReportSummary | null {
+  const item = asRecord(record);
+  if (!item) return null;
+  const reporterGroups = Array.isArray(item.reporter_groups)
+    ? item.reporter_groups
+        .map((entry) => mapIdebReporterGroup(entry))
+        .filter((entry): entry is DebtorIdebReporterGroup => entry !== null)
+    : [];
+  const priorityReporters = Array.isArray(item.priority_reporters)
+    ? item.priority_reporters
+        .map((entry) => mapIdebReporterGroup(entry))
+        .filter((entry): entry is DebtorIdebReporterGroup => entry !== null)
+    : [];
+  const collateralSource = readString(item, "collateral_source", "collateralSource");
+
+  return {
+    reporter_count: numberValueAny(item, "reporter_count", "reporterCount"),
+    derived_reporter_count: numberValueAny(item, "derived_reporter_count", "derivedReporterCount"),
+    reported_reporter_count: readNumber(item, "reported_reporter_count", "reportedReporterCount"),
+    facilities_count: numberValueAny(item, "facilities_count", "facilitiesCount"),
+    active_facilities_count: numberValueAny(item, "active_facilities_count", "activeFacilitiesCount"),
+    paid_off_facilities_count: numberValueAny(item, "paid_off_facilities_count", "paidOffFacilitiesCount"),
+    write_off_facilities_count: numberValueAny(item, "write_off_facilities_count", "writeOffFacilitiesCount"),
+    reported_worst_collectibility:
+      readString(item, "reported_worst_collectibility", "reportedWorstCollectibility") ??
+      readNumber(item, "reported_worst_collectibility", "reportedWorstCollectibility"),
+    overall_worst_collectibility:
+      readString(item, "overall_worst_collectibility", "overallWorstCollectibility") ??
+      readNumber(item, "overall_worst_collectibility", "overallWorstCollectibility"),
+    active_worst_collectibility:
+      readString(item, "active_worst_collectibility", "activeWorstCollectibility") ??
+      readNumber(item, "active_worst_collectibility", "activeWorstCollectibility"),
+    worst_collectibility:
+      readString(item, "worst_collectibility", "worstCollectibility") ??
+      readNumber(item, "worst_collectibility", "worstCollectibility"),
+    highest_days_past_due: numberValueAny(item, "highest_days_past_due", "highestDaysPastDue"),
+    total_plafond: numberValueAny(item, "total_plafond", "totalPlafond"),
+    calculated_total_plafond: numberValueAny(item, "calculated_total_plafond", "calculatedTotalPlafond"),
+    total_outstanding: numberValueAny(item, "total_outstanding", "totalOutstanding"),
+    calculated_total_outstanding: numberValueAny(item, "calculated_total_outstanding", "calculatedTotalOutstanding"),
+    active_outstanding: numberValueAny(item, "active_outstanding", "activeOutstanding"),
+    active_arrears: numberValueAny(item, "active_arrears", "activeArrears"),
+    total_arrears: numberValueAny(item, "total_arrears", "totalArrears"),
+    paid_off_plafond: numberValueAny(item, "paid_off_plafond", "paidOffPlafond"),
+    write_off_plafond: numberValueAny(item, "write_off_plafond", "writeOffPlafond"),
+    write_off_outstanding: numberValueAny(item, "write_off_outstanding", "writeOffOutstanding"),
+    write_off_arrears: numberValueAny(item, "write_off_arrears", "writeOffArrears"),
+    reporter_groups: reporterGroups,
+    priority_reporters: priorityReporters,
+    collateral_source: collateralSource === "IDEB" || collateralSource === "A01" ? collateralSource : null,
+    collaterals: Array.isArray(item.collaterals)
+      ? item.collaterals
+          .map((entry) => asRecord(entry))
+          .filter((entry): entry is Record<string, unknown> => entry !== null)
+      : [],
+    data_quality_warnings: Array.isArray(item.data_quality_warnings)
+      ? item.data_quality_warnings.filter((entry): entry is string => typeof entry === "string")
+      : [],
+  };
+}
+
 function mapIdebUpload(record: unknown): DebtorWorkflowIdebUpload | null {
   const item = asRecord(record);
   if (!item) return null;
@@ -1006,6 +1134,7 @@ function mapIdebUpload(record: unknown): DebtorWorkflowIdebUpload | null {
 
   return {
     id,
+    source_fingerprint: nullableString(item, "source_fingerprint", "sourceFingerprint"),
     debtor_id: nullableString(item, "debtor_id", "debtorId"),
     contract_id: nullableString(item, "contract_id", "contractId"),
     month: numberValue(item, "month"),
@@ -1019,6 +1148,9 @@ function mapIdebUpload(record: unknown): DebtorWorkflowIdebUpload | null {
           .map((entry) => mapIdebUploadFile(entry))
           .filter((entry): entry is DebtorIdebUploadFile => entry !== null)
       : [],
+    uploaded_by: nullableString(item, "uploaded_by", "uploadedBy"),
+    uploader: mapIdebUploader(item.uploader),
+    report_summary: mapIdebReportSummary(item.report_summary),
     debtor: mapDebtor(item.debtor, false),
     contract: mapContract(item.contract, false),
     created_at: nullableString(item, "created_at", "createdAt"),
@@ -1060,18 +1192,30 @@ function mapIdebReportUpload(record: unknown): DebtorIdebReportUpload | null {
     facilities_count: numberValueAny(item, "facilities_count", "facilitiesCount"),
     active_facilities_count: numberValueAny(item, "active_facilities_count", "activeFacilitiesCount"),
     paid_off_facilities_count: numberValueAny(item, "paid_off_facilities_count", "paidOffFacilitiesCount"),
+    write_off_facilities_count: numberValueAny(item, "write_off_facilities_count", "writeOffFacilitiesCount"),
     active_outstanding: numberValueAny(item, "active_outstanding", "activeOutstanding"),
+    active_arrears: numberValueAny(item, "active_arrears", "activeArrears"),
     paid_off_plafond: numberValueAny(item, "paid_off_plafond", "paidOffPlafond"),
+    write_off_plafond: numberValueAny(item, "write_off_plafond", "writeOffPlafond"),
+    write_off_outstanding: numberValueAny(item, "write_off_outstanding", "writeOffOutstanding"),
+    write_off_arrears: numberValueAny(item, "write_off_arrears", "writeOffArrears"),
     total_plafond: numberValueAny(item, "total_plafond", "totalPlafond"),
     total_outstanding: numberValueAny(item, "total_outstanding", "totalOutstanding"),
     total_arrears: numberValueAny(item, "total_arrears", "totalArrears"),
     worst_collectibility:
       readString(item, "worst_collectibility", "worstCollectibility") ??
       readNumber(item, "worst_collectibility", "worstCollectibility"),
+    reported_worst_collectibility:
+      readString(item, "reported_worst_collectibility", "reportedWorstCollectibility") ??
+      readNumber(item, "reported_worst_collectibility", "reportedWorstCollectibility"),
+    active_worst_collectibility:
+      readString(item, "active_worst_collectibility", "activeWorstCollectibility") ??
+      readNumber(item, "active_worst_collectibility", "activeWorstCollectibility"),
     officer_name: nullableString(item, "officer_name", "officerName"),
     total_parts: numberValueAny(item, "total_parts", "totalParts") || 1,
     received_parts: numberValueAny(item, "received_parts", "receivedParts") || 1,
     part_display: readString(item, "part_display", "partDisplay") ?? "-",
+    report_summary: mapIdebReportSummary(item.report_summary),
   };
 }
 
@@ -1371,6 +1515,45 @@ function mapWorkflowDeposit(record: unknown): DebtorWorkflowDeposit | null {
   };
 }
 
+function nullableRecord(value: unknown): Record<string, unknown> | null {
+  return asRecord(value);
+}
+
+function mapActivityLog(record: unknown): DebtorActivityLog | null {
+  const item = asRecord(record);
+  if (!item) return null;
+  const id = readString(item, "id");
+  if (!id) return null;
+
+  return {
+    id,
+    actor_id: nullableString(item, "actor_id", "actorId"),
+    actor: mapUser(item.actor),
+    action: readString(item, "action") ?? "-",
+    source: readString(item, "source") ?? "-",
+    entity_type: readString(item, "entity_type", "entityType") ?? "-",
+    entity_id: nullableString(item, "entity_id", "entityId"),
+    debtor_id: nullableString(item, "debtor_id", "debtorId"),
+    contract_id: nullableString(item, "contract_id", "contractId"),
+    import_job_id: nullableString(item, "import_job_id", "importJobId"),
+    ideb_upload_id: nullableString(item, "ideb_upload_id", "idebUploadId"),
+    document_id: nullableString(item, "document_id", "documentId"),
+    marketing_activity_id: nullableString(
+      item,
+      "marketing_activity_id",
+      "marketingActivityId",
+    ),
+    warning_letter_id: nullableString(item, "warning_letter_id", "warningLetterId"),
+    title: nullableString(item, "title"),
+    before_data: nullableRecord(item.before_data ?? item.beforeData),
+    after_data: nullableRecord(item.after_data ?? item.afterData),
+    metadata: nullableRecord(item.metadata),
+    request_ip: nullableString(item, "request_ip", "requestIp"),
+    user_agent: nullableString(item, "user_agent", "userAgent"),
+    created_at: nullableString(item, "created_at", "createdAt"),
+  };
+}
+
 function mapWorkflow(payload: unknown): DebtorWorkflow | null {
   const record = extractRecord(payload);
   if (!record) return null;
@@ -1484,6 +1667,11 @@ function mapWorkflow(payload: unknown): DebtorWorkflow | null {
             .filter((item): item is DebtorWorkflowDeposit => item !== null)
         : [],
     },
+    activity_logs: Array.isArray(record.activity_logs)
+      ? record.activity_logs
+          .map((item) => mapActivityLog(item))
+          .filter((item): item is DebtorActivityLog => item !== null)
+      : [],
   };
 }
 
@@ -1662,15 +1850,10 @@ function readContentDispositionFileName(header: string | null | undefined) {
   return match?.[1]?.trim() || null;
 }
 
-function toImportFormData(type: DebtorImportType | string, payload: DebtorImportPayload) {
+function toImportFormData(payload: DebtorImportPayload) {
   const formData = new FormData();
   const files = payload.files?.length ? payload.files : payload.file ? [payload.file] : [];
-  if (type === "SLIK") {
-    const firstFile = files[0] ?? payload.file;
-    if (firstFile) formData.append("file", firstFile);
-  } else {
-    files.forEach((file) => formData.append("files", file));
-  }
+  files.forEach((file) => formData.append("files", file));
   if (payload.import_segment) formData.append("import_segment", payload.import_segment);
   if (payload.debtor_id) formData.append("debtor_id", payload.debtor_id);
   if (payload.contract_id) formData.append("contract_id", payload.contract_id);
@@ -1726,6 +1909,18 @@ export const debiturService = {
     const mapped = mapWorkflow(res.data);
     if (!mapped) throw new Error("Respons workflow debitur dari server tidak valid");
     return mapped;
+  },
+
+  getDebtorActivityLogs: async (
+    id: string,
+    query: { page?: number; limit?: number } = {},
+  ): Promise<DebtorPageResult<DebtorActivityLog>> => {
+    const params = buildQuery(query);
+    const res = await api.get(`/debtors/${id}/activity-logs`, { params });
+    return mapPage(res.data, mapActivityLog, {
+      page: Number(params.page),
+      limit: Number(params.limit),
+    });
   },
 
   createDebtor: async (payload: DebtorPayload): Promise<DebtorRecord> => {
@@ -1946,10 +2141,14 @@ export const debiturService = {
   },
 
   getImportJobs: async (
-    query: DebtorListQuery & { type?: DebtorImportType | string } = {},
+    query: DebtorListQuery & {
+      type?: DebtorImportType | string;
+      period_month?: string;
+    } = {},
   ): Promise<DebtorPageResult<DebtorImportJob>> => {
     const params = buildQuery(query);
     if (query.type) params.type = query.type;
+    if (query.period_month) params.period_month = query.period_month;
     const res = await api.get("/debtor-imports", { params });
     return mapPage(res.data, mapImportJob, {
       page: Number(params.page),
@@ -1961,9 +2160,16 @@ export const debiturService = {
     type: DebtorImportType,
     payload: DebtorImportPayload,
   ): Promise<DebtorImportJob> => {
-    const res = await api.post(mapEndpoint(type), toImportFormData(type, payload));
+    const res = await api.post(mapEndpoint(type), toImportFormData(payload));
     const mapped = mapImportJob(extractRecord(res.data));
     if (!mapped) throw new Error("Respons import dari server tidak valid");
+    return mapped;
+  },
+
+  retrySlikImportJob: async (jobId: string): Promise<DebtorImportJob> => {
+    const res = await api.post(`/debtor-imports/slik/${jobId}/retry`);
+    const mapped = mapImportJob(extractRecord(res.data));
+    if (!mapped) throw new Error("Respons retry Import SLIK dari server tidak valid");
     return mapped;
   },
 

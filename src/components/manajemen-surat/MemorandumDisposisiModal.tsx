@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import type { Memorandum, SuratUser } from "@/types/surat.types";
 import BasicDateInput from "@/components/ui/BasicDateInput";
-import SetupModalCloseButton from "@/components/ui/SetupModalCloseButton";
+import DashboardModal from "@/components/ui/DashboardModal";
+import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
 import SetupTextarea from "@/components/ui/SetupTextarea";
@@ -94,41 +95,55 @@ export default function MemorandumDisposisiModal({
       : "Belum ada";
 
   return (
-    <div
-      data-dashboard-overlay="true"
-      className="fixed inset-0 z-60 flex items-center justify-center overflow-hidden p-3 animate-fade-in sm:p-4"
-      style={{
-        background: "rgba(15, 23, 42, 0.42)",
-      }}
-      onClick={onClose}
-    >
-      <div
-        className="relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl min-w-0 flex-col overflow-hidden rounded-lg bg-white shadow-lg sm:max-h-[calc(100dvh-2rem)]"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5">
-          <div className="flex min-w-0 items-center gap-4">
-            <FileText
-              className="h-9 w-9 shrink-0 text-slate-900"
-              aria-hidden="true"
-            />
-            <div className="min-w-0">
-              <h2 className="truncate text-xl font-bold text-slate-950">
-                {actionLabel} Memorandum
-              </h2>
-              <p className="mt-1 truncate text-sm text-slate-500">
-                {memorandum.noMemo}
-              </p>
-            </div>
-          </div>
-          <SetupModalCloseButton
+    <DashboardModal
+      isOpen={isOpen}
+      title={`${actionLabel} Memorandum`}
+      description={memorandum.noMemo}
+      onClose={onClose}
+      closeDisabled={isSubmitting}
+      maxWidth="5xl"
+      bodyClassName="max-h-[calc(90vh-164px)] overflow-y-auto bg-slate-50 p-6"
+      footerClassName="flex flex-col gap-3 border-t border-slate-100 bg-white px-7 py-5 sm:flex-row sm:justify-end"
+      footer={
+        <>
+          <button
+            type="button"
             onClick={onClose}
-            title="Tutup"
-            aria-label="Tutup modal"
-          />
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 px-4 py-4 sm:px-6 sm:py-6">
+            disabled={isSubmitting}
+            className={SETUP_PAGE_BACK_BUTTON_CLASS}
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={selectedUserIds.length === 0 || isSubmitting}
+            className={SETUP_PAGE_PRIMARY_BUTTON_CLASS}
+          >
+            {isSubmitting ? (
+              <>
+                <div
+                  className="button-spinner"
+                  style={
+                    {
+                      ["--spinner-size"]: "18px",
+                      ["--spinner-border"]: "2px",
+                    } as CSSProperties
+                  }
+                  aria-hidden="true"
+                />
+                <span>Mengirim...</span>
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4" aria-hidden="true" />
+                <span>Kirim {actionLabel}</span>
+              </>
+            )}
+          </button>
+        </>
+      }
+    >
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
             <div className="space-y-5">
               <DispositionSectionPanel
@@ -211,9 +226,13 @@ export default function MemorandumDisposisiModal({
                 icon={<History className="h-5 w-5" aria-hidden="true" />}
               >
                 {historyItems.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm font-medium text-slate-500">
-                    Belum ada riwayat {actionLabel.toLowerCase()}.
-                  </div>
+                  <SetupEmptyState
+                    title={`Belum ada riwayat ${actionLabel.toLowerCase()}.`}
+                    description="Riwayat akan tampil setelah memorandum diproses atau diteruskan."
+                    icon={History}
+                    tone="import"
+                    variant="panel"
+                  />
                 ) : (
                   <ol className="space-y-3">
                     {historyItems.map((item) => (
@@ -384,40 +403,6 @@ export default function MemorandumDisposisiModal({
               </div>
             </aside>
           </div>
-        </div>
-
-        <div className="flex flex-col gap-3 border-t border-slate-100 bg-white px-7 py-5 sm:flex-row sm:justify-end">
-          <button onClick={onClose} className={SETUP_PAGE_BACK_BUTTON_CLASS}>
-            Batal
-          </button>
-          <button
-            onClick={onSubmit}
-            disabled={selectedUserIds.length === 0 || isSubmitting}
-            className={SETUP_PAGE_PRIMARY_BUTTON_CLASS}
-          >
-            {isSubmitting ? (
-              <>
-                <div
-                  className="button-spinner"
-                  style={
-                    {
-                      ["--spinner-size"]: "18px",
-                      ["--spinner-border"]: "2px",
-                    } as CSSProperties
-                  }
-                  aria-hidden="true"
-                />
-                <span>Mengirim...</span>
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4" aria-hidden="true" />
-                <span>Kirim {actionLabel}</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    </div>
+    </DashboardModal>
   );
 }

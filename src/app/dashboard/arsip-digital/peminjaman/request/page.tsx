@@ -10,6 +10,7 @@ import {
   SetupDataTableCell,
   SetupDataTableColGroup,
   SetupDataTableCol,
+  SetupDataTableEmptyRow,
   SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useEffect, useMemo, useState } from "react";
@@ -34,7 +35,6 @@ import {
   SETUP_PAGE_MODERN_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
-  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
   SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
@@ -376,11 +376,18 @@ export default function RequestPeminjamanPage() {
                 </SetupDataTableRow>
               ))}
               {filteredDokumen.length === 0 ? (
-                <SetupDataTableRow>
-                  <SetupDataTableCell colSpan={7} className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}>
-                    Belum ada dokumen yang bisa diajukan.
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
+                <SetupDataTableEmptyRow
+                  colSpan={7}
+                  icon={BookOpen}
+                  isFiltered={searchTerm.trim().length > 0}
+                  description={
+                    searchTerm.trim()
+                      ? "Ubah kata kunci pencarian untuk melihat dokumen lain yang tersedia."
+                      : "Dokumen yang dapat dipinjam akan muncul setelah tersedia dan sesuai akses Anda."
+                  }
+                >
+                  Belum ada dokumen yang bisa diajukan.
+                </SetupDataTableEmptyRow>
               ) : null}
             </SetupDataTableBody>
           </SetupDataTable>
@@ -399,8 +406,8 @@ export default function RequestPeminjamanPage() {
           onClose={() => setShowModal(false)}
           title="Ajukan Peminjaman"
           description={`${selectedDocuments.length} dokumen dipilih`}
-          maxWidth="3xl"
-          bodyClassName="space-y-6 p-6"
+          maxWidth="4xl"
+          bodyClassName="max-h-[calc(90vh-164px)] overflow-y-auto p-6"
           footerClassName="flex flex-col justify-end gap-3 border-t border-gray-100 bg-gray-50 p-6 sm:flex-row"
           footer={
             <>
@@ -420,92 +427,149 @@ export default function RequestPeminjamanPage() {
                   !canCreatePeminjaman ||
                   isLoading
                 }
-                icon={
-                  isLoading ? (
-                    <div className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" aria-hidden="true" />
-                  )
-                }
+                icon={<Send className="h-4 w-4" aria-hidden="true" />}
               >
                 {isLoading ? "Mengirim..." : "Ajukan Permohonan"}
               </SetupPrimaryButton>
             </>
           }
         >
-          <section className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
-              Dokumen yang Akan Dipinjam ({selectedDocuments.length})
-            </p>
-            <div className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-              {selectedDocuments.map((doc) => (
-                <div key={doc.id} className="flex items-start gap-3 px-4 py-3">
-                  <FileText className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="truncate text-sm font-semibold text-gray-900">
-                        {doc.namaDokumen}
+          <div className="space-y-8">
+            <section className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Dokumen yang Akan Dipinjam
+                </p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Ringkasan dokumen fisik yang akan diajukan untuk peminjaman.
+                </p>
+              </div>
+              <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.8fr)]">
+                <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                  <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Paket Pengajuan
                       </p>
-                      <span className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
-                        {doc.kode}
-                      </span>
+                      <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
+                        {selectedDocuments.length} Dokumen
+                      </h3>
+                      <p className="text-sm font-medium text-slate-500">
+                        Siap dikirim untuk persetujuan peminjaman fisik.
+                      </p>
                     </div>
-                    <p className="truncate text-sm text-gray-500" title={doc.lokasi}>
-                      {doc.lokasi}
-                    </p>
-                    <p className="truncate text-sm text-gray-500" title={doc.detail}>
-                      Keterangan: {doc.detail}
-                    </p>
+                    <div className="flex size-11 items-center justify-center rounded-xl bg-slate-50 text-sky-600">
+                      <BookOpen className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    {selectedDocuments.map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
+                      >
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-white text-sky-600 shadow-sm">
+                          <FileText className="h-5 w-5" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate text-sm font-semibold text-gray-900">
+                              {doc.namaDokumen}
+                            </p>
+                            <span className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
+                              {doc.kode}
+                            </span>
+                          </div>
+                          <p className="truncate text-sm text-gray-500" title={doc.lokasi}>
+                            {doc.lokasi}
+                          </p>
+                          <p className="truncate text-sm text-gray-500" title={doc.detail}>
+                            {doc.detail}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
-          </section>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Tanggal Peminjaman <span className="text-red-500">*</span>
-              </label>
-              <BasicDateInput
-                value={formData.tanggalPeminjaman}
-                onChange={(nextValue) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    tanggalPeminjaman: nextValue,
-                  }))
-                }
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-gray-700">
-                Tanggal Pengembalian <span className="text-red-500">*</span>
-              </label>
-              <BasicDateInput
-                value={formData.tanggalPengembalian}
-                onChange={(nextValue) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    tanggalPengembalian: nextValue,
-                  }))
-                }
-              />
-            </div>
-          </div>
+                <aside className="rounded-2xl border border-gray-200 bg-slate-50 p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                  <div className="flex items-start gap-3">
+                    <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm">
+                      <Send className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-950">
+                        Pengajuan Peminjaman
+                      </h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">
+                        Tanggal dan alasan akan dipakai sebagai dasar proses peminjaman.
+                      </p>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            </section>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">
-              Alasan Peminjaman <span className="text-red-500">*</span>
-            </label>
-            <SetupTextarea
-              value={formData.alasan}
-              onChange={(event) =>
-                setFormData((prev) => ({ ...prev, alasan: event.target.value }))
-              }
-              placeholder="Jelaskan kebutuhan peminjaman dokumen..."
-              className="resize-none"
-              rows={4}
-            />
+            <section className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Detail Peminjaman
+                </p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Isi rentang waktu pinjam dan alasan kebutuhan dokumen.
+                </p>
+              </div>
+              <div className="space-y-5 rounded-2xl border border-gray-200 bg-white p-5">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Tanggal Peminjaman <span className="text-red-500">*</span>
+                    </label>
+                    <BasicDateInput
+                      value={formData.tanggalPeminjaman}
+                      onChange={(nextValue) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          tanggalPeminjaman: nextValue,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                      Tanggal Pengembalian <span className="text-red-500">*</span>
+                    </label>
+                    <BasicDateInput
+                      value={formData.tanggalPengembalian}
+                      onChange={(nextValue) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          tanggalPengembalian: nextValue,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                    Alasan Peminjaman <span className="text-red-500">*</span>
+                  </label>
+                  <SetupTextarea
+                    value={formData.alasan}
+                    onChange={(event) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        alasan: event.target.value,
+                      }))
+                    }
+                    placeholder="Jelaskan kebutuhan peminjaman dokumen..."
+                    className="resize-none"
+                    rows={4}
+                  />
+                </div>
+              </div>
+            </section>
           </div>
         </DashboardModal>
       ) : null}

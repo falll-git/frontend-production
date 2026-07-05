@@ -8,6 +8,7 @@ import {
   SetupDataTableRow,
   SetupDataTableHeaderCell,
   SetupDataTableCell,
+  SetupDataTableEmptyRow,
   SetupDataTableColGroup,
   SetupDataTableCol,
   SetupTableCard,
@@ -19,11 +20,14 @@ import {
   ArrowLeft,
   BookOpen,
   Clock3,
+  Eye,
   History,
 } from "lucide-react";
 
+import DashboardModal from "@/components/ui/DashboardModal";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import Pagination from "@/components/ui/Pagination";
+import SetupActionMenu from "@/components/ui/SetupActionMenu";
 import SetupExcelButton from "@/components/ui/SetupExcelButton";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupSelect from "@/components/ui/SetupSelect";
@@ -31,7 +35,6 @@ import {
   SETUP_PAGE_MODERN_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
-  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
   SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
@@ -61,7 +64,25 @@ const HISTORIS_PEMINJAMAN_TABLE_COLUMN_WIDTHS = [
   "120px",
   "96px",
   "128px",
+  "84px",
 ] as const;
+
+type HistorisPeminjamanRow = {
+  id: string;
+  kode: string;
+  namaDokumen: string;
+  peminjam: string;
+  tanggalPinjam: string;
+  tanggalPenyerahan: string | null | undefined;
+  tanggalEstimasiPengembalian: string;
+  tanggalPengembalian: string | null;
+  durasiHari: number;
+  durasi: string;
+  approvedBy: string;
+  alasan: string;
+  catatanPenyerahan: string | null;
+  catatanPengembalian: string | null;
+};
 
 function formatPersonName(value: string) {
   const trimmed = value.trim();
@@ -101,6 +122,8 @@ export default function HistorisPeminjamanPage() {
   const [filterPeminjam, setFilterPeminjam] = useState("Semua");
   const [peminjaman, setPeminjaman] = useState<Peminjaman[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [selectedItem, setSelectedItem] =
+    useState<HistorisPeminjamanRow | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -135,7 +158,7 @@ export default function HistorisPeminjamanPage() {
     };
   }, [filterKantorId, filterLemariId, showToast]);
 
-  const historisPeminjaman = useMemo(() => {
+  const historisPeminjaman = useMemo<HistorisPeminjamanRow[]>(() => {
     return peminjaman
       .filter((item) => item.statusKey === "RETURNED")
       .map((item) => {
@@ -158,6 +181,9 @@ export default function HistorisPeminjamanPage() {
             item.approverUser?.name ??
             item.approver ??
             "-",
+          alasan: item.alasan,
+          catatanPenyerahan: item.catatanPenyerahan,
+          catatanPengembalian: item.catatanPengembalian,
         };
       });
   }, [peminjaman]);
@@ -369,13 +395,17 @@ export default function HistorisPeminjamanPage() {
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Penyetuju
                 </SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                  Aksi
+                </SetupDataTableHeaderCell>
               </SetupDataTableRow>
             </SetupDataTableHead>
             <SetupDataTableBody className="divide-y divide-gray-100">
               {paginatedData.map((item, idx) => (
                 <SetupDataTableRow
                   key={item.id}
-                  className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} hover:bg-gray-50/50`}
+                  className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer hover:bg-gray-50/50`}
+                  onDoubleClick={() => setSelectedItem(item)}
                 >
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                     {(paginationMeta.page - 1) * paginationMeta.limit + idx + 1}
@@ -438,16 +468,48 @@ export default function HistorisPeminjamanPage() {
                       {formatPersonName(item.approvedBy)}
                     </span>
                   </SetupDataTableCell>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                    onClick={(event) => event.stopPropagation()}
+                    onDoubleClick={(event) => event.stopPropagation()}
+                  >
+                    <SetupActionMenu
+                      items={[
+                        {
+                          key: "detail",
+                          label: "Detail",
+                          icon: Eye,
+                          tone: "blue",
+                          onClick: () => setSelectedItem(item),
+                        },
+                      ]}
+                      label={`Buka aksi untuk historis peminjaman ${item.kode}`}
+                      menuLabel={`Aksi historis peminjaman ${item.kode}`}
+                    />
+                  </SetupDataTableCell>
                 </SetupDataTableRow>
               ))}
               {filteredData.length === 0 ? (
-                <SetupDataTableRow>
-                  <SetupDataTableCell colSpan={10} className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}>
-                    {isLoadingHistory
-                      ? "Memuat riwayat peminjaman..."
-                      : "Belum ada riwayat peminjaman yang sesuai."}
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
+                <SetupDataTableEmptyRow
+                  colSpan={11}
+                  icon={BookOpen}
+                  tone="neutral"
+                  isFiltered={
+                    searchTerm.trim().length > 0 ||
+                    filterPeminjam !== "Semua" ||
+                    Boolean(filterKantorId) ||
+                    Boolean(filterLemariId)
+                  }
+                  description={
+                    isLoadingHistory
+                      ? undefined
+                      : "Riwayat peminjaman dan pengembalian arsip akan tampil di sini."
+                  }
+                >
+                  {isLoadingHistory
+                    ? "Memuat riwayat peminjaman..."
+                    : "Belum ada riwayat peminjaman yang sesuai."}
+                </SetupDataTableEmptyRow>
               ) : null}
             </SetupDataTableBody>
           </SetupDataTable>
@@ -459,6 +521,138 @@ export default function HistorisPeminjamanPage() {
           onPageChange={setPage}
         />
       </SetupTableCard>
+
+      {selectedItem ? (
+        <DashboardModal
+          isOpen={Boolean(selectedItem)}
+          onClose={() => setSelectedItem(null)}
+          title="Detail Historis Peminjaman"
+          description={selectedItem.kode}
+          maxWidth="4xl"
+          bodyClassName="max-h-[calc(90vh-164px)] overflow-y-auto p-6"
+          footerClassName="flex justify-end border-t border-gray-100 bg-gray-50 p-6"
+          footer={
+            <button
+              type="button"
+              onClick={() => setSelectedItem(null)}
+              className="uiverse-modal-button uiverse-modal-button--neutral"
+            >
+              Tutup
+            </button>
+          }
+        >
+          <div className="space-y-8">
+            <section className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Informasi Peminjaman
+                </p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Ringkasan peminjaman dokumen yang sudah dikembalikan.
+                </p>
+              </div>
+              <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Identitas Dokumen
+                    </p>
+                    <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
+                      {selectedItem.namaDokumen}
+                    </h3>
+                    <p className="text-base font-medium text-slate-500">
+                      {selectedItem.kode}
+                    </p>
+                  </div>
+                  <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                    Dikembalikan
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <DetailInfoItem
+                    label="Peminjam"
+                    value={formatPersonName(selectedItem.peminjam)}
+                  />
+                  <DetailInfoItem
+                    label="Tanggal Pinjam"
+                    value={formatDateOnly(selectedItem.tanggalPinjam)}
+                  />
+                  <DetailInfoItem
+                    label="Tanggal Serah"
+                    value={formatDateOnly(selectedItem.tanggalPenyerahan)}
+                  />
+                  <DetailInfoItem
+                    label="Est. Kembali"
+                    value={formatDateOnly(
+                      selectedItem.tanggalEstimasiPengembalian,
+                    )}
+                  />
+                  <DetailInfoItem
+                    label="Tanggal Kembali"
+                    value={formatDateOnly(selectedItem.tanggalPengembalian)}
+                  />
+                  <DetailInfoItem label="Durasi" value={selectedItem.durasi} />
+                  <DetailInfoItem
+                    label="Penyetuju"
+                    value={formatPersonName(selectedItem.approvedBy)}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Catatan Peminjaman
+                </p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Alasan dan catatan proses yang tersimpan pada riwayat.
+                </p>
+              </div>
+              <div className="grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 md:grid-cols-2">
+                <DetailInfoItem
+                  label="Alasan Peminjaman"
+                  value={selectedItem.alasan || "-"}
+                />
+                <DetailInfoItem
+                  label="Catatan Penyerahan"
+                  value={selectedItem.catatanPenyerahan || "-"}
+                />
+                <DetailInfoItem
+                  label="Catatan Pengembalian"
+                  value={selectedItem.catatanPengembalian || "-"}
+                  className="md:col-span-2"
+                />
+              </div>
+            </section>
+          </div>
+        </DashboardModal>
+      ) : null}
     </DashboardPageShell>
+  );
+}
+
+type DetailInfoItemProps = {
+  label: string;
+  value: string;
+  className?: string;
+};
+
+function DetailInfoItem({
+  label,
+  value,
+  className = "",
+}: DetailInfoItemProps) {
+  return (
+    <div
+      className={`rounded-xl border border-gray-200 bg-slate-50 px-4 py-3 ${className}`.trim()}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+        {label}
+      </p>
+      <p className="mt-2 break-words text-sm font-semibold leading-6 text-slate-900">
+        {value || "-"}
+      </p>
+    </div>
   );
 }

@@ -375,8 +375,72 @@ export type DebtorIdebUploadFile = {
   created_at?: string | null;
 };
 
+export type DebtorIdebUploader = {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  division_id: string;
+  division: { id: string; name: string } | null;
+};
+
+export type DebtorIdebReporterGroup = {
+  key: string;
+  reporter_code: string | null;
+  reporter_name: string;
+  facility_count: number;
+  active_facility_count: number;
+  paid_off_facility_count: number;
+  write_off_facility_count: number;
+  worst_collectibility: string | number | null;
+  active_worst_collectibility: string | number | null;
+  highest_days_past_due: number;
+  total_plafond: number;
+  total_outstanding: number;
+  total_arrears: number;
+  active_outstanding: number;
+  active_arrears: number;
+  paid_off_plafond: number;
+  write_off_plafond: number;
+  write_off_outstanding: number;
+  write_off_arrears: number;
+  collateral_count: number;
+};
+
+export type DebtorIdebReportSummary = {
+  reporter_count: number;
+  derived_reporter_count: number;
+  reported_reporter_count: number | null;
+  facilities_count: number;
+  active_facilities_count: number;
+  paid_off_facilities_count: number;
+  write_off_facilities_count: number;
+  reported_worst_collectibility: string | number | null;
+  overall_worst_collectibility: string | number | null;
+  active_worst_collectibility: string | number | null;
+  worst_collectibility: string | number | null;
+  highest_days_past_due: number;
+  total_plafond: number;
+  calculated_total_plafond: number;
+  total_outstanding: number;
+  calculated_total_outstanding: number;
+  active_outstanding: number;
+  active_arrears: number;
+  total_arrears: number;
+  paid_off_plafond: number;
+  write_off_plafond: number;
+  write_off_outstanding: number;
+  write_off_arrears: number;
+  reporter_groups: DebtorIdebReporterGroup[];
+  priority_reporters: DebtorIdebReporterGroup[];
+  collateral_source: "IDEB" | "A01" | null;
+  collaterals: Record<string, unknown>[];
+  data_quality_warnings: string[];
+};
+
 export type DebtorWorkflowIdebUpload = {
   id: string;
+  source_fingerprint?: string | null;
   debtor_id: string | null;
   import_job_id?: string | null;
   contract_id: string | null;
@@ -387,6 +451,9 @@ export type DebtorWorkflowIdebUpload = {
   summary_detail: DebtorIdebSummaryDetail | null;
   file: DebtorFileMeta | null;
   files?: DebtorIdebUploadFile[];
+  uploaded_by?: string | null;
+  uploader?: DebtorIdebUploader | null;
+  report_summary?: DebtorIdebReportSummary | null;
   debtor: DebtorRecord | null;
   contract: DebtorContract | null;
   created_at: string | null;
@@ -412,16 +479,24 @@ export type DebtorIdebReportUpload = DebtorIdebPendingUpload & {
   facilities_count: number;
   active_facilities_count: number;
   paid_off_facilities_count: number;
+  write_off_facilities_count: number;
   active_outstanding: number;
+  active_arrears: number;
   paid_off_plafond: number;
+  write_off_plafond: number;
+  write_off_outstanding: number;
+  write_off_arrears: number;
   total_plafond: number;
   total_outstanding: number;
   total_arrears: number;
+  reported_worst_collectibility: string | number | null;
+  active_worst_collectibility: string | number | null;
   worst_collectibility: string | number | null;
   officer_name: string | null;
   total_parts: number;
   received_parts: number;
   part_display: string;
+  report_summary: DebtorIdebReportSummary | null;
 };
 
 export type DebtorIdebResolvePayload = {
@@ -687,6 +762,30 @@ export type DebtorWorkflowDeposit = {
   updated_at: string | null;
 };
 
+export type DebtorActivityLog = {
+  id: string;
+  actor_id: string | null;
+  actor: DebtorUserSummary | null;
+  action: string;
+  source: string;
+  entity_type: string;
+  entity_id: string | null;
+  debtor_id: string | null;
+  contract_id: string | null;
+  import_job_id: string | null;
+  ideb_upload_id: string | null;
+  document_id: string | null;
+  marketing_activity_id: string | null;
+  warning_letter_id: string | null;
+  title: string | null;
+  before_data: Record<string, unknown> | null;
+  after_data: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+  request_ip: string | null;
+  user_agent: string | null;
+  created_at: string | null;
+};
+
 export type DebtorWorkflow = {
   debtor: DebtorRecord;
   contracts: DebtorContract[];
@@ -714,6 +813,7 @@ export type DebtorWorkflow = {
     claims: DebtorWorkflowClaim[];
     deposits: DebtorWorkflowDeposit[];
   };
+  activity_logs: DebtorActivityLog[];
 };
 
 export type DebtorImportJob = {

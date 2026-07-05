@@ -15,6 +15,7 @@ import {
   SetupDataTable,
   SetupDataTableBody,
   SetupDataTableCell,
+  SetupDataTableEmptyRow,
   SetupDataTableHead,
   SetupDataTableHeaderCell,
   SetupDataTableRow,
@@ -447,14 +448,13 @@ export default function LaporanNPFSection({
                         </SetupDataTableRow>
                         ))
                       ) : (
-                        <SetupDataTableRow>
-                          <SetupDataTableCell
-                            colSpan={2}
-                            className="px-4 py-8 text-center text-sm text-gray-500"
-                          >
-                            Belum ada riwayat NPF
-                          </SetupDataTableCell>
-                        </SetupDataTableRow>
+                        <SetupDataTableEmptyRow
+                          colSpan={2}
+                          tone="debitur"
+                          description="Riwayat rasio NPF akan tampil setelah periode berikutnya tersedia."
+                        >
+                          Belum ada riwayat NPF.
+                        </SetupDataTableEmptyRow>
                       )}
                     </SetupDataTableBody>
                   </SetupDataTable>

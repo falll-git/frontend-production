@@ -56,11 +56,16 @@ export type DokumenAvailabilityLabel =
   | "Dalam Proses"
   | "Dipinjam";
 
-export type AccessRequestStatusKey = "PENDING" | "APPROVED" | "REJECTED";
+export type AccessRequestStatusKey =
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "REVOKED";
 export type AccessRequestStatusLabel =
   | "Menunggu Persetujuan"
   | "Disetujui"
-  | "Ditolak";
+  | "Ditolak"
+  | "Dicabut";
 
 export type LoanStatusKey =
   | "PENDING"

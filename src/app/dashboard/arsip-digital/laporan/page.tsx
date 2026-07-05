@@ -27,6 +27,7 @@ import {
   ChevronRight,
   CircleDot,
   ClipboardList,
+  Eye,
   FileText,
   LockKeyhole,
   ShieldCheck,
@@ -38,18 +39,17 @@ import BasicDateInput from "@/components/ui/BasicDateInput";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import Pagination from "@/components/ui/Pagination";
 import SetupCloseListButton from "@/components/ui/SetupCloseListButton";
+import SetupActionMenu from "@/components/ui/SetupActionMenu";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupExcelButton from "@/components/ui/SetupExcelButton";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupSelect from "@/components/ui/SetupSelect";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
-import SetupViewButton from "@/components/ui/SetupViewButton";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import {
   SETUP_PAGE_MODERN_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
-  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
   SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
@@ -929,18 +929,23 @@ function ReportDocumentActionButton({
   document?: Dokumen | null;
   onView: (document: Dokumen) => void;
 }) {
-  const isAvailable = Boolean(document);
+  if (!document) {
+    return <span className="text-sm text-slate-300">-</span>;
+  }
 
   return (
-    <SetupViewButton
-      iconOnly
-      label="Lihat Dokumen"
-      title={isAvailable ? "Lihat Dokumen" : "Detail dokumen tidak tersedia"}
-      disabled={!isAvailable}
-      onClick={() => {
-        if (document) onView(document);
-      }}
-      className="h-9 w-9 justify-center px-0"
+    <SetupActionMenu
+      items={[
+        {
+          key: "detail",
+          label: "Detail",
+          icon: Eye,
+          tone: "blue",
+          onClick: () => onView(document),
+        },
+      ]}
+      label={`Buka aksi untuk dokumen ${document.kode}`}
+      menuLabel={`Aksi dokumen ${document.kode}`}
     />
   );
 }
@@ -1006,7 +1011,11 @@ function DocumentsTable({
       </SetupDataTableHead>
       <SetupDataTableBody>
         {rows.map((item, index) => (
-          <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
+          <SetupDataTableRow
+            key={item.id}
+            className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer hover:bg-gray-50/50`}
+            onDoubleClick={() => onViewDocument(item)}
+          >
             <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
               {(meta.page - 1) * meta.limit + index + 1}
             </SetupDataTableCell>
@@ -1052,7 +1061,11 @@ function DocumentsTable({
             <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
               <span className="tabular-nums">{formatDateOnly(item.tglInput)}</span>
             </SetupDataTableCell>
-            <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+            <SetupDataTableCell
+              className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+              onClick={(event) => event.stopPropagation()}
+              onDoubleClick={(event) => event.stopPropagation()}
+            >
               <ReportDocumentActionButton
                 document={item}
                 onView={onViewDocument}
@@ -1064,7 +1077,12 @@ function DocumentsTable({
           <SetupDataTableEmptyRow
             colSpan={10}
             state={isLoading ? "loading" : "empty"}
-            className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
+            icon={REPORT_DEFINITIONS.documents.icon}
+            description={
+              isLoading
+                ? "Mengambil daftar dokumen sesuai scope laporan."
+                : REPORT_DEFINITIONS.documents.description
+            }
           >
             {isLoading ? "Memuat laporan dokumen..." : REPORT_DEFINITIONS.documents.emptyText}
           </SetupDataTableEmptyRow>
@@ -1135,7 +1153,16 @@ function DueDateTable({
           const dueDateStatusLabel = getDueDateStatusLabel(item);
 
           return (
-            <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
+            <SetupDataTableRow
+              key={item.id}
+              className={joinClasses(
+                SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+                item.document && "cursor-pointer hover:bg-gray-50/50",
+              )}
+              onDoubleClick={() => {
+                if (item.document) onViewDocument(item.document);
+              }}
+            >
               <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                 {(meta.page - 1) * meta.limit + index + 1}
               </SetupDataTableCell>
@@ -1169,7 +1196,11 @@ function DueDateTable({
                   {getDocumentLocation(item.document)}
                 </SetupTableSecondaryText>
               </SetupDataTableCell>
-              <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+              <SetupDataTableCell
+                className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                onClick={(event) => event.stopPropagation()}
+                onDoubleClick={(event) => event.stopPropagation()}
+              >
                 <ReportDocumentActionButton
                   document={item.document}
                   onView={onViewDocument}
@@ -1182,7 +1213,12 @@ function DueDateTable({
           <SetupDataTableEmptyRow
             colSpan={9}
             state={isLoading ? "loading" : "empty"}
-            className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
+            icon={REPORT_DEFINITIONS.dueDates.icon}
+            description={
+              isLoading
+                ? "Mengambil daftar dokumen yang perlu dipantau jatuh temponya."
+                : REPORT_DEFINITIONS.dueDates.description
+            }
           >
             {isLoading ? "Memuat laporan jatuh tempo..." : REPORT_DEFINITIONS.dueDates.emptyText}
           </SetupDataTableEmptyRow>
@@ -1250,7 +1286,16 @@ function AccessRequestTable({
       </SetupDataTableHead>
       <SetupDataTableBody>
         {rows.map((item, index) => (
-          <SetupDataTableRow key={item.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
+          <SetupDataTableRow
+            key={item.id}
+            className={joinClasses(
+              SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+              item.document && "cursor-pointer hover:bg-gray-50/50",
+            )}
+            onDoubleClick={() => {
+              if (item.document) onViewDocument(item.document);
+            }}
+          >
             <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
               {(meta.page - 1) * meta.limit + index + 1}
             </SetupDataTableCell>
@@ -1290,7 +1335,11 @@ function AccessRequestTable({
             <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
               <SetupTableSecondaryText>{item.alasanPengajuan}</SetupTableSecondaryText>
             </SetupDataTableCell>
-            <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+            <SetupDataTableCell
+              className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+              onClick={(event) => event.stopPropagation()}
+              onDoubleClick={(event) => event.stopPropagation()}
+            >
               <ReportDocumentActionButton
                 document={item.document}
                 onView={onViewDocument}
@@ -1302,7 +1351,12 @@ function AccessRequestTable({
           <SetupDataTableEmptyRow
             colSpan={9}
             state={isLoading ? "loading" : "empty"}
-            className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
+            icon={REPORT_DEFINITIONS.accessRequests.icon}
+            description={
+              isLoading
+                ? "Mengambil riwayat dan antrean permintaan akses."
+                : REPORT_DEFINITIONS.accessRequests.description
+            }
           >
             {isLoading ? "Memuat laporan akses..." : REPORT_DEFINITIONS.accessRequests.emptyText}
           </SetupDataTableEmptyRow>
@@ -1377,8 +1431,12 @@ function LoansTable({
             key={item.id}
             className={joinClasses(
               SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+              item.document && "cursor-pointer hover:bg-gray-50/50",
               item.isTerlambat && "bg-red-50/30",
             )}
+            onDoubleClick={() => {
+              if (item.document) onViewDocument(item.document);
+            }}
           >
             <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
               {(meta.page - 1) * meta.limit + index + 1}
@@ -1418,7 +1476,11 @@ function LoansTable({
                 {item.approverUser ? getUserDisplayName(item.approverUser) : item.approver ?? "-"}
               </SetupTablePrimaryText>
             </SetupDataTableCell>
-            <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+            <SetupDataTableCell
+              className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+              onClick={(event) => event.stopPropagation()}
+              onDoubleClick={(event) => event.stopPropagation()}
+            >
               <ReportDocumentActionButton
                 document={item.document}
                 onView={onViewDocument}
@@ -1430,7 +1492,12 @@ function LoansTable({
           <SetupDataTableEmptyRow
             colSpan={10}
             state={isLoading ? "loading" : "empty"}
-            className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
+            icon={REPORT_DEFINITIONS.loans.icon}
+            description={
+              isLoading
+                ? "Mengambil daftar peminjaman dan pengembalian fisik."
+                : REPORT_DEFINITIONS.loans.description
+            }
           >
             {isLoading ? "Memuat laporan peminjaman..." : REPORT_DEFINITIONS.loans.emptyText}
           </SetupDataTableEmptyRow>

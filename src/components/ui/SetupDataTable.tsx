@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupState from "@/components/ui/SetupState";
+import { SetupTableSkeletonRows } from "@/components/ui/SetupSkeleton";
 import type { LucideIcon } from "lucide-react";
 
 export type SetupTableVariant =
@@ -416,11 +417,14 @@ type SetupDataTableEmptyRowProps = ComponentPropsWithoutRef<"td"> & {
   icon?: LucideIcon | null;
   tone?: "neutral" | "debitur" | "legal" | "import" | "parameter";
   isFiltered?: boolean;
+  loadingRows?: number;
+  loadingColumns?: number;
 };
 
 export function SetupDataTableEmptyRow({
   className,
   children,
+  colSpan,
   state,
   description,
   action,
@@ -428,6 +432,8 @@ export function SetupDataTableEmptyRow({
   icon,
   tone = "neutral",
   isFiltered = false,
+  loadingRows,
+  loadingColumns,
   ...props
 }: SetupDataTableEmptyRowProps) {
   const text = getTextContent(children);
@@ -439,10 +445,22 @@ export function SetupDataTableEmptyRow({
         ? "error"
         : "empty");
 
+  if (inferredState === "loading") {
+    return (
+      <SetupTableSkeletonRows
+        colSpan={colSpan}
+        rows={loadingRows}
+        columns={loadingColumns ?? Math.min(Math.max(colSpan, 3), 7)}
+        className={className}
+      />
+    );
+  }
+
   return (
     <SetupDataTableRow>
       <SetupDataTableCell
         className={cn(SETUP_PAGE_MODERN_EMPTY_CELL_CLASS, className)}
+        colSpan={colSpan}
         {...props}
       >
         {inferredState === "empty" ? (

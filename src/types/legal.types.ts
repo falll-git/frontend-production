@@ -2,15 +2,6 @@ import type { PaginationMeta } from "@/types/api.types";
 import type { DebtorCollateral, DebtorContract, DebtorFileMeta } from "@/types/debitur.types";
 import type { ParameterMasterRecord } from "@/services/parameter-master.service";
 
-export type LegalDocumentType =
-  | "AKAD"
-  | "HAFTSHEET"
-  | "SURAT_PERINGATAN"
-  | "SURAT_PENGANTAR"
-  | "SKL"
-  | "SAMSAT"
-  | "DOKUMEN_LAINNYA";
-
 export type LegalPageResult<T> = {
   items: T[];
   meta: PaginationMeta;
@@ -21,43 +12,18 @@ export type LegalListQuery = {
   limit?: number;
   search?: string;
   status?: string;
-  document_type?: string;
-  template_type?: string;
   contract_id?: string;
   collateral_id?: string;
   third_party_id?: string;
   type?: string;
   deposit_id?: string;
-};
-
-export type LegalTemplate = {
-  id: string;
-  template_type: LegalDocumentType | string;
-  version: number;
-  title: string;
-  content_template: string | null;
-  is_active: boolean;
-  file: DebtorFileMeta | null;
-  files?: DebtorFileMeta[];
-  created_at: string | null;
-  updated_at: string | null;
-};
-
-export type LegalPrintHistory = {
-  id: string;
-  template_id: string | null;
-  numbering_template_id: string | null;
-  contract_id: string;
-  document_type: LegalDocumentType | string;
-  generated_number: string;
-  payload_snapshot: Record<string, unknown> | null;
-  generated_file: DebtorFileMeta | null;
-  files?: DebtorFileMeta[];
-  template: LegalTemplate | null;
-  numbering_template: ParameterMasterRecord | null;
-  contract: DebtorContract | null;
-  printed_at: string | null;
-  created_at: string | null;
+  debtor_id?: string;
+  actor_id?: string;
+  action?: string;
+  source?: string;
+  entity_type?: string;
+  date_from?: string;
+  date_to?: string;
 };
 
 export type LegalProgressRecord = {
@@ -153,8 +119,6 @@ export type LegalDepositTransaction = {
 };
 
 export type LegalSummaryReport = {
-  templates: number;
-  prints: number;
   notary: number;
   insurance: number;
   kjpp: number;
@@ -183,25 +147,38 @@ export type LegalDepositFundsReport = {
   balance_amount?: number;
 };
 
-export type LegalTemplatePayload = {
-  template_type: LegalDocumentType | string;
-  version?: number;
-  title: string;
-  content_template?: string | null;
-  is_active?: boolean;
-  file?: File | null;
-  files?: File[];
+export type LegalActivityActor = {
+  id: string;
+  name: string | null;
+  username: string | null;
+  email: string | null;
+  division_id: string | null;
+  division_name: string | null;
 };
 
-export type LegalPrintPayload = {
-  template_id: string;
-  numbering_template_id?: string | null;
-  contract_id: string;
-  collateral_id?: string | null;
-  document_type: LegalDocumentType | string;
-  payload_snapshot?: Record<string, unknown>;
-  file?: File | null;
-  files?: File[];
+export type LegalActivityLog = {
+  id: string;
+  actor_id: string | null;
+  actor: LegalActivityActor | null;
+  action: string;
+  source: string;
+  entity_type: string;
+  entity_id: string | null;
+  debtor_id: string | null;
+  contract_id: string | null;
+  collateral_id: string | null;
+  third_party_id: string | null;
+  deposit_id: string | null;
+  deposit_transaction_id: string | null;
+  title: string | null;
+  before_data: Record<string, unknown> | null;
+  after_data: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+  request_ip: string | null;
+  user_agent: string | null;
+  created_at: string | null;
+  contract: Pick<DebtorContract, "id" | "no_kontrak" | "status" | "debtor"> | null;
+  third_party: ParameterMasterRecord | null;
 };
 
 export type LegalNotaryPayload = {
@@ -299,11 +276,4 @@ export type LegalDepositTransactionPayload = {
   notes?: string | null;
   file?: File | null;
   files?: File[];
-};
-
-export type LegalDocumentContext = {
-  placeholders: string[];
-  values: Record<string, string | number | boolean | null | undefined>;
-  missing_fields: string[];
-  context: Record<string, unknown>;
 };

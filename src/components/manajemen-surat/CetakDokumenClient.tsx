@@ -1,15 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  CalendarDays,
+  Eye,
   FileText,
-  LoaderCircle,
+  Info,
   Printer,
   SearchX,
 } from "lucide-react";
 import { Document, Page, pdfjs } from "react-pdf";
 
+import DashboardModal from "@/components/ui/DashboardModal";
 import Pagination from "@/components/ui/Pagination";
+import SetupActionMenu, {
+  type SetupActionMenuItem,
+} from "@/components/ui/SetupActionMenu";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupViewButton from "@/components/ui/SetupViewButton";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
@@ -24,6 +36,10 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableRow,
 } from "@/components/ui/SetupDataTable";
+import {
+  SetupDocumentPreviewSkeleton,
+  SetupSkeletonBlock,
+} from "@/components/ui/SetupSkeleton";
 import SetupStatusBadge, {
   type SetupStatusTone,
 } from "@/components/ui/SetupStatusBadge";
@@ -187,6 +203,432 @@ function formatDeadlineValue(value: string | undefined) {
   return value ? formatDate(value) : "-";
 }
 
+function PrintPreviewInfoItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+        {label}
+      </p>
+      <p className="mt-2 break-words text-sm font-semibold leading-6 text-slate-900">
+        {value || "-"}
+      </p>
+    </div>
+  );
+}
+
+function PrintDetailInfoItem({
+  label,
+  value,
+  className = "",
+}: {
+  label: string;
+  value: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 ${className}`}
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+        {label}
+      </p>
+      <div className="mt-2 break-words text-sm font-semibold leading-6 text-slate-900">
+        {value || "-"}
+      </div>
+    </div>
+  );
+}
+
+function PrintDetailSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-4">
+      <div>
+        <h3 className="text-sm font-bold uppercase tracking-[0.16em] text-slate-600">
+          {title}
+        </h3>
+        <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function formatJoinedValues(values: string[] | undefined) {
+  return values && values.length > 0 ? values.join(", ") : "-";
+}
+
+function getRecordPartyLabel(record: PrintableRecord) {
+  if (record.kind === "surat-masuk") return "Pengirim";
+  if (record.kind === "surat-keluar") return "Penerima";
+  return "Divisi Asal";
+}
+
+function getRecordPartyValue(record: PrintableRecord) {
+  if (record.kind === "surat-keluar") return record.record.penerima;
+  return record.primaryText;
+}
+
+function getRecordPartyDetail(record: PrintableRecord) {
+  if (record.kind === "surat-masuk") return record.record.alamatPengirim;
+  if (record.kind === "surat-keluar") return record.record.alamatPenerima;
+  return record.record.pembuatMemo;
+}
+
+function getRecordDateLabel(record: PrintableRecord) {
+  if (record.kind === "surat-masuk") return "Tanggal Penerimaan";
+  if (record.kind === "surat-keluar") return "Tanggal Pengiriman";
+  return "Tanggal Memo";
+}
+
+function getRecordDeadlineValue(record: PrintableRecord) {
+  if (record.kind === "surat-keluar") return "-";
+  return formatDeadlineValue(record.record.tenggatWaktu);
+}
+
+function getRecordStatusLabel(record: PrintableRecord) {
+  if (record.kind === "surat-keluar") return record.record.statusLabel;
+  if (record.kind === "surat-masuk") return record.record.statusDisposisi;
+  return record.record.statusLabel ?? "Memo";
+}
+
+function getRecordStorageLabel(record: PrintableRecord) {
+  return (
+    record.record.physicalStorageLabel ??
+    record.record.storage?.locationLabel ??
+    "-"
+  );
+}
+
+function getRecordDescription(record: PrintableRecord) {
+  if (record.kind === "surat-masuk") {
+    return record.record.keterangan ?? "-";
+  }
+
+  if (record.kind === "surat-keluar") {
+    return record.record.sifat;
+  }
+
+  return record.record.keterangan || "-";
+}
+
+function PrintDocumentDetailModal({
+  record,
+  onClose,
+  onPreview,
+  onPrint,
+}: {
+  record: PrintableRecord | null;
+  onClose: () => void;
+  onPreview: (record: PrintableRecord) => void;
+  onPrint: (record: PrintableRecord) => void;
+}) {
+  if (!record) return null;
+
+  const fileType = detectDocumentFileType(record.fileUrl, record.fileName);
+  const hasFile = isValidFileUrl(record.fileUrl);
+  const canPrint = hasFile && canDirectPrintFileType(fileType);
+  const documentKindLabel = getDocumentKindLabel(record.kind);
+
+  return (
+    <DashboardModal
+      isOpen={Boolean(record)}
+      title="Detail Dokumen Cetak"
+      description={`${documentKindLabel} - ${record.code}`}
+      onClose={onClose}
+      maxWidth="5xl"
+      bodyClassName="space-y-6 p-5 sm:p-6"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-11 items-center justify-center rounded-lg border border-[rgba(21,126,195,0.42)] bg-white px-5 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-[rgba(21,126,195,0.05)] focus:outline-none focus:ring-2 focus:ring-[rgba(21,126,195,0.18)]"
+          >
+            Tutup
+          </button>
+          <SetupViewButton
+            onClick={() => onPreview(record)}
+            label="Preview"
+            title={hasFile ? "Preview dokumen" : "File belum tersedia"}
+            disabled={!hasFile}
+          />
+          <button
+            type="button"
+            onClick={() => onPrint(record)}
+            className={`${SETUP_PAGE_PRIMARY_BUTTON_CLASS} justify-center`}
+            title={
+              canPrint
+                ? "Cetak dokumen"
+                : hasFile
+                  ? "Cetak langsung hanya tersedia untuk PDF, JPG, JPEG, dan PNG"
+                  : "File belum tersedia"
+            }
+            disabled={!canPrint}
+          >
+            <Printer className="h-4 w-4" aria-hidden="true" />
+            <span>Cetak Dokumen</span>
+          </button>
+        </>
+      }
+    >
+      <PrintDetailSection
+        title="Informasi Dokumen"
+        description="Ringkasan dokumen, file arsip, dan status cetak yang tersedia."
+      >
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Identitas Dokumen
+                </p>
+                <h4 className="mt-3 break-words text-2xl font-bold tracking-tight text-slate-950">
+                  {record.subject}
+                </h4>
+                <p className="mt-2 break-words text-base font-semibold text-slate-500">
+                  {record.code}
+                </p>
+              </div>
+              <SetupStatusBadge
+                status="Tersedia"
+                label={documentKindLabel}
+                tone={getDocumentKindTone(record.kind)}
+                showIcon={false}
+              />
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              <PrintDetailInfoItem
+                label={getRecordPartyLabel(record)}
+                value={getRecordPartyValue(record)}
+              />
+              <PrintDetailInfoItem
+                label={getRecordDateLabel(record)}
+                value={formatDate(record.sortDate)}
+              />
+              <PrintDetailInfoItem
+                label="Status"
+                value={getRecordStatusLabel(record)}
+              />
+              <PrintDetailInfoItem
+                label="Lokasi Penyimpanan"
+                value={getRecordStorageLabel(record)}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+            <div className="flex items-start gap-4">
+              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white text-[#157EC3] shadow-sm ring-1 ring-slate-200">
+                <FileText className="h-6 w-6" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <h4 className="text-lg font-bold text-slate-950">
+                  File Dokumen
+                </h4>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  File yang dipakai untuk preview dan proses cetak.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+              <PrintDetailInfoItem
+                label="Nama File"
+                value={formatDocumentFileName(record.fileName)}
+                className="bg-white"
+              />
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                <span className="text-sm font-semibold text-slate-600">
+                  Status File
+                </span>
+                <SetupStatusBadge
+                  status={canPrint ? "Tersedia" : hasFile ? "Preview" : "Kosong"}
+                  label={
+                    canPrint
+                      ? "Bisa Dicetak"
+                      : hasFile
+                        ? "Preview Saja"
+                        : "File Kosong"
+                  }
+                  tone={canPrint ? "emerald" : hasFile ? "blue" : "amber"}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </PrintDetailSection>
+
+      <PrintDetailSection
+        title="Detail Persuratan"
+        description="Informasi operasional sesuai jenis dokumen yang dipilih."
+      >
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="grid gap-3 md:grid-cols-2">
+            <PrintDetailInfoItem
+              label={getRecordPartyLabel(record)}
+              value={getRecordPartyValue(record)}
+            />
+            <PrintDetailInfoItem
+              label={
+                record.kind === "surat-keluar"
+                  ? "Alamat Penerima"
+                  : record.kind === "surat-masuk"
+                    ? "Alamat Pengirim"
+                    : "Pembuat Memo"
+              }
+              value={getRecordPartyDetail(record)}
+            />
+            <PrintDetailInfoItem
+              label="Sifat / Kategori"
+              value={
+                record.kind === "memorandum"
+                  ? "Memorandum"
+                  : record.record.sifat
+              }
+            />
+            <PrintDetailInfoItem
+              label="Tenggat"
+              value={getRecordDeadlineValue(record)}
+            />
+            {record.kind === "surat-masuk" ? (
+              <>
+                <PrintDetailInfoItem
+                  label="Disposisi Kepada"
+                  value={formatJoinedValues(record.record.disposisiKepada)}
+                />
+                <PrintDetailInfoItem
+                  label="Catatan Disposisi"
+                  value={record.record.keteranganTenggat ?? "-"}
+                />
+              </>
+            ) : null}
+            {record.kind === "surat-keluar" ? (
+              <PrintDetailInfoItem
+                label="Media Pengiriman"
+                value={record.record.media}
+              />
+            ) : null}
+            {record.kind === "memorandum" ? (
+              <>
+                <PrintDetailInfoItem
+                  label="Divisi Tujuan"
+                  value={formatJoinedValues(record.record.divisiTujuanAwal)}
+                />
+                <PrintDetailInfoItem
+                  label="Penerima"
+                  value={formatJoinedValues(record.record.penerima)}
+                />
+              </>
+            ) : null}
+            <PrintDetailInfoItem
+              label={record.kind === "surat-keluar" ? "Sifat Surat" : "Keterangan"}
+              value={getRecordDescription(record)}
+              className="md:col-span-2"
+            />
+          </div>
+        </div>
+      </PrintDetailSection>
+    </DashboardModal>
+  );
+}
+
+function PrintListLoadingSkeleton() {
+  return (
+    <div className="px-4 py-4" aria-label="Memuat dokumen persuratan">
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <SetupSkeletonBlock className="h-4 w-40" />
+        <SetupSkeletonBlock className="h-7 w-28 rounded-full" />
+      </div>
+      <div className="space-y-3">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div
+            key={`print-list-loading-${index}`}
+            className="grid min-w-[560px] grid-cols-[40px_1fr_120px] items-center gap-4 rounded-lg border border-slate-100 bg-white px-3 py-3"
+          >
+            <SetupSkeletonBlock className="h-4 w-7" />
+            <div className="min-w-0 space-y-2">
+              <SetupSkeletonBlock className="h-4 w-2/3" />
+              <SetupSkeletonBlock className="h-3 w-1/2" />
+            </div>
+            <SetupSkeletonBlock className="h-7 w-full rounded-full" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PdfPreviewLoadingSkeleton() {
+  return (
+    <div
+      className="min-h-[320px] rounded-lg bg-white p-5 shadow-sm ring-1 ring-gray-200 md:min-h-[560px]"
+      aria-label="Menyiapkan preview dokumen"
+    >
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <SetupSkeletonBlock className="h-4 w-36" />
+        <SetupSkeletonBlock className="h-7 w-24 rounded-full" />
+      </div>
+      <div className="space-y-4">
+        <SetupSkeletonBlock className="h-8 w-3/4" />
+        <SetupSkeletonBlock className="h-4 w-full" />
+        <SetupSkeletonBlock className="h-4 w-11/12" />
+        <SetupSkeletonBlock className="h-[360px] w-full rounded-lg" />
+      </div>
+    </div>
+  );
+}
+
+function PrintSelectedDocumentSkeleton() {
+  return (
+    <>
+      <div className="border-b border-gray-100 bg-white px-5 py-5">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1 space-y-3">
+            <SetupSkeletonBlock className="h-3 w-32" />
+            <SetupSkeletonBlock className="h-7 w-3/4" />
+            <SetupSkeletonBlock className="h-4 w-40" />
+          </div>
+          <SetupSkeletonBlock className="h-7 w-28 rounded-full" />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div
+              key={`print-selected-loading-${index}`}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
+            >
+              <SetupSkeletonBlock className="h-3 w-28" />
+              <SetupSkeletonBlock className="mt-3 h-4 w-3/4" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="px-5 py-5">
+        <SetupDocumentPreviewSkeleton />
+      </div>
+      <div className="grid grid-cols-1 gap-3 border-t border-gray-100 bg-gray-50 px-5 py-4 sm:grid-cols-3">
+        <SetupSkeletonBlock className="h-11 w-full" />
+        <SetupSkeletonBlock className="h-11 w-full" />
+        <SetupSkeletonBlock className="h-11 w-full" />
+      </div>
+    </>
+  );
+}
+
 function mapPrintableItem(item: CorrespondencePrintableItem): PrintableRecord {
   if (item.kind === "incoming-mail") {
     const record = item.record as SuratMasuk;
@@ -240,10 +682,6 @@ function mapPrintableItem(item: CorrespondencePrintableItem): PrintableRecord {
           record.media,
           record.sifat,
           record.statusLabel,
-          record.responseDueDate ?? "",
-          record.tenggatWaktu ?? "",
-          record.keteranganTenggat ?? "",
-          record.followUpStatusLabel ?? "",
           record.physicalStorageLabel ?? "",
         ].join(" "),
       ),
@@ -274,7 +712,6 @@ function mapPrintableItem(item: CorrespondencePrintableItem): PrintableRecord {
         record.keterangan,
         record.tenggatWaktu ?? "",
         record.keteranganTenggat ?? "",
-        record.followUpStatusLabel ?? "",
         record.penerima.join(" "),
       ].join(" "),
     ),
@@ -382,12 +819,7 @@ function PdfDocumentPreview({
           <Document
             file={fileUrl}
             loading={
-              <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-white shadow-sm ring-1 ring-gray-200 md:min-h-[560px]">
-                <div className="flex flex-col items-center gap-3 text-gray-500">
-                  <LoaderCircle className="h-8 w-8 animate-spin text-primary-600" />
-                  <p className="text-sm font-medium">Memuat preview dokumen...</p>
-                </div>
-              </div>
+              <PdfPreviewLoadingSkeleton />
             }
             onLoadSuccess={({ numPages }: { numPages: number }) => {
               setPageCount(numPages);
@@ -415,9 +847,7 @@ function PdfDocumentPreview({
                   renderTextLayer={false}
                   renderAnnotationLayer={false}
                   loading={
-                    <div className="flex min-h-[320px] items-center justify-center md:min-h-[560px]">
-                      <LoaderCircle className="h-7 w-7 animate-spin text-primary-600" />
-                    </div>
+                    <PdfPreviewLoadingSkeleton />
                   }
                 />
               </div>
@@ -445,6 +875,9 @@ export default function CetakDokumenClient() {
   );
   const [searchValue, setSearchValue] = useState("");
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+  const [detailRecord, setDetailRecord] = useState<PrintableRecord | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [printableData, setPrintableData] = useState<PrintableRecord[]>([]);
   const displayedReportScope: CorrespondenceReportScope = reportScope;
@@ -575,37 +1008,37 @@ export default function CetakDokumenClient() {
     selectedRecordHasFile &&
     canDirectPrintFileType(selectedRecordFileType);
 
-  const handleOpenPreview = () => {
-    if (!selectedRecord) {
+  const openRecordPreview = (record: PrintableRecord | null | undefined) => {
+    if (!record) {
       showToast("Pilih dokumen terlebih dahulu.", "warning");
       return;
     }
 
-    if (!isValidFileUrl(selectedRecord.fileUrl)) {
+    if (!isValidFileUrl(record.fileUrl)) {
       showToast("File dokumen belum tersedia.", "warning");
       return;
     }
 
     openPreview(
-      selectedRecord.fileUrl,
-      formatDocumentFileName(selectedRecord.fileName),
+      record.fileUrl,
+      formatDocumentFileName(record.fileName),
     );
   };
 
-  const handlePrint = () => {
-    if (!selectedRecord) {
+  const printRecord = (record: PrintableRecord | null | undefined) => {
+    if (!record) {
       showToast("Pilih dokumen yang ingin dicetak.", "warning");
       return;
     }
 
-    if (!isValidFileUrl(selectedRecord.fileUrl)) {
+    if (!isValidFileUrl(record.fileUrl)) {
       showToast("File dokumen belum tersedia.", "warning");
       return;
     }
 
     const fileType = detectDocumentFileType(
-      selectedRecord.fileUrl,
-      selectedRecord.fileName,
+      record.fileUrl,
+      record.fileName,
     );
     if (!canDirectPrintFileType(fileType)) {
       showToast(
@@ -615,7 +1048,7 @@ export default function CetakDokumenClient() {
       return;
     }
 
-    const printStarted = printDocument(selectedRecord.fileUrl);
+    const printStarted = printDocument(record.fileUrl);
 
     if (!printStarted) {
       showToast(
@@ -628,11 +1061,33 @@ export default function CetakDokumenClient() {
     showToast("Dokumen dibuka ke mode cetak.", "success");
   };
 
+  const handleOpenPreview = () => {
+    openRecordPreview(selectedRecord);
+  };
+
+  const handlePrint = () => {
+    printRecord(selectedRecord);
+  };
+
+  const handleOpenDetail = (record: PrintableRecord) => {
+    setSelectedRecordId(record.id);
+    setDetailRecord(record);
+  };
+
+  const handleChangeDocumentKind = (value: DocumentKind) => {
+    setActiveKind(value);
+    setSearchValue("");
+    setSortValue("tanggal-desc");
+    setSelectedRecordId(null);
+    setDetailRecord(null);
+  };
+
   const handleChangeReportScope = (value: CorrespondenceReportScope) => {
     setReportScope(value);
     setSearchValue("");
     setSortValue("tanggal-desc");
     setSelectedRecordId(null);
+    setDetailRecord(null);
   };
 
   const handleChangeMyReportFilter = (value: CorrespondenceMyReportFilter) => {
@@ -640,6 +1095,7 @@ export default function CetakDokumenClient() {
     setSearchValue("");
     setSortValue("tanggal-desc");
     setSelectedRecordId(null);
+    setDetailRecord(null);
   };
 
   return (
@@ -673,34 +1129,34 @@ export default function CetakDokumenClient() {
               </div>
             </div>
 
-              {activeKind !== "surat-keluar" && displayedReportScope === "my" ? (
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className={SETUP_PAGE_SEARCH_LABEL_CLASS}>
-                    Filter Saya
-                  </span>
-                  <div className={`${SETUP_PAGE_SEGMENTED_GROUP_CLASS} flex-wrap`}>
-                    {MY_REPORT_FILTER_OPTIONS.map((option) => {
-                      const isActive = myReportFilter === option.value;
+            {activeKind !== "surat-keluar" && displayedReportScope === "my" ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <span className={SETUP_PAGE_SEARCH_LABEL_CLASS}>
+                  Filter Saya
+                </span>
+                <div className={`${SETUP_PAGE_SEGMENTED_GROUP_CLASS} flex-wrap`}>
+                  {MY_REPORT_FILTER_OPTIONS.map((option) => {
+                    const isActive = myReportFilter === option.value;
 
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => handleChangeMyReportFilter(option.value)}
-                          className={`${SETUP_PAGE_SEGMENTED_BUTTON_BASE_CLASS} ${
-                            isActive
-                              ? SETUP_PAGE_SEGMENTED_BUTTON_ACTIVE_CLASS
-                              : SETUP_PAGE_SEGMENTED_BUTTON_INACTIVE_CLASS
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => handleChangeMyReportFilter(option.value)}
+                        className={`${SETUP_PAGE_SEGMENTED_BUTTON_BASE_CLASS} ${
+                          isActive
+                            ? SETUP_PAGE_SEGMENTED_BUTTON_ACTIVE_CLASS
+                            : SETUP_PAGE_SEGMENTED_BUTTON_INACTIVE_CLASS
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
                 </div>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
+          </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-end">
             <div className="lg:col-span-6">
@@ -719,7 +1175,7 @@ export default function CetakDokumenClient() {
               <SetupSelect
                 value={activeKind}
                 onChange={(event) =>
-                  setActiveKind(event.target.value as DocumentKind)
+                  handleChangeDocumentKind(event.target.value as DocumentKind)
                 }
               >
                 <option value="surat-masuk">Surat Masuk</option>
@@ -751,7 +1207,7 @@ export default function CetakDokumenClient() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(380px,0.9fr)_minmax(560px,1.1fr)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.85fr)]">
         <section className="overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-gray-100 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -771,144 +1227,39 @@ export default function CetakDokumenClient() {
           </div>
 
           {isLoading ? (
-            <div className="flex min-h-[340px] flex-col items-center justify-center px-6 text-center">
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50">
-                <FileText
-                  className="h-8 w-8 text-slate-900"
-                  aria-hidden="true"
-                />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                Memuat dokumen persuratan
-              </h3>
-              <p className="mt-1 max-w-md text-sm text-gray-500">
-                Data surat masuk, surat keluar, dan memorandum sedang diambil
-                dari server.
-              </p>
-            </div>
+            <PrintListLoadingSkeleton />
           ) : filteredRecords.length > 0 ? (
             <>
               <div className="overflow-x-auto">
                 <SetupDataTable variant="document" density="compact">
                   <SetupDataTableColGroup>
                     <SetupDataTableCol style={{ width: "56px" }} />
-                    {activeKind === "memorandum" ? (
-                      <>
-                        <SetupDataTableCol style={{ minWidth: "140px" }} />
-                        <SetupDataTableCol style={{ minWidth: "220px" }} />
-                        <SetupDataTableCol style={{ minWidth: "160px" }} />
-                        <SetupDataTableCol style={{ minWidth: "150px" }} />
-                        <SetupDataTableCol style={{ minWidth: "140px" }} />
-                        <SetupDataTableCol style={{ minWidth: "150px" }} />
-                      </>
-                    ) : activeKind === "surat-keluar" ? (
-                      <>
-                        <SetupDataTableCol style={{ minWidth: "160px" }} />
-                        <SetupDataTableCol style={{ minWidth: "140px" }} />
-                        <SetupDataTableCol style={{ minWidth: "220px" }} />
-                        <SetupDataTableCol style={{ minWidth: "120px" }} />
-                        <SetupDataTableCol style={{ minWidth: "140px" }} />
-                        <SetupDataTableCol style={{ minWidth: "110px" }} />
-                        <SetupDataTableCol style={{ minWidth: "150px" }} />
-                        <SetupDataTableCol style={{ minWidth: "150px" }} />
-                        <SetupDataTableCol style={{ minWidth: "120px" }} />
-                      </>
-                    ) : (
-                      <>
-                        <SetupDataTableCol style={{ minWidth: "160px" }} />
-                        <SetupDataTableCol style={{ minWidth: "140px" }} />
-                        <SetupDataTableCol style={{ minWidth: "220px" }} />
-                        <SetupDataTableCol style={{ minWidth: "110px" }} />
-                        <SetupDataTableCol style={{ minWidth: "140px" }} />
-                        <SetupDataTableCol style={{ minWidth: "150px" }} />
-                        <SetupDataTableCol style={{ minWidth: "220px" }} />
-                        <SetupDataTableCol style={{ minWidth: "220px" }} />
-                      </>
-                    )}
+                    <SetupDataTableCol style={{ minWidth: "260px" }} />
+                    <SetupDataTableCol style={{ minWidth: "190px" }} />
+                    <SetupDataTableCol style={{ minWidth: "150px" }} />
+                    <SetupDataTableCol style={{ minWidth: "160px" }} />
+                    <SetupDataTableCol style={{ width: "84px" }} />
                   </SetupDataTableColGroup>
                   <SetupDataTableHead>
                     <SetupDataTableRow>
                       <SetupDataTableHeaderCell className="text-center">
                         No
                       </SetupDataTableHeaderCell>
-                      {activeKind === "surat-masuk" ? (
-                        <>
-                          <SetupDataTableHeaderCell>
-                            Nama Pengirim
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell className="text-center">
-                            Nomor Surat
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell>
-                            Perihal
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell className="text-center">
-                            Sifat
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell className="text-center">
-                            Tgl Penerimaan
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell className="text-center">
-                            Tenggat
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell>
-                            Keterangan Surat
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell>
-                            Catatan Disposisi
-                          </SetupDataTableHeaderCell>
-                        </>
-                      ) : null}
-                      {activeKind === "surat-keluar" ? (
-                        <>
-                          <SetupDataTableHeaderCell>
-                            Nama Penerima
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell className="text-center">
-                            Nomor Surat
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell>
-                            Alamat Penerima
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell className="text-center">
-                            Media
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell className="text-center">
-                            Tgl Pengiriman
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell className="text-center">
-                            Sifat
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell className="text-center">
-                            Batas Follow-up
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell className="text-center">
-                            Status
-                          </SetupDataTableHeaderCell>
-                        </>
-                      ) : null}
-                      {activeKind === "memorandum" ? (
-                        <>
-                          <SetupDataTableHeaderCell className="text-center">
-                            No Memo
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell>
-                            Perihal
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell>
-                            Divisi Asal
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell>
-                            Pembuat
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell className="text-center">
-                            Tanggal
-                          </SetupDataTableHeaderCell>
-                          <SetupDataTableHeaderCell className="text-center">
-                            Tenggat
-                          </SetupDataTableHeaderCell>
-                        </>
-                      ) : null}
+                      <SetupDataTableHeaderCell>
+                        Dokumen
+                      </SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell>
+                        Pihak / Unit
+                      </SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell className="text-center">
+                        Tanggal
+                      </SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell className="text-center">
+                        Status File
+                      </SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell className="text-center">
+                        Aksi
+                      </SetupDataTableHeaderCell>
                     </SetupDataTableRow>
                   </SetupDataTableHead>
                   <SetupDataTableBody>
@@ -923,12 +1274,49 @@ export default function CetakDokumenClient() {
                           ? "bg-sky-50/70"
                           : "hover:bg-gray-50 focus-visible:bg-gray-50"
                       }`;
+                      const fileType = detectDocumentFileType(
+                        record.fileUrl,
+                        record.fileName,
+                      );
+                      const hasFile = isValidFileUrl(record.fileUrl);
+                      const canPrint = hasFile && canDirectPrintFileType(fileType);
+                      const deadlineValue = getRecordDeadlineValue(record);
+                      const actionItems: SetupActionMenuItem[] = [
+                        {
+                          key: "detail",
+                          label: "Detail",
+                          icon: Info,
+                          tone: "blue",
+                          onClick: () => handleOpenDetail(record),
+                        },
+                      ];
+
+                      if (hasFile) {
+                        actionItems.push({
+                          key: "preview",
+                          label: "Preview",
+                          icon: Eye,
+                          tone: "gray",
+                          onClick: () => openRecordPreview(record),
+                        });
+                      }
+
+                      if (canPrint) {
+                        actionItems.push({
+                          key: "print",
+                          label: "Cetak",
+                          icon: Printer,
+                          tone: "emerald",
+                          onClick: () => printRecord(record),
+                        });
+                      }
 
                       return (
                         <SetupDataTableRow
                           key={record.id}
                           tabIndex={0}
                           onClick={() => setSelectedRecordId(record.id)}
+                          onDoubleClick={() => handleOpenDetail(record)}
                           onKeyDown={(event) => {
                             if (event.key === "Enter" || event.key === " ") {
                               event.preventDefault();
@@ -941,102 +1329,85 @@ export default function CetakDokumenClient() {
                             {number}
                           </SetupDataTableCell>
 
-                          {record.kind === "surat-masuk" ? (
-                            <>
-                              <SetupDataTableCell className="max-w-[160px] font-semibold text-gray-900">
-                                <p className="truncate">{record.primaryText}</p>
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="text-center font-semibold tabular-nums text-gray-800">
-                                {record.code}
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="max-w-[220px] text-gray-700">
-                                <p className="line-clamp-2">{record.subject}</p>
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="text-center font-medium text-gray-700">
-                                {record.record.sifat}
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="text-center text-gray-700">
-                                {formatDate(record.sortDate)}
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="text-center text-gray-700">
-                                {formatDeadlineValue(record.record.tenggatWaktu)}
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="max-w-[220px] text-gray-600">
-                                <p className="line-clamp-2">
-                                  {record.record.keterangan ?? "-"}
-                                </p>
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="max-w-[220px] text-gray-600">
-                                <p className="line-clamp-2">
-                                  {record.record.keteranganTenggat ?? "-"}
-                                </p>
-                              </SetupDataTableCell>
-                            </>
-                          ) : null}
-
-                          {record.kind === "surat-keluar" ? (
-                            <>
-                              <SetupDataTableCell className="max-w-[160px] font-semibold text-gray-900">
-                                <p className="truncate">
-                                  {record.record.penerima}
-                                </p>
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="text-center font-semibold tabular-nums text-gray-800">
-                                {record.code}
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="max-w-[220px] text-gray-700">
-                                <p className="line-clamp-2">
-                                  {record.record.alamatPenerima}
-                                </p>
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="text-center font-semibold text-gray-900">
-                                {record.record.media}
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="text-center text-gray-700">
-                                {formatDate(record.sortDate)}
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="text-center font-medium text-gray-700">
-                                {record.record.sifat}
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="text-center text-gray-700">
-                                {formatDeadlineValue(record.record.tenggatWaktu)}
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="text-center">
+                          <SetupDataTableCell className="max-w-[280px]">
+                            <div className="min-w-0">
+                              <p className="line-clamp-2 font-semibold leading-6 text-gray-900">
+                                {record.subject}
+                              </p>
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <span className="inline-flex max-w-full items-center rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-600">
+                                  {record.code}
+                                </span>
                                 <SetupStatusBadge
-                                  status={record.record.statusLabel}
-                                  label={record.record.statusLabel}
-                                  className="mx-auto"
+                                  status="Tersedia"
+                                  label={getDocumentKindLabel(record.kind)}
+                                  tone={getDocumentKindTone(record.kind)}
+                                  showIcon={false}
+                                  size="sm"
                                 />
-                              </SetupDataTableCell>
-                            </>
-                          ) : null}
-
-                          {record.kind === "memorandum" ? (
-                            <>
-                              <SetupDataTableCell className="text-center font-semibold tabular-nums text-gray-800">
-                                {record.code}
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="max-w-[240px] text-gray-700">
-                                <p className="line-clamp-2">{record.subject}</p>
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="max-w-[180px] text-gray-700">
-                                <p className="truncate">
-                                  {record.primaryText}
-                                </p>
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="max-w-[160px] font-medium text-gray-700">
-                                <p className="truncate">
-                                  {record.secondaryText}
-                                </p>
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="text-center text-gray-700">
+                              </div>
+                            </div>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell className="max-w-[210px]">
+                            <p className="truncate font-semibold text-gray-900">
+                              {getRecordPartyValue(record)}
+                            </p>
+                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
+                              {getRecordPartyDetail(record) || "-"}
+                            </p>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell className="text-center">
+                            <div className="inline-flex flex-col items-center gap-1">
+                              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-800">
+                                <CalendarDays
+                                  className="h-4 w-4 text-[#157EC3]"
+                                  aria-hidden="true"
+                                />
                                 {formatDate(record.sortDate)}
-                              </SetupDataTableCell>
-                              <SetupDataTableCell className="text-center text-gray-700">
-                                {formatDeadlineValue(record.record.tenggatWaktu)}
-                              </SetupDataTableCell>
-                            </>
-                          ) : null}
+                              </span>
+                              <span className="text-xs font-medium text-gray-500">
+                                {record.kind === "surat-keluar"
+                                  ? record.record.media
+                                  : deadlineValue !== "-"
+                                    ? `Tenggat ${deadlineValue}`
+                                    : "Tanpa tenggat"}
+                              </span>
+                            </div>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell className="text-center">
+                            <div className="flex flex-col items-center gap-2">
+                              <SetupStatusBadge
+                                status={getRecordStatusLabel(record)}
+                                label={getRecordStatusLabel(record)}
+                                tone="slate"
+                                size="sm"
+                              />
+                              <SetupStatusBadge
+                                status={canPrint ? "Tersedia" : hasFile ? "Preview" : "Kosong"}
+                                label={
+                                  canPrint
+                                    ? "Bisa Cetak"
+                                    : hasFile
+                                      ? "Preview"
+                                      : "Tanpa File"
+                                }
+                                tone={canPrint ? "emerald" : hasFile ? "blue" : "amber"}
+                                showIcon={false}
+                                size="sm"
+                              />
+                            </div>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className="text-center"
+                            onClick={(event) => event.stopPropagation()}
+                            onDoubleClick={(event) => event.stopPropagation()}
+                          >
+                            <SetupActionMenu
+                              items={actionItems}
+                              label={`Aksi ${record.code}`}
+                              menuLabel={`Aksi dokumen ${record.code}`}
+                            />
+                          </SetupDataTableCell>
                         </SetupDataTableRow>
                       );
                     })}
@@ -1068,8 +1439,59 @@ export default function CetakDokumenClient() {
         </section>
 
         <section className="overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm xl:sticky xl:top-24 xl:self-start">
-          {selectedRecord ? (
+          {isLoading ? (
+            <PrintSelectedDocumentSkeleton />
+          ) : selectedRecord ? (
             <>
+              <div className="border-b border-gray-100 bg-white px-5 py-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Dokumen Terpilih
+                    </p>
+                    <h3 className="mt-2 break-words text-xl font-semibold tracking-tight text-slate-950">
+                      {selectedRecord.subject}
+                    </h3>
+                    <p className="mt-1 break-words text-sm font-medium text-slate-500">
+                      {selectedRecord.code}
+                    </p>
+                  </div>
+                  <SetupStatusBadge
+                    status="Tersedia"
+                    label={getDocumentKindLabel(selectedRecord.kind)}
+                    tone={getDocumentKindTone(selectedRecord.kind)}
+                    showIcon={false}
+                  />
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <PrintPreviewInfoItem
+                    label={getRecordPartyLabel(selectedRecord)}
+                    value={getRecordPartyValue(selectedRecord)}
+                  />
+                  <PrintPreviewInfoItem
+                    label="Tanggal Dokumen"
+                    value={formatDate(selectedRecord.sortDate)}
+                  />
+                  <PrintPreviewInfoItem
+                    label="Nama File"
+                    value={formatDocumentFileName(selectedRecord.fileName)}
+                  />
+                  <PrintPreviewInfoItem
+                    label={
+                      selectedRecord.kind === "surat-keluar"
+                        ? "Status"
+                        : "Tenggat"
+                    }
+                    value={
+                      selectedRecord.kind === "surat-keluar"
+                        ? selectedRecord.record.statusLabel
+                        : formatDeadlineValue(selectedRecord.record.tenggatWaktu)
+                    }
+                  />
+                </div>
+              </div>
+
               <div className="px-5 py-5">
                 <MiniPdfPreview
                   fileUrl={selectedRecord.fileUrl}
@@ -1077,7 +1499,15 @@ export default function CetakDokumenClient() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-3 border-t border-gray-100 bg-gray-50 px-5 py-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 border-t border-gray-100 bg-gray-50 px-5 py-4 sm:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => handleOpenDetail(selectedRecord)}
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-[rgba(21,126,195,0.42)] bg-white px-4 text-sm font-semibold text-gray-900 shadow-sm transition hover:bg-[rgba(21,126,195,0.05)] focus:outline-none focus:ring-2 focus:ring-[rgba(21,126,195,0.18)]"
+                >
+                  <Info className="h-4 w-4" aria-hidden="true" />
+                  <span>Detail</span>
+                </button>
                 <SetupViewButton
                   onClick={handleOpenPreview}
                   className="w-full justify-center"
@@ -1119,6 +1549,13 @@ export default function CetakDokumenClient() {
           )}
         </section>
       </div>
+
+      <PrintDocumentDetailModal
+        record={detailRecord}
+        onClose={() => setDetailRecord(null)}
+        onPreview={openRecordPreview}
+        onPrint={printRecord}
+      />
     </div>
   );
 }

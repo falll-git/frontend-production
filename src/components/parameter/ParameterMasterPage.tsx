@@ -40,7 +40,10 @@ import {
   SETUP_PAGE_MODERN_TABLE_CLASS,
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
+  SETUP_PAGE_WIDTH_XL_CLASS,
   SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
+  SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS,
+  SETUP_PARAMETER_PAGE_WIDTH_MD_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
@@ -95,6 +98,7 @@ export type ParameterMasterPageConfig = {
   fixedPayload?: ParameterMasterPayload;
   tableMinWidthClassName?: string;
   sortKey?: string;
+  headerWidthClassName?: string;
   layoutWidthClassName?: string;
   tableWidthClassName?: string;
 };
@@ -201,6 +205,20 @@ function matchesSearch(
   return columns.some((column) =>
     valueToText(record[column.key]).toLowerCase().includes(keyword),
   );
+}
+
+function getDefaultTableMinWidthClass(columnCount: number) {
+  if (columnCount <= 2) return "min-w-[420px]";
+  if (columnCount <= 3) return "min-w-[560px]";
+  if (columnCount <= 4) return "min-w-[720px]";
+  if (columnCount <= 5) return "min-w-[860px]";
+  return "min-w-[920px]";
+}
+
+function getDefaultParameterWidthClass(columnCount: number) {
+  if (columnCount <= 2) return SETUP_PARAMETER_PAGE_WIDTH_SM_CLASS;
+  if (columnCount <= 4) return SETUP_PARAMETER_PAGE_WIDTH_MD_CLASS;
+  return SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS;
 }
 
 function renderCell(record: ParameterMasterRecord, column: ParameterMasterColumn) {
@@ -420,10 +438,18 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
 
   const Icon = config.icon;
   const tableColSpan = config.columns.length + 2;
+  const headerWidthClassName =
+    config.headerWidthClassName ?? SETUP_PAGE_WIDTH_XL_CLASS;
+  const defaultParameterWidthClass = getDefaultParameterWidthClass(
+    config.columns.length,
+  );
   const layoutWidthClassName =
-    config.layoutWidthClassName ?? SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS;
+    config.layoutWidthClassName ?? defaultParameterWidthClass;
   const tableWidthClassName =
     config.tableWidthClassName ?? layoutWidthClassName;
+  const tableMinWidthClassName =
+    config.tableMinWidthClassName ??
+    getDefaultTableMinWidthClass(config.columns.length);
 
   return (
     <DashboardPageShell spacing="md">
@@ -431,26 +457,29 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
         title={config.title}
         subtitle={config.subtitle}
         icon={<Icon />}
-        className={layoutWidthClassName}
+        className={headerWidthClassName}
         actions={
           canCreate ? <SetupAddButton label={config.addLabel} onClick={openCreate} /> : null
         }
       />
 
-      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${layoutWidthClassName}`}>
-        <SetupSearchInput
-          label="Cari Data"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={config.searchPlaceholder}
-        />
+      <div className={layoutWidthClassName}>
+        <div className={SETUP_PAGE_SEARCH_CARD_CLASS}>
+          <SetupSearchInput
+            label="Cari Data"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={config.searchPlaceholder}
+          />
+        </div>
       </div>
 
-      <SetupTableCard variant="crud" className={tableWidthClassName}>
+      <div className={tableWidthClassName}>
+        <SetupTableCard variant="crud">
           <SetupDataTable
             variant="crud"
             density="compact"
-            className={`${SETUP_PAGE_MODERN_TABLE_CLASS} ${config.tableMinWidthClassName ?? "min-w-[920px]"}`}
+            className={`${SETUP_PAGE_MODERN_TABLE_CLASS} ${tableMinWidthClassName}`}
           >
             <SetupDataTableColGroup>
               <SetupDataTableCol className="w-[56px]" />
@@ -609,7 +638,8 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
           isLoading={isFetching}
           onPageChange={setPage}
         />
-      </SetupTableCard>
+        </SetupTableCard>
+      </div>
 
       <DashboardModal
         isOpen={isModalOpen}

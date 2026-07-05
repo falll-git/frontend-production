@@ -1,5 +1,5 @@
 import api from "@/lib/axios";
-import { MAX_TABLE_PAGE_SIZE, SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import { SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import {
   extractList,
   extractPaginationMeta,
@@ -20,6 +20,7 @@ import type {
 } from "@/types/debitur.types";
 import type {
   LegalClaim,
+  LegalActivityLog,
   LegalClaimPayload,
   LegalDeposit,
   LegalDepositFundsReport,
@@ -29,14 +30,9 @@ import type {
   LegalInsurancePayload,
   LegalKjppPayload,
   LegalListQuery,
-  LegalDocumentContext,
   LegalPageResult,
-  LegalPrintHistory,
-  LegalPrintPayload,
   LegalProgressRecord,
   LegalSummaryReport,
-  LegalTemplate,
-  LegalTemplatePayload,
   LegalThirdPartyDocumentsReport,
   LegalNotaryPayload,
 } from "@/types/legal.types";
@@ -53,11 +49,6 @@ function nullableString(record: AnyRecord, ...keys: string[]): string | null {
 
 function numberValue(record: AnyRecord, key: string, fallback = 0): number {
   return readNumber(record, key) ?? fallback;
-}
-
-function booleanValue(record: AnyRecord, key: string, fallback = false): boolean {
-  if (!(key in record)) return fallback;
-  return readBoolean(record, key);
 }
 
 function normalizeDate(value: unknown): string | null {
@@ -283,48 +274,6 @@ function mapCollateral(record: unknown): DebtorCollateral | null {
   };
 }
 
-function mapTemplate(record: unknown): LegalTemplate | null {
-  const item = asRecord(record);
-  const id = item ? readString(item, "id") : null;
-  if (!item || !id) return null;
-  return {
-    id,
-    template_type: readString(item, "template_type", "templateType") ?? "",
-    version: numberValue(item, "version", 1),
-    title: readString(item, "title") ?? "-",
-    content_template: nullableString(item, "content_template", "contentTemplate"),
-    is_active: booleanValue(item, "is_active", true),
-    file: mapFile(item.file),
-    files: mapFiles(item.files),
-    created_at: nullableString(item, "created_at", "createdAt"),
-    updated_at: nullableString(item, "updated_at", "updatedAt"),
-  };
-}
-
-function mapPrint(record: unknown): LegalPrintHistory | null {
-  const item = asRecord(record);
-  const id = item ? readString(item, "id") : null;
-  const contractId = item ? readString(item, "contract_id", "contractId") : null;
-  const generatedNumber = item ? readString(item, "generated_number", "generatedNumber") : null;
-  if (!item || !id || !contractId || !generatedNumber) return null;
-  return {
-    id,
-    template_id: nullableString(item, "template_id", "templateId"),
-    numbering_template_id: nullableString(item, "numbering_template_id", "numberingTemplateId"),
-    contract_id: contractId,
-    document_type: readString(item, "document_type", "documentType") ?? "",
-    generated_number: generatedNumber,
-    payload_snapshot: asRecord(item.payload_snapshot),
-    generated_file: mapFile(item.generated_file),
-    files: mapFiles(item.files),
-    template: mapTemplate(item.template),
-    numbering_template: mapParameter(item.numbering_template),
-    contract: mapContract(item.contract),
-    printed_at: nullableString(item, "printed_at", "printedAt"),
-    created_at: nullableString(item, "created_at", "createdAt"),
-  };
-}
-
 function mapProgress(record: unknown): LegalProgressRecord | null {
   const item = asRecord(record);
   const id = item ? readString(item, "id") : null;
@@ -452,30 +401,55 @@ function mapDeposit(record: unknown): LegalDeposit | null {
   };
 }
 
-function mapPrintContext(payload: unknown): LegalDocumentContext {
-  const record = asRecord(extractRecord(payload)) ?? {};
-  const values = asRecord(record.values) ?? {};
-  const context = asRecord(record.context) ?? {};
+function mapActivityActor(record: unknown): LegalActivityLog["actor"] {
+  const item = asRecord(record);
+  const id = item ? readString(item, "id") : null;
+  if (!item || !id) return null;
   return {
-    placeholders: Array.isArray(record.placeholders)
-      ? record.placeholders.filter((item): item is string => typeof item === "string")
-      : [],
-    values: Object.fromEntries(
-      Object.entries(values).map(([key, value]) => [
-        key,
-        typeof value === "string" ||
-        typeof value === "number" ||
-        typeof value === "boolean" ||
-        value === null ||
-        value === undefined
-          ? value
-          : String(value),
-      ]),
+    id,
+    name: nullableString(item, "name"),
+    username: nullableString(item, "username"),
+    email: nullableString(item, "email"),
+    division_id: nullableString(item, "division_id", "divisionId"),
+    division_name: nullableString(item, "division_name", "divisionName"),
+  };
+}
+
+function mapAuditJson(value: unknown): Record<string, unknown> | null {
+  return isRecord(value) ? value : null;
+}
+
+function mapActivityLog(record: unknown): LegalActivityLog | null {
+  const item = asRecord(record);
+  const id = item ? readString(item, "id") : null;
+  if (!item || !id) return null;
+  return {
+    id,
+    actor_id: nullableString(item, "actor_id", "actorId"),
+    actor: mapActivityActor(item.actor),
+    action: readString(item, "action") ?? "-",
+    source: readString(item, "source") ?? "MANUAL",
+    entity_type: readString(item, "entity_type", "entityType") ?? "-",
+    entity_id: nullableString(item, "entity_id", "entityId"),
+    debtor_id: nullableString(item, "debtor_id", "debtorId"),
+    contract_id: nullableString(item, "contract_id", "contractId"),
+    collateral_id: nullableString(item, "collateral_id", "collateralId"),
+    third_party_id: nullableString(item, "third_party_id", "thirdPartyId"),
+    deposit_id: nullableString(item, "deposit_id", "depositId"),
+    deposit_transaction_id: nullableString(
+      item,
+      "deposit_transaction_id",
+      "depositTransactionId",
     ),
-    missing_fields: Array.isArray(record.missing_fields)
-      ? record.missing_fields.filter((item): item is string => typeof item === "string")
-      : [],
-    context,
+    title: nullableString(item, "title"),
+    before_data: mapAuditJson(item.before_data ?? item.beforeData),
+    after_data: mapAuditJson(item.after_data ?? item.afterData),
+    metadata: mapAuditJson(item.metadata),
+    request_ip: nullableString(item, "request_ip", "requestIp"),
+    user_agent: nullableString(item, "user_agent", "userAgent"),
+    created_at: nullableString(item, "created_at", "createdAt"),
+    contract: mapContract(item.contract),
+    third_party: mapParameter(item.third_party),
   };
 }
 
@@ -504,13 +478,18 @@ function buildParams(query: LegalListQuery = {}) {
       limit: query.limit ?? SETUP_TABLE_PAGE_SIZE,
       search: query.search,
       status: query.status,
-      document_type: query.document_type,
-      template_type: query.template_type,
       contract_id: query.contract_id,
       collateral_id: query.collateral_id,
       third_party_id: query.third_party_id,
       type: query.type,
       deposit_id: query.deposit_id,
+      debtor_id: query.debtor_id,
+      actor_id: query.actor_id,
+      action: query.action,
+      source: query.source,
+      entity_type: query.entity_type,
+      date_from: query.date_from,
+      date_to: query.date_to,
     }).filter(([, value]) => value !== undefined && value !== null && value !== ""),
   );
 }
@@ -526,67 +505,7 @@ function multipartBody<T extends object>(payload: T): T | FormData {
     : payload;
 }
 
-async function getAllPages<T>(
-  getter: (query: LegalListQuery) => Promise<LegalPageResult<T>>,
-  query: LegalListQuery = {},
-): Promise<T[]> {
-  const first = await getter({ ...query, page: 1, limit: MAX_TABLE_PAGE_SIZE });
-  const all = [...first.items];
-  for (let page = 2; page <= first.meta.lastPage; page += 1) {
-    const next = await getter({ ...query, page, limit: MAX_TABLE_PAGE_SIZE });
-    all.push(...next.items);
-  }
-  return all;
-}
-
 export const legalService = {
-  getTemplatesPage: async (query: LegalListQuery = {}) => {
-    const params = buildParams(query);
-    const res = await api.get("/legal/templates", { params });
-    return mapPage(res.data, mapTemplate, {
-      page: Number(params.page),
-      limit: Number(params.limit),
-    });
-  },
-  getAllTemplates: (query: LegalListQuery = {}) =>
-    getAllPages(legalService.getTemplatesPage, query),
-  createTemplate: async (payload: LegalTemplatePayload) => {
-    const res = await api.post("/legal/templates", multipartBody(payload));
-    const mapped = mapTemplate(extractRecord(res.data));
-    if (!mapped) throw new Error("Respons template legal dari server tidak valid");
-    return mapped;
-  },
-  updateTemplate: async (id: string, payload: LegalTemplatePayload) => {
-    const res = await api.put(`/legal/templates/${id}`, multipartBody(payload));
-    const mapped = mapTemplate(extractRecord(res.data));
-    if (!mapped) throw new Error("Respons update template legal dari server tidak valid");
-    return mapped;
-  },
-  removeTemplate: async (id: string) => {
-    await api.delete(`/legal/templates/${id}`);
-  },
-  getPrintsPage: async (query: LegalListQuery = {}) => {
-    const params = buildParams(query);
-    const res = await api.get("/legal/print-documents", { params });
-    return mapPage(res.data, mapPrint, {
-      page: Number(params.page),
-      limit: Number(params.limit),
-    });
-  },
-  getPrintContext: async (query: Pick<LegalListQuery, "contract_id" | "collateral_id"> & {
-    document_type: string;
-  }) => {
-    const res = await api.get("/legal/print-documents/context", {
-      params: buildParams(query),
-    });
-    return mapPrintContext(res.data);
-  },
-  createPrint: async (payload: LegalPrintPayload) => {
-    const res = await api.post("/legal/print-documents", multipartBody(payload));
-    const mapped = mapPrint(extractRecord(res.data));
-    if (!mapped) throw new Error("Respons cetak dokumen legal dari server tidak valid");
-    return mapped;
-  },
   getNotaryPage: async (query: LegalListQuery = {}) => {
     const params = buildParams(query);
     const res = await api.get("/legal/progress/notary", { params });
@@ -720,8 +639,6 @@ export const legalService = {
     const res = await api.get("/legal/reports/summary");
     const record = extractRecord(res.data) ?? {};
     return {
-      templates: numberValue(record, "templates"),
-      prints: numberValue(record, "prints"),
       notary: numberValue(record, "notary"),
       insurance: numberValue(record, "insurance"),
       kjpp: numberValue(record, "kjpp"),
@@ -754,5 +671,13 @@ export const legalService = {
       total_refund_amount: numberValue(item, "total_refund_amount", numberValue(item, "processed_amount")),
       balance_amount: numberValue(item, "balance_amount", numberValue(item, "remaining_amount")),
     }));
+  },
+  getActivityLogsPage: async (query: LegalListQuery = {}) => {
+    const params = buildParams(query);
+    const res = await api.get("/legal/reports/activity-logs", { params });
+    return mapPage(res.data, mapActivityLog, {
+      page: Number(params.page),
+      limit: Number(params.limit),
+    });
   },
 };

@@ -109,7 +109,10 @@ const BasicDateInput = React.forwardRef<HTMLInputElement, BasicDateInputProps>(
     const [open, setOpen] = React.useState(false);
     const [popupStyle, setPopupStyle] = React.useState<React.CSSProperties>({});
     const normalizedValue = normalizeDateInputValue(value);
-    const selectedDate = normalizedValue ? parseDateString(normalizedValue) : undefined;
+    const selectedDate = React.useMemo(
+      () => (normalizedValue ? parseDateString(normalizedValue) : undefined),
+      [normalizedValue],
+    );
     const today = React.useMemo(() => startOfDay(new Date()), []);
     const [viewMonth, setViewMonth] = React.useState(() =>
       startOfMonth(selectedDate ?? today),
@@ -122,7 +125,13 @@ const BasicDateInput = React.forwardRef<HTMLInputElement, BasicDateInputProps>(
 
     React.useEffect(() => {
       if (!open) return;
-      setViewMonth(startOfMonth(selectedDate ?? today));
+      const nextViewMonth = startOfMonth(selectedDate ?? today);
+      setViewMonth((currentViewMonth) =>
+        currentViewMonth.getFullYear() === nextViewMonth.getFullYear() &&
+        currentViewMonth.getMonth() === nextViewMonth.getMonth()
+          ? currentViewMonth
+          : nextViewMonth,
+      );
     }, [open, selectedDate, today]);
 
     React.useEffect(() => {

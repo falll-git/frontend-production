@@ -301,7 +301,16 @@ export default function LaporanAktivitasMarketingSection({
                   return (
                     <SetupDataTableRow
                       key={item.id}
-                      className="transition-colors hover:bg-gray-50"
+                      role="button"
+                      tabIndex={0}
+                      title="Double-click untuk melihat detail aktivitas"
+                      className="cursor-pointer transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+                      onDoubleClick={() => setActiveItem(item)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") return;
+                        event.preventDefault();
+                        setActiveItem(item);
+                      }}
                     >
                       <SetupDataTableCell>
                         {formatDisplayDate(item.tanggal)}

@@ -8,6 +8,7 @@ import {
   SetupDataTableRow,
   SetupDataTableHeaderCell,
   SetupDataTableCell,
+  SetupDataTableEmptyRow,
   SetupDataTableColGroup,
   SetupDataTableCol,
   SetupTableCard,
@@ -17,11 +18,14 @@ import {
   Archive,
   ArrowRightLeft,
   CirclePlus,
+  Eye,
   Pencil,
 } from "lucide-react";
 
+import DashboardModal from "@/components/ui/DashboardModal";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import Pagination from "@/components/ui/Pagination";
+import SetupActionMenu from "@/components/ui/SetupActionMenu";
 import SetupExcelButton from "@/components/ui/SetupExcelButton";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupSelect from "@/components/ui/SetupSelect";
@@ -30,7 +34,6 @@ import {
   SETUP_PAGE_MODERN_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
-  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
   SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
@@ -83,6 +86,7 @@ const HISTORIS_PENYIMPANAN_TABLE_COLUMN_WIDTHS = [
   null,
   null,
   "112px",
+  "84px",
 ] as const;
 
 function formatPersonName(value: string) {
@@ -134,6 +138,9 @@ export default function HistorisPenyimpananPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterAksi, setFilterAksi] =
     useState<(typeof ACTION_FILTERS)[number]>("Semua");
+  const [selectedItem, setSelectedItem] = useState<StorageHistoryRow | null>(
+    null,
+  );
 
   const historisPenyimpanan = useMemo<StorageHistoryRow[]>(() => {
     return aktivitasPenyimpanan.map((item) => {
@@ -345,7 +352,7 @@ export default function HistorisPenyimpananPage() {
                   Nama Dokumen
                 </SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                  Aksi
+                  Jenis Aksi
                 </SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
                   Lokasi Lama
@@ -354,13 +361,15 @@ export default function HistorisPenyimpananPage() {
                   Lokasi Baru
                 </SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>User</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
               </SetupDataTableRow>
             </SetupDataTableHead>
             <SetupDataTableBody className="divide-y divide-gray-100">
               {paginatedData.map((item, idx) => (
                 <SetupDataTableRow
                   key={item.id}
-                  className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} hover:bg-gray-50/50`}
+                  className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer hover:bg-gray-50/50`}
+                  onDoubleClick={() => setSelectedItem(item)}
                 >
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                     {(paginationMeta.page - 1) * paginationMeta.limit + idx + 1}
@@ -412,14 +421,37 @@ export default function HistorisPenyimpananPage() {
                       {formatPersonName(item.user)}
                     </span>
                   </SetupDataTableCell>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                    onClick={(event) => event.stopPropagation()}
+                    onDoubleClick={(event) => event.stopPropagation()}
+                  >
+                    <SetupActionMenu
+                      items={[
+                        {
+                          key: "detail",
+                          label: "Detail",
+                          icon: Eye,
+                          tone: "blue",
+                          onClick: () => setSelectedItem(item),
+                        },
+                      ]}
+                      label={`Buka aksi untuk historis penyimpanan ${item.kode}`}
+                      menuLabel={`Aksi historis penyimpanan ${item.kode}`}
+                    />
+                  </SetupDataTableCell>
                 </SetupDataTableRow>
               ))}
               {filteredData.length === 0 ? (
-                <SetupDataTableRow>
-                  <SetupDataTableCell colSpan={9} className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}>
-                    Belum ada data historis penyimpanan yang sesuai.
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
+                <SetupDataTableEmptyRow
+                  colSpan={10}
+                  icon={Archive}
+                  tone="neutral"
+                  isFiltered={searchTerm.trim().length > 0 || filterAksi !== "Semua"}
+                  description="Riwayat perpindahan, input, dan perubahan lokasi dokumen akan tampil di sini."
+                >
+                  Belum ada data historis penyimpanan yang sesuai.
+                </SetupDataTableEmptyRow>
               ) : null}
             </SetupDataTableBody>
           </SetupDataTable>
@@ -431,6 +463,106 @@ export default function HistorisPenyimpananPage() {
           onPageChange={setPage}
         />
       </SetupTableCard>
+
+      {selectedItem ? (
+        <DashboardModal
+          isOpen={Boolean(selectedItem)}
+          onClose={() => setSelectedItem(null)}
+          title="Detail Historis Penyimpanan"
+          description={selectedItem.kode}
+          maxWidth="4xl"
+          bodyClassName="max-h-[calc(90vh-164px)] overflow-y-auto p-6"
+          footerClassName="flex justify-end border-t border-gray-100 bg-gray-50 p-6"
+          footer={
+            <button
+              type="button"
+              onClick={() => setSelectedItem(null)}
+              className="uiverse-modal-button uiverse-modal-button--neutral"
+            >
+              Tutup
+            </button>
+          }
+        >
+          <div className="space-y-8">
+            <section className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Informasi Aktivitas
+                </p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Ringkasan aktivitas penyimpanan dan perubahan lokasi dokumen.
+                </p>
+              </div>
+              <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Identitas Dokumen
+                    </p>
+                    <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
+                      {selectedItem.namaDokumen}
+                    </h3>
+                    <p className="text-base font-medium text-slate-500">
+                      {selectedItem.kode}
+                    </p>
+                  </div>
+                  <SetupStatusBadge status={selectedItem.aksiLabel} />
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <DetailInfoItem
+                    label="Tanggal"
+                    value={formatDateOnly(selectedItem.tanggal)}
+                  />
+                  <DetailInfoItem label="Jam" value={selectedItem.jam} />
+                  <DetailInfoItem
+                    label="User"
+                    value={formatPersonName(selectedItem.user)}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Lokasi Penyimpanan
+                </p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Lokasi sebelum dan sesudah aktivitas tercatat.
+                </p>
+              </div>
+              <div className="grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 md:grid-cols-2">
+                <DetailInfoItem
+                  label="Lokasi Lama"
+                  value={selectedItem.lokasiLama}
+                />
+                <DetailInfoItem
+                  label="Lokasi Baru"
+                  value={selectedItem.lokasiBaru}
+                />
+              </div>
+            </section>
+          </div>
+        </DashboardModal>
+      ) : null}
     </DashboardPageShell>
+  );
+}
+
+type DetailInfoItemProps = {
+  label: string;
+  value: string;
+};
+
+function DetailInfoItem({ label, value }: DetailInfoItemProps) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-slate-50 px-4 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+        {label}
+      </p>
+      <p className="mt-2 break-words text-sm font-semibold leading-6 text-slate-900">
+        {value || "-"}
+      </p>
+    </div>
   );
 }

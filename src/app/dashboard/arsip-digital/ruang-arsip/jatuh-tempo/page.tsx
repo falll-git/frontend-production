@@ -10,6 +10,7 @@ import {
   SetupDataTableCell,
   SetupDataTableColGroup,
   SetupDataTableCol,
+  SetupDataTableEmptyRow,
   SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import Link from "next/link";
@@ -20,7 +21,6 @@ import {
   ArrowLeft,
   BarChart3,
   Clock,
-  FolderOpen,
   Hourglass,
 } from "lucide-react";
 
@@ -34,7 +34,6 @@ import {
   SETUP_PAGE_MODERN_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
-  SETUP_PAGE_MODERN_EMPTY_CELL_CLASS,
   SETUP_PAGE_MODERN_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS,
@@ -319,19 +318,18 @@ export default function JatuhTempoPage() {
                   </SetupDataTableRow>
                 ))
               ) : (
-                <SetupDataTableRow>
-                  <SetupDataTableCell
-                    colSpan={6}
-                    className={SETUP_PAGE_MODERN_EMPTY_CELL_CLASS}
-                  >
-                    <div className="flex flex-col items-center justify-center">
-                      <FolderOpen className="mb-3 h-9 w-9 text-gray-300" />
-                      <p className="text-lg font-medium text-gray-900">
-                        Tidak ada dokumen yang jatuh tempo
-                      </p>
-                    </div>
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
+                <SetupDataTableEmptyRow
+                  colSpan={6}
+                  icon={Clock}
+                  isFiltered={searchTerm.trim().length > 0}
+                  description={
+                    searchTerm.trim()
+                      ? "Ubah kata kunci pencarian untuk melihat data jatuh tempo lain."
+                      : "Dokumen yang melewati batas pengembalian akan muncul di tabel ini."
+                  }
+                >
+                  Tidak ada dokumen yang jatuh tempo.
+                </SetupDataTableEmptyRow>
               )}
             </SetupDataTableBody>
           </SetupDataTable>

@@ -1,8 +1,10 @@
 "use client";
 
+import { UsersRound } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import Pagination from "@/components/ui/Pagination";
+import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
 import { userService } from "@/services/user.service";
@@ -170,9 +172,18 @@ export default function RelatedUsersPicker({
           ) : null}
 
           {!isBusy && !errorMessage && users.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm font-medium text-gray-500 md:col-span-2">
-              Tidak ada user yang bisa dipilih.
-            </div>
+            <SetupEmptyState
+              title="Tidak ada user yang bisa dipilih."
+              description={
+                debouncedQuery
+                  ? "Ubah kata kunci pencarian untuk melihat user aktif lain."
+                  : "User aktif yang sesuai akses akan muncul di daftar ini."
+              }
+              icon={UsersRound}
+              isFiltered={debouncedQuery.length > 0}
+              variant="compact"
+              className="md:col-span-2"
+            />
           ) : null}
         </div>
         <Pagination
