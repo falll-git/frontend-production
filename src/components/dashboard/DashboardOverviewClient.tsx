@@ -304,10 +304,6 @@ function canRenderDashboardWidget(widget: DashboardMenuNode): boolean {
     return false;
   }
 
-  if (widget.component_key === "dashboard.module_report.legal") {
-    return false;
-  }
-
   if (isStorageUsageWidget(widget)) return true;
 
   return true;
