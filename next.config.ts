@@ -75,6 +75,7 @@ const contentSecurityPolicy = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  productionBrowserSourceMaps: false,
   ...(deploymentId ? { deploymentId } : {}),
   allowedDevOrigins: ["localhost", "127.0.0.1"],
   poweredByHeader: false,

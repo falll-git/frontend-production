@@ -82,6 +82,8 @@ export type WatermarkFileMeta = {
   source_path: string | null;
   file_path: string | null;
   file_url: string | null;
+  file_name: string | null;
+  download_name: string | null;
   settings_hash: string | null;
   error_message: string | null;
   requested_at: string | null;

@@ -46,7 +46,6 @@ const ALLOWED_IMAGE_TYPES = new Set([
   "image/png",
   "image/jpeg",
   "image/jpg",
-  "image/svg+xml",
 ]);
 const EMPTY_OPTIONS: WatermarkOptions = {
   watermark_types: [],
@@ -390,7 +389,7 @@ export default function SetupWatermarkDokumenPage() {
     if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
       setSelectedImage(null);
       event.target.value = "";
-      showToast("Format gambar harus PNG, JPG, JPEG, atau SVG.", "warning");
+      showToast("Format gambar harus PNG, JPG, atau JPEG.", "warning");
       return;
     }
 
@@ -495,7 +494,7 @@ export default function SetupWatermarkDokumenPage() {
         ? formatBytes(selectedImage.size)
         : settings?.image_url
           ? formatBytes(settings.image_size_bytes ?? null)
-          : "PNG, JPG, atau SVG maksimal 2 MB";
+          : "PNG atau JPG maksimal 2 MB";
   const imageUploadTitle =
     selectedImage || settings?.image_url
       ? "Ganti gambar watermark"
@@ -818,7 +817,7 @@ export default function SetupWatermarkDokumenPage() {
                   label={null}
                   required={false}
                   inputRef={fileInputRef}
-                  accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml"
+                  accept=".png,.jpg,.jpeg,image/png,image/jpeg"
                   disabled={!canUpdate || isFetching || isUploading || isDeletingImage}
                   onChange={handleImageChange}
                   onClear={handleClearImage}

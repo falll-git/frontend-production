@@ -18,6 +18,43 @@ export interface ExportOptions {
   title?: string;
 }
 
+function formatExportDate(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}${month}${day}`;
+}
+
+function hasDateToken(value: string): boolean {
+  return (
+    /\d{8}/.test(value) ||
+    /\d{4}-\d{2}-\d{2}/.test(value) ||
+    /\d{2}-\d{2}-\d{4}/.test(value)
+  );
+}
+
+function sanitizeExportFileName(value: string): string {
+  const withoutExtension = value.replace(/\.xlsx$/i, "");
+  const normalized = withoutExtension
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1F]+/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 120);
+
+  return normalized || "export";
+}
+
+function buildExportFileName(filename: string): string {
+  const sanitized = sanitizeExportFileName(filename);
+  const withDate = hasDateToken(sanitized)
+    ? sanitized
+    : `${sanitized}-${formatExportDate()}`;
+
+  return `${withDate}.xlsx`;
+}
+
 export async function exportToExcel(options: ExportOptions): Promise<void> {
   try {
     const { filename, sheetName, columns, data, title } = options;
@@ -80,7 +117,7 @@ export async function exportToExcel(options: ExportOptions): Promise<void> {
       columns: columns.map((column) => ({ width: column.width || 20 })),
       stickyRowsCount: title ? 2 : 1,
       showGridLines: false,
-    }).toFile(`${filename}.xlsx`);
+    }).toFile(buildExportFileName(filename));
   } catch {
     return;
   }

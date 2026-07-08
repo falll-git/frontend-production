@@ -7,7 +7,6 @@ import {
   FileSignature,
   Landmark,
   ListChecks,
-  ReceiptText,
   Send,
   Tags,
   Workflow,
@@ -17,7 +16,6 @@ import type { ParameterMasterPageConfig } from "@/components/parameter/Parameter
 import {
   SETUP_PARAMETER_PAGE_WIDTH_LG_CLASS,
   SETUP_PARAMETER_PAGE_WIDTH_MD_CLASS,
-  SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS,
 } from "@/components/ui/setupPageStyles";
 
 const STATUS_FIELD = {
@@ -48,13 +46,6 @@ const CODE_NAME_COLUMNS = [
     className: "min-w-[220px] font-semibold text-gray-900",
   },
 ] satisfies ParameterMasterPageConfig["columns"];
-
-const resetPeriodOptions = [
-  { label: "Harian", value: "DAILY" },
-  { label: "Bulanan", value: "MONTHLY" },
-  { label: "Tahunan", value: "YEARLY" },
-  { label: "Tidak Reset", value: "NEVER" },
-];
 
 const depositTypeCategoryOptions = [
   { label: "Notaris", value: "NOTARIS" },
@@ -234,41 +225,6 @@ export const documentChecklistParameterConfig: ParameterMasterPageConfig = {
     { key: "is_active", label: "Status", type: "status", widthClassName: "w-[120px]" },
   ],
   tableMinWidthClassName: "min-w-[1040px]",
-};
-
-export const numberingTemplateParameterConfig: ParameterMasterPageConfig = {
-  title: "Setup Template Penomoran",
-  subtitle: "Kelola pola penomoran dokumen di setiap modul.",
-  entityLabel: "template penomoran",
-  endpoint: "/numbering-templates",
-  icon: ReceiptText,
-  addLabel: "Tambah Template",
-  searchPlaceholder: "Cari kode, modul, jenis dokumen, atau template...",
-  layoutWidthClassName: SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS,
-  tableWidthClassName: SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS,
-  fields: [
-    { key: "code", label: "Kode", required: true, placeholder: "Masukkan kode" },
-    { key: "name", label: "Nama Template", required: true, placeholder: "Masukkan nama template" },
-    { key: "module", label: "Modul", required: true, placeholder: "Masukkan nama modul" },
-    { key: "document_type", label: "Jenis Dokumen", required: true, placeholder: "Masukkan jenis dokumen" },
-    { key: "prefix_template", label: "Prefix Template", required: true, placeholder: "Contoh: SM/{YYYY}/{MM}" },
-    { key: "sequence_padding", label: "Digit Nomor", type: "number", defaultValue: 4 },
-    { key: "reset_period", label: "Reset Periode", type: "select", defaultValue: "MONTHLY", options: resetPeriodOptions },
-    { key: "last_sequence", label: "Nomor Terakhir", type: "number" },
-    { key: "last_period_key", label: "Periode Terakhir", placeholder: "Contoh: 202605" },
-    DESCRIPTION_FIELD,
-    STATUS_FIELD,
-  ],
-  columns: [
-    { key: "code", label: "Kode", type: "code", widthClassName: "w-[120px]" },
-    { key: "name", label: "Nama", className: "min-w-[180px] font-semibold text-gray-900" },
-    { key: "module", label: "Modul", widthClassName: "w-[140px]" },
-    { key: "document_type", label: "Jenis Dokumen", widthClassName: "w-[160px]" },
-    { key: "prefix_template", label: "Prefix", className: "min-w-[220px] max-w-[280px] truncate text-gray-600" },
-    { key: "reset_period", label: "Reset", widthClassName: "w-[120px]" },
-    { key: "is_active", label: "Status", type: "status", widthClassName: "w-[120px]" },
-  ],
-  tableMinWidthClassName: "min-w-[1120px]",
 };
 
 export const depositTypeParameterConfig = simpleCodeNameConfig({

@@ -333,14 +333,21 @@ export default function LaporanNPFSection({
         <Card>
           <CardHeader>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600 shadow-sm shadow-blue-500/10">
+              <div className="flex items-center gap-4">
+                <div
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-lg"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+                    boxShadow: "0 12px 24px rgba(37, 99, 235, 0.22)",
+                  }}
+                >
                   <TrendingDown
-                    className="h-5 w-5"
+                    className="h-7 w-7 text-white"
                     aria-hidden="true"
                   />
                 </div>
-                <div className="flex min-h-11 items-center">
+                <div className="flex min-h-14 items-center">
                   <CardTitle>Ringkasan NPF</CardTitle>
                 </div>
               </div>

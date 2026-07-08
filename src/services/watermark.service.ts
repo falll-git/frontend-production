@@ -120,6 +120,8 @@ export function mapWatermarkFileMeta(value: unknown): WatermarkFileMeta | null {
     source_path: readString(record, "source_path") ?? null,
     file_path: readString(record, "file_path") ?? null,
     file_url: readString(record, "file_url") ?? null,
+    file_name: readString(record, "file_name") ?? null,
+    download_name: readString(record, "download_name") ?? null,
     settings_hash: readString(record, "settings_hash") ?? null,
     error_message: readString(record, "error_message") ?? null,
     requested_at: readString(record, "requested_at") ?? null,

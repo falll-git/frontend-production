@@ -1,8 +1,6 @@
 "use client";
 
 import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
-import LaporanPihakKetigaSection from "@/components/dashboard/LaporanPihakKetigaSection";
-import LaporanTitipanSection from "@/components/dashboard/LaporanTitipanSection";
 import { usePathname } from "next/navigation";
 import {
   Activity,
@@ -2932,7 +2930,6 @@ export function LegalReportClient() {
   const { showToast } = useAppToast();
   const [data, setData] = useState<LegalSummaryReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"progress" | "deposit" | "audit">("progress");
 
   useEffect(() => {
     let ignore = false;
@@ -2954,115 +2951,106 @@ export function LegalReportClient() {
   }, [showToast]);
 
   const reportSummary = [
-    { label: "Notaris", value: data?.notary ?? 0, icon: Landmark },
-    { label: "Asuransi", value: data?.insurance ?? 0, icon: ShieldCheck },
-    { label: "KJPP", value: data?.kjpp ?? 0, icon: Building2 },
-    { label: "Klaim", value: data?.claims ?? 0, icon: FileCheck2 },
-    { label: "Dana Titipan", value: data?.deposits ?? 0, icon: Banknote },
-  ];
-  const reportTabs = [
     {
-      key: "progress" as const,
-      title: "Progress Pihak Ketiga",
-      description: "Notaris, asuransi, KJPP, dan klaim.",
-      icon: ClipboardList,
+      label: "Notaris",
+      value: data?.notary ?? 0,
+      icon: Landmark,
+      accentColor: "#157ec3",
+      accentEndColor: "#0d5a8f",
+      shadowColor: "rgba(21, 126, 195, 0.2)",
     },
     {
-      key: "deposit" as const,
-      title: "Dana Titipan",
-      description: "Titipan, pembayaran, refund, dan saldo.",
+      label: "Asuransi",
+      value: data?.insurance ?? 0,
+      icon: ShieldCheck,
+      accentColor: "#0f766e",
+      accentEndColor: "#0d5f59",
+      shadowColor: "rgba(15, 118, 110, 0.2)",
+    },
+    {
+      label: "KJPP",
+      value: data?.kjpp ?? 0,
+      icon: Building2,
+      accentColor: "#7c3aed",
+      accentEndColor: "#5b21b6",
+      shadowColor: "rgba(124, 58, 237, 0.2)",
+    },
+    {
+      label: "Klaim",
+      value: data?.claims ?? 0,
+      icon: FileCheck2,
+      accentColor: "#d97706",
+      accentEndColor: "#b45309",
+      shadowColor: "rgba(217, 119, 6, 0.2)",
+    },
+    {
+      label: "Dana Titipan",
+      value: data?.deposits ?? 0,
       icon: Banknote,
-    },
-    {
-      key: "audit" as const,
-      title: "Audit Aktivitas",
-      description: "User, waktu, aksi, dan perubahan data.",
-      icon: Activity,
+      accentColor: "#6366f1",
+      accentEndColor: "#4f46e5",
+      shadowColor: "rgba(99, 102, 241, 0.2)",
     },
   ];
 
   return (
     <DashboardPageShell spacing="md">
-      <FeatureHeader title="Laporan Legal" subtitle="Pusat rekap progress pihak ketiga, dana titipan, dan audit aktivitas legal." icon={<ClipboardList />} />
-      <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="text-base font-bold text-gray-900">Ringkasan Legal</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Data diambil dari progress pihak ketiga, klaim, dana titipan aktif, dan jejak perubahan data legal.
+      <FeatureHeader
+        title="Audit Aktivitas Legal"
+        subtitle="Jejak perubahan data legal berdasarkan user, waktu, aksi, dan data yang terdampak."
+        icon={<Activity />}
+      />
+
+      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <div className="grid gap-5 lg:grid-cols-[1fr_2fr] lg:items-center">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
+              Ringkasan Data Legal
+            </p>
+            <h2 className="mt-2 text-xl font-bold text-gray-900">
+              Area data yang masuk pengawasan audit
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-gray-500">
+              Progress pihak ketiga dan dana titipan tetap diakses dari shortcut dashboard. Halaman ini difokuskan untuk memeriksa jejak perubahan data legal.
             </p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             {reportSummary.map((item) => {
               const Icon = item.icon;
 
               return (
                 <div
                   key={item.label}
-                  className="min-w-[132px] rounded-lg border border-gray-200 bg-gray-50/70 px-4 py-3"
+                  className="rounded-2xl border border-gray-100 bg-gray-50/70 p-4 shadow-sm"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
-                      {item.label}
-                    </p>
-                    <Icon className="h-4 w-4 shrink-0 text-[#157ec3]" aria-hidden="true" />
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+                        {item.label}
+                      </p>
+                      <p className="mt-2 text-2xl font-bold tabular-nums text-gray-900">
+                        {isLoading ? "-" : item.value}
+                      </p>
+                    </div>
+                    <div
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-md"
+                      style={{
+                        background: `linear-gradient(135deg, ${item.accentColor} 0%, ${item.accentEndColor} 100%)`,
+                        boxShadow: `0 10px 20px ${item.shadowColor}`,
+                      }}
+                    >
+                      <Icon className="h-5 w-5 text-white" aria-hidden="true" />
+                    </div>
                   </div>
-                  <p className="mt-2 text-2xl font-bold tabular-nums text-gray-900">
-                    {isLoading ? "-" : item.value}
-                  </p>
                 </div>
               );
             })}
           </div>
         </div>
       </section>
-      <section className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
-        <div className="grid gap-2 md:grid-cols-3">
-          {reportTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.key;
 
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveTab(tab.key)}
-                className={`rounded-md border px-4 py-3 text-left transition ${
-                  isActive
-                    ? "border-[#157ec3] bg-[#157ec3] text-white shadow-sm"
-                    : "border-gray-200 bg-white text-gray-700 hover:border-[rgba(21,126,195,0.42)] hover:bg-gray-50"
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <Icon
-                    className={`mt-0.5 h-5 w-5 shrink-0 ${
-                      isActive ? "text-white" : "text-[#157ec3]"
-                    }`}
-                    aria-hidden="true"
-                  />
-                  <div>
-                    <p className="text-sm font-bold">{tab.title}</p>
-                    <p
-                      className={`mt-0.5 text-xs ${
-                        isActive ? "text-white/80" : "text-gray-500"
-                      }`}
-                    >
-                      {tab.description}
-                    </p>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-      {activeTab === "progress" ? (
-        <LaporanPihakKetigaSection />
-      ) : activeTab === "deposit" ? (
-        <LaporanTitipanSection />
-      ) : (
-        <LegalActivityLogSection />
-      )}
+      <LegalActivityLogSection />
     </DashboardPageShell>
   );
 }

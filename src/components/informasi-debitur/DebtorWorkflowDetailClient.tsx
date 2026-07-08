@@ -2331,13 +2331,6 @@ function SummaryTab({
     );
   };
 
-  const unresolvedActionDates = new Set(
-    timeline.entries
-      .filter((entry) => entry.row_id === "action-plan" && !findLinkedLangkah(entry))
-      .map((entry) => entry.date)
-      .filter((date): date is string => Boolean(date)),
-  );
-
   const renderTimelineCard = (entry: DebtorMarketingTimelineEntry) => {
     const meta = getRowMeta(entry.row_id);
     const linkedLangkah =
@@ -2365,11 +2358,9 @@ function SummaryTab({
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <SetupStatusBadge status={statusLabel(entry.status)} />
-          {entry.row_id === "action-plan" ? (
+          {entry.row_id === "action-plan" && linkedLangkah?.date ? (
             <span className="text-xs font-semibold text-sky-700">
-              {linkedLangkah?.date
-                ? `Realisasi ${formatDateOnly(linkedLangkah.date)}`
-                : "Belum ada realisasi"}
+              Realisasi {formatDateOnly(linkedLangkah.date)}
             </span>
           ) : null}
           {entry.row_id === "langkah-penanganan" && linkedAction?.date ? (
@@ -2400,129 +2391,67 @@ function SummaryTab({
             Timeline progres penanganan debitur dari action plan sampai realisasi terakhir.
           </p>
         </div>
-        <div className="hidden overflow-hidden rounded-lg border border-gray-200 bg-white lg:block">
-          <div className="grid grid-cols-[14rem_minmax(0,1fr)]">
-            <div className="border-r border-gray-200 bg-white shadow-[8px_0_16px_-16px_rgba(15,23,42,0.35)]">
-              <div className="border-b border-gray-200 px-5 py-4">
-                <p className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">
-                  Aktivitas
-                </p>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {rows.map((row) => (
-                  <div key={row.id} className="flex min-h-[188px] items-start px-5 py-5">
-                    <div>
-                      <p className="text-sm font-bold text-gray-900">{row.label}</p>
-                      <p className="mt-1 text-sm text-gray-500">{row.description}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <div className="min-w-max">
-                <div
-                  className="grid border-b border-gray-200 bg-gray-50"
-                  style={{
-                    gridTemplateColumns: dates
-                      .map(() => "minmax(16rem, 16rem)")
-                      .join(" "),
-                  }}
-                >
-                  {dates.map((date) => (
-                    <div
-                      key={date}
-                      className="border-r border-gray-200 px-5 py-4 text-xs font-bold uppercase tracking-[0.08em] text-gray-500 last:border-r-0"
-                    >
-                      {formatDateOnly(date)}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="divide-y divide-gray-100">
-                  {rows.map((row) => {
-                    const meta = getRowMeta(row.id);
-
-                    return (
-                      <div
-                        key={row.id}
-                        className="relative grid min-h-[188px]"
-                        style={{
-                          gridTemplateColumns: dates
-                            .map(() => "minmax(16rem, 16rem)")
-                            .join(" "),
-                        }}
-                      >
-                        <div
-                          className={`pointer-events-none absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 ${meta.lineClassName}`}
-                        />
-                        {dates.map((date) => {
-                          const cellEntries = entriesByCell.get(`${row.id}:${date}`) ?? [];
-                          const showPending =
-                            row.id === "langkah-penanganan" &&
-                            cellEntries.length === 0 &&
-                            unresolvedActionDates.has(date);
-
-                          return (
-                            <div
-                              key={`${row.id}-${date}`}
-                              className="relative border-r border-gray-100 bg-white px-5 py-5 last:border-r-0"
-                            >
-                              <div className="relative z-10 space-y-3">
-                                {cellEntries.map(renderTimelineCard)}
-                                {showPending ? (
-                                  <span className="inline-flex rounded-full border border-dashed border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-500">
-                                    Belum ada realisasi
-                                  </span>
-                                ) : null}
-                                {cellEntries.length === 0 && !showPending ? (
-                                  <span
-                                    className={`inline-flex rounded-full bg-white/90 px-3 py-1 text-xs font-semibold ${meta.emptyClassName}`}
-                                  >
-                                    -
-                                  </span>
-                                ) : null}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div className="space-y-4 lg:hidden">
+        <div className="grid gap-4 xl:grid-cols-3">
           {dates.map((date) => {
-            const dayEntries = timeline.entries.filter((entry) => entry.date === date);
+            const visibleRows = rows
+              .map((row) => {
+                const cellEntries = entriesByCell.get(`${row.id}:${date}`) ?? [];
+
+                return {
+                  row,
+                  cellEntries,
+                };
+              })
+              .filter((item) => item.cellEntries.length > 0);
 
             return (
               <section
                 key={date}
-                className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
               >
-                <p className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">
-                  {formatDateOnly(date)}
-                </p>
-                <div className="mt-3 space-y-3">
-                  {dayEntries.length > 0 ? (
-                    dayEntries.map((entry) => {
-                      const row = rows.find((item) => item.id === entry.row_id);
+                <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">
+                      Periode Aktivitas
+                    </p>
+                    <p className="mt-1 text-base font-bold text-gray-900">
+                      {formatDateOnly(date)}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-500">
+                    {visibleRows.length} aktivitas
+                  </span>
+                </div>
+
+                <div className="mt-4 space-y-4">
+                  {visibleRows.length > 0 ? (
+                    visibleRows.map(({ row, cellEntries }) => {
+                      const meta = getRowMeta(row.id);
 
                       return (
-                        <div key={entry.id} className="space-y-2">
-                          <p className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">
-                            {row?.label ?? entry.title}
-                          </p>
-                          {renderTimelineCard(entry)}
+                        <div key={`${row.id}-${date}`} className="space-y-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-bold text-gray-900">
+                                {row.label}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {row.description}
+                              </p>
+                            </div>
+                            <span
+                              className={`h-2 w-2 shrink-0 rounded-full ${meta.lineClassName}`}
+                              aria-hidden="true"
+                            />
+                          </div>
+                          <div className="space-y-3">
+                            {cellEntries.map(renderTimelineCard)}
+                          </div>
                         </div>
                       );
                     })
                   ) : (
-                    <p className="rounded-lg border border-dashed border-gray-200 px-4 py-5 text-sm text-gray-500">
+                    <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-5 text-sm font-medium text-gray-500">
                       Tidak ada aktivitas pada tanggal ini.
                     </p>
                   )}
@@ -4421,7 +4350,12 @@ function HistorisKolTab({ items }: { items: DebtorWorkflowCollectibility[] }) {
               </SetupDataTableCell>
               <SetupDataTableCell>{periodLabel(item.period_month)}</SetupDataTableCell>
               <SetupDataTableCell>{item.contract_number}</SetupDataTableCell>
-              <SetupDataTableCell>{item.code ?? item.name ?? "-"}</SetupDataTableCell>
+              <SetupDataTableCell>
+                <SetupCollectibilityBadge
+                  value={item.code ?? item.name ?? "-"}
+                  label={item.name ?? item.code ?? "-"}
+                />
+              </SetupDataTableCell>
               <SetupDataTableCell>{formatCurrency(item.outstanding_pokok)}</SetupDataTableCell>
               <SetupDataTableCell>{formatCurrency(item.outstanding_margin)}</SetupDataTableCell>
               <SetupDataTableCell>{display(item.dpd)}</SetupDataTableCell>
