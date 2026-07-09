@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/SetupDataTable";
 import {
   SETUP_PAGE_BACK_BUTTON_CLASS,
+  SETUP_PAGE_MODERN_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
@@ -2300,6 +2301,9 @@ function SummaryTab({
   };
 
   const entriesByCell = new Map<string, DebtorMarketingTimelineEntry[]>();
+  const timelineColumnTemplate = dates
+    .map(() => "minmax(16rem, 16rem)")
+    .join(" ");
 
   for (const entry of timeline.entries) {
     if (!entry.date) continue;
@@ -2346,7 +2350,7 @@ function SummaryTab({
         onClick={() => setSelectedEntry(entry)}
         onDoubleClick={() => setSelectedEntry(entry)}
         title={`${entry.summary} - ${entry.detail}`}
-        className={`w-full min-w-0 rounded-lg border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${meta.chipClassName} ${
+        className={`w-full min-w-0 rounded-2xl border px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${meta.chipClassName} ${
           isLatest ? "ring-2 ring-[#157ec3]/15 ring-offset-1" : ""
         }`}
       >
@@ -2391,74 +2395,99 @@ function SummaryTab({
             Timeline progres penanganan debitur dari action plan sampai realisasi terakhir.
           </p>
         </div>
-        <div className="grid gap-4 xl:grid-cols-3">
-          {dates.map((date) => {
-            const visibleRows = rows
-              .map((row) => {
-                const cellEntries = entriesByCell.get(`${row.id}:${date}`) ?? [];
+        <div className="rounded-2xl border border-gray-200 bg-white">
+          <div className="grid grid-cols-[14rem_minmax(0,1fr)] overflow-hidden">
+            <div className="border-r border-gray-200 bg-white">
+              <div className="border-b border-gray-200 bg-white px-5 py-4 shadow-[8px_0_16px_-16px_rgba(15,23,42,0.3)]">
+                <p className="text-left text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+                  Aktivitas
+                </p>
+              </div>
 
-                return {
-                  row,
-                  cellEntries,
-                };
-              })
-              .filter((item) => item.cellEntries.length > 0);
+              <div className="divide-y divide-gray-100">
+                {rows.map((row) => {
+                  const meta = getRowMeta(row.id);
 
-            return (
-              <section
-                key={date}
-                className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
-              >
-                <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.08em] text-gray-500">
-                      Periode Aktivitas
-                    </p>
-                    <p className="mt-1 text-base font-bold text-gray-900">
+                  return (
+                    <div
+                      key={row.id}
+                      className="flex min-h-[188px] items-start bg-white px-5 py-5 shadow-[8px_0_16px_-16px_rgba(15,23,42,0.3)]"
+                    >
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-gray-900">
+                          {meta.label}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {meta.description}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <div className="min-w-max">
+                <div
+                  className="grid border-b border-gray-200 bg-gray-50"
+                  style={{ gridTemplateColumns: timelineColumnTemplate }}
+                >
+                  {dates.map((date) => (
+                    <div
+                      key={date}
+                      className="border-r border-gray-200 px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.08em] text-gray-500 last:border-r-0"
+                    >
                       {formatDateOnly(date)}
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-500">
-                    {visibleRows.length} aktivitas
-                  </span>
+                    </div>
+                  ))}
                 </div>
 
-                <div className="mt-4 space-y-4">
-                  {visibleRows.length > 0 ? (
-                    visibleRows.map(({ row, cellEntries }) => {
-                      const meta = getRowMeta(row.id);
+                <div className="divide-y divide-gray-100">
+                  {rows.map((row) => {
+                    const meta = getRowMeta(row.id);
 
-                      return (
-                        <div key={`${row.id}-${date}`} className="space-y-2">
-                          <div className="flex items-center justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-bold text-gray-900">
-                                {row.label}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {row.description}
-                              </p>
+                    return (
+                      <div
+                        key={row.id}
+                        className="grid min-h-[188px]"
+                        style={{ gridTemplateColumns: timelineColumnTemplate }}
+                      >
+                        {dates.map((date) => {
+                          const cellEntries =
+                            entriesByCell.get(`${row.id}:${date}`) ?? [];
+
+                          return (
+                            <div
+                              key={`${row.id}-${date}`}
+                              className="relative border-r border-gray-100 bg-white px-5 py-5 last:border-r-0"
+                            >
+                              <span
+                                className={`pointer-events-none absolute inset-x-5 top-1/2 h-px -translate-y-1/2 ${meta.lineClassName}`}
+                                aria-hidden="true"
+                              />
+
+                              <div className="relative z-10 space-y-3">
+                                {cellEntries.length > 0 ? (
+                                  cellEntries.map(renderTimelineCard)
+                                ) : (
+                                  <span
+                                    className={`inline-flex rounded-full bg-white/90 px-3 py-1 text-xs font-medium ${meta.emptyClassName}`}
+                                  >
+                                    -
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <span
-                              className={`h-2 w-2 shrink-0 rounded-full ${meta.lineClassName}`}
-                              aria-hidden="true"
-                            />
-                          </div>
-                          <div className="space-y-3">
-                            {cellEntries.map(renderTimelineCard)}
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <p className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-5 text-sm font-medium text-gray-500">
-                      Tidak ada aktivitas pada tanggal ini.
-                    </p>
-                  )}
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
                 </div>
-              </section>
-            );
-          })}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2551,6 +2580,15 @@ function SummaryTab({
 }
 
 type IdebRecord = Record<string, unknown>;
+type IdebFacilityFilter = "ALL" | "ACTIVE" | "PAID_OFF" | "PROBLEM" | "ARREARS";
+
+const IDEB_FACILITY_FILTERS: Array<{ value: IdebFacilityFilter; label: string }> = [
+  { value: "ALL", label: "Semua" },
+  { value: "ACTIVE", label: "Aktif" },
+  { value: "PAID_OFF", label: "Lunas" },
+  { value: "PROBLEM", label: "Macet / Hapus Buku" },
+  { value: "ARREARS", label: "Ada Tunggakan" },
+];
 
 function idebRecord(value: unknown): IdebRecord | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -2597,11 +2635,6 @@ function idebNumber(record: IdebRecord | null | undefined, keys: string[]) {
   }
 
   return null;
-}
-
-function idebMoney(record: IdebRecord | null | undefined, keys: string[]) {
-  const value = idebNumber(record, keys);
-  return value === null ? "-" : formatCurrency(value);
 }
 
 function idebDate(value: string | number | null | undefined) {
@@ -2704,11 +2737,7 @@ function getIdebFacilityOutstanding(facility: IdebRecord) {
 }
 
 function getIdebFacilityPlafond(facility: IdebRecord) {
-  return idebNumber(facility, ["plafond", "initial_plafond", "plafon"]) ?? 0;
-}
-
-function getIdebFacilityInitialPlafond(facility: IdebRecord) {
-  return idebNumber(facility, ["initial_plafond", "plafon_awal", "plafond"]) ?? 0;
+  return idebNumber(facility, ["plafond", "initial_plafond", "plafon", "plafon_awal"]) ?? 0;
 }
 
 function getIdebFacilityArrears(facility: IdebRecord) {
@@ -2720,9 +2749,9 @@ function getIdebFacilityArrears(facility: IdebRecord) {
 }
 
 function getIdebFacilityDaysPastDue(facility: IdebRecord) {
-  return (
-    idebNumber(facility, ["days_past_due", "dpd", "jumlah_hari_tunggakan"]) ?? null
-  );
+  const value =
+    idebNumber(facility, ["days_past_due", "dpd", "jumlah_hari_tunggakan"]) ?? 0;
+  return value > 0 ? value : null;
 }
 
 function getIdebFacilityCondition(facility: IdebRecord) {
@@ -2730,19 +2759,13 @@ function getIdebFacilityCondition(facility: IdebRecord) {
 }
 
 function isIdebPaidOffFacility(facility: IdebRecord) {
-  const condition = comparableDisplay(getIdebFacilityCondition(facility));
-  return condition === "02" || condition.includes("LUNAS");
+  const condition = display(getIdebFacilityCondition(facility)).toUpperCase();
+  return condition.includes("LUNAS") || condition.startsWith("02");
 }
 
 function isIdebWriteOffFacility(facility: IdebRecord) {
-  const condition = comparableDisplay(getIdebFacilityCondition(facility));
-  const compactCondition = condition.replace(/\s+/g, "");
-  return (
-    condition === "03" ||
-    condition.startsWith("03 ") ||
-    compactCondition.includes("HAPUSBUKU") ||
-    compactCondition.includes("DIHAPUSBUKUKAN")
-  );
+  const condition = display(getIdebFacilityCondition(facility)).toUpperCase();
+  return condition.includes("HAPUS") || condition.startsWith("03");
 }
 
 function getIdebCollectibilityLevel(value: unknown) {
@@ -2776,6 +2799,31 @@ function sortIdebFacilitiesByRisk(facilities: IdebRecord[]) {
       )
     );
   });
+}
+
+function filterIdebFacilities(facilities: IdebRecord[], filter: IdebFacilityFilter) {
+  if (filter === "ACTIVE") {
+    return sortIdebFacilitiesByRisk(
+      facilities.filter(
+        (facility) => !isIdebPaidOffFacility(facility) && !isIdebWriteOffFacility(facility),
+      ),
+    );
+  }
+  if (filter === "PAID_OFF") return sortIdebFacilitiesByRisk(facilities.filter(isIdebPaidOffFacility));
+  if (filter === "PROBLEM") {
+    return sortIdebFacilitiesByRisk(
+      facilities.filter((facility) => {
+        const kol = display(getIdebFacilityCollectibility(facility));
+        return isIdebWriteOffFacility(facility) || /^5\b|KOL\s*5/i.test(kol);
+      }),
+    );
+  }
+  if (filter === "ARREARS") {
+    return sortIdebFacilitiesByRisk(
+      facilities.filter((facility) => getIdebFacilityArrears(facility) > 0),
+    );
+  }
+  return sortIdebFacilitiesByRisk(facilities);
 }
 
 function getIdebPriorityFacilities(facilities: IdebRecord[], limit = 10) {
@@ -3042,6 +3090,47 @@ function IdebMetricCard({
   );
 }
 
+function IdebModalInfoItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode | null | undefined;
+}) {
+  const displayValue =
+    typeof value === "string" || typeof value === "number"
+      ? display(value)
+      : value || "-";
+
+  return (
+    <div className="border-b border-slate-100 py-3 last:border-b-0">
+      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+        {label}
+      </p>
+      <div className="mt-1 text-sm font-semibold leading-6 text-slate-900">
+        {displayValue}
+      </div>
+    </div>
+  );
+}
+
+function IdebModalSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="border-t border-slate-200 pt-5 first:border-t-0 first:pt-0">
+      <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-slate-700">
+        {title}
+      </h3>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
+
 function IdebCreditMetricCard({
   label,
   children,
@@ -3053,26 +3142,26 @@ function IdebCreditMetricCard({
   hint?: ReactNode;
   tone?: "default" | "success" | "warning" | "danger" | "blue";
 }) {
-  const toneClass =
+  const valueClass =
     tone === "success"
-      ? "border-emerald-200 bg-emerald-50"
+      ? "text-emerald-600"
       : tone === "warning"
-        ? "border-yellow-200 bg-yellow-50"
+        ? "text-amber-700"
         : tone === "danger"
-          ? "border-red-200 bg-red-50"
+          ? "text-red-600"
           : tone === "blue"
-            ? "border-blue-200 bg-blue-50"
-            : "border-gray-200 bg-white";
+            ? "text-blue-700"
+            : "text-slate-900";
 
   return (
-    <div className={`min-h-[128px] rounded-lg border p-4 shadow-sm ${toneClass}`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+    <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
         {label}
       </p>
-      <div className="mt-3 text-xl font-extrabold leading-tight text-gray-950">
+      <div className={`mt-3 text-2xl font-bold ${valueClass}`}>
         {children}
       </div>
-      {hint ? <div className="mt-3 text-xs font-semibold leading-5 text-gray-500">{hint}</div> : null}
+      {hint ? <div className="mt-2 text-xs leading-5 text-slate-500">{hint}</div> : null}
     </div>
   );
 }
@@ -3101,73 +3190,87 @@ function IdebReporterBreakdown({ resume }: { resume: ReturnType<typeof getIdebRe
   );
 
   return (
-    <div className="grid overflow-hidden rounded-lg border border-gray-200 bg-white md:grid-cols-[minmax(220px,0.35fr)_minmax(0,1fr)]">
-      <div className="border-b border-gray-200 bg-gray-50 p-4 md:border-b-0 md:border-r">
-        <p className="text-sm font-bold leading-6 text-gray-900">
-          Jumlah Lembaga Pembuat Pelaporan
-        </p>
-        <p className="text-sm font-bold leading-6 text-gray-900">(Kreditur)</p>
-      </div>
-      <div className="p-4 text-sm font-semibold leading-6 text-gray-900">
-        {formatNumber(resume.reporterCount)} lembaga
-        <span className="mx-2 text-gray-300">|</span>
-        {reporterSummary}
-      </div>
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+      <span className="font-semibold text-slate-900">
+        Jumlah Lembaga Pembuat Pelaporan/Kreditur:
+      </span>{" "}
+      {resume.reporterCount > 0 ? (
+        <>
+          {formatNumber(resume.reporterCount)} lembaga
+          <span className="mx-2 text-slate-300">|</span>
+        </>
+      ) : null}
+      {reporterSummary}
     </div>
   );
 }
 
 function IdebCreditPositionTable({
   facilities,
-  totalFacilities,
-  totalSourceFacilities,
+  facilityFilter,
+  onFacilityFilterChange,
 }: {
   facilities: IdebRecord[];
-  totalFacilities?: number;
-  totalSourceFacilities?: IdebRecord[];
+  facilityFilter: IdebFacilityFilter;
+  onFacilityFilterChange: (value: IdebFacilityFilter) => void;
 }) {
-  const totalRows = totalFacilities ?? facilities.length;
-  const totalSource = totalSourceFacilities ?? facilities;
-  const totalInitialPlafond = totalSource.reduce(
-    (total, facility) => total + getIdebFacilityInitialPlafond(facility),
+  const visibleFacilities = facilities.slice(0, 200);
+  const totalPlafond = facilities.reduce(
+    (total, facility) => total + getIdebFacilityPlafond(facility),
     0,
   );
-  const totalOutstanding = totalSource.reduce(
+  const totalOutstanding = facilities.reduce(
     (total, facility) => total + getIdebFacilityOutstanding(facility),
     0,
   );
-  const totalArrears = totalSource.reduce(
+  const totalArrears = facilities.reduce(
     (total, facility) => total + getIdebFacilityArrears(facility),
     0,
   );
+  const filterLabel =
+    IDEB_FACILITY_FILTERS.find((filter) => filter.value === facilityFilter)?.label ??
+    "aktif";
 
   return (
-    <SectionCard title="Ringkasan Posisi Fasilitas Kredit">
-      {totalRows > facilities.length ? (
-        <p className="mb-3 text-sm font-semibold leading-6 text-gray-500">
-          Menampilkan {formatNumber(facilities.length)} fasilitas paling prioritas
-          berdasarkan KOL, DPD, tunggakan, dan baki debet dari total{" "}
-          {formatNumber(totalRows)} fasilitas.
-        </p>
-      ) : null}
-      <SetupTableCard variant="portfolio">
-        <SetupDataTable variant="portfolio" density="compact" className="min-w-[1360px]">
+    <IdebModalSection title="Ringkasan Posisi Fasilitas Kredit">
+      <div className="mb-3 flex flex-wrap gap-2">
+        {IDEB_FACILITY_FILTERS.map((filter) => (
+          <button
+            key={filter.value}
+            type="button"
+            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+              facilityFilter === filter.value
+                ? "border-sky-300 bg-sky-50 text-sky-700"
+                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+            onClick={() => onFacilityFilterChange(filter.value)}
+          >
+            {filter.label}
+          </button>
+        ))}
+      </div>
+      <p className="mb-3 text-sm font-semibold leading-6 text-slate-500">
+        Daftar diurutkan dari risiko tertinggi berdasarkan KOL, DPD, tunggakan,
+        dan baki debet.
+      </p>
+      <SetupTableCard variant="nested">
+        <SetupDataTable variant="nested" density="compact" className="min-w-[1120px]">
           <SetupDataTableHead>
             <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
               <SetupDataTableHeaderCell>Pelapor</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Jenis Kredit / Pembiayaan</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Tanggal Akad</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
-                Plafon Awal
+                Plafon
               </SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
-                Baki Debet Saat Ini
+                Baki Debet
               </SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                Kolektibilitas
+                KOL
               </SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                DPD / Hari Tunggakan
+                DPD
               </SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
                 Tunggakan
@@ -3176,7 +3279,7 @@ function IdebCreditPositionTable({
             </SetupDataTableRow>
           </SetupDataTableHead>
           <SetupDataTableBody>
-            {facilities.map((facility, index) => {
+            {visibleFacilities.map((facility, index) => {
               const reporter = idebText(facility, ["reporter_name", "reporter_code"]) ?? "-";
               const branch = idebText(facility, ["branch_name", "branch_code"]);
               const accountNumber = getIdebFacilityAccount(facility);
@@ -3187,21 +3290,20 @@ function IdebCreditPositionTable({
                   key={`${accountNumber}-${index}`}
                   className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
                 >
-                  <SetupDataTableCell>
-                    <p className="line-clamp-2 font-semibold text-gray-900">{reporter}</p>
-                    <p className="mt-1 text-xs text-gray-500">{display(branch)}</p>
-                    <SetupTableCode className="mt-2" as="p">
-                      {accountNumber}
-                    </SetupTableCode>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                    <p className="line-clamp-2 font-semibold text-slate-900">{reporter}</p>
+                    <p className="mt-1 text-xs text-slate-500">{display(branch)}</p>
                   </SetupDataTableCell>
-                  <SetupDataTableCell>
-                    <p className="line-clamp-2 font-semibold text-gray-900">
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                    <p className="line-clamp-2">
                       {getIdebFacilityCreditDisplay(facility)}
                     </p>
                   </SetupDataTableCell>
-                  <SetupDataTableCell>{getIdebFacilityAkadDate(facility)}</SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                    {getIdebFacilityAkadDate(facility)}
+                  </SetupDataTableCell>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                    {formatCurrency(getIdebFacilityInitialPlafond(facility))}
+                    {formatCurrency(getIdebFacilityPlafond(facility))}
                   </SetupDataTableCell>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                     {formatCurrency(getIdebFacilityOutstanding(facility))}
@@ -3218,8 +3320,8 @@ function IdebCreditPositionTable({
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                     {formatCurrency(getIdebFacilityArrears(facility))}
                   </SetupDataTableCell>
-                  <SetupDataTableCell>
-                    <p className="line-clamp-2 font-semibold text-gray-900">
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                    <p className="line-clamp-2">
                       {getIdebFacilityCollateralSummary(facility)}
                     </p>
                   </SetupDataTableCell>
@@ -3227,139 +3329,145 @@ function IdebCreditPositionTable({
               );
             })}
             {facilities.length > 0 ? (
-              <SetupDataTableRow className="bg-blue-900 text-white">
-                <SetupDataTableCell
-                  colSpan={3}
-                  className="bg-blue-900 text-center text-sm font-extrabold uppercase tracking-[0.08em] text-white"
-                >
-                  Total Keseluruhan
+              <SetupDataTableRow className="bg-slate-100 font-bold text-slate-900">
+                <SetupDataTableCell colSpan={3} className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                  {facilityFilter === "ALL" ? "Total keseluruhan" : `Total filter ${filterLabel}`}
                 </SetupDataTableCell>
-                <SetupDataTableCell className="bg-blue-900 text-right font-extrabold text-white">
-                  {formatCurrency(totalInitialPlafond)}
+                <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                  {formatCurrency(totalPlafond)}
                 </SetupDataTableCell>
-                <SetupDataTableCell className="bg-blue-900 text-right font-extrabold text-white">
+                <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                   {formatCurrency(totalOutstanding)}
                 </SetupDataTableCell>
-                <SetupDataTableCell className="bg-blue-900 text-center font-extrabold text-white">
+                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
                   -
                 </SetupDataTableCell>
-                <SetupDataTableCell className="bg-blue-900 text-center font-extrabold text-white">
+                <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
                   -
                 </SetupDataTableCell>
-                <SetupDataTableCell className="bg-blue-900 text-right font-extrabold text-white">
+                <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                   {formatCurrency(totalArrears)}
                 </SetupDataTableCell>
-                <SetupDataTableCell className="bg-blue-900 text-white">-</SetupDataTableCell>
+                <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                  -
+                </SetupDataTableCell>
               </SetupDataTableRow>
             ) : (
               <SetupDataTableEmptyRow colSpan={9}>
-                Belum ada data fasilitas IDEB di hasil ini.
+                Belum ada fasilitas IDEB pada filter ini.
               </SetupDataTableEmptyRow>
             )}
           </SetupDataTableBody>
         </SetupDataTable>
       </SetupTableCard>
-    </SectionCard>
+      {facilities.length > 200 ? (
+        <p className="mt-2 text-xs text-slate-500">
+          Menampilkan 200 baris pertama dari {formatNumber(facilities.length)} fasilitas.
+          Gunakan filter untuk mempersempit tampilan.
+        </p>
+      ) : null}
+    </IdebModalSection>
   );
 }
 
 function IdebCreditReviewSummary({ item }: { item: DebtorWorkflowIdebUpload }) {
   const resume = getIdebResume(item);
+  const profileFields = getIdebProfileFields(item);
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-2">
-        <IdebProfileSection item={item} />
-        <SectionCard title="Resume Hasil IDEB">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <InfoItem
-              label="Tanggal Pengecekan IDEB"
-              value={idebDate(item.summary_detail?.result_date ?? item.summary_detail?.processed_at)}
+      <IdebModalSection title="Profil Pokok Debitur">
+        <div className="grid gap-3 md:grid-cols-2">
+          {profileFields.map((field) => (
+            <IdebModalInfoItem
+              key={field.label}
+              label={field.label}
+              value={field.value}
             />
-            <InfoItem label="Petugas IDEB" value={resume.officerName} />
-            <InfoItem label="Diunggah Oleh" value={item.uploader?.name} />
-            <InfoItem label="Jumlah Lembaga / PJK" value={formatNumber(resume.reporterCount)} />
-            <InfoItem
-              label="KOL Terburuk"
-              value={display(String(resume.worstCollectibility ?? "-"))}
-            />
-            <InfoItem
-              label="DPD Tertinggi"
-              value={
-                resume.worstDaysPastDue === null
-                  ? "-"
-                  : `${formatNumber(resume.worstDaysPastDue)} hari`
-              }
-            />
+          ))}
+        </div>
+      </IdebModalSection>
+
+      <IdebModalSection title="Resume Hasil IDEB">
+        <div className="grid gap-3 md:grid-cols-2">
+          <IdebModalInfoItem
+            label="Tanggal Pengecekan IDEB"
+            value={idebDate(item.summary_detail?.result_date ?? item.summary_detail?.processed_at)}
+          />
+          <IdebModalInfoItem label="Petugas IDEB" value={resume.officerName} />
+          <IdebModalInfoItem label="Diunggah Oleh" value={item.uploader?.name} />
+          <IdebModalInfoItem
+            label="Jumlah Lembaga / PJK"
+            value={formatNumber(resume.reporterCount)}
+          />
+          <IdebModalInfoItem
+            label="Kualitas Terburuk"
+            value={String(resume.worstCollectibility ?? "-")}
+          />
+          <IdebModalInfoItem
+            label="Kualitas Terburuk Aktif"
+            value={String(resume.activeWorstCollectibility ?? "-")}
+          />
+          <IdebModalInfoItem
+            label="DPD Tertinggi"
+            value={`${formatNumber(resume.worstDaysPastDue ?? 0)} hari`}
+          />
+          <IdebModalInfoItem
+            label="Tunggakan Aktif"
+            value={formatCurrency(resume.activeArrears)}
+          />
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <IdebCreditMetricCard
+            label="KOL Terburuk"
+            tone={idebKolMetricTone(resume.worstCollectibility)}
+          >
+            <SetupCollectibilityBadge value={resume.worstCollectibility} size="md" wrap />
+          </IdebCreditMetricCard>
+          <IdebCreditMetricCard
+            label="Total Baki Debet Aktif"
+            tone="success"
+            hint={`${formatNumber(resume.activeFacilitiesCount)} fasilitas aktif`}
+          >
+            {formatCurrency(resume.activeOutstanding)}
+          </IdebCreditMetricCard>
+          <IdebCreditMetricCard
+            label="Total Plafon Lunas"
+            tone="blue"
+            hint={`${formatNumber(resume.paidOffFacilitiesCount)} fasilitas lunas`}
+          >
+            {formatCurrency(resume.paidOffPlafond)}
+          </IdebCreditMetricCard>
+          <IdebCreditMetricCard
+            label="Pembiayaan Hapus Buku"
+            tone="danger"
+            hint={`${formatNumber(resume.writeOffFacilitiesCount)} fasilitas`}
+          >
+            {formatCurrency(resume.writeOffOutstanding)}
+          </IdebCreditMetricCard>
+        </div>
+
+        <div className="mt-4">
+          <IdebReporterBreakdown resume={resume} />
+        </div>
+
+        {(item.report_summary?.data_quality_warnings.length ?? 0) > 0 ? (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+            <p className="font-semibold">Catatan validasi data</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5">
+              {item.report_summary?.data_quality_warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
           </div>
-        </SectionCard>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <IdebCreditMetricCard
-          label="KOL Terburuk"
-          tone={idebKolMetricTone(resume.worstCollectibility)}
-          hint={
-            <>
-              Jumlah fasilitas: {formatNumber(resume.facilities.length)}
-              <br />
-              Total tunggakan: {formatCurrency(resume.totalArrears)}
-              <br />
-              DPD tertinggi:{" "}
-              {resume.worstDaysPastDue === null
-                ? "-"
-                : `${formatNumber(resume.worstDaysPastDue)} hari`}
-            </>
-          }
-        >
-          <SetupCollectibilityBadge value={resume.worstCollectibility} size="md" wrap />
-        </IdebCreditMetricCard>
-        <IdebCreditMetricCard
-          label="Total Baki Debet Aktif"
-          tone="success"
-          hint={
-            <>
-              Jumlah PJK: {formatNumber(resume.reporterCount)}
-              <br />
-              Fasilitas aktif: {formatNumber(resume.activeFacilitiesCount)}
-            </>
-          }
-        >
-          {formatCurrency(resume.activeOutstanding)}
-        </IdebCreditMetricCard>
-        <IdebCreditMetricCard
-          label="Total Plafon Lunas"
-          tone="blue"
-          hint={`Fasilitas lunas: ${formatNumber(resume.paidOffFacilitiesCount)}`}
-        >
-          {formatCurrency(resume.paidOffPlafond)}
-        </IdebCreditMetricCard>
-        <IdebCreditMetricCard
-          label="Pembiayaan Hapus Buku"
-          tone={resume.writeOffFacilitiesCount > 0 ? "danger" : "default"}
-          hint={
-            <>
-              Jumlah fasilitas: {formatNumber(resume.writeOffFacilitiesCount)}
-              <br />
-              Tunggakan: {formatCurrency(resume.writeOffArrears)}
-            </>
-          }
-        >
-          {formatCurrency(resume.writeOffOutstanding)}
-        </IdebCreditMetricCard>
-      </div>
-
-      <IdebReporterBreakdown resume={resume} />
-      <IdebCreditPositionTable
-        facilities={getIdebPriorityFacilities(resume.facilities, 10)}
-        totalFacilities={resume.facilities.length}
-        totalSourceFacilities={resume.facilities}
-      />
+        ) : null}
+      </IdebModalSection>
     </div>
   );
 }
 
-function IdebProfileSection({ item }: { item: DebtorWorkflowIdebUpload }) {
+function getIdebProfileFields(item: DebtorWorkflowIdebUpload) {
   const identity = getIdebIdentityRecord(item);
   const birthInfo = [
     idebText(identity, ["birth_place"]),
@@ -3377,47 +3485,55 @@ function IdebProfileSection({ item }: { item: DebtorWorkflowIdebUpload }) {
     .filter(Boolean)
     .join(", ");
 
+  return [
+    {
+      label: "Nama Lengkap",
+      value:
+        idebText(identity, ["name"]) ??
+        item.summary_detail?.debtor_name ??
+        item.debtor?.name,
+    },
+    {
+      label: "Sektor Usaha",
+      value: idebText(identity, ["business_field", "business_field_code"]),
+    },
+    { label: "Tempat / Tanggal Lahir", value: birthInfo || "-" },
+    { label: "Alamat Terakhir", value: address || "-" },
+    {
+      label: "Pekerjaan Utama",
+      value: idebText(identity, ["occupation", "occupation_code", "workplace"]),
+    },
+    {
+      label: "Nomor Telp",
+      value: idebText(identity, [
+        "phone",
+        "mobile_phone",
+        "telephone",
+        "phone_number",
+        "nomor_telp",
+        "nomorTelp",
+      ]),
+    },
+    {
+      label: "NIK",
+      value:
+        idebText(identity, ["identity_number"]) ??
+        item.summary_detail?.identity_number ??
+        item.debtor?.identity_number,
+    },
+    { label: "Jenis Kelamin", value: idebText(identity, ["gender"]) },
+  ];
+}
+
+function IdebProfileSection({ item }: { item: DebtorWorkflowIdebUpload }) {
+  const profileFields = getIdebProfileFields(item);
+
   return (
     <SectionCard title="Profil Pokok Debitur">
       <div className="grid gap-4 md:grid-cols-2">
-        <InfoItem
-          label="Nama Lengkap"
-          value={
-            idebText(identity, ["name"]) ??
-            item.summary_detail?.debtor_name ??
-            item.debtor?.name
-          }
-        />
-        <InfoItem
-          label="Sektor Usaha"
-          value={idebText(identity, ["business_field", "business_field_code"])}
-        />
-        <InfoItem label="Tempat / Tanggal Lahir" value={birthInfo || "-"} />
-        <InfoItem label="Alamat Terakhir" value={address || "-"} />
-        <InfoItem
-          label="Pekerjaan Utama"
-          value={idebText(identity, ["occupation", "occupation_code", "workplace"])}
-        />
-        <InfoItem
-          label="Nomor Telp"
-          value={idebText(identity, [
-            "phone",
-            "mobile_phone",
-            "telephone",
-            "phone_number",
-            "nomor_telp",
-            "nomorTelp",
-          ])}
-        />
-        <InfoItem
-          label="NIK"
-          value={
-            idebText(identity, ["identity_number"]) ??
-            item.summary_detail?.identity_number ??
-            item.debtor?.identity_number
-          }
-        />
-        <InfoItem label="Jenis Kelamin" value={idebText(identity, ["gender"])} />
+        {profileFields.map((field) => (
+          <InfoItem key={field.label} label={field.label} value={field.value} />
+        ))}
       </div>
     </SectionCard>
   );
@@ -3534,176 +3650,116 @@ function IdebResumeSection({ item }: { item: DebtorWorkflowIdebUpload }) {
 }
 
 function IdebHistoryMatrix({ history }: { history: IdebRecord[] }) {
-  const columns = Array.from(
-    new Map(
-      history
-        .map((entry) => {
-          const monthIndex = idebNumber(entry, ["month_index"]);
-          const period = idebText(entry, ["period_month"]);
-          const key =
-            monthIndex !== null
-              ? String(monthIndex).padStart(2, "0")
-              : period ?? "unknown";
-          return [
-            key,
-            {
-              key,
-              label: period ? idebPeriod(period) : `Bulan ${key}`,
-              order: monthIndex ?? Number.MAX_SAFE_INTEGER,
-            },
-          ] as const;
-        })
-        .filter(([, column]) => column.key !== "unknown"),
-    ).values(),
-  ).sort((a, b) => a.order - b.order || a.key.localeCompare(b.key));
-
-  const groupedRows = Array.from(
+  const rows = Array.from(
     history.reduce(
-      (map, entry) => {
-        const accountNumber =
-          idebText(entry, ["account_number", "no_rekening"]) ?? "-";
-        const reporterName =
-          idebText(entry, ["reporter_name", "reporter_code"]) ?? "-";
-        const rowKey = `${accountNumber}__${reporterName}`;
-        const monthIndex = idebNumber(entry, ["month_index"]);
-        const period = idebText(entry, ["period_month"]);
-        const columnKey =
-          monthIndex !== null
-            ? String(monthIndex).padStart(2, "0")
-            : period ?? "unknown";
+      (map, entry, index) => {
+        const periodValue = idebText(entry, [
+          "period_month",
+          "period",
+          "month_label",
+          "label",
+        ]);
+        const monthIndex =
+          idebNumber(entry, ["month_index", "monthIndex"]) ?? 0;
+        const period =
+          periodValue ||
+          (monthIndex > 0
+            ? `Bulan ${formatNumber(monthIndex)}`
+            : `Periode ${index + 1}`);
+        const collectibility =
+          idebText(entry, ["collectibility", "collectibility_code", "kol"]) ?? "-";
+        const daysPastDue =
+          idebNumber(entry, ["days_past_due", "dpd", "jumlah_hari_tunggakan"]) ?? 0;
+        const sourceCount = Math.max(
+          1,
+          idebNumber(entry, ["source_count", "facility_count", "reporter_count"]) ?? 0,
+        );
+        const rank = getIdebCollectibilityLevel(collectibility) ?? 0;
+        const key =
+          periodValue ||
+          (monthIndex > 0
+            ? `INDEX:${String(monthIndex).padStart(2, "0")}`
+            : `ROW:${index + 1}`);
+        const current = map.get(key);
+        const order = periodValue && /^\d{4}-\d{2}$/.test(periodValue)
+          ? periodValue
+          : String(monthIndex || index + 1).padStart(2, "0");
 
-        const current =
-          map.get(rowKey) ??
-          ({
-            key: rowKey,
-            accountNumber,
-            reporterName,
-            entries: new Map<string, IdebRecord>(),
-          } as {
-            key: string;
-            accountNumber: string;
-            reporterName: string;
-            entries: Map<string, IdebRecord>;
+        if (!current) {
+          map.set(key, {
+            key,
+            period,
+            order,
+            collectibility,
+            daysPastDue,
+            sourceCount,
+            rank,
           });
-
-        if (columnKey !== "unknown") current.entries.set(columnKey, entry);
-        map.set(rowKey, current);
+        } else {
+          if (rank > current.rank) {
+            current.collectibility = collectibility;
+            current.rank = rank;
+          }
+          current.daysPastDue = Math.max(current.daysPastDue, daysPastDue);
+          current.sourceCount += sourceCount;
+        }
         return map;
       },
       new Map<
         string,
         {
           key: string;
-          accountNumber: string;
-          reporterName: string;
-          entries: Map<string, IdebRecord>;
+          period: string;
+          order: string;
+          collectibility: string;
+          daysPastDue: number;
+          sourceCount: number;
+          rank: number;
         }
       >(),
-    ),
-  ).map(([, row]) => row);
-
-  return (
-    <SetupTableCard variant="matrix">
-      <SetupDataTable variant="matrix" density="compact" className="min-w-[1120px]">
-        <SetupDataTableHead>
-          <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-            <SetupDataTableHeaderCell>Fasilitas / Pelapor</SetupDataTableHeaderCell>
-            {columns.map((column) => (
-              <SetupDataTableHeaderCell
-                key={column.key}
-                className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}
-              >
-                {column.label}
-              </SetupDataTableHeaderCell>
-            ))}
-          </SetupDataTableRow>
-        </SetupDataTableHead>
-        <SetupDataTableBody>
-          {groupedRows.map((row) => (
-            <SetupDataTableRow key={row.key} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
-              <SetupDataTableCell>
-                <p className="font-semibold text-gray-900">{row.accountNumber}</p>
-                <p className="mt-1 text-xs text-gray-500">{row.reporterName}</p>
-              </SetupDataTableCell>
-              {columns.map((column) => {
-                const entry = row.entries.get(column.key);
-                const collectibility =
-                  idebText(entry, ["collectibility", "collectibility_code", "kol"]) ??
-                  "-";
-                const dpd = idebNumber(entry, ["days_past_due", "dpd"]);
-
-                return (
-                  <SetupDataTableCell
-                    key={column.key}
-                    className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
-                  >
-                    {entry ? (
-                      <div className="flex flex-col items-center gap-1">
-                        <SetupCollectibilityBadge value={collectibility} />
-                        {dpd !== null ? (
-                          <span className="text-[11px] font-medium text-gray-500">
-                            {formatNumber(dpd)} hari
-                          </span>
-                        ) : null}
-                      </div>
-                    ) : (
-                      "-"
-                    )}
-                  </SetupDataTableCell>
-                );
-              })}
-            </SetupDataTableRow>
-          ))}
-          {groupedRows.length === 0 ? (
-            <SetupDataTableEmptyRow colSpan={Math.max(columns.length + 1, 2)}>
-              Belum ada histori KOL bulanan di hasil IDEB ini.
-            </SetupDataTableEmptyRow>
-          ) : null}
-        </SetupDataTableBody>
-      </SetupDataTable>
-    </SetupTableCard>
-  );
-}
-
-function IdebOtherBprsTable({
-  otherBprs,
-}: {
-  otherBprs: NonNullable<DebtorWorkflowIdebUpload["summary_detail"]>["other_bprs"];
-}) {
-  const rows = Array.isArray(otherBprs) ? otherBprs : [];
+    ).values(),
+  ).sort((a, b) => a.order.localeCompare(b.order));
 
   return (
     <SetupTableCard variant="nested">
-      <SetupDataTable variant="nested" density="compact" className="min-w-[640px]">
+      <SetupDataTable variant="nested" density="compact" className="min-w-[760px]">
         <SetupDataTableHead>
           <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-            <SetupDataTableHeaderCell>Nama Pelapor</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Periode</SetupDataTableHeaderCell>
             <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-              KOL
+              KOL Tertinggi
             </SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
-              Baki Debet
+            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+              DPD Tertinggi
+            </SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+              Sumber Data
             </SetupDataTableHeaderCell>
           </SetupDataTableRow>
         </SetupDataTableHead>
         <SetupDataTableBody>
-          {rows.map((bprs, index) => (
-            <SetupDataTableRow
-              key={`${bprs.name}-${bprs.collectibility}-${index}`}
-              className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
-            >
-              <SetupDataTableCell className="font-semibold">{bprs.name}</SetupDataTableCell>
-              <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                <SetupCollectibilityBadge value={bprs.collectibility} />
+          {rows.map((row) => (
+            <SetupDataTableRow key={row.key} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
+              <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                <p className="font-semibold text-slate-900">{idebPeriod(row.period)}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Rekap seluruh pelapor dan fasilitas bulan ini
+                </p>
               </SetupDataTableCell>
-              <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                {formatCurrency(bprs.outstanding_pokok)}
+              <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                <SetupCollectibilityBadge value={row.collectibility} wrap />
+              </SetupDataTableCell>
+              <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                {row.daysPastDue > 0 ? `${formatNumber(row.daysPastDue)} hari` : "-"}
+              </SetupDataTableCell>
+              <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                {row.sourceCount > 0 ? `${formatNumber(row.sourceCount)} data` : "-"}
               </SetupDataTableCell>
             </SetupDataTableRow>
           ))}
           {rows.length === 0 ? (
-            <SetupDataTableEmptyRow colSpan={3}>
-              Belum ada riwayat pelapor lain di hasil IDEB ini.
+            <SetupDataTableEmptyRow colSpan={4}>
+              Belum ada histori KOL bulanan di hasil IDEB ini.
             </SetupDataTableEmptyRow>
           ) : null}
         </SetupDataTableBody>
@@ -3724,6 +3780,9 @@ function IdebCollateralTable({
         facility: {
           account_number:
             idebText(record, ["account_number", "facility_number", "no_rekening"]) ?? "-",
+          reporter_name:
+            idebText(record, ["reporter_name", "reporter_code"]) ??
+            (idebText(record, ["source"]) === "A01" ? "Data Internal A01" : "-"),
         },
         record,
       }))
@@ -3731,67 +3790,73 @@ function IdebCollateralTable({
 
   return (
     <SetupTableCard variant="nested">
-      <SetupDataTable variant="nested" density="compact" className="min-w-[820px]">
+      <SetupDataTable variant="nested" density="compact" className="min-w-[760px]">
         <SetupDataTableHead>
           <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-            <SetupDataTableHeaderCell>No Fasilitas F01</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Jenis Agunan</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Fasilitas</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Jenis / Bukti</SetupDataTableHeaderCell>
             <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
               Nilai
             </SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Lokasi / Alamat</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Status</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Lokasi</SetupDataTableHeaderCell>
           </SetupDataTableRow>
         </SetupDataTableHead>
         <SetupDataTableBody>
-          {rows.map(({ facility, record }, index) => (
+          {rows.slice(0, 50).map(({ facility, record }, index) => (
             <SetupDataTableRow
               key={`${getIdebFacilityAccount(facility)}-collateral-${index}`}
               className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
             >
-              <SetupDataTableCell>
-                <SetupTableCode>{getIdebFacilityAccount(facility)}</SetupTableCode>
+              <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                <p className="font-semibold text-slate-900">
+                  {display(idebText(facility, ["reporter_name", "reporter_code"]))}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {display(getIdebFacilityAccount(facility))}
+                </p>
               </SetupDataTableCell>
-              <SetupDataTableCell>
-                {display(
-                  idebText(record, [
-                    "collateral_type",
-                    "jenis_agunan",
-                    "jenisAgunan",
-                    "jenis",
-                    "type",
-                  ]),
-                )}
+              <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                <p className="line-clamp-2">
+                  {[
+                    idebText(record, [
+                      "jenisAgunanKet",
+                      "jenis_agunan",
+                      "type",
+                      "collateral_type",
+                    ]),
+                    idebText(record, [
+                      "buktiKepemilikan",
+                      "bukti_kepemilikan",
+                      "ownership_proof",
+                      "proof_number",
+                    ]),
+                  ].filter(Boolean).join(" - ") || "-"}
+                </p>
               </SetupDataTableCell>
               <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                {idebMoney(record, [
-                  "value",
-                  "market_value",
-                  "nilai",
-                  "nilai_agunan",
-                  "nilaiAgunan",
-                ])}
-              </SetupDataTableCell>
-              <SetupDataTableCell>
-                {display(
-                  idebText(record, ["location", "alamat", "address", "lokasi"]),
+                {formatCurrency(
+                  idebNumber(record, [
+                    "nilaiAgunan",
+                    "nilai_agunan",
+                    "value",
+                    "independent_appraisal_value",
+                    "appraisal_value",
+                    "market_value",
+                  ]) ?? 0,
                 )}
               </SetupDataTableCell>
-              <SetupDataTableCell>
-                {display(
-                  idebText(record, [
-                    "status",
-                    "condition",
-                    "keterangan",
-                    "description",
-                  ]),
-                )}
+              <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                <p className="line-clamp-2">
+                  {display(
+                    idebText(record, ["location", "alamat", "address", "lokasi"]),
+                  )}
+                </p>
               </SetupDataTableCell>
             </SetupDataTableRow>
           ))}
           {rows.length === 0 ? (
-            <SetupDataTableEmptyRow colSpan={5}>
-              Belum ada data agunan di hasil IDEB ini.
+            <SetupDataTableEmptyRow colSpan={4}>
+              Data agunan tidak tersedia.
             </SetupDataTableEmptyRow>
           ) : null}
         </SetupDataTableBody>
@@ -3805,31 +3870,41 @@ function IdebGuarantorTable({ facilities }: { facilities: IdebRecord[] }) {
 
   return (
     <SetupTableCard variant="nested">
-      <SetupDataTable variant="nested" density="compact" className="min-w-[760px]">
+      <SetupDataTable variant="nested" density="compact" className="min-w-[680px]">
         <SetupDataTableHead>
           <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-            <SetupDataTableHeaderCell>No Fasilitas F01</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Nama Penjamin</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Fasilitas</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Penjamin</SetupDataTableHeaderCell>
             <SetupDataTableHeaderCell>No Identitas</SetupDataTableHeaderCell>
-            <SetupDataTableHeaderCell>Jenis / Hubungan</SetupDataTableHeaderCell>
             <SetupDataTableHeaderCell>Alamat</SetupDataTableHeaderCell>
           </SetupDataTableRow>
         </SetupDataTableHead>
         <SetupDataTableBody>
-          {rows.map(({ facility, record }, index) => (
+          {rows.slice(0, 50).map(({ facility, record }, index) => (
             <SetupDataTableRow
               key={`${getIdebFacilityAccount(facility)}-guarantor-${index}`}
               className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
             >
-              <SetupDataTableCell>
-                <SetupTableCode>{getIdebFacilityAccount(facility)}</SetupTableCode>
+              <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                <p className="font-semibold text-slate-900">
+                  {display(idebText(facility, ["reporter_name", "reporter_code"]))}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {display(getIdebFacilityAccount(facility))}
+                </p>
               </SetupDataTableCell>
-              <SetupDataTableCell className="font-semibold">
+              <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
                 {display(
-                  idebText(record, ["name", "nama", "nama_penjamin", "namaPenjamin"]),
+                  idebText(record, [
+                    "name",
+                    "nama",
+                    "guarantor_name",
+                    "nama_penjamin",
+                    "namaPenjamin",
+                  ]),
                 )}
               </SetupDataTableCell>
-              <SetupDataTableCell>
+              <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
                 {display(
                   idebText(record, [
                     "identity_number",
@@ -3839,24 +3914,16 @@ function IdebGuarantorTable({ facilities }: { facilities: IdebRecord[] }) {
                   ]),
                 )}
               </SetupDataTableCell>
-              <SetupDataTableCell>
-                {display(
-                  idebText(record, [
-                    "type",
-                    "jenis",
-                    "relationship",
-                    "hubungan",
-                  ]),
-                )}
-              </SetupDataTableCell>
-              <SetupDataTableCell>
-                {display(idebText(record, ["address", "alamat"]))}
+              <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                <p className="line-clamp-2">
+                  {display(idebText(record, ["address", "alamat"]))}
+                </p>
               </SetupDataTableCell>
             </SetupDataTableRow>
           ))}
           {rows.length === 0 ? (
-            <SetupDataTableEmptyRow colSpan={5}>
-              Belum ada data penjamin di hasil IDEB ini.
+            <SetupDataTableEmptyRow colSpan={4}>
+              Data penjamin tidak tersedia pada file IDEB ini.
             </SetupDataTableEmptyRow>
           ) : null}
         </SetupDataTableBody>
@@ -3884,7 +3951,7 @@ function IdebComparisonTable({
 }) {
   return (
     <SetupTableCard variant="nested">
-      <SetupDataTable variant="portfolio" density="compact" className="min-w-[1180px]">
+      <SetupDataTable variant="nested" density="compact" className="min-w-[1040px]">
         <SetupDataTableHead>
           <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
             <SetupDataTableHeaderCell>Status</SetupDataTableHeaderCell>
@@ -3906,7 +3973,7 @@ function IdebComparisonTable({
             const differences =
               item.differences.length > 0
                 ? item.differences.map((difference) => difference.label).join(", ")
-                : "-";
+                : "Sesuai";
 
             return (
               <SetupDataTableRow
@@ -3922,15 +3989,14 @@ function IdebComparisonTable({
                 <SetupDataTableCell>
                   {external ? (
                     <>
-                      <SetupTableCode>{external.account_number ?? "-"}</SetupTableCode>
-                      <p className="mt-2 line-clamp-2 font-semibold text-gray-900">
-                        {display(external.product)}
-                      </p>
-                      <p className="mt-1 line-clamp-1 text-xs text-gray-500">
-                        {display(external.akad)}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-500">
+                      <p className="font-semibold text-slate-900">
                         {display(external.reporter)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {display(external.account_number)}
+                      </p>
+                      <p className="mt-2 line-clamp-2 text-sm text-slate-700">
+                        {display(external.product)}
                       </p>
                     </>
                   ) : (
@@ -3940,14 +4006,14 @@ function IdebComparisonTable({
                 <SetupDataTableCell>
                   {internal ? (
                     <>
-                      <SetupTableCode>
-                        {internal.facility_number ?? internal.no_kontrak ?? "-"}
-                      </SetupTableCode>
-                      <p className="mt-2 line-clamp-2 font-semibold text-gray-900">
-                        {display(internal.product)}
+                      <p className="font-semibold text-slate-900">
+                        {display(internal.no_kontrak)}
                       </p>
-                      <p className="mt-1 line-clamp-1 text-xs text-gray-500">
-                        {display(internal.akad)}
+                      <p className="mt-1 text-xs text-slate-500">
+                        {display(internal.facility_number)}
+                      </p>
+                      <p className="mt-2 line-clamp-2 text-sm text-slate-700">
+                        {display(internal.product)}
                       </p>
                     </>
                   ) : (
@@ -3967,14 +4033,14 @@ function IdebComparisonTable({
                 </SetupDataTableCell>
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                   <div className="space-y-1">
-                    <p>{formatOptionalCurrency(external?.outstanding)}</p>
-                    <p className="text-xs text-gray-500">
-                      Internal: {formatOptionalCurrency(internal?.outstanding)}
+                    <p>{formatCurrency(external?.outstanding)}</p>
+                    <p className="text-xs text-slate-500">
+                      Internal: {formatCurrency(internal?.outstanding)}
                     </p>
                   </div>
                 </SetupDataTableCell>
                 <SetupDataTableCell>
-                  <span className="line-clamp-2 text-sm text-gray-600" title={differences}>
+                  <span className="line-clamp-2 text-sm text-slate-700" title={differences}>
                     {differences}
                   </span>
                 </SetupDataTableCell>
@@ -4012,11 +4078,27 @@ function IdebTab({
   const [isLoadingComparison, setIsLoadingComparison] = useState(false);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
   const [exportingIdebId, setExportingIdebId] = useState<string | null>(null);
+  const [facilityFilter, setFacilityFilter] = useState<IdebFacilityFilter>("ALL");
   const idebRowActivationRef = useRef<DoubleRowActivationState | null>(null);
   const { showToast } = useAppToast();
   const latestIdeb = useMemo(() => getLatestIdebItem(items), [items]);
-  const selectedFacilities = selectedIdeb ? getIdebFacilities(selectedIdeb) : [];
-  const selectedHistory = selectedIdeb ? getIdebMonthlyHistory(selectedIdeb) : [];
+  const selectedFacilities = useMemo(
+    () => (selectedIdeb ? getIdebFacilities(selectedIdeb) : []),
+    [selectedIdeb],
+  );
+  const filteredFacilities = useMemo(
+    () => filterIdebFacilities(selectedFacilities, facilityFilter),
+    [facilityFilter, selectedFacilities],
+  );
+  const selectedHistory = useMemo(
+    () => (selectedIdeb ? getIdebMonthlyHistory(selectedIdeb) : []),
+    [selectedIdeb],
+  );
+
+  const openIdebDetail = (item: DebtorWorkflowIdebUpload) => {
+    setFacilityFilter("ALL");
+    setSelectedIdeb(item);
+  };
 
   useEffect(() => {
     let ignore = false;
@@ -4124,7 +4206,7 @@ function IdebTab({
           <SetupDataTableBody>
             {items.map((item, index) => {
               const resume = getIdebResume(item);
-              const activateRow = () => setSelectedIdeb(item);
+              const activateRow = () => openIdebDetail(item);
               const actionItems: SetupActionMenuItem[] = [
                 {
                   key: "detail",
@@ -4260,62 +4342,68 @@ function IdebTab({
         }
       >
         {selectedIdeb ? (
-          <div className="space-y-6">
-            <div className="flex justify-end">
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <SetupStatusBadge
                 status={selectedIdeb.debtor_id ? "Terhubung" : "Belum Terhubung"}
               />
+              <div className="text-sm font-semibold text-slate-500">
+                {idebDate(
+                  selectedIdeb.summary_detail?.result_date ??
+                    selectedIdeb.summary_detail?.processed_at,
+                )}
+              </div>
             </div>
             <IdebCreditReviewSummary item={selectedIdeb} />
 
-            <SectionCard title="Perbandingan dengan F01 Internal">
+            <IdebCreditPositionTable
+              facilities={filteredFacilities}
+              facilityFilter={facilityFilter}
+              onFacilityFilterChange={setFacilityFilter}
+            />
+
+            <IdebModalSection title="Histori KOL">
+              <IdebHistoryMatrix history={selectedHistory} />
+            </IdebModalSection>
+
+            <IdebModalSection title="Perbandingan dengan F01 Internal">
               <div className="mb-4 grid gap-3 md:grid-cols-4">
-                <IdebMetricCard label="Cocok">
+                <IdebCreditMetricCard label="Cocok">
                   {formatNumber(comparison?.summary.matched ?? 0)}
-                </IdebMetricCard>
-                <IdebMetricCard label="Beda Data">
+                </IdebCreditMetricCard>
+                <IdebCreditMetricCard label="Beda Data">
                   {formatNumber(comparison?.summary.different ?? 0)}
-                </IdebMetricCard>
-                <IdebMetricCard label="Fasilitas Eksternal">
+                </IdebCreditMetricCard>
+                <IdebCreditMetricCard label="Fasilitas Eksternal">
                   {formatNumber(comparison?.summary.external_only ?? 0)}
-                </IdebMetricCard>
-                <IdebMetricCard label="Internal Tidak Muncul">
+                </IdebCreditMetricCard>
+                <IdebCreditMetricCard label="Internal Tidak Muncul">
                   {formatNumber(comparison?.summary.internal_only ?? 0)}
-                </IdebMetricCard>
+                </IdebCreditMetricCard>
               </div>
               <IdebComparisonTable
                 comparison={comparison}
                 isLoading={isLoadingComparison}
                 error={comparisonError}
               />
-            </SectionCard>
+            </IdebModalSection>
 
-            <SectionCard title="Histori KOL">
-              <IdebHistoryMatrix history={selectedHistory} />
-            </SectionCard>
-
-            {selectedFacilities.length === 0 ? (
-              <SectionCard title="Riwayat Pelapor">
-                <IdebOtherBprsTable otherBprs={selectedIdeb.summary_detail?.other_bprs ?? []} />
-              </SectionCard>
-            ) : null}
-
-            <SectionCard title="Agunan">
+            <IdebModalSection title="Agunan">
               <IdebCollateralTable
                 facilities={selectedFacilities}
                 collaterals={selectedIdeb.report_summary?.collaterals ?? []}
               />
-            </SectionCard>
+            </IdebModalSection>
 
-            <SectionCard title="Penjamin">
+            <IdebModalSection title="Penjamin">
               <IdebGuarantorTable facilities={selectedFacilities} />
-            </SectionCard>
+            </IdebModalSection>
 
-            <SectionCard title="Kesimpulan">
-              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm font-semibold leading-6 text-gray-900">
+            <IdebModalSection title="Kesimpulan">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-900">
                 {selectedIdeb.summary_detail?.conclusion ?? "-"}
               </div>
-            </SectionCard>
+            </IdebModalSection>
 
           </div>
         ) : null}
@@ -4350,7 +4438,7 @@ function HistorisKolTab({ items }: { items: DebtorWorkflowCollectibility[] }) {
               </SetupDataTableCell>
               <SetupDataTableCell>{periodLabel(item.period_month)}</SetupDataTableCell>
               <SetupDataTableCell>{item.contract_number}</SetupDataTableCell>
-              <SetupDataTableCell>
+              <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
                 <SetupCollectibilityBadge
                   value={item.code ?? item.name ?? "-"}
                   label={item.name ?? item.code ?? "-"}

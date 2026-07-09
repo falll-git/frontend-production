@@ -268,23 +268,36 @@ function facilityCollateralSummary(facility: IdebRecord) {
 }
 
 function reporterBreakdown(item: DebtorIdebReportUpload) {
-  const stats = asRecord(item.summary_detail?.summary);
-  const buckets = [
-    ["Bank Umum", numberValue(stats, ["bank_creditor_count"])],
-    ["BPR/BPRS", numberValue(stats, ["bpr_bprs_creditor_count"])],
-    ["Lembaga Pembiayaan", numberValue(stats, ["lp_creditor_count"])],
-    ["Lainnya", numberValue(stats, ["other_creditor_count"])],
-  ].filter((entry): entry is [string, number] => Number(entry[1]) > 0);
-  if (buckets.length > 0) {
-    return buckets.map(([label, value]) => `${formatNumber(value)} ${label}`).join(", ");
-  }
-
-  const reporters = item.report_summary?.priority_reporters ?? [];
-  if (reporters.length === 0) return "-";
-  const reporterCount = item.report_summary?.reporter_count ?? item.reporter_count;
-  const extraCount = Math.max(reporterCount - reporters.length, 0);
-  return `${reporters
-    .map((reporter, index) => `${index + 1}) ${reporter.reporter_name}`)
+  const canonicalReporterNames =
+    item.report_summary?.priority_reporters
+      .map((reporter) => reporter.reporter_name)
+      .filter((name): name is string => Boolean(name)) ?? [];
+  const reporterNames =
+    canonicalReporterNames.length > 0
+      ? canonicalReporterNames
+      : Array.from(
+          new Set(
+            getFacilities(item)
+              .map((facility) =>
+                textValue(facility, [
+                  "reporter_name",
+                  "reporter_code",
+                  "ljk",
+                  "bank",
+                ]),
+              )
+              .filter((name): name is string => Boolean(name)),
+          ),
+        );
+  if (reporterNames.length === 0) return "-";
+  const reporterCount =
+    item.report_summary?.reporter_count ??
+    item.reporter_count ??
+    reporterNames.length;
+  const visibleReporters = reporterNames.slice(0, 10);
+  const extraCount = Math.max(reporterCount - visibleReporters.length, 0);
+  return `${visibleReporters
+    .map((reporter, index) => `${index + 1}) ${reporter}`)
     .join("  ")}${extraCount > 0 ? `  +${formatNumber(extraCount)} lembaga lainnya` : ""}`;
 }
 
@@ -331,40 +344,69 @@ function getHistoryRows(summary: DebtorIdebSummaryDetail | null | undefined) {
         .map((entry) => asRecord(entry))
         .filter((entry): entry is IdebRecord => entry !== null)
     : [];
-  const periodSet = new Set<string>();
   const rowMap = new Map<
     string,
     {
       key: string;
-      reporter: string;
-      accountNumber: string;
-      periods: Map<string, string>;
+      period: string;
+      order: string;
+      collectibility: string;
+      daysPastDue: number;
+      sourceCount: number;
+      rank: number;
     }
   >();
 
   entries.forEach((entry, index) => {
+    const periodValue = textValue(entry, [
+      "period_month",
+      "period",
+      "month_label",
+      "label",
+    ]);
+    const monthIndex = numberValue(entry, ["month_index", "monthIndex"]);
     const period =
-      textValue(entry, ["period_month", "period", "month_label", "label"]) ||
-      `Periode ${index + 1}`;
-    const reporter = textValue(entry, ["reporter_name", "reporter", "reporter_code"]) || "-";
-    const accountNumber = textValue(entry, ["account_number", "no_rekening", "noRekening"]) || "-";
+      periodValue ||
+      (monthIndex > 0 ? `Bulan ${formatNumber(monthIndex)}` : `Periode ${index + 1}`);
     const collectibility = textValue(entry, ["collectibility", "collectibility_code", "kol"]) || "-";
-    const key = `${reporter}|${accountNumber}`;
-    periodSet.add(period);
-    if (!rowMap.has(key)) {
+    const daysPastDue = numberValue(entry, ["days_past_due", "dpd", "jumlah_hari_tunggakan"]);
+    const sourceCount = Math.max(
+      1,
+      numberValue(entry, ["source_count", "facility_count", "reporter_count"]),
+    );
+    const rank = facilityCollectibilityLevel(collectibility) ?? 0;
+    const key =
+      periodValue ||
+      (monthIndex > 0
+        ? `INDEX:${String(monthIndex).padStart(2, "0")}`
+        : `ROW:${index + 1}`);
+    const current = rowMap.get(key);
+    if (!current) {
       rowMap.set(key, {
         key,
-        reporter,
-        accountNumber,
-        periods: new Map(),
+        period,
+        order: periodValue && /^\d{4}-\d{2}$/.test(periodValue)
+          ? periodValue
+          : String(monthIndex || index + 1).padStart(2, "0"),
+        collectibility,
+        daysPastDue,
+        sourceCount,
+        rank,
       });
+    } else {
+      if (rank > current.rank) {
+        current.collectibility = collectibility;
+        current.rank = rank;
+      }
+      current.daysPastDue = Math.max(current.daysPastDue, daysPastDue);
+      current.sourceCount += sourceCount;
     }
-    rowMap.get(key)?.periods.set(period, collectibility);
   });
 
   return {
-    periods: Array.from(periodSet).slice(-24),
-    rows: Array.from(rowMap.values()).slice(0, 60),
+    rows: Array.from(rowMap.values())
+      .sort((left, right) => left.order.localeCompare(right.order))
+      .slice(-24),
   };
 }
 
@@ -435,15 +477,31 @@ function summaryMetric(item: DebtorIdebReportUpload | null) {
 }
 
 function filterFacilities(facilities: IdebRecord[], filter: FacilityFilter) {
-  if (filter === "ACTIVE") return facilities.filter((facility) => !isPaidOffFacility(facility));
-  if (filter === "PAID_OFF") return facilities.filter(isPaidOffFacility);
-  if (filter === "PROBLEM") {
-    return facilities.filter((facility) => {
-      const kol = display(textValue(facility, ["collectibility", "collectibility_code", "kol"]));
-      return isWriteOffFacility(facility) || /^5\b|KOL\s*5/i.test(kol);
-    });
+  if (filter === "ACTIVE") {
+    return sortFacilitiesByRisk(
+      facilities.filter(
+        (facility) => !isPaidOffFacility(facility) && !isWriteOffFacility(facility),
+      ),
+    );
   }
-  if (filter === "ARREARS") return facilities.filter((facility) => facilityArrears(facility) > 0);
+  if (filter === "PAID_OFF") {
+    return sortFacilitiesByRisk(facilities.filter(isPaidOffFacility));
+  }
+  if (filter === "PROBLEM") {
+    return sortFacilitiesByRisk(
+      facilities.filter((facility) => {
+        const kol = display(
+          textValue(facility, ["collectibility", "collectibility_code", "kol"]),
+        );
+        return isWriteOffFacility(facility) || /^5\b|KOL\s*5/i.test(kol);
+      }),
+    );
+  }
+  if (filter === "ARREARS") {
+    return sortFacilitiesByRisk(
+      facilities.filter((facility) => facilityArrears(facility) > 0),
+    );
+  }
   return sortFacilitiesByRisk(facilities);
 }
 
@@ -899,9 +957,28 @@ export default function DebtorIdebReportClient() {
                     formatDate(textValue(identity, ["birth_date"])),
                   ].filter((value) => value && value !== "-").join(" / ")}
                 />
-                <InfoItem label="Alamat Terakhir" value={textValue(identity, ["address"])} />
+                <InfoItem
+                  label="Alamat Terakhir"
+                  value={[
+                    textValue(identity, ["address"]),
+                    textValue(identity, ["village"]),
+                    textValue(identity, ["district"]),
+                    textValue(identity, ["city", "city_code"]),
+                    textValue(identity, ["postal_code"]),
+                  ].filter(Boolean).join(", ")}
+                />
                 <InfoItem label="Pekerjaan Utama" value={textValue(identity, ["occupation", "occupation_code", "workplace"])} />
-                <InfoItem label="Nomor Telp" value={textValue(identity, ["phone", "mobile_phone", "nomor_telp"])} />
+                <InfoItem
+                  label="Nomor Telp"
+                  value={textValue(identity, [
+                    "phone",
+                    "mobile_phone",
+                    "telephone",
+                    "phone_number",
+                    "nomor_telp",
+                    "nomorTelp",
+                  ])}
+                />
                 <InfoItem label="NIK" value={selected.identity_number ?? selected.summary_detail?.identity_number} />
                 <InfoItem label="Jenis Kelamin" value={textValue(identity, ["gender"])} />
               </div>
@@ -955,6 +1032,12 @@ export default function DebtorIdebReportClient() {
                 <span className="font-semibold text-slate-900">
                   Jumlah Lembaga Pembuat Pelaporan/Kreditur:
                 </span>{" "}
+                {selectedMetric.reporterCount > 0 ? (
+                  <>
+                    {formatNumber(selectedMetric.reporterCount)} lembaga
+                    <span className="mx-2 text-slate-300">|</span>
+                  </>
+                ) : null}
                 {reporterBreakdown(selected)}
               </div>
               {(selected.report_summary?.data_quality_warnings.length ?? 0) > 0 ? (
@@ -1087,39 +1170,43 @@ export default function DebtorIdebReportClient() {
 
             <SectionCard title="Histori KOL">
               <SetupTableCard variant="nested">
-                <SetupDataTable variant="nested" density="compact" className="min-w-[960px]">
+                <SetupDataTable variant="nested" density="compact" className="min-w-[760px]">
                   <SetupDataTableHead>
                     <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-                      <SetupDataTableHeaderCell>Pelapor / Fasilitas</SetupDataTableHeaderCell>
-                      {historyMatrix.periods.map((period) => (
-                        <SetupDataTableHeaderCell
-                          key={period}
-                          className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}
-                        >
-                          {period}
-                        </SetupDataTableHeaderCell>
-                      ))}
+                      <SetupDataTableHeaderCell>Periode</SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                        KOL Tertinggi
+                      </SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                        DPD Tertinggi
+                      </SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                        Sumber Data
+                      </SetupDataTableHeaderCell>
                     </SetupDataTableRow>
                   </SetupDataTableHead>
                   <SetupDataTableBody>
                     {historyMatrix.rows.map((row) => (
                       <SetupDataTableRow key={row.key} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
                         <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
-                          <p className="font-semibold text-slate-900">{row.reporter}</p>
-                          <p className="mt-1 text-xs text-slate-500">{row.accountNumber}</p>
+                          <p className="font-semibold text-slate-900">{formatPeriod(row.period)}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Rekap seluruh pelapor dan fasilitas bulan ini
+                          </p>
                         </SetupDataTableCell>
-                        {historyMatrix.periods.map((period) => (
-                          <SetupDataTableCell
-                            key={`${row.key}-${period}`}
-                            className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
-                          >
-                            <SetupCollectibilityBadge value={row.periods.get(period)} wrap />
-                          </SetupDataTableCell>
-                        ))}
+                        <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                          <SetupCollectibilityBadge value={row.collectibility} wrap />
+                        </SetupDataTableCell>
+                        <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                          {row.daysPastDue > 0 ? `${formatNumber(row.daysPastDue)} hari` : "-"}
+                        </SetupDataTableCell>
+                        <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                          {row.sourceCount > 0 ? `${formatNumber(row.sourceCount)} data` : "-"}
+                        </SetupDataTableCell>
                       </SetupDataTableRow>
                     ))}
                     {historyMatrix.rows.length === 0 ? (
-                      <SetupDataTableEmptyRow colSpan={Math.max(historyMatrix.periods.length + 1, 2)}>
+                      <SetupDataTableEmptyRow colSpan={4}>
                         Histori kolektibilitas belum tersedia pada file IDEB ini.
                       </SetupDataTableEmptyRow>
                     ) : null}
@@ -1338,10 +1425,25 @@ export default function DebtorIdebReportClient() {
                             <p className="mt-1 text-xs text-slate-500">{display(accountNumber)}</p>
                           </SetupDataTableCell>
                           <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
-                            {display(textValue(guarantor, ["name", "nama", "guarantor_name"]))}
+                            {display(
+                              textValue(guarantor, [
+                                "name",
+                                "nama",
+                                "guarantor_name",
+                                "nama_penjamin",
+                                "namaPenjamin",
+                              ]),
+                            )}
                           </SetupDataTableCell>
                           <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
-                            {display(textValue(guarantor, ["identity_number", "noIdentitas", "no_identitas"]))}
+                            {display(
+                              textValue(guarantor, [
+                                "identity_number",
+                                "noIdentitas",
+                                "no_identitas",
+                                "nik",
+                              ]),
+                            )}
                           </SetupDataTableCell>
                           <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
                             <p className="line-clamp-2">
