@@ -28,7 +28,6 @@ import {
   Building2,
   CalendarDays,
   CheckCheck,
-  ChevronRight,
   Edit2,
   FileText,
   History,
@@ -59,6 +58,9 @@ import Pagination from "@/components/ui/Pagination";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupViewButton from "@/components/ui/SetupViewButton";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
+import SetupReportSelectorCards, {
+  type SetupReportSelectorCard,
+} from "@/components/ui/SetupReportSelectorCards";
 import SetupSelect from "@/components/ui/SetupSelect";
 import SetupTextInput from "@/components/ui/SetupTextInput";
 import SetupTextarea from "@/components/ui/SetupTextarea";
@@ -187,21 +189,7 @@ type DetailState =
       record: MemorandumRecord;
     };
 
-interface SummaryRow {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-}
-
-interface SummaryCardConfig {
-  kind: ReportKind;
-  title: string;
-  icon: LucideIcon;
-  totalLabel: string;
-  totalValue: number;
-  ctaLabel: string;
-  infoRows: SummaryRow[];
-}
+type SummaryCardConfig = SetupReportSelectorCard<ReportKind>;
 
 interface ActiveSectionConfig {
   title: string;
@@ -3450,78 +3438,12 @@ export default function LaporanPersuratanClient() {
 
   return (
     <div className="mt-6 space-y-6">
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-        {summaryCards.map((card, index) => {
-          const Icon = card.icon;
-          const isActive = activeKind === card.kind;
-
-          return (
-            <button
-              key={card.kind}
-              type="button"
-              onClick={() => handleSelectCard(card.kind)}
-              className={`group rounded-lg border bg-white p-6 text-left shadow-sm transition-colors duration-150 ${
-                isActive
-                  ? "border-blue-200 ring-2 ring-blue-100"
-                  : "border-gray-100 hover:border-blue-200"
-              }`}
-              style={{ animationDelay: `${index * 0.08}s` }}
-            >
-              <div className="mb-6 flex items-start justify-between pl-2 pr-4">
-                <div className="flex min-w-0 flex-1 items-center gap-4">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center text-gray-900 transition-colors [&_svg]:h-7 [&_svg]:w-7">
-                    <Icon aria-hidden="true" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-lg font-bold text-gray-900">
-                      {card.title}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex w-28 shrink-0 flex-col items-end text-right">
-                  <span className="mb-1 text-xs font-semibold uppercase leading-tight tracking-wider text-gray-400">
-                    {card.totalLabel}
-                  </span>
-                  <span className="text-xl font-semibold tabular-nums text-gray-800">
-                    {card.totalValue}
-                  </span>
-                </div>
-              </div>
-
-              <div className="overflow-hidden rounded-lg bg-gray-50">
-                {card.infoRows.map((row, index) => {
-                  const RowIcon = row.icon;
-
-                  return (
-                    <div key={`${card.kind}-${row.label}`}>
-                      {index > 0 ? (
-                        <div className="h-px w-full bg-gray-200" />
-                      ) : null}
-                      <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                        <span className="flex min-w-0 items-center gap-3 text-gray-600">
-                          <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-gray-500">
-                            <RowIcon className="h-4 w-4" aria-hidden="true" />
-                          </span>
-                          <span className="truncate">{row.label}</span>
-                        </span>
-                        <span className="min-w-[2.5rem] text-right font-semibold tabular-nums text-gray-800">
-                          {row.value}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-6 flex items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-gray-900 transition-colors group-hover:bg-[rgba(21,126,195,0.06)]">
-                <span>{card.ctaLabel}</span>
-                <ChevronRight className="h-5 w-5" aria-hidden="true" />
-              </div>
-            </button>
-          );
-        })}
-      </div>
+      <SetupReportSelectorCards
+        cards={summaryCards}
+        activeKey={activeKind}
+        onSelect={handleSelectCard}
+        gridClassName="grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3"
+      />
 
       <div ref={reportRef}>
         {!activeConfig ? (

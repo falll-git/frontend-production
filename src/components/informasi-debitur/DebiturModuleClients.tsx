@@ -13,9 +13,12 @@ import {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  AlertTriangle,
+  Banknote,
   BarChart3,
   BriefcaseBusiness,
   Building2,
+  CalendarX2,
   ClipboardList,
   Download,
   Eye,
@@ -23,6 +26,7 @@ import {
   FileCheck2,
   FolderInput,
   FolderOpen,
+  Link2Off,
   Pencil,
   PieChart,
   RefreshCw,
@@ -66,6 +70,7 @@ import {
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import SetupFormSection from "@/components/ui/SetupFormSection";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
+import SetupReportSelectorCards from "@/components/ui/SetupReportSelectorCards";
 import SetupSelect from "@/components/ui/SetupSelect";
 import SetupStatusBadge, {
   type SetupStatusTone,
@@ -7099,13 +7104,19 @@ export function DebtorReportClient() {
     portfolio: {
       totalLabel: "TOTAL DEBITUR",
       totalValue: overview.portfolio?.total_debtors ?? 0,
-      rows: [
-        { label: "Aktif", value: formatNumber(overview.portfolio?.active_debtors ?? 0) },
+      infoRows: [
         {
+          icon: FileCheck2,
+          label: "Aktif",
+          value: formatNumber(overview.portfolio?.active_debtors ?? 0),
+        },
+        {
+          icon: BriefcaseBusiness,
           label: "Fasilitas",
           value: formatNumber(overview.portfolio?.total_facilities ?? 0),
         },
         {
+          icon: Banknote,
           label: "Total OS",
           value: formatCurrency(overview.portfolio?.total_outstanding ?? 0),
         },
@@ -7114,16 +7125,19 @@ export function DebtorReportClient() {
     facilities: {
       totalLabel: "TOTAL FASILITAS",
       totalValue: overview.facilities?.total_facilities ?? 0,
-      rows: [
+      infoRows: [
         {
+          icon: FileCheck2,
           label: "Aktif",
           value: formatNumber(overview.facilities?.active_facilities ?? 0),
         },
         {
+          icon: AlertTriangle,
           label: "KOL 3-5",
           value: formatNumber(overview.facilities?.npf_facilities ?? 0),
         },
         {
+          icon: Banknote,
           label: "Baki Debet",
           value: formatCurrency(overview.facilities?.total_outstanding ?? 0),
         },
@@ -7132,16 +7146,19 @@ export function DebtorReportClient() {
     collaterals: {
       totalLabel: "TOTAL AGUNAN",
       totalValue: overview.collaterals?.total_collaterals ?? 0,
-      rows: [
+      infoRows: [
         {
+          icon: FileCheck2,
           label: "Terhubung",
           value: formatNumber(overview.collaterals?.linked_collaterals ?? 0),
         },
         {
+          icon: Link2Off,
           label: "Belum Link",
           value: formatNumber(overview.collaterals?.unlinked_collaterals ?? 0),
         },
         {
+          icon: Banknote,
           label: "Nilai Pasar",
           value: formatCurrency(overview.collaterals?.total_market_value ?? 0),
         },
@@ -7150,20 +7167,24 @@ export function DebtorReportClient() {
     completeness: {
       totalLabel: "TOTAL ISU",
       totalValue: overview.completeness?.total_issues ?? 0,
-      rows: [
+      infoRows: [
         {
+          icon: Users,
           label: "Debitur tanpa F01",
           value: formatNumber(overview.completeness?.debtors_without_facilities ?? 0),
         },
         {
+          icon: BriefcaseBusiness,
           label: "Fasilitas tanpa A01",
           value: formatNumber(overview.completeness?.facilities_without_collaterals ?? 0),
         },
         {
+          icon: Link2Off,
           label: "Agunan belum link",
           value: formatNumber(overview.completeness?.unlinked_collaterals ?? 0),
         },
         {
+          icon: CalendarX2,
           label: "Tanpa periode",
           value: formatNumber(overview.completeness?.missing_slik_period ?? 0),
         },
@@ -7172,6 +7193,20 @@ export function DebtorReportClient() {
   });
 
   const reportCards = buildReportCards();
+  const reportSelectorCards = debtorReportOrder.map((kind) => {
+    const config = debtorReportDefinitions[kind];
+    const card = reportCards[kind];
+
+    return {
+      kind,
+      title: config.title,
+      icon: config.icon,
+      totalLabel: card.totalLabel,
+      totalValue: card.totalValue,
+      ctaLabel: config.ctaLabel,
+      infoRows: card.infoRows,
+    };
+  });
 
   const exportRowsForActiveReport = async () => {
     const exportLimit = 100;
@@ -7322,78 +7357,14 @@ export function DebtorReportClient() {
         subtitle="Portofolio data SLIK debitur, fasilitas F01, agunan A01, dan kelengkapan relasinya."
         icon={<BarChart3 />}
       />
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600 shadow-sm">
-        <div>
-          <p className="font-semibold text-gray-900">Workspace laporan operasional</p>
-          <p className="mt-1">
-            Data ditarik dari relasi D01/D02, F01, dan A01 tanpa mengubah raw code SLIK.
-          </p>
-        </div>
-        <SetupStatusBadge status={scopeLabel} tone="slate" showIcon={false} />
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {debtorReportOrder.map((kind) => {
-          const config = debtorReportDefinitions[kind];
-          const Icon = config.icon;
-          const card = reportCards[kind];
-          const isActive = activeReport === kind;
-
-          return (
-            <button
-              key={kind}
-              type="button"
-              onClick={() => {
-                setActiveReport(kind);
-                setPage(1);
-              }}
-              className={`group flex min-h-[210px] min-w-0 flex-col rounded-lg border bg-white p-5 text-left shadow-sm transition ${
-                isActive
-                  ? "border-blue-200 ring-2 ring-blue-100"
-                  : "border-gray-200 hover:border-gray-300 hover:shadow-md"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <Icon className="h-7 w-7 text-slate-700" aria-hidden="true" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold uppercase tracking-[0.12em] text-slate-500">
-                      {card.totalLabel}
-                    </p>
-                    <p className="mt-1 break-words text-2xl font-black text-slate-900">
-                      {typeof card.totalValue === "number"
-                        ? formatNumber(card.totalValue)
-                        : card.totalValue}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4 rounded-lg bg-slate-50 p-3">
-                <p className="font-semibold text-slate-900">{config.title}</p>
-                <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-500">
-                  {config.description}
-                </p>
-                <div className="mt-3 space-y-2">
-                  {card.rows.map((row) => (
-                    <div
-                      key={row.label}
-                      className="flex min-w-0 items-start justify-between gap-3 text-sm"
-                    >
-                      <span className="min-w-0 break-words text-slate-500">{row.label}</span>
-                      <span className="min-w-0 max-w-[62%] break-words text-right font-bold text-slate-900">
-                        {row.value}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <span className="mt-auto pt-4 text-sm font-bold text-blue-700">
-                {config.ctaLabel}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <SetupReportSelectorCards
+        cards={reportSelectorCards}
+        activeKey={activeReport}
+        onSelect={(kind) => {
+          setActiveReport(kind);
+          setPage(1);
+        }}
+      />
 
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-50 px-5 py-4">
@@ -7405,6 +7376,7 @@ export function DebtorReportClient() {
             </div>
           </div>
           <div className="flex flex-wrap justify-end gap-3">
+            <SetupStatusBadge status={scopeLabel} tone="slate" showIcon={false} />
             <SetupExcelButton
               loading={isExporting}
               onClick={() => void exportRowsForActiveReport()}

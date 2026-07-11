@@ -6,12 +6,15 @@ import {
   Activity,
   Banknote,
   Building2,
+  ChevronDown,
   ClipboardList,
   Eye,
   FileArchive,
   FileCheck2,
+  FilePlus2,
   FileText,
   Landmark,
+  Monitor,
   Pencil,
   Save,
   ShieldCheck,
@@ -56,7 +59,9 @@ import SearchableSelect from "@/components/ui/SearchableSelect";
 import SetupFormSection from "@/components/ui/SetupFormSection";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupSelect from "@/components/ui/SetupSelect";
-import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
+import SetupStatusBadge, {
+  type SetupStatusTone,
+} from "@/components/ui/SetupStatusBadge";
 import SetupTextarea from "@/components/ui/SetupTextarea";
 import SetupTextInput from "@/components/ui/SetupTextInput";
 import SetupFilePreviewGroup from "@/components/ui/SetupFilePreviewGroup";
@@ -247,6 +252,12 @@ const LEGAL_AUDIT_ENTITY_OPTIONS: Option[] = [
   { value: "LEGAL_CLAIM", label: "Klaim Asuransi" },
   { value: "LEGAL_DEPOSIT", label: "Dana Titipan" },
   { value: "LEGAL_DEPOSIT_TRANSACTION", label: "Transaksi Titipan" },
+];
+
+const LEGAL_AUDIT_SOURCE_OPTIONS: Option[] = [
+  { value: "MANUAL", label: "Manual" },
+  { value: "IMPORT", label: "Import" },
+  { value: "SYSTEM", label: "Sistem" },
 ];
 
 const thirdPartyService = createParameterMasterService("/third-parties");
@@ -2660,58 +2671,576 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
   );
 }
 
-function formatAuditSnapshotValue(value: unknown) {
-  if (value === null || value === undefined || value === "") return "-";
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return String(value);
+type AuditActionMeta = {
+  badgeLabel: string;
+  modalSuffix: string;
+  tone: SetupStatusTone;
+  icon: LucideIcon;
+};
+
+type AuditDisplayEntry = {
+  key: string;
+  label: string;
+  value: string;
+};
+
+type AuditChangeEntry = {
+  key: string;
+  label: string;
+  before: string;
+  after: string;
+};
+
+const AUDIT_FIELD_LABELS: Record<string, string> = {
+  type: "Jenis Dana Titipan",
+  status: "Status",
+  action: "Jenis Transaksi",
+  amount: "Nominal",
+  nominal: "Nominal Titipan",
+  paid_amount: "Total Pembayaran",
+  processed_amount: "Total Diproses",
+  remaining_amount: "Saldo Tersisa",
+  transaction_date: "Tanggal Transaksi",
+  notes: "Catatan",
+  deed_type: "Jenis Akta",
+  deed_number: "Nomor Akta",
+  received_at: "Tanggal Diterima",
+  estimated_completed_at: "Estimasi Selesai",
+  completed_at: "Tanggal Selesai",
+  insurance_type: "Jenis Asuransi",
+  coverage_amount: "Nilai Pertanggungan",
+  premium_amount: "Nilai Premi",
+  period_start: "Periode Mulai",
+  period_end: "Periode Berakhir",
+  policy_number: "Nomor Polis",
+  appraisal_type: "Jenis Penilaian",
+  report_number: "Nomor Laporan",
+  collateral_object: "Objek Agunan",
+  appraisal_value: "Nilai Penilaian",
+  claim_type: "Jenis Klaim",
+  claim_amount: "Nilai Klaim",
+  submitted_at: "Tanggal Pengajuan",
+  approved_amount: "Nilai Disetujui",
+  disbursed_amount: "Nilai Pencairan",
+  disbursed_at: "Tanggal Pencairan",
+  rejection_reason: "Alasan Penolakan",
+  file_name: "File Pendukung",
+};
+
+const AUDIT_HIDDEN_FIELDS = new Set([
+  "id",
+  "file_name",
+  "file_path",
+  "contract_id",
+  "collateral_id",
+  "third_party_id",
+  "deposit_id",
+  "deposit_type_id",
+  "insurance_progress_id",
+]);
+
+const AUDIT_CURRENCY_FIELDS = new Set([
+  "amount",
+  "nominal",
+  "paid_amount",
+  "processed_amount",
+  "remaining_amount",
+  "coverage_amount",
+  "premium_amount",
+  "appraisal_value",
+  "claim_amount",
+  "approved_amount",
+  "disbursed_amount",
+]);
+
+const AUDIT_DATE_FIELDS = new Set([
+  "transaction_date",
+  "received_at",
+  "estimated_completed_at",
+  "completed_at",
+  "period_start",
+  "period_end",
+  "submitted_at",
+  "disbursed_at",
+]);
+
+function getAuditActionMeta(action: string | null | undefined): AuditActionMeta {
+  switch (String(action || "").toUpperCase()) {
+    case "CREATE":
+      return {
+        badgeLabel: "Data Ditambahkan",
+        modalSuffix: "Dibuat",
+        tone: "emerald",
+        icon: FilePlus2,
+      };
+    case "UPDATE":
+      return {
+        badgeLabel: "Data Diubah",
+        modalSuffix: "Diubah",
+        tone: "blue",
+        icon: Pencil,
+      };
+    case "DELETE":
+      return {
+        badgeLabel: "Data Dihapus",
+        modalSuffix: "Dihapus",
+        tone: "red",
+        icon: Trash2,
+      };
+    default:
+      return {
+        badgeLabel: "Aktivitas Tercatat",
+        modalSuffix: "Tercatat",
+        tone: "slate",
+        icon: Activity,
+      };
   }
+}
+
+function getAuditEntityLabel(entityType: string | null | undefined) {
+  return optionLabel(LEGAL_AUDIT_ENTITY_OPTIONS, entityType);
+}
+
+function getAuditSourceLabel(source: string | null | undefined) {
+  return optionLabel(LEGAL_AUDIT_SOURCE_OPTIONS, source);
+}
+
+function getAuditText(data: Record<string, unknown> | null, key: string) {
+  const value = data?.[key];
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return null;
+}
+
+function getAuditNumber(data: Record<string, unknown> | null, key: string) {
+  const value = data?.[key];
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function humanizeAuditCode(value: unknown) {
+  return String(value || "")
+    .trim()
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function formatAuditSnapshotValue(key: string, value: unknown) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (AUDIT_CURRENCY_FIELDS.has(key)) {
+    const parsed = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(parsed) ? formatCurrency(parsed) : "-";
+  }
+  if (AUDIT_DATE_FIELDS.has(key)) return formatDateOnly(String(value));
+  if (key === "action") {
+    return optionLabel(DEPOSIT_TRANSACTION_ACTION_OPTIONS, String(value));
+  }
+  if (key === "status" || key === "type") return humanizeAuditCode(value);
+  if (typeof value === "boolean") return value ? "Ya" : "Tidak";
+  if (typeof value === "string" || typeof value === "number") return String(value);
   return JSON.stringify(value);
 }
 
-function AuditSnapshotBox({
-  title,
-  data,
-}: {
-  title: string;
-  data: Record<string, unknown> | null;
-}) {
-  const entries = Object.entries(data ?? {});
+function getAuditDisplayEntries(
+  data: Record<string, unknown> | null,
+): AuditDisplayEntry[] {
+  return Object.entries(data ?? {})
+    .filter(([key]) => !AUDIT_HIDDEN_FIELDS.has(key))
+    .map(([key, value]) => ({
+      key,
+      label: AUDIT_FIELD_LABELS[key] ?? humanizeAuditCode(key),
+      value: formatAuditSnapshotValue(key, value),
+    }));
+}
+
+function getAuditChangeEntries(
+  before: Record<string, unknown> | null,
+  after: Record<string, unknown> | null,
+): AuditChangeEntry[] {
+  const keys = Array.from(
+    new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})]),
+  );
+
+  return keys
+    .filter((key) => !AUDIT_HIDDEN_FIELDS.has(key))
+    .filter((key) => JSON.stringify(before?.[key] ?? null) !== JSON.stringify(after?.[key] ?? null))
+    .map((key) => ({
+      key,
+      label: AUDIT_FIELD_LABELS[key] ?? humanizeAuditCode(key),
+      before: formatAuditSnapshotValue(key, before?.[key]),
+      after: formatAuditSnapshotValue(key, after?.[key]),
+    }));
+}
+
+function getAuditFile(data: Record<string, unknown> | null): DebtorFileMeta | null {
+  const url = getAuditText(data, "file_path");
+  const name = getAuditText(data, "file_name");
+  if (!url && !name) return null;
+  return {
+    name,
+    url,
+    mime_type: null,
+    size_bytes: null,
+  };
+}
+
+function buildAuditDescription(item: LegalActivityLog) {
+  const actorName = item.actor?.name || item.actor?.username || "User sistem";
+  const entityLabel = getAuditEntityLabel(item.entity_type).toLowerCase();
+  const action = String(item.action || "").toUpperCase();
+  const snapshot = item.after_data ?? item.before_data;
+  const contractNumber = item.contract?.no_kontrak;
+  const debtorName = item.contract?.debtor?.name;
+  const context = contractNumber
+    ? ` untuk kontrak ${contractNumber}${debtorName ? ` atas nama ${debtorName}` : ""}`
+    : debtorName
+      ? ` untuk nasabah ${debtorName}`
+      : "";
+
+  if (item.entity_type === "LEGAL_DEPOSIT_TRANSACTION" && action === "CREATE") {
+    const transactionType = optionLabel(
+      DEPOSIT_TRANSACTION_ACTION_OPTIONS,
+      getAuditText(snapshot, "action"),
+    ).toLowerCase();
+    const amount = getAuditNumber(snapshot, "amount");
+    return `${actorName} mencatat transaksi ${transactionType}${amount !== null ? ` sebesar ${formatCurrency(amount)}` : ""}${context}.`;
+  }
+
+  if (action === "UPDATE") {
+    const beforeStatus = item.before_data?.status;
+    const afterStatus = item.after_data?.status;
+    if (beforeStatus !== afterStatus && afterStatus !== undefined) {
+      return `${actorName} mengubah status ${entityLabel} dari ${formatAuditSnapshotValue("status", beforeStatus)} menjadi ${formatAuditSnapshotValue("status", afterStatus)}${context}.`;
+    }
+    return `${actorName} memperbarui ${entityLabel}${context}.`;
+  }
+
+  if (action === "DELETE") return `${actorName} menghapus ${entityLabel}${context}.`;
+  if (action === "CREATE") return `${actorName} menambahkan ${entityLabel}${context}.`;
+  return `${actorName} melakukan aktivitas pada ${entityLabel}${context}.`;
+}
+
+function buildAuditModalTitle(item: LegalActivityLog | null) {
+  if (!item) return "Detail Audit Aktivitas";
+  return `${getAuditEntityLabel(item.entity_type)} ${getAuditActionMeta(item.action).modalSuffix}`;
+}
+
+function parseAuditUserAgent(userAgent: string | null | undefined) {
+  const value = String(userAgent || "");
+  const version = (pattern: RegExp) => value.match(pattern)?.[1]?.split(".")[0] ?? "";
+  const device = /iPad|Tablet/i.test(value)
+    ? "Tablet"
+    : /Mobile|iPhone|Android/i.test(value)
+      ? "Mobile"
+      : value
+        ? "Desktop"
+        : "-";
+  const operatingSystem = /Windows NT/i.test(value)
+    ? "Windows"
+    : /Android[ /]([\d.]+)/i.test(value)
+      ? `Android ${value.match(/Android[ /]([\d.]+)/i)?.[1] ?? ""}`.trim()
+      : /iPhone OS ([\d_]+)/i.test(value)
+        ? `iOS ${(value.match(/iPhone OS ([\d_]+)/i)?.[1] ?? "").replace(/_/g, ".")}`.trim()
+        : /Mac OS X ([\d_]+)/i.test(value)
+          ? `macOS ${(value.match(/Mac OS X ([\d_]+)/i)?.[1] ?? "").replace(/_/g, ".")}`.trim()
+          : /Linux/i.test(value)
+            ? "Linux"
+            : value
+              ? "Tidak teridentifikasi"
+              : "-";
+
+  let browserName = "-";
+  if (/Edg\//i.test(value)) browserName = `Microsoft Edge ${version(/Edg\/([\d.]+)/i)}`.trim();
+  else if (/OPR\//i.test(value)) browserName = `Opera ${version(/OPR\/([\d.]+)/i)}`.trim();
+  else if (/Chrome\//i.test(value)) browserName = `Chrome ${version(/Chrome\/([\d.]+)/i)}`.trim();
+  else if (/Firefox\//i.test(value)) browserName = `Firefox ${version(/Firefox\/([\d.]+)/i)}`.trim();
+  else if (/Safari\//i.test(value)) browserName = `Safari ${version(/Version\/([\d.]+)/i)}`.trim();
+  else if (value) browserName = "Tidak teridentifikasi";
+
+  return { device, operatingSystem, browserName };
+}
+
+function AuditMetaItem({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="min-w-0 px-4 py-3">
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
+        {label}
+      </dt>
+      <dd className="mt-1 break-words text-sm font-semibold text-gray-900">{value}</dd>
+    </div>
+  );
+}
+
+function AuditActivityOverview({ item }: { item: LegalActivityLog }) {
+  const actionMeta = getAuditActionMeta(item.action);
+  const ActionIcon = actionMeta.icon;
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4">
-      <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-gray-500">
-        {title}
-      </h3>
-      {entries.length > 0 ? (
-        <div className="mt-3 grid gap-2 md:grid-cols-2">
-          {entries.map(([key, value]) => (
-            <div key={key} className="rounded-md border border-gray-100 bg-gray-50 px-3 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-gray-500">
-                {key.replace(/_/g, " ")}
-              </p>
-              <p className="mt-1 break-words text-sm font-semibold text-gray-900">
-                {formatAuditSnapshotValue(value)}
-              </p>
+    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="flex flex-col gap-3 border-b border-gray-100 bg-gray-50/70 p-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-sky-100 bg-sky-50 text-sky-700">
+            <ActionIcon className="h-5 w-5" aria-hidden="true" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+              Ringkasan Aktivitas
+            </p>
+            <p className="mt-1 text-sm font-semibold leading-6 text-gray-900">
+              {buildAuditDescription(item)}
+            </p>
+          </div>
+        </div>
+        <SetupStatusBadge
+          status={actionMeta.badgeLabel}
+          label={actionMeta.badgeLabel}
+          tone={actionMeta.tone}
+          icon={actionMeta.icon}
+          wrap
+        />
+      </div>
+      <dl className="grid divide-y divide-gray-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4">
+        <AuditMetaItem
+          label="Pelaku"
+          value={
+            <span>
+              {item.actor?.name || item.actor?.username || "User sistem"}
+              {item.actor?.username && item.actor.username !== item.actor.name ? (
+                <span className="mt-0.5 block text-xs font-medium text-gray-500">
+                  @{item.actor.username}
+                </span>
+              ) : null}
+            </span>
+          }
+        />
+        <AuditMetaItem label="Divisi" value={item.actor?.division_name || "-"} />
+        <AuditMetaItem label="Waktu" value={formatDateTime(item.created_at)} />
+        <AuditMetaItem label="Sumber" value={getAuditSourceLabel(item.source)} />
+      </dl>
+      <dl className="grid border-t border-gray-100 sm:grid-cols-2 lg:grid-cols-4">
+        <AuditMetaItem label="Jenis Data" value={getAuditEntityLabel(item.entity_type)} />
+        <AuditMetaItem label="Kontrak" value={item.contract?.no_kontrak || "-"} />
+        <AuditMetaItem label="Nasabah" value={item.contract?.debtor?.name || "-"} />
+        <AuditMetaItem
+          label="Pihak Ketiga"
+          value={getRecordText(item.third_party, "name") || "-"}
+        />
+      </dl>
+    </section>
+  );
+}
+
+function AuditSnapshotSection({
+  title,
+  description,
+  data,
+  onPreview,
+}: {
+  title: string;
+  description: string;
+  data: Record<string, unknown> | null;
+  onPreview: (file: DebtorFileMeta) => void;
+}) {
+  const entries = getAuditDisplayEntries(data);
+  const file = getAuditFile(data);
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="border-b border-gray-100 px-4 py-3">
+        <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-gray-600">{title}</h3>
+        <p className="mt-1 text-sm text-gray-500">{description}</p>
+      </div>
+      {entries.length > 0 || file ? (
+        <dl className="divide-y divide-gray-100">
+          {entries.map((entry) => (
+            <div
+              key={entry.key}
+              className="grid gap-1 px-4 py-3 sm:grid-cols-[190px_minmax(0,1fr)] sm:items-start sm:gap-4"
+            >
+              <dt className="text-xs font-semibold uppercase tracking-[0.06em] text-gray-500">
+                {entry.label}
+              </dt>
+              <dd className="break-words text-sm font-semibold text-gray-900">{entry.value}</dd>
             </div>
           ))}
-        </div>
+          {file ? (
+            <div className="grid gap-2 px-4 py-3 sm:grid-cols-[190px_minmax(0,1fr)] sm:items-center sm:gap-4">
+              <dt className="text-xs font-semibold uppercase tracking-[0.06em] text-gray-500">
+                File Pendukung
+              </dt>
+              <dd>
+                <SetupFilePreviewGroup file={file} align="start" onOpen={onPreview} />
+              </dd>
+            </div>
+          ) : null}
+        </dl>
       ) : (
-        <p className="mt-3 rounded-md border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-500">
-          Tidak ada snapshot.
+        <p className="px-4 py-5 text-sm font-medium text-gray-500">
+          Tidak ada detail data yang dapat ditampilkan.
         </p>
       )}
     </section>
   );
 }
 
+function AuditChangeSection({
+  item,
+  onPreview,
+}: {
+  item: LegalActivityLog;
+  onPreview: (file: DebtorFileMeta) => void;
+}) {
+  const changes = getAuditChangeEntries(item.before_data, item.after_data);
+  const beforeFile = getAuditFile(item.before_data);
+  const afterFile = getAuditFile(item.after_data);
+  const fileChanged =
+    beforeFile?.url !== afterFile?.url || beforeFile?.name !== afterFile?.name;
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="border-b border-gray-100 px-4 py-3">
+        <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-gray-600">
+          Perubahan Data
+        </h3>
+        <p className="mt-1 text-sm text-gray-500">
+          Hanya field yang benar-benar berubah yang ditampilkan.
+        </p>
+      </div>
+      {changes.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+            <thead className="bg-gray-50 text-xs uppercase tracking-[0.06em] text-gray-500">
+              <tr>
+                <th className="px-4 py-3 font-semibold">Data</th>
+                <th className="px-4 py-3 font-semibold">Sebelum</th>
+                <th className="px-4 py-3 font-semibold">Sesudah</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {changes.map((change) => (
+                <tr key={change.key}>
+                  <th className="px-4 py-3 font-semibold text-gray-700">{change.label}</th>
+                  <td className="break-words px-4 py-3 text-gray-600">{change.before}</td>
+                  <td className="break-words px-4 py-3 font-semibold text-gray-900">{change.after}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="px-4 py-5 text-sm font-medium text-gray-500">
+          Tidak ada perubahan field utama yang tercatat.
+        </p>
+      )}
+      {fileChanged ? (
+        <div className="grid gap-2 border-t border-gray-100 px-4 py-3 sm:grid-cols-[190px_minmax(0,1fr)_minmax(0,1fr)] sm:items-center sm:gap-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.06em] text-gray-500">
+            File Pendukung
+          </p>
+          <div>
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400">
+              Sebelum
+            </p>
+            <p className="break-words text-sm text-gray-600">{beforeFile?.name || "-"}</p>
+          </div>
+          <div>
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-400">
+              Sesudah
+            </p>
+            {afterFile ? (
+              <SetupFilePreviewGroup file={afterFile} align="start" onOpen={onPreview} />
+            ) : (
+              <p className="text-sm font-semibold text-gray-900">-</p>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function AuditActionDataSection({
+  item,
+  onPreview,
+}: {
+  item: LegalActivityLog;
+  onPreview: (file: DebtorFileMeta) => void;
+}) {
+  const action = String(item.action || "").toUpperCase();
+  if (action === "CREATE") {
+    return (
+      <AuditSnapshotSection
+        title="Data yang Ditambahkan"
+        description="Data berikut tercatat otomatis saat aktivitas dilakukan."
+        data={item.after_data}
+        onPreview={onPreview}
+      />
+    );
+  }
+  if (action === "DELETE") {
+    return (
+      <AuditSnapshotSection
+        title="Data Sebelum Dihapus"
+        description="Snapshot terakhir sebelum data dihapus dari proses aktif."
+        data={item.before_data}
+        onPreview={onPreview}
+      />
+    );
+  }
+  return <AuditChangeSection item={item} onPreview={onPreview} />;
+}
+
+function AuditDeviceAndSystem({ item }: { item: LegalActivityLog }) {
+  const device = parseAuditUserAgent(item.user_agent);
+  const references = [
+    { label: "ID Aktivitas", value: item.id },
+    { label: "ID Data", value: item.entity_id },
+    { label: "ID Dana Titipan", value: item.deposit_id },
+    { label: "ID Transaksi", value: item.deposit_transaction_id },
+  ].filter((entry) => Boolean(entry.value));
+
+  return (
+    <details className="group overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 text-sm font-bold text-gray-800 marker:hidden">
+        <Monitor className="h-5 w-5 text-sky-700" aria-hidden="true" />
+        <span>Informasi Perangkat &amp; Sistem</span>
+        <span className="ms-auto text-xs font-medium text-gray-400">Opsional</span>
+        <ChevronDown
+          className="h-4 w-4 text-gray-400 transition-transform group-open:rotate-180"
+          aria-hidden="true"
+        />
+      </summary>
+      <div className="border-t border-gray-100">
+        <dl className="grid divide-y divide-gray-100 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          <AuditMetaItem label="Perangkat" value={device.device} />
+          <AuditMetaItem label="Sistem Operasi" value={device.operatingSystem} />
+          <AuditMetaItem label="Browser" value={device.browserName} />
+        </dl>
+        {references.length > 0 ? (
+          <dl className="grid border-t border-gray-100 sm:grid-cols-2">
+            {references.map((reference) => (
+              <AuditMetaItem key={reference.label} label={reference.label} value={reference.value || "-"} />
+            ))}
+          </dl>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
 function LegalActivityLogSection() {
   const { showToast } = useAppToast();
+  const { openPreview } = useDocumentPreviewContext();
   const [items, setItems] = useState<LegalActivityLog[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [action, setAction] = useState("");
   const [entityType, setEntityType] = useState("");
+  const [source, setSource] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [detailTarget, setDetailTarget] = useState<LegalActivityLog | null>(null);
 
@@ -2724,6 +3253,9 @@ function LegalActivityLogSection() {
         search,
         action,
         entity_type: entityType,
+        source,
+        date_from: dateFrom,
+        date_to: dateTo,
       });
       setItems(result.items);
       setMeta(result.meta);
@@ -2732,17 +3264,37 @@ function LegalActivityLogSection() {
     } finally {
       setIsLoading(false);
     }
-  }, [action, entityType, page, search, showToast]);
+  }, [action, dateFrom, dateTo, entityType, page, search, showToast, source]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const rightFilters = (
-    <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[420px]">
+  const openAuditFile = useCallback(
+    (file: DebtorFileMeta) => openFile(file.url, file.name, openPreview),
+    [openPreview],
+  );
+
+  const handleDateFromChange = (value: string) => {
+    setPage(1);
+    setDateFrom(value);
+    if (value && dateTo && value > dateTo) setDateTo("");
+  };
+
+  const handleDateToChange = (value: string) => {
+    if (value && dateFrom && value < dateFrom) {
+      showToast("Tanggal akhir tidak boleh lebih awal dari tanggal mulai", "error");
+      return;
+    }
+    setPage(1);
+    setDateTo(value);
+  };
+
+  const selectFilters = (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       <div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
-          Aksi
+          Aktivitas
         </p>
         <SetupSelect
           value={action}
@@ -2778,32 +3330,82 @@ function LegalActivityLogSection() {
           ))}
         </SetupSelect>
       </div>
+      <div>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+          Sumber
+        </p>
+        <SetupSelect
+          value={source}
+          onChange={(event) => {
+            setPage(1);
+            setSource(event.target.value);
+          }}
+        >
+          <option value="">Semua Sumber</option>
+          {LEGAL_AUDIT_SOURCE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </SetupSelect>
+      </div>
     </div>
   );
 
   return (
     <section className="space-y-4">
-      <SearchCard
-        label="Cari Audit"
-        placeholder="Cari user, kontrak, debitur, pihak ketiga, atau ringkasan aktivitas..."
-        search={search}
-        onSearch={(value) => {
-          setPage(1);
-          setSearch(value);
-        }}
-        right={rightFilters}
-      />
+      <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} space-y-4`}>
+        <div className="grid gap-4 xl:grid-cols-[minmax(320px,1.4fr)_minmax(0,2fr)] xl:items-end">
+          <SetupSearchInput
+            id="legal-audit-search"
+            label="Cari Audit"
+            value={search}
+            placeholder="Cari user, kontrak, debitur, pihak ketiga, atau ringkasan aktivitas..."
+            onChange={(event) => {
+              setPage(1);
+              setSearch(event.target.value);
+            }}
+          />
+          {selectFilters}
+        </div>
+
+        <div className="border-t border-gray-100 pt-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:ml-auto xl:max-w-[560px]">
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+                Dari Tanggal
+              </p>
+              <BasicDateInput
+                value={dateFrom}
+                placeholder="Pilih tanggal mulai"
+                aria-label="Tanggal mulai audit"
+                onChange={handleDateFromChange}
+              />
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+                Sampai Tanggal
+              </p>
+              <BasicDateInput
+                value={dateTo}
+                placeholder="Pilih tanggal akhir"
+                aria-label="Tanggal akhir audit"
+                onChange={handleDateToChange}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
 
       <SetupTableCard variant="workflow">
-        <SetupDataTable variant="workflow" density="compact" className="min-w-[1120px]">
+        <SetupDataTable variant="workflow" density="compact" className="min-w-[1040px]">
           <SetupDataTableHead>
             <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Waktu</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>User</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Aksi</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Jenis Data</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Kontrak / Debitur</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Pelaku</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Aktivitas</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Kontrak / Nasabah</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Ringkasan</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
             </SetupDataTableRow>
@@ -2813,6 +3415,7 @@ function LegalActivityLogSection() {
               <SetupDataTableRow
                 key={item.id}
                 className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer`}
+                title="Double-click untuk melihat detail aktivitas"
                 onDoubleClick={() => setDetailTarget(item)}
               >
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
@@ -2823,12 +3426,26 @@ function LegalActivityLogSection() {
                   <SetupTablePrimaryText>
                     {item.actor?.name || item.actor?.username || "-"}
                   </SetupTablePrimaryText>
-                  <p className="mt-1 text-xs text-gray-500">{item.actor?.email || "-"}</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {[
+                      item.actor?.username ? `@${item.actor.username}` : null,
+                      item.actor?.division_name,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "-"}
+                  </p>
                 </SetupDataTableCell>
                 <SetupDataTableCell>
-                  <SetupStatusBadge status={optionLabel(LEGAL_AUDIT_ACTION_OPTIONS, item.action)} />
+                  <SetupStatusBadge
+                    status={getAuditActionMeta(item.action).badgeLabel}
+                    label={getAuditActionMeta(item.action).badgeLabel}
+                    tone={getAuditActionMeta(item.action).tone}
+                    icon={getAuditActionMeta(item.action).icon}
+                  />
+                  <p className="mt-1 text-xs font-medium text-gray-500">
+                    {getAuditEntityLabel(item.entity_type)}
+                  </p>
                 </SetupDataTableCell>
-                <SetupDataTableCell>{optionLabel(LEGAL_AUDIT_ENTITY_OPTIONS, item.entity_type)}</SetupDataTableCell>
                 <SetupDataTableCell>
                   <SetupTableCode>{item.contract?.no_kontrak ?? "-"}</SetupTableCode>
                   <p className="mt-1 text-xs font-medium text-gray-500">
@@ -2836,8 +3453,8 @@ function LegalActivityLogSection() {
                   </p>
                 </SetupDataTableCell>
                 <SetupDataTableCell>
-                  <p className="max-w-[320px] truncate font-semibold text-gray-900">
-                    {item.title || "-"}
+                  <p className="max-w-[360px] line-clamp-2 font-semibold leading-5 text-gray-900">
+                    {buildAuditDescription(item)}
                   </p>
                   <p className="mt-1 text-xs text-gray-500">
                     {getRecordText(item.third_party, "name") || "Tanpa pihak ketiga"}
@@ -2858,7 +3475,7 @@ function LegalActivityLogSection() {
               </SetupDataTableRow>
             ))}
             {items.length === 0 ? (
-              <SetupDataTableEmptyRow colSpan={8}>
+              <SetupDataTableEmptyRow colSpan={7}>
                 {isLoading ? "Memuat audit aktivitas legal..." : "Belum ada audit aktivitas legal."}
               </SetupDataTableEmptyRow>
             ) : null}
@@ -2876,11 +3493,15 @@ function LegalActivityLogSection() {
 
       <DashboardModal
         isOpen={Boolean(detailTarget)}
-        title="Detail Audit Aktivitas"
-        description={detailTarget?.title ?? undefined}
-        maxWidth="4xl"
+        title={buildAuditModalTitle(detailTarget)}
+        description={
+          detailTarget
+            ? `Tercatat otomatis pada ${formatDateTime(detailTarget.created_at)}`
+            : undefined
+        }
+        maxWidth="3xl"
         onClose={() => setDetailTarget(null)}
-        bodyClassName="max-h-[70vh] overflow-y-auto p-6"
+        bodyClassName="max-h-[72dvh] overflow-y-auto p-5 sm:p-6"
         footer={
           <button
             type="button"
@@ -2892,33 +3513,10 @@ function LegalActivityLogSection() {
         }
       >
         {detailTarget ? (
-          <div className="space-y-5">
-            <LegalDetailSection
-              title="Informasi Aktivitas"
-              rows={[
-                { label: "Waktu", value: formatDateTime(detailTarget.created_at) },
-                { label: "User", value: detailTarget.actor?.name || detailTarget.actor?.username || "-" },
-                { label: "Aksi", value: optionLabel(LEGAL_AUDIT_ACTION_OPTIONS, detailTarget.action) },
-                { label: "Jenis Data", value: optionLabel(LEGAL_AUDIT_ENTITY_OPTIONS, detailTarget.entity_type) },
-                { label: "Kontrak", value: detailTarget.contract?.no_kontrak ?? "-" },
-                { label: "Debitur", value: detailTarget.contract?.debtor?.name ?? "-" },
-                { label: "Pihak Ketiga", value: getRecordText(detailTarget.third_party, "name") || "-" },
-                { label: "Sumber", value: detailTarget.source },
-              ]}
-            />
-            <div className="grid gap-4 lg:grid-cols-2">
-              <AuditSnapshotBox title="Sebelum" data={detailTarget.before_data} />
-              <AuditSnapshotBox title="Sesudah" data={detailTarget.after_data} />
-            </div>
-            <LegalDetailSection
-              title="Jejak Teknis"
-              rows={[
-                { label: "IP", value: detailTarget.request_ip || "-" },
-                { label: "User Agent", value: detailTarget.user_agent || "-" },
-                { label: "Entity ID", value: detailTarget.entity_id || "-" },
-                { label: "Deposit ID", value: detailTarget.deposit_id || "-" },
-              ]}
-            />
+          <div className="space-y-4">
+            <AuditActivityOverview item={detailTarget} />
+            <AuditActionDataSection item={detailTarget} onPreview={openAuditFile} />
+            <AuditDeviceAndSystem item={detailTarget} />
           </div>
         ) : null}
       </DashboardModal>
@@ -2955,41 +3553,26 @@ export function LegalReportClient() {
       label: "Notaris",
       value: data?.notary ?? 0,
       icon: Landmark,
-      accentColor: "#157ec3",
-      accentEndColor: "#0d5a8f",
-      shadowColor: "rgba(21, 126, 195, 0.2)",
     },
     {
       label: "Asuransi",
       value: data?.insurance ?? 0,
       icon: ShieldCheck,
-      accentColor: "#0f766e",
-      accentEndColor: "#0d5f59",
-      shadowColor: "rgba(15, 118, 110, 0.2)",
     },
     {
       label: "KJPP",
       value: data?.kjpp ?? 0,
       icon: Building2,
-      accentColor: "#7c3aed",
-      accentEndColor: "#5b21b6",
-      shadowColor: "rgba(124, 58, 237, 0.2)",
     },
     {
       label: "Klaim",
       value: data?.claims ?? 0,
       icon: FileCheck2,
-      accentColor: "#d97706",
-      accentEndColor: "#b45309",
-      shadowColor: "rgba(217, 119, 6, 0.2)",
     },
     {
       label: "Dana Titipan",
       value: data?.deposits ?? 0,
       icon: Banknote,
-      accentColor: "#6366f1",
-      accentEndColor: "#4f46e5",
-      shadowColor: "rgba(99, 102, 241, 0.2)",
     },
   ];
 
@@ -3001,7 +3584,7 @@ export function LegalReportClient() {
         icon={<Activity />}
       />
 
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
         <div className="grid gap-5 lg:grid-cols-[1fr_2fr] lg:items-center">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-gray-500">
@@ -3015,33 +3598,33 @@ export function LegalReportClient() {
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            {reportSummary.map((item) => {
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6 min-[1800px]:grid-cols-5">
+            {reportSummary.map((item, index) => {
               const Icon = item.icon;
 
               return (
                 <div
                   key={item.label}
-                  className="rounded-2xl border border-gray-100 bg-gray-50/70 p-4 shadow-sm"
+                  className={`rounded-lg border border-gray-100 bg-white p-4 shadow-sm xl:col-span-2 min-[1800px]:col-span-1 ${
+                    index === 3
+                      ? "xl:col-start-2 min-[1800px]:col-start-auto"
+                      : index === 4
+                        ? "xl:col-start-4 min-[1800px]:col-start-auto"
+                        : ""
+                  }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center text-gray-900">
+                        <Icon className="h-7 w-7" strokeWidth={1.8} aria-hidden="true" />
+                      </span>
+                      <p className="min-w-0 text-xs font-semibold uppercase leading-5 tracking-[0.08em] text-gray-500">
                         {item.label}
                       </p>
-                      <p className="mt-2 text-2xl font-bold tabular-nums text-gray-900">
-                        {isLoading ? "-" : item.value}
-                      </p>
                     </div>
-                    <div
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-md"
-                      style={{
-                        background: `linear-gradient(135deg, ${item.accentColor} 0%, ${item.accentEndColor} 100%)`,
-                        boxShadow: `0 10px 20px ${item.shadowColor}`,
-                      }}
-                    >
-                      <Icon className="h-5 w-5 text-white" aria-hidden="true" />
-                    </div>
+                    <p className="shrink-0 text-xl font-semibold tabular-nums text-gray-800">
+                      {isLoading ? "-" : item.value}
+                    </p>
                   </div>
                 </div>
               );

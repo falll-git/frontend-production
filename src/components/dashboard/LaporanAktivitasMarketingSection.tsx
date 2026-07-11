@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, SearchX } from "lucide-react";
 
 import DashboardModal from "@/components/ui/DashboardModal";
+import { useDocumentPreviewContext } from "@/components/ui/DocumentPreviewContext";
 import {
   SetupDataTable,
   SetupDataTableBody,
@@ -14,15 +15,23 @@ import {
   SetupDataTableRow,
 } from "@/components/ui/SetupDataTable";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
+import SetupFilePreviewGroup from "@/components/ui/SetupFilePreviewGroup";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupSelect from "@/components/ui/SetupSelect";
 import SetupStatusBadge, {
   type SetupStatusTone,
 } from "@/components/ui/SetupStatusBadge";
-import SetupViewButton from "@/components/ui/SetupViewButton";
 import { formatDateDisplay } from "@/lib/utils/date";
+import {
+  deriveDocumentFileName,
+  detectDocumentFileType,
+  toPreviewableFileUrl,
+} from "@/lib/utils/file";
 import { debiturService } from "@/services/debitur.service";
-import type { DebtorMarketingReportActivity } from "@/types/debitur.types";
+import type {
+  DebtorFileMeta,
+  DebtorMarketingReportActivity,
+} from "@/types/debitur.types";
 import type { DashboardMenuNode } from "@/types/rbac.types";
 
 type JenisAktivitas = "ACTION_PLAN" | "VISIT_RESULT" | "HANDLING_STEP";
@@ -154,6 +163,7 @@ export default function LaporanAktivitasMarketingSection({
   widget?: DashboardMenuNode;
   showTitle?: boolean;
 }) {
+  const { openPreview } = useDocumentPreviewContext();
   const [selectedAktivitas, setSelectedAktivitas] =
     useState<AktivitasFilter>("SEMUA");
   const [searchTerm, setSearchTerm] = useState("");
@@ -165,6 +175,20 @@ export default function LaporanAktivitasMarketingSection({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeItem, setActiveItem] = useState<AktivitasMarketingItem | null>(
     null,
+  );
+
+  const openFile = useCallback(
+    (file: DebtorFileMeta) => {
+      const url = toPreviewableFileUrl(file.url, file.name);
+      if (!url) return;
+
+      const fileName = deriveDocumentFileName(
+        file.name ?? url,
+        "aktivitas-marketing",
+      );
+      openPreview(url, fileName, detectDocumentFileType(url, fileName));
+    },
+    [openPreview],
   );
 
   useEffect(() => {
@@ -291,7 +315,6 @@ export default function LaporanAktivitasMarketingSection({
                   <SetupDataTableHeaderCell>Ringkasan</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Target</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Status</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell>Aksi</SetupDataTableHeaderCell>
                 </SetupDataTableRow>
               </SetupDataTableHead>
               <SetupDataTableBody>
@@ -340,23 +363,16 @@ export default function LaporanAktivitasMarketingSection({
                       <SetupDataTableCell>
                         <SetupStatusBadge status={item.status} />
                       </SetupDataTableCell>
-                      <SetupDataTableCell>
-                        <SetupViewButton
-                          label="Detail"
-                          title="Lihat detail aktivitas"
-                          onClick={() => setActiveItem(item)}
-                        />
-                      </SetupDataTableCell>
                     </SetupDataTableRow>
                   );
                 })}
                 {isLoading ? (
-                  <SetupDataTableEmptyRow colSpan={7}>
+                  <SetupDataTableEmptyRow colSpan={6}>
                     Memuat aktivitas marketing...
                   </SetupDataTableEmptyRow>
                 ) : null}
                 {!isLoading && errorMessage ? (
-                  <SetupDataTableEmptyRow colSpan={7}>
+                  <SetupDataTableEmptyRow colSpan={6}>
                     {errorMessage}
                   </SetupDataTableEmptyRow>
                 ) : null}
@@ -454,18 +470,14 @@ export default function LaporanAktivitasMarketingSection({
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                 File Pendukung
               </p>
-              {activeItem.source.file?.url ? (
-                <a
-                  href={activeItem.source.file.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 inline-flex items-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-                >
-                  Buka File
-                </a>
-              ) : (
-                <p className="mt-1 text-sm font-medium text-gray-900">-</p>
-              )}
+              <div className="mt-2">
+                <SetupFilePreviewGroup
+                  file={activeItem.source.file}
+                  files={activeItem.source.files}
+                  align="start"
+                  onOpen={openFile}
+                />
+              </div>
             </div>
           </>
         ) : null}

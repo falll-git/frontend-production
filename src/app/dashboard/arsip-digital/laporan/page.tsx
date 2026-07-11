@@ -24,7 +24,6 @@ import {
   BookOpen,
   CalendarClock,
   CalendarDays,
-  ChevronRight,
   CircleDot,
   ClipboardList,
   Eye,
@@ -43,6 +42,9 @@ import SetupActionMenu from "@/components/ui/SetupActionMenu";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupExcelButton from "@/components/ui/SetupExcelButton";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
+import SetupReportSelectorCards, {
+  type SetupReportSelectorCard,
+} from "@/components/ui/SetupReportSelectorCards";
 import SetupSelect from "@/components/ui/SetupSelect";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
 import { useAppToast } from "@/components/ui/AppToastProvider";
@@ -399,21 +401,7 @@ function buildReportQuery({
   return query;
 }
 
-type SummaryRow = {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-};
-
-type SummaryCardConfig = {
-  kind: ReportKind;
-  title: string;
-  icon: LucideIcon;
-  totalLabel: string;
-  totalValue: number;
-  ctaLabel: string;
-  infoRows: SummaryRow[];
-};
+type SummaryCardConfig = SetupReportSelectorCard<ReportKind>;
 
 function getSummaryCards(
   summary: ArsipDigitalReportSummary | null,
@@ -601,101 +589,6 @@ function getSummaryCards(
       ],
     },
   ];
-}
-
-function SummaryCards({
-  cards,
-  activeReport,
-  onSelect,
-}: {
-  cards: SummaryCardConfig[];
-  activeReport: ReportKind | null;
-  onSelect: (value: ReportKind) => void;
-}) {
-  return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-4">
-      {cards.map((card, index) => {
-        const Icon = card.icon;
-        const isActive = activeReport === card.kind;
-
-        return (
-          <button
-            key={card.kind}
-            type="button"
-            onClick={() => onSelect(card.kind)}
-            aria-pressed={isActive}
-            className={joinClasses(
-              "group rounded-lg border bg-white p-6 text-left shadow-sm transition-colors duration-150",
-              isActive
-                ? "border-blue-200 ring-2 ring-blue-100"
-                : "border-gray-100 hover:border-blue-200",
-            )}
-            style={{ animationDelay: `${index * 0.08}s` }}
-          >
-            <div className="mb-6 flex items-start justify-between pl-2 pr-4">
-              <div className="flex min-w-0 flex-1 items-center gap-4">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center text-gray-900 transition-colors [&_svg]:h-7 [&_svg]:w-7">
-                  <Icon aria-hidden="true" strokeWidth={1.8} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-lg font-bold text-gray-900">
-                    {card.title}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex w-28 shrink-0 flex-col items-end text-right">
-                <span className="mb-1 text-xs font-semibold uppercase leading-tight tracking-wider text-gray-400">
-                  {card.totalLabel}
-                </span>
-                <span className="text-xl font-semibold tabular-nums text-gray-800">
-                  {formatNumber(card.totalValue)}
-                </span>
-              </div>
-            </div>
-
-            <div className="overflow-hidden rounded-lg bg-gray-50">
-              {card.infoRows.length > 0 ? (
-                card.infoRows.map((row, rowIndex) => {
-                  const RowIcon = row.icon;
-
-                  return (
-                    <div key={`${card.kind}-${row.label}`}>
-                      {rowIndex > 0 ? (
-                        <div className="h-px w-full bg-gray-200" />
-                      ) : null}
-                      <div className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                        <span className="flex min-w-0 items-center gap-3 text-gray-600">
-                          <span className="flex h-4 w-4 shrink-0 items-center justify-center text-gray-500">
-                            <RowIcon className="h-4 w-4" aria-hidden="true" />
-                          </span>
-                          <span className="min-w-0 leading-5">
-                            {row.label}
-                          </span>
-                        </span>
-                        <span className="min-w-[2.5rem] text-right font-semibold tabular-nums text-gray-800">
-                          {row.value}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="px-4 py-3 text-sm text-gray-500">
-                  Memuat ringkasan...
-                </div>
-              )}
-            </div>
-
-            <div className="mt-6 flex items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-gray-900 transition-colors group-hover:bg-[rgba(21,126,195,0.06)]">
-              <span>{card.ctaLabel}</span>
-              <ChevronRight className="h-5 w-5" aria-hidden="true" />
-            </div>
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 function ReportFilters({
@@ -1861,9 +1754,9 @@ export default function LaporanArsipDigitalPage() {
         icon={<Archive />}
       />
 
-      <SummaryCards
+      <SetupReportSelectorCards
         cards={summaryCards}
-        activeReport={activeReport}
+        activeKey={activeReport}
         onSelect={handleReportChange}
       />
 
