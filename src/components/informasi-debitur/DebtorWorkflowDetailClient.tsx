@@ -41,6 +41,9 @@ import SetupTextarea from "@/components/ui/SetupTextarea";
 import SetupTextInput from "@/components/ui/SetupTextInput";
 import SetupViewButton from "@/components/ui/SetupViewButton";
 import SetupFilePreviewGroup from "@/components/ui/SetupFilePreviewGroup";
+import VisitLocationDetails, {
+  VisitLocationStatusBadge,
+} from "@/components/ui/VisitLocationDetails";
 import {
   SetupDataTable,
   SetupDataTableBody,
@@ -76,6 +79,11 @@ import {
   validateDomainUploadFile,
 } from "@/lib/utils/file";
 import { hasDashboardCapability } from "@/lib/rbac";
+import {
+  getIdebFacilityFilterLabel,
+  IDEB_FACILITY_FILTERS,
+  type IdebFacilityFilter,
+} from "@/lib/ideb-facility-filter";
 import { debiturService } from "@/services/debitur.service";
 import {
   createParameterMasterService,
@@ -2362,6 +2370,12 @@ function SummaryTab({
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <SetupStatusBadge status={statusLabel(entry.status)} />
+          {entry.row_id === "hasil-kunjungan" ? (
+            <VisitLocationStatusBadge
+              latitude={entry.visit_latitude}
+              longitude={entry.visit_longitude}
+            />
+          ) : null}
           {entry.row_id === "action-plan" && linkedLangkah?.date ? (
             <span className="text-xs font-semibold text-sky-700">
               Realisasi {formatDateOnly(linkedLangkah.date)}
@@ -2549,15 +2563,22 @@ function SummaryTab({
               <div className="grid gap-3 md:grid-cols-2">
                 <InfoItem label="Ringkasan" value={selectedEntry.summary} wide />
                 <InfoItem label="Detail" value={selectedEntry.detail} wide />
-                {selectedEntry.visit_address ? (
-                  <InfoItem
-                    label="Alamat Kunjungan"
-                    value={selectedEntry.visit_address}
-                    wide
-                  />
-                ) : null}
               </div>
             </section>
+
+            {selectedEntry.row_id === "hasil-kunjungan" ? (
+              <section>
+                <div className="mb-4 space-y-1">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
+                    Lokasi Kunjungan
+                  </h3>
+                  <p className="text-sm leading-6 text-gray-500">
+                    Alamat manual dan geotag yang direkam saat kunjungan.
+                  </p>
+                </div>
+                <VisitLocationDetails location={selectedEntry} />
+              </section>
+            ) : null}
 
             <section>
               <div className="mb-4 space-y-1">
@@ -2580,15 +2601,6 @@ function SummaryTab({
 }
 
 type IdebRecord = Record<string, unknown>;
-type IdebFacilityFilter = "ALL" | "ACTIVE" | "PAID_OFF" | "PROBLEM" | "ARREARS";
-
-const IDEB_FACILITY_FILTERS: Array<{ value: IdebFacilityFilter; label: string }> = [
-  { value: "ALL", label: "Semua" },
-  { value: "ACTIVE", label: "Aktif" },
-  { value: "PAID_OFF", label: "Lunas" },
-  { value: "PROBLEM", label: "Macet / Hapus Buku" },
-  { value: "ARREARS", label: "Ada Tunggakan" },
-];
 
 function idebRecord(value: unknown): IdebRecord | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -2754,18 +2766,28 @@ function getIdebFacilityDaysPastDue(facility: IdebRecord) {
   return value > 0 ? value : null;
 }
 
-function getIdebFacilityCondition(facility: IdebRecord) {
-  return idebText(facility, ["condition", "condition_code", "status"]) ?? "-";
-}
-
 function isIdebPaidOffFacility(facility: IdebRecord) {
-  const condition = display(getIdebFacilityCondition(facility)).toUpperCase();
-  return condition.includes("LUNAS") || condition.startsWith("02");
+  const code = display(idebText(facility, ["condition_code"])).toUpperCase();
+  const condition = display(idebText(facility, ["condition", "status"])).toUpperCase();
+  return (
+    code === "02" ||
+    condition === "02" ||
+    condition.startsWith("02 ") ||
+    condition.includes("LUNAS")
+  );
 }
 
 function isIdebWriteOffFacility(facility: IdebRecord) {
-  const condition = display(getIdebFacilityCondition(facility)).toUpperCase();
-  return condition.includes("HAPUS") || condition.startsWith("03");
+  const code = display(idebText(facility, ["condition_code"])).toUpperCase();
+  const condition = display(idebText(facility, ["condition", "status"])).toUpperCase();
+  const compact = condition.replace(/[^A-Z0-9]/g, "");
+  return (
+    code === "03" ||
+    condition === "03" ||
+    condition.startsWith("03 ") ||
+    compact.includes("HAPUSBUKU") ||
+    compact.includes("DIHAPUSBUKUKAN")
+  );
 }
 
 function getIdebCollectibilityLevel(value: unknown) {
@@ -2812,10 +2834,11 @@ function filterIdebFacilities(facilities: IdebRecord[], filter: IdebFacilityFilt
   if (filter === "PAID_OFF") return sortIdebFacilitiesByRisk(facilities.filter(isIdebPaidOffFacility));
   if (filter === "PROBLEM") {
     return sortIdebFacilitiesByRisk(
-      facilities.filter((facility) => {
-        const kol = display(getIdebFacilityCollectibility(facility));
-        return isIdebWriteOffFacility(facility) || /^5\b|KOL\s*5/i.test(kol);
-      }),
+      facilities.filter(
+        (facility) =>
+          isIdebWriteOffFacility(facility) ||
+          getIdebCollectibilityLevel(getIdebFacilityCollectibility(facility)) === 5,
+      ),
     );
   }
   if (filter === "ARREARS") {
@@ -3030,22 +3053,32 @@ function getIdebFacilityAkadDate(facility: IdebRecord) {
 function getIdebFacilityCollateralSummary(facility: IdebRecord) {
   const collaterals = idebArray(facility.collaterals);
   if (collaterals.length > 0) {
-    return collaterals
+    const visible = collaterals
       .slice(0, 3)
-      .map((record) =>
-        display(
-          idebText(record, [
-            "collateral_type",
-            "jenis_agunan",
-            "jenisAgunan",
-            "jenis",
-            "type",
-            "description",
-            "keterangan",
-          ]),
-        ),
-      )
-      .join(", ");
+      .map((record) => {
+        const type = idebText(record, [
+          "jenisAgunanKet",
+          "jenis_agunan",
+          "jenisAgunan",
+          "collateral_type",
+          "jenis",
+          "type",
+          "description",
+          "keterangan",
+          "agunanKet",
+        ]);
+        const proof = idebText(record, [
+          "buktiKepemilikan",
+          "bukti_kepemilikan",
+          "ownership_proof",
+          "proof_number",
+        ]);
+        return [type, proof].filter(Boolean).join(" - ");
+      })
+      .filter(Boolean)
+      .join("; ");
+    const remainder = collaterals.length - 3;
+    return `${visible || "-"}${remainder > 0 ? `; +${remainder} agunan lainnya` : ""}`;
   }
 
   return display(
@@ -3056,6 +3089,23 @@ function getIdebFacilityCollateralSummary(facility: IdebRecord) {
       "agunan",
       "guarantee",
     ]),
+  );
+}
+
+function getIdebFacilitiesWorstCollectibility(facilities: IdebRecord[]) {
+  return facilities.reduce<string | number | null>((current, facility) => {
+    const value = getIdebFacilityCollectibility(facility);
+    const level = getIdebCollectibilityLevel(value);
+    const currentLevel = getIdebCollectibilityLevel(current);
+    if (level === null) return current;
+    return currentLevel === null || level > currentLevel ? value : current;
+  }, null);
+}
+
+function getIdebFacilitiesCollateralCount(facilities: IdebRecord[]) {
+  return facilities.reduce(
+    (total, facility) => total + idebArray(facility.collaterals).length,
+    0,
   );
 }
 
@@ -3227,9 +3277,13 @@ function IdebCreditPositionTable({
     (total, facility) => total + getIdebFacilityArrears(facility),
     0,
   );
-  const filterLabel =
-    IDEB_FACILITY_FILTERS.find((filter) => filter.value === facilityFilter)?.label ??
-    "aktif";
+  const worstCollectibility = getIdebFacilitiesWorstCollectibility(facilities);
+  const highestDaysPastDue = facilities.reduce(
+    (highest, facility) => Math.max(highest, getIdebFacilityDaysPastDue(facility) ?? 0),
+    0,
+  );
+  const collateralCount = getIdebFacilitiesCollateralCount(facilities);
+  const filterLabel = getIdebFacilityFilterLabel(facilityFilter);
 
   return (
     <IdebModalSection title="Ringkasan Posisi Fasilitas Kredit">
@@ -3251,7 +3305,8 @@ function IdebCreditPositionTable({
       </div>
       <p className="mb-3 text-sm font-semibold leading-6 text-slate-500">
         Daftar diurutkan dari risiko tertinggi berdasarkan KOL, DPD, tunggakan,
-        dan baki debet.
+        dan baki debet. Filter aktif juga digunakan pada bagian posisi fasilitas
+        di PDF; bagian laporan lainnya tetap menampilkan data lengkap.
       </p>
       <SetupTableCard variant="nested">
         <SetupDataTable variant="nested" density="compact" className="min-w-[1120px]">
@@ -3340,16 +3395,20 @@ function IdebCreditPositionTable({
                   {formatCurrency(totalOutstanding)}
                 </SetupDataTableCell>
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                  -
+                  <SetupCollectibilityBadge value={worstCollectibility} wrap />
                 </SetupDataTableCell>
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                  -
+                  {highestDaysPastDue > 0
+                    ? `${formatNumber(highestDaysPastDue)} hari`
+                    : "-"}
                 </SetupDataTableCell>
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                   {formatCurrency(totalArrears)}
                 </SetupDataTableCell>
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
-                  -
+                  {collateralCount > 0
+                    ? `${formatNumber(collateralCount)} agunan`
+                    : "-"}
                 </SetupDataTableCell>
               </SetupDataTableRow>
             ) : (
@@ -3789,8 +3848,9 @@ function IdebCollateralTable({
     : getIdebFacilityRowsWithNested(facilities, "collaterals");
 
   return (
-    <SetupTableCard variant="nested">
-      <SetupDataTable variant="nested" density="compact" className="min-w-[760px]">
+    <div className="space-y-2">
+      <SetupTableCard variant="nested">
+        <SetupDataTable variant="nested" density="compact" className="min-w-[760px]">
         <SetupDataTableHead>
           <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
             <SetupDataTableHeaderCell>Fasilitas</SetupDataTableHeaderCell>
@@ -3821,8 +3881,13 @@ function IdebCollateralTable({
                     idebText(record, [
                       "jenisAgunanKet",
                       "jenis_agunan",
-                      "type",
+                      "jenisAgunan",
                       "collateral_type",
+                      "jenis",
+                      "type",
+                      "description",
+                      "keterangan",
+                      "agunanKet",
                     ]),
                     idebText(record, [
                       "buktiKepemilikan",
@@ -3839,6 +3904,7 @@ function IdebCollateralTable({
                     "nilaiAgunan",
                     "nilai_agunan",
                     "value",
+                    "nilai",
                     "independent_appraisal_value",
                     "appraisal_value",
                     "market_value",
@@ -3860,8 +3926,15 @@ function IdebCollateralTable({
             </SetupDataTableEmptyRow>
           ) : null}
         </SetupDataTableBody>
-      </SetupDataTable>
-    </SetupTableCard>
+        </SetupDataTable>
+      </SetupTableCard>
+      {rows.length > 50 ? (
+        <p className="text-xs leading-5 text-slate-500">
+          Menampilkan 50 data pertama dari {rows.length}. Seluruh data tetap disertakan pada export
+          PDF.
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -3869,8 +3942,9 @@ function IdebGuarantorTable({ facilities }: { facilities: IdebRecord[] }) {
   const rows = getIdebFacilityRowsWithNested(facilities, "guarantors");
 
   return (
-    <SetupTableCard variant="nested">
-      <SetupDataTable variant="nested" density="compact" className="min-w-[680px]">
+    <div className="space-y-2">
+      <SetupTableCard variant="nested">
+        <SetupDataTable variant="nested" density="compact" className="min-w-[680px]">
         <SetupDataTableHead>
           <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
             <SetupDataTableHeaderCell>Fasilitas</SetupDataTableHeaderCell>
@@ -3911,6 +3985,7 @@ function IdebGuarantorTable({ facilities }: { facilities: IdebRecord[] }) {
                     "no_identitas",
                     "noIdentitas",
                     "nik",
+                    "npwp",
                   ]),
                 )}
               </SetupDataTableCell>
@@ -3927,8 +4002,15 @@ function IdebGuarantorTable({ facilities }: { facilities: IdebRecord[] }) {
             </SetupDataTableEmptyRow>
           ) : null}
         </SetupDataTableBody>
-      </SetupDataTable>
-    </SetupTableCard>
+        </SetupDataTable>
+      </SetupTableCard>
+      {rows.length > 50 ? (
+        <p className="text-xs leading-5 text-slate-500">
+          Menampilkan 50 data pertama dari {rows.length}. Seluruh data tetap disertakan pada export
+          PDF.
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -4136,10 +4218,13 @@ function IdebTab({
     };
   }, [debtorId, selectedIdeb]);
 
-  const exportResumePdf = async (item: DebtorWorkflowIdebUpload) => {
+  const exportResumePdf = async (
+    item: DebtorWorkflowIdebUpload,
+    selectedFilter: IdebFacilityFilter = facilityFilter,
+  ) => {
     setExportingIdebId(item.id);
     try {
-      const result = await debiturService.downloadIdebResumePdf(item.id);
+      const result = await debiturService.downloadIdebResumePdf(item.id, selectedFilter);
       downloadBrowserFile(result.blob, result.fileName);
       showToast("Resume IDEB berhasil diexport", "success");
     } catch (error) {
@@ -4221,7 +4306,7 @@ function IdebTab({
                   icon: Download,
                   tone: "emerald",
                   disabled: exportingIdebId === item.id,
-                  onClick: () => void exportResumePdf(item),
+                  onClick: () => void exportResumePdf(item, "ALL"),
                 },
               ];
 
@@ -4334,7 +4419,9 @@ function IdebTab({
                 <span>
                   {exportingIdebId === selectedIdeb.id
                     ? "Mengexport..."
-                    : "Export Resume PDF"}
+                    : facilityFilter === "ALL"
+                      ? "Export Resume PDF"
+                      : `Export PDF - ${getIdebFacilityFilterLabel(facilityFilter)}`}
                 </span>
               </button>
             </div>

@@ -269,6 +269,10 @@ export type DebtorMarketingActivity = {
   status: string;
   action_plan: string | null;
   visit_address: string | null;
+  visit_latitude: number | null;
+  visit_longitude: number | null;
+  visit_location_accuracy_m: number | null;
+  visit_location_recorded_at: string | null;
   visit_result: string | null;
   conclusion: string | null;
   handling_step: string | null;
@@ -304,6 +308,10 @@ export type DebtorMarketingTimelineEntry = {
   related_activity_id: string | null;
   created_by: string | null;
   visit_address: string | null;
+  visit_latitude: number | null;
+  visit_longitude: number | null;
+  visit_location_accuracy_m: number | null;
+  visit_location_recorded_at: string | null;
   file: DebtorFileMeta | null;
   files?: DebtorFileMeta[];
   contract: DebtorContract | null;
@@ -1018,6 +1026,10 @@ export type DebtorMarketingReportActivity = {
   contract: DebtorContract | null;
   action_plan: string | null;
   visit_address: string | null;
+  visit_latitude: number | null;
+  visit_longitude: number | null;
+  visit_location_accuracy_m: number | null;
+  visit_location_recorded_at: string | null;
   visit_result: string | null;
   conclusion: string | null;
   handling_step: string | null;
@@ -1107,6 +1119,9 @@ export type DebtorMarketingPayload = {
   status?: string;
   action_plan?: string | null;
   visit_address?: string | null;
+  visit_latitude?: number;
+  visit_longitude?: number;
+  visit_location_accuracy_m?: number;
   visit_result?: string | null;
   conclusion?: string | null;
   handling_step?: string | null;

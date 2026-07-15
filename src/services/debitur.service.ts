@@ -1,4 +1,5 @@
 import api from "@/lib/axios";
+import type { IdebFacilityFilter } from "@/lib/ideb-facility-filter";
 import { MAX_TABLE_PAGE_SIZE, OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import {
   extractList,
@@ -778,6 +779,18 @@ function mapMarketingActivity(record: unknown): DebtorMarketingActivity | null {
     status: readString(item, "status") ?? "PENDING",
     action_plan: nullableString(item, "action_plan", "actionPlan"),
     visit_address: nullableString(item, "visit_address", "visitAddress"),
+    visit_latitude: readNumber(item, "visit_latitude", "visitLatitude"),
+    visit_longitude: readNumber(item, "visit_longitude", "visitLongitude"),
+    visit_location_accuracy_m: readNumber(
+      item,
+      "visit_location_accuracy_m",
+      "visitLocationAccuracyM",
+    ),
+    visit_location_recorded_at: nullableString(
+      item,
+      "visit_location_recorded_at",
+      "visitLocationRecordedAt",
+    ),
     visit_result: nullableString(item, "visit_result", "visitResult"),
     conclusion: nullableString(item, "conclusion"),
     handling_step: nullableString(item, "handling_step", "handlingStep"),
@@ -852,6 +865,18 @@ function mapMarketingTimelineEntry(record: unknown): DebtorMarketingTimelineEntr
     ),
     created_by: nullableString(item, "created_by", "createdBy"),
     visit_address: nullableString(item, "visit_address", "visitAddress"),
+    visit_latitude: readNumber(item, "visit_latitude", "visitLatitude"),
+    visit_longitude: readNumber(item, "visit_longitude", "visitLongitude"),
+    visit_location_accuracy_m: readNumber(
+      item,
+      "visit_location_accuracy_m",
+      "visitLocationAccuracyM",
+    ),
+    visit_location_recorded_at: nullableString(
+      item,
+      "visit_location_recorded_at",
+      "visitLocationRecordedAt",
+    ),
     file: mapFile(item.file),
     files: mapFiles(item.files),
     contract: mapContract(item.contract, false),
@@ -2228,8 +2253,10 @@ export const debiturService = {
 
   downloadIdebResumePdf: async (
     idebUploadId: string,
+    facilityFilter: IdebFacilityFilter = "ALL",
   ): Promise<{ blob: Blob; fileName: string }> => {
     const res = await api.get(`/debtor-imports/ideb/${idebUploadId}/resume-pdf`, {
+      params: { facility_filter: facilityFilter },
       responseType: "blob",
     });
     const header = res.headers["content-disposition"];
@@ -2436,6 +2463,18 @@ export const debiturService = {
             contract: mapContract(item.contract, false),
             action_plan: nullableString(item, "action_plan", "actionPlan"),
             visit_address: nullableString(item, "visit_address", "visitAddress"),
+            visit_latitude: readNumber(item, "visit_latitude", "visitLatitude"),
+            visit_longitude: readNumber(item, "visit_longitude", "visitLongitude"),
+            visit_location_accuracy_m: readNumber(
+              item,
+              "visit_location_accuracy_m",
+              "visitLocationAccuracyM",
+            ),
+            visit_location_recorded_at: nullableString(
+              item,
+              "visit_location_recorded_at",
+              "visitLocationRecordedAt",
+            ),
             visit_result: nullableString(item, "visit_result", "visitResult"),
             conclusion: nullableString(item, "conclusion"),
             handling_step: nullableString(item, "handling_step", "handlingStep"),

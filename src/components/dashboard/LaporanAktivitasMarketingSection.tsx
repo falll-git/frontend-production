@@ -21,6 +21,7 @@ import SetupSelect from "@/components/ui/SetupSelect";
 import SetupStatusBadge, {
   type SetupStatusTone,
 } from "@/components/ui/SetupStatusBadge";
+import VisitLocationDetails from "@/components/ui/VisitLocationDetails";
 import { formatDateDisplay } from "@/lib/utils/date";
 import {
   deriveDocumentFileName,
@@ -438,10 +439,6 @@ export default function LaporanAktivitasMarketingSection({
               {activeItem.jenisAktivitas === "VISIT_RESULT" ? (
                 <>
                   <DetailRow
-                    label="Alamat Kunjungan"
-                    value={activeItem.source.visit_address}
-                  />
-                  <DetailRow
                     label="Hasil Kunjungan"
                     value={activeItem.source.visit_result}
                   />
@@ -449,6 +446,17 @@ export default function LaporanAktivitasMarketingSection({
                     label="Kesimpulan"
                     value={activeItem.source.conclusion}
                   />
+                  <section className="min-w-0 space-y-2">
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
+                        Lokasi Kunjungan
+                      </h3>
+                      <p className="mt-1 text-xs leading-5 text-gray-500">
+                        Alamat manual dan geotag yang direkam saat kunjungan.
+                      </p>
+                    </div>
+                    <VisitLocationDetails location={activeItem.source} />
+                  </section>
                 </>
               ) : null}
               {activeItem.jenisAktivitas === "HANDLING_STEP" ? (

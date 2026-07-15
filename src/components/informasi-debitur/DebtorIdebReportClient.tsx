@@ -42,6 +42,11 @@ import {
   SETUP_PAGE_SEARCH_WRAPPER_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { useAppToast } from "@/components/ui/AppToastProvider";
+import {
+  getIdebFacilityFilterLabel,
+  IDEB_FACILITY_FILTERS,
+  type IdebFacilityFilter,
+} from "@/lib/ideb-facility-filter";
 import { debiturService } from "@/services/debitur.service";
 import type {
   DebtorIdebComparison,
@@ -51,15 +56,6 @@ import type {
 import type { PaginationMeta } from "@/types/api.types";
 
 type IdebRecord = Record<string, unknown>;
-type FacilityFilter = "ALL" | "ACTIVE" | "PAID_OFF" | "PROBLEM" | "ARREARS";
-
-const FACILITY_FILTERS: Array<{ value: FacilityFilter; label: string }> = [
-  { value: "ALL", label: "Semua" },
-  { value: "ACTIVE", label: "Aktif" },
-  { value: "PAID_OFF", label: "Lunas" },
-  { value: "PROBLEM", label: "Macet / Hapus Buku" },
-  { value: "ARREARS", label: "Ada Tunggakan" },
-];
 
 const IDEB_REPORT_PAGE_SIZE = 10;
 const EMPTY_META: PaginationMeta = {
@@ -156,13 +152,27 @@ function getFacilities(item: DebtorIdebReportUpload | null): IdebRecord[] {
 }
 
 function isPaidOffFacility(facility: IdebRecord) {
-  const condition = display(textValue(facility, ["condition", "condition_code", "status"])).toUpperCase();
-  return condition.includes("LUNAS") || condition.startsWith("02");
+  const code = display(textValue(facility, ["condition_code"])).toUpperCase();
+  const condition = display(textValue(facility, ["condition", "status"])).toUpperCase();
+  return (
+    code === "02" ||
+    condition === "02" ||
+    condition.startsWith("02 ") ||
+    condition.includes("LUNAS")
+  );
 }
 
 function isWriteOffFacility(facility: IdebRecord) {
-  const condition = display(textValue(facility, ["condition", "condition_code", "status"])).toUpperCase();
-  return condition.includes("HAPUS") || condition.startsWith("03");
+  const code = display(textValue(facility, ["condition_code"])).toUpperCase();
+  const condition = display(textValue(facility, ["condition", "status"])).toUpperCase();
+  const compact = condition.replace(/[^A-Z0-9]/g, "");
+  return (
+    code === "03" ||
+    condition === "03" ||
+    condition.startsWith("03 ") ||
+    compact.includes("HAPUSBUKU") ||
+    compact.includes("DIHAPUSBUKUKAN")
+  );
 }
 
 function facilityCollectibility(facility: IdebRecord) {
@@ -254,17 +264,53 @@ function facilityCollateralSummary(facility: IdebRecord) {
     ? facility.collaterals.map((item) => asRecord(item)).filter(Boolean)
     : [];
   if (collaterals.length === 0) return "-";
-  return collaterals
+  const visible = collaterals
+    .slice(0, 3)
     .map((item) =>
       [
-        textValue(item, ["jenisAgunanKet", "jenis_agunan", "type", "collateral_type"]),
-        textValue(item, ["buktiKepemilikan", "bukti_kepemilikan", "ownership_proof"]),
+        textValue(item, [
+          "jenisAgunanKet",
+          "jenis_agunan",
+          "jenisAgunan",
+          "collateral_type",
+          "jenis",
+          "type",
+          "description",
+          "keterangan",
+          "agunanKet",
+        ]),
+        textValue(item, [
+          "buktiKepemilikan",
+          "bukti_kepemilikan",
+          "ownership_proof",
+          "proof_number",
+        ]),
       ]
         .filter(Boolean)
         .join(" - "),
     )
     .filter(Boolean)
-    .join("; ") || "-";
+    .join("; ");
+  const remainder = collaterals.length - 3;
+  return `${visible || "-"}${remainder > 0 ? `; +${remainder} agunan lainnya` : ""}`;
+}
+
+function facilitiesWorstCollectibility(facilities: IdebRecord[]) {
+  return facilities.reduce<string | number | null>((current, facility) => {
+    const value = facilityCollectibility(facility);
+    const level = facilityCollectibilityLevel(value);
+    const currentLevel = facilityCollectibilityLevel(current);
+    if (level === null) return current;
+    return currentLevel === null || level > currentLevel ? (value ?? level) : current;
+  }, null);
+}
+
+function facilitiesCollateralCount(facilities: IdebRecord[]) {
+  return facilities.reduce(
+    (total, facility) =>
+      total + (Array.isArray(facility.collaterals) ? facility.collaterals.length : 0),
+    0,
+  );
 }
 
 function reporterBreakdown(item: DebtorIdebReportUpload) {
@@ -476,7 +522,7 @@ function summaryMetric(item: DebtorIdebReportUpload | null) {
   };
 }
 
-function filterFacilities(facilities: IdebRecord[], filter: FacilityFilter) {
+function filterFacilities(facilities: IdebRecord[], filter: IdebFacilityFilter) {
   if (filter === "ACTIVE") {
     return sortFacilitiesByRisk(
       facilities.filter(
@@ -489,12 +535,11 @@ function filterFacilities(facilities: IdebRecord[], filter: FacilityFilter) {
   }
   if (filter === "PROBLEM") {
     return sortFacilitiesByRisk(
-      facilities.filter((facility) => {
-        const kol = display(
-          textValue(facility, ["collectibility", "collectibility_code", "kol"]),
-        );
-        return isWriteOffFacility(facility) || /^5\b|KOL\s*5/i.test(kol);
-      }),
+      facilities.filter(
+        (facility) =>
+          isWriteOffFacility(facility) ||
+          facilityCollectibilityLevel(facilityCollectibility(facility)) === 5,
+      ),
     );
   }
   if (filter === "ARREARS") {
@@ -568,7 +613,7 @@ export default function DebtorIdebReportClient() {
   const [selected, setSelected] = useState<DebtorIdebReportUpload | null>(null);
   const [search, setSearch] = useState("");
   const [linkStatus, setLinkStatus] = useState("");
-  const [facilityFilter, setFacilityFilter] = useState<FacilityFilter>("ALL");
+  const [facilityFilter, setFacilityFilter] = useState<IdebFacilityFilter>("ALL");
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [comparison, setComparison] = useState<DebtorIdebComparison | null>(null);
@@ -663,11 +708,14 @@ export default function DebtorIdebReportClient() {
     activationRef.current = { id: item.id, time: now };
   };
 
-  const exportPdf = async (target: DebtorIdebReportUpload | null = selected) => {
+  const exportPdf = async (
+    target: DebtorIdebReportUpload | null = selected,
+    selectedFilter: IdebFacilityFilter = facilityFilter,
+  ) => {
     if (!target) return;
     setIsExporting(true);
     try {
-      const result = await debiturService.downloadIdebResumePdf(target.id);
+      const result = await debiturService.downloadIdebResumePdf(target.id, selectedFilter);
       downloadBrowserFile(result.blob, result.fileName);
       showToast("Resume IDEB berhasil diexport", "success");
     } catch (error) {
@@ -685,6 +733,12 @@ export default function DebtorIdebReportClient() {
     () => filterFacilities(selectedFacilities, facilityFilter),
     [facilityFilter, selectedFacilities],
   );
+  const filteredWorstCollectibility = facilitiesWorstCollectibility(filteredFacilities);
+  const filteredHighestDaysPastDue = filteredFacilities.reduce(
+    (highest, facility) => Math.max(highest, facilityDaysPastDue(facility) ?? 0),
+    0,
+  );
+  const filteredCollateralCount = facilitiesCollateralCount(filteredFacilities);
   const selectedMetric = summaryMetric(selected);
   const identity = asRecord(selected?.summary_detail?.identity);
   const collateralRows = useMemo(
@@ -803,7 +857,7 @@ export default function DebtorIdebReportClient() {
                   icon: Download,
                   tone: "emerald",
                   disabled: isExporting,
-                  onClick: () => void exportPdf(item),
+                  onClick: () => void exportPdf(item, "ALL"),
                 },
               ];
 
@@ -930,7 +984,9 @@ export default function DebtorIdebReportClient() {
               disabled={isExporting || !selected}
             >
               <Download className="h-4 w-4" />
-              Export Resume PDF
+              {facilityFilter === "ALL"
+                ? "Export Resume PDF"
+                : `Export PDF - ${getIdebFacilityFilterLabel(facilityFilter)}`}
             </button>
           </div>
         }
@@ -942,13 +998,25 @@ export default function DebtorIdebReportClient() {
                 status={selected.link_status === "TERHUBUNG" ? "Terhubung" : "Belum Terhubung"}
               />
               <div className="text-sm font-semibold text-slate-500">
-                {formatDate(selected.result_date)}
+                {formatDate(
+                  selected.result_date ??
+                    selected.summary_detail?.result_date ??
+                    selected.summary_detail?.processed_at,
+                )}
               </div>
             </div>
 
             <SectionCard title="Profil Pokok Debitur">
               <div className="grid gap-3 md:grid-cols-2">
-                <InfoItem label="Nama Lengkap" value={selected.debtor_name ?? selected.summary_detail?.debtor_name} />
+                <InfoItem
+                  label="Nama Lengkap"
+                  value={
+                    textValue(identity, ["name"]) ??
+                    selected.debtor_name ??
+                    selected.summary_detail?.debtor_name ??
+                    selected.debtor?.name
+                  }
+                />
                 <InfoItem label="Sektor Usaha" value={textValue(identity, ["business_field", "business_field_code"])} />
                 <InfoItem
                   label="Tempat / Tanggal Lahir"
@@ -979,15 +1047,33 @@ export default function DebtorIdebReportClient() {
                     "nomorTelp",
                   ])}
                 />
-                <InfoItem label="NIK" value={selected.identity_number ?? selected.summary_detail?.identity_number} />
+                <InfoItem
+                  label="NIK"
+                  value={
+                    textValue(identity, ["identity_number"]) ??
+                    selected.identity_number ??
+                    selected.summary_detail?.identity_number ??
+                    selected.debtor?.identity_number
+                  }
+                />
                 <InfoItem label="Jenis Kelamin" value={textValue(identity, ["gender"])} />
               </div>
             </SectionCard>
 
             <SectionCard title="Resume Hasil IDEB">
               <div className="grid gap-3 md:grid-cols-2">
-                <InfoItem label="Tanggal Pengecekan IDEB" value={formatDate(selected.result_date)} />
-                <InfoItem label="Petugas IDEB" value={selected.officer_name} />
+                <InfoItem
+                  label="Tanggal Pengecekan IDEB"
+                  value={formatDate(
+                    selected.result_date ??
+                      selected.summary_detail?.result_date ??
+                      selected.summary_detail?.processed_at,
+                  )}
+                />
+                <InfoItem
+                  label="Petugas IDEB"
+                  value={selected.officer_name ?? selected.summary_detail?.officer_name}
+                />
                 <InfoItem label="Diunggah Oleh" value={selected.uploader?.name} />
                 <InfoItem label="Jumlah Lembaga / PJK" value={formatNumber(selectedMetric.reporterCount)} />
                 <InfoItem label="Kualitas Terburuk" value={String(selectedMetric.worstCollectibility ?? "-")} />
@@ -1054,7 +1140,7 @@ export default function DebtorIdebReportClient() {
 
             <SectionCard title="Ringkasan Posisi Fasilitas Kredit">
               <div className="mb-3 flex flex-wrap gap-2">
-                {FACILITY_FILTERS.map((filter) => (
+                {IDEB_FACILITY_FILTERS.map((filter) => (
                   <button
                     key={filter.value}
                     type="button"
@@ -1071,7 +1157,8 @@ export default function DebtorIdebReportClient() {
               </div>
               <p className="mb-3 text-sm font-semibold leading-6 text-slate-500">
                 Daftar diurutkan dari risiko tertinggi berdasarkan KOL, DPD, tunggakan,
-                dan baki debet.
+                dan baki debet. Filter aktif juga digunakan pada bagian posisi fasilitas
+                di PDF; bagian laporan lainnya tetap menampilkan data lengkap.
               </p>
               <SetupTableCard variant="nested">
                 <SetupDataTable variant="nested" density="compact" className="min-w-[1120px]">
@@ -1103,7 +1190,14 @@ export default function DebtorIdebReportClient() {
                           <p className="line-clamp-2">{facilityCreditDisplay(facility)}</p>
                         </SetupDataTableCell>
                         <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
-                          {formatDate(textValue(facility, ["initial_akad_date", "akad_date"]))}
+                          {formatDate(
+                            textValue(facility, [
+                              "final_akad_date",
+                              "initial_akad_date",
+                              "akad_date",
+                              "tanggal_akad",
+                            ]),
+                          )}
                         </SetupDataTableCell>
                         <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                           {formatCurrency(facilityPlafond(facility))}
@@ -1135,10 +1229,7 @@ export default function DebtorIdebReportClient() {
                         <SetupDataTableCell colSpan={3} className={SETUP_PAGE_MODERN_CELL_CLASS}>
                           {facilityFilter === "ALL"
                             ? "Total keseluruhan"
-                            : `Total filter ${
-                                FACILITY_FILTERS.find((filter) => filter.value === facilityFilter)
-                                  ?.label ?? "aktif"
-                              }`}
+                            : `Total filter ${getIdebFacilityFilterLabel(facilityFilter)}`}
                         </SetupDataTableCell>
                         <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                           {formatCurrency(filteredFacilities.reduce((total, facility) => total + facilityPlafond(facility), 0))}
@@ -1146,12 +1237,22 @@ export default function DebtorIdebReportClient() {
                         <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                           {formatCurrency(filteredFacilities.reduce((total, facility) => total + facilityOutstanding(facility), 0))}
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>-</SetupDataTableCell>
-                        <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>-</SetupDataTableCell>
+                        <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                          <SetupCollectibilityBadge value={filteredWorstCollectibility} wrap />
+                        </SetupDataTableCell>
+                        <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                          {filteredHighestDaysPastDue > 0
+                            ? `${formatNumber(filteredHighestDaysPastDue)} hari`
+                            : "-"}
+                        </SetupDataTableCell>
                         <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                           {formatCurrency(filteredFacilities.reduce((total, facility) => total + facilityArrears(facility), 0))}
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>-</SetupDataTableCell>
+                        <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                          {filteredCollateralCount > 0
+                            ? `${formatNumber(filteredCollateralCount)} agunan`
+                            : "-"}
+                        </SetupDataTableCell>
                       </SetupDataTableRow>
                     ) : (
                       <SetupDataTableEmptyRow colSpan={9}>
@@ -1381,17 +1482,27 @@ export default function DebtorIdebReportClient() {
                           <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
                             <p className="line-clamp-2">
                               {[
-                                textValue(collateral, ["jenisAgunanKet", "jenis_agunan", "type", "collateral_type"]),
+                                textValue(collateral, [
+                                  "jenisAgunanKet",
+                                  "jenis_agunan",
+                                  "jenisAgunan",
+                                  "collateral_type",
+                                  "jenis",
+                                  "type",
+                                  "description",
+                                  "keterangan",
+                                  "agunanKet",
+                                ]),
                                 textValue(collateral, ["buktiKepemilikan", "bukti_kepemilikan", "ownership_proof", "proof_number"]),
                               ].filter(Boolean).join(" - ") || "-"}
                             </p>
                           </SetupDataTableCell>
                           <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                            {formatCurrency(numberValue(collateral, ["nilaiAgunan", "nilai_agunan", "value", "independent_appraisal_value", "appraisal_value", "market_value"]))}
+                            {formatCurrency(numberValue(collateral, ["nilaiAgunan", "nilai_agunan", "value", "nilai", "independent_appraisal_value", "appraisal_value", "market_value"]))}
                           </SetupDataTableCell>
                           <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
                             <p className="line-clamp-2">
-                              {display(textValue(collateral, ["alamat", "address", "location", "lokasi"]))}
+                              {display(textValue(collateral, ["location", "alamat", "address", "lokasi"]))}
                             </p>
                           </SetupDataTableCell>
                         </SetupDataTableRow>
@@ -1404,6 +1515,12 @@ export default function DebtorIdebReportClient() {
                     </SetupDataTableBody>
                   </SetupDataTable>
                 </SetupTableCard>
+                {collateralRows.length > 50 ? (
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    Menampilkan 50 data pertama dari {collateralRows.length}. Seluruh data tetap
+                    disertakan pada export PDF.
+                  </p>
+                ) : null}
               </SectionCard>
 
               <SectionCard title="Penjamin">
@@ -1442,6 +1559,7 @@ export default function DebtorIdebReportClient() {
                                 "noIdentitas",
                                 "no_identitas",
                                 "nik",
+                                "npwp",
                               ]),
                             )}
                           </SetupDataTableCell>
@@ -1460,6 +1578,12 @@ export default function DebtorIdebReportClient() {
                     </SetupDataTableBody>
                   </SetupDataTable>
                 </SetupTableCard>
+                {guarantorRows.length > 50 ? (
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    Menampilkan 50 data pertama dari {guarantorRows.length}. Seluruh data tetap
+                    disertakan pada export PDF.
+                  </p>
+                ) : null}
               </SectionCard>
             </div>
 

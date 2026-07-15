@@ -27,6 +27,8 @@ import {
   FolderInput,
   FolderOpen,
   Link2Off,
+  LoaderCircle,
+  LocateFixed,
   Pencil,
   PieChart,
   RefreshCw,
@@ -77,6 +79,9 @@ import SetupStatusBadge, {
 } from "@/components/ui/SetupStatusBadge";
 import SetupTextarea from "@/components/ui/SetupTextarea";
 import SetupTextInput from "@/components/ui/SetupTextInput";
+import VisitLocationDetails, {
+  VisitLocationStatusBadge,
+} from "@/components/ui/VisitLocationDetails";
 import {
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
@@ -93,6 +98,11 @@ import {
 import { SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import { DOCUMENT_UPLOAD_MAX_SIZE_LABEL } from "@/lib/upload-limits";
 import { formatDateOnly } from "@/lib/utils/date";
+import {
+  hasValidVisitLocation,
+  isValidVisitLatitude,
+  isValidVisitLongitude,
+} from "@/lib/visit-location";
 import { exportToExcel } from "@/lib/utils/exportExcel";
 import { validateDomainUploadFile } from "@/lib/utils/file";
 import {
@@ -230,6 +240,11 @@ type MarketingFormState = {
   status: string;
   action_plan: string;
   visit_address: string;
+  visit_latitude: number | null;
+  visit_longitude: number | null;
+  visit_location_accuracy_m: number | null;
+  visit_location_recorded_at: string | null;
+  visit_location_captured_in_session: boolean;
   visit_result: string;
   conclusion: string;
   handling_step: string;
@@ -947,6 +962,11 @@ function emptyMarketingForm(): MarketingFormState {
     status: "PENDING",
     action_plan: "",
     visit_address: "",
+    visit_latitude: null,
+    visit_longitude: null,
+    visit_location_accuracy_m: null,
+    visit_location_recorded_at: null,
+    visit_location_captured_in_session: false,
     visit_result: "",
     conclusion: "",
     handling_step: "",
@@ -966,6 +986,11 @@ function marketingToForm(item: DebtorMarketingActivity): MarketingFormState {
     status: item.status || "PENDING",
     action_plan: item.action_plan ?? "",
     visit_address: item.visit_address ?? "",
+    visit_latitude: item.visit_latitude,
+    visit_longitude: item.visit_longitude,
+    visit_location_accuracy_m: item.visit_location_accuracy_m,
+    visit_location_recorded_at: item.visit_location_recorded_at,
+    visit_location_captured_in_session: false,
     visit_result: item.visit_result ?? "",
     conclusion: item.conclusion ?? "",
     handling_step: item.handling_step ?? "",
@@ -978,7 +1003,7 @@ function marketingToForm(item: DebtorMarketingActivity): MarketingFormState {
 
 function buildMarketingPayload(form: MarketingFormState): DebtorMarketingPayload {
   const files = form.files.length > 0 ? form.files : form.file ? [form.file] : [];
-  return {
+  const payload: DebtorMarketingPayload = {
     debtor_id: form.debtor_id,
     contract_id: form.contract_id || null,
     activity_date: form.activity_date || null,
@@ -994,6 +1019,24 @@ function buildMarketingPayload(form: MarketingFormState): DebtorMarketingPayload
     file: files[0] ?? null,
     files,
   };
+
+  if (
+    form.visit_location_captured_in_session &&
+    isValidVisitLatitude(form.visit_latitude) &&
+    isValidVisitLongitude(form.visit_longitude)
+  ) {
+    payload.visit_latitude = form.visit_latitude;
+    payload.visit_longitude = form.visit_longitude;
+    if (
+      typeof form.visit_location_accuracy_m === "number" &&
+      Number.isFinite(form.visit_location_accuracy_m) &&
+      form.visit_location_accuracy_m >= 0
+    ) {
+      payload.visit_location_accuracy_m = form.visit_location_accuracy_m;
+    }
+  }
+
+  return payload;
 }
 
 function emptyImportForm(): ImportFormState {
@@ -1126,11 +1169,60 @@ function getMarketingRequiredField(kind: DebtorMarketingKind) {
   return "action_plan";
 }
 
-function validateMarketingForm(kind: DebtorMarketingKind, form: MarketingFormState) {
+function validateMarketingForm(
+  kind: DebtorMarketingKind,
+  form: MarketingFormState,
+  isEditing = false,
+) {
   if (!form.debtor_id) return "Debitur wajib dipilih";
   const requiredField = getMarketingRequiredField(kind);
   if (!String(form[requiredField]).trim()) return "Keterangan utama wajib diisi";
+
+  if (kind !== "visit-results") return null;
+
+  const hasLatitude = form.visit_latitude !== null;
+  const hasLongitude = form.visit_longitude !== null;
+  if (hasLatitude !== hasLongitude) {
+    return "Latitude dan longitude lokasi kunjungan harus tersedia berpasangan";
+  }
+  if (hasLatitude && !isValidVisitLatitude(form.visit_latitude)) {
+    return "Latitude lokasi kunjungan harus berada pada rentang -90 sampai 90";
+  }
+  if (hasLongitude && !isValidVisitLongitude(form.visit_longitude)) {
+    return "Longitude lokasi kunjungan harus berada pada rentang -180 sampai 180";
+  }
+  if (
+    form.visit_location_accuracy_m !== null &&
+    (!Number.isFinite(form.visit_location_accuracy_m) ||
+      form.visit_location_accuracy_m < 0)
+  ) {
+    return "Akurasi lokasi kunjungan tidak boleh bernilai negatif";
+  }
+  if (!isEditing && !hasValidVisitLocation(form)) {
+    return "Lokasi kunjungan wajib diambil sebelum Hasil Kunjungan baru disimpan";
+  }
+  if (
+    form.visit_location_captured_in_session &&
+    !hasValidVisitLocation(form)
+  ) {
+    return "Lokasi kunjungan yang baru diambil tidak valid. Silakan ambil ulang lokasi";
+  }
+
   return null;
+}
+
+function geolocationErrorMessage(error: GeolocationPositionError) {
+  if (error.code === error.PERMISSION_DENIED) {
+    return "Izin lokasi ditolak. Izinkan akses lokasi pada browser, lalu coba lagi.";
+  }
+  if (error.code === error.POSITION_UNAVAILABLE) {
+    return "Lokasi saat ini tidak tersedia. Pastikan layanan lokasi perangkat aktif, lalu coba lagi.";
+  }
+  if (error.code === error.TIMEOUT) {
+    return "Pengambilan lokasi melewati batas waktu 15 detik. Coba lagi di area dengan sinyal lokasi yang lebih baik.";
+  }
+
+  return "Lokasi tidak dapat diambil. Periksa layanan lokasi perangkat, lalu coba lagi.";
 }
 
 function FieldLabel({ children, required = false }: { children: string; required?: boolean }) {
@@ -1332,11 +1424,13 @@ function ModalFooter({
   onClose,
   onSave,
   isSaving,
+  saveDisabled = false,
   saveLabel = "Simpan",
 }: {
   onClose: () => void;
   onSave: () => void;
   isSaving: boolean;
+  saveDisabled?: boolean;
   saveLabel?: string;
 }) {
   return (
@@ -1353,7 +1447,7 @@ function ModalFooter({
         type="button"
         className="uiverse-modal-button uiverse-modal-button--primary"
         onClick={onSave}
-        disabled={isSaving}
+        disabled={isSaving || saveDisabled}
       >
         <Save className="h-4 w-4" aria-hidden="true" />
         <span>{isSaving ? "Menyimpan..." : saveLabel}</span>
@@ -4382,7 +4476,7 @@ function getMarketingConfig(kind: DebtorMarketingKind): {
       icon: FileCheck2,
       primaryLabel: "Hasil Kunjungan",
       primaryKey: "visit_result",
-      secondaryFields: ["visit_address", "conclusion"],
+      secondaryFields: ["conclusion"],
     };
   }
 
@@ -4407,8 +4501,158 @@ function getMarketingConfig(kind: DebtorMarketingKind): {
   };
 }
 
+function VisitLocationCaptureSection({
+  isEditing,
+  isSaving,
+  isLocating,
+  locationRequestIdRef,
+  form,
+  onChange,
+  onLocatingChange,
+}: {
+  isEditing: boolean;
+  isSaving: boolean;
+  isLocating: boolean;
+  locationRequestIdRef: MutableRefObject<number>;
+  form: MarketingFormState;
+  onChange: (patch: Partial<MarketingFormState>) => void;
+  onLocatingChange: (isLocating: boolean) => void;
+}) {
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const hasLocation = hasValidVisitLocation(form);
+
+  const captureLocation = () => {
+    setLocationError(null);
+
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationError(
+        "Browser ini tidak mendukung pengambilan lokasi. Gunakan browser yang mendukung geolocation.",
+      );
+      return;
+    }
+
+    const requestId = locationRequestIdRef.current + 1;
+    locationRequestIdRef.current = requestId;
+    onLocatingChange(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (locationRequestIdRef.current !== requestId) return;
+
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        if (!isValidVisitLatitude(latitude) || !isValidVisitLongitude(longitude)) {
+          setLocationError(
+            "Koordinat yang diterima dari perangkat tidak valid. Silakan ambil ulang lokasi.",
+          );
+          onLocatingChange(false);
+          return;
+        }
+
+        const accuracy =
+          Number.isFinite(position.coords.accuracy) && position.coords.accuracy >= 0
+            ? position.coords.accuracy
+            : null;
+
+        onChange({
+          visit_latitude: latitude,
+          visit_longitude: longitude,
+          visit_location_accuracy_m: accuracy,
+          visit_location_recorded_at: new Date().toISOString(),
+          visit_location_captured_in_session: true,
+        });
+        onLocatingChange(false);
+      },
+      (error) => {
+        if (locationRequestIdRef.current !== requestId) return;
+        setLocationError(geolocationErrorMessage(error));
+        onLocatingChange(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15_000,
+        maximumAge: 0,
+      },
+    );
+  };
+
+  const missingMessage = isEditing
+    ? "Lokasi belum tercatat pada data ini. Data lama tetap dapat disunting; ambil lokasi untuk menambahkan geotag."
+    : "Lokasi wajib diambil sebelum Hasil Kunjungan baru dapat disimpan.";
+
+  return (
+    <SetupFormSection
+      title="Lokasi Kunjungan"
+      description="Lokasi hanya diambil setelah Anda menekan tombol dan menyetujui izin browser. Koordinat tidak dapat diisi manual."
+      contentClassName="md:grid-cols-1"
+    >
+      <div className="min-w-0 space-y-3">
+        <TextareaField
+          label="Alamat Kunjungan"
+          value={form.visit_address}
+          onChange={(value) => onChange({ visit_address: value })}
+        />
+        <VisitLocationDetails
+          location={form}
+          recordedAtLabel={
+            form.visit_location_captured_in_session
+              ? "Waktu Pengambilan"
+              : "Waktu Lokasi Direkam"
+          }
+          missingMessage={missingMessage}
+          availableMessage={
+            form.visit_location_captured_in_session
+              ? "Koordinat baru siap disimpan bersama aktivitas."
+              : "Koordinat tersimpan bersama aktivitas."
+          }
+          showAddress={false}
+        />
+
+        {locationError ? (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="flex min-w-0 items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium leading-5 text-red-700"
+          >
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words">{locationError}</span>
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            className="uiverse-modal-button uiverse-modal-button--primary w-full justify-center sm:w-auto"
+            onClick={captureLocation}
+            disabled={isLocating || isSaving}
+          >
+            {isLocating ? (
+              <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <LocateFixed className="size-4" aria-hidden="true" />
+            )}
+            <span>
+              {isLocating
+                ? "Mengambil Lokasi..."
+                : hasLocation
+                  ? "Ambil Ulang Lokasi"
+                  : "Ambil Lokasi Saat Ini"}
+            </span>
+          </button>
+          {isLocating ? (
+            <p className="text-xs font-medium leading-5 text-slate-500" aria-live="polite">
+              Menunggu posisi perangkat. Proses dapat berlangsung hingga 15 detik.
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </SetupFormSection>
+  );
+}
+
 function MarketingFormModal({
   isOpen,
+  isEditing,
   kind,
   form,
   debtors,
@@ -4419,6 +4663,7 @@ function MarketingFormModal({
   onSave,
 }: {
   isOpen: boolean;
+  isEditing: boolean;
   kind: DebtorMarketingKind;
   form: MarketingFormState;
   debtors: Option[];
@@ -4429,25 +4674,41 @@ function MarketingFormModal({
   onSave: () => void;
 }) {
   const config = getMarketingConfig(kind);
+  const [isLocating, setIsLocating] = useState(false);
+  const locationRequestIdRef = useRef(0);
   const contractOptions = toContractOptions(
     form.debtor_id
       ? contracts.filter((contract) => contract.debtor_id === form.debtor_id)
       : contracts,
   );
 
+  useEffect(
+    () => () => {
+      locationRequestIdRef.current += 1;
+    },
+    [],
+  );
+
+  const closeMarketingForm = () => {
+    locationRequestIdRef.current += 1;
+    setIsLocating(false);
+    onClose();
+  };
+
   return (
     <DashboardModal
       isOpen={isOpen}
       title={config.title}
-      onClose={onClose}
+      onClose={closeMarketingForm}
       closeDisabled={isSaving}
       maxWidth="4xl"
       bodyClassName="max-h-[70vh] space-y-4 overflow-y-auto p-6"
       footer={
         <ModalFooter
-          onClose={onClose}
+          onClose={closeMarketingForm}
           onSave={onSave}
           isSaving={isSaving}
+          saveDisabled={kind === "visit-results" && isLocating}
         />
       }
     >
@@ -4460,7 +4721,6 @@ function MarketingFormModal({
       </SetupFormSection>
       <SetupFormSection title="Keterangan Aktivitas" contentClassName="md:grid-cols-1">
         <TextareaField label={config.primaryLabel} value={String(form[config.primaryKey] ?? "")} onChange={(value) => onChange({ [config.primaryKey]: value })} required />
-        {config.secondaryFields.includes("visit_address") ? <TextareaField label="Alamat Kunjungan" value={form.visit_address} onChange={(value) => onChange({ visit_address: value })} /> : null}
         {config.secondaryFields.includes("conclusion") ? <TextareaField label="Kesimpulan" value={form.conclusion} onChange={(value) => onChange({ conclusion: value })} /> : null}
         {config.secondaryFields.includes("handling_result") ? <TextareaField label="Hasil Penanganan" value={form.handling_result} onChange={(value) => onChange({ handling_result: value })} /> : null}
         <TextareaField label="Catatan" value={form.notes} onChange={(value) => onChange({ notes: value })} />
@@ -4474,6 +4734,17 @@ function MarketingFormModal({
           onChange={(files) => onChange({ files, file: files[0] ?? null })}
         />
       </SetupFormSection>
+      {kind === "visit-results" && isOpen ? (
+        <VisitLocationCaptureSection
+          isEditing={isEditing}
+          isSaving={isSaving}
+          isLocating={isLocating}
+          locationRequestIdRef={locationRequestIdRef}
+          form={form}
+          onChange={onChange}
+          onLocatingChange={setIsLocating}
+        />
+      ) : null}
     </DashboardModal>
   );
 }
@@ -4561,9 +4832,6 @@ function MarketingDetailModal({
                 value={marketingMainText(item)}
                 wide
               />
-              {item.visit_address ? (
-                <DetailItem label="Alamat Kunjungan" value={item.visit_address} wide />
-              ) : null}
               {item.conclusion ? (
                 <DetailItem label="Kesimpulan" value={item.conclusion} wide />
               ) : null}
@@ -4573,6 +4841,20 @@ function MarketingDetailModal({
               <DetailItem label="Catatan" value={item.notes} wide />
             </div>
           </section>
+
+          {kind === "visit-results" ? (
+            <section>
+              <div className="mb-4 space-y-1">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
+                  Lokasi Kunjungan
+                </h3>
+                <p className="text-sm leading-6 text-gray-500">
+                  Alamat manual dan geotag yang direkam saat kunjungan.
+                </p>
+              </div>
+              <VisitLocationDetails location={item} />
+            </section>
+          ) : null}
 
           <section>
             <div className="mb-4 space-y-1">
@@ -4693,7 +4975,7 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
   };
 
   const saveMarketing = async () => {
-    const validation = validateMarketingForm(kind, form);
+    const validation = validateMarketingForm(kind, form, Boolean(editing));
     if (validation) {
       showToast(validation, "warning");
       return;
@@ -4821,6 +5103,14 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
                   <SetupTablePrimaryText className="line-clamp-2">
                     {marketingMainText(item)}
                   </SetupTablePrimaryText>
+                  {kind === "visit-results" ? (
+                    <div className="mt-1.5">
+                      <VisitLocationStatusBadge
+                        latitude={item.visit_latitude}
+                        longitude={item.visit_longitude}
+                      />
+                    </div>
+                  ) : null}
                 </SetupDataTableCell>
                 <SetupDataTableCell>{formatDateOnly(item.activity_date)}</SetupDataTableCell>
                 <SetupDataTableCell>{formatDateOnly(item.target_date)}</SetupDataTableCell>
@@ -4884,6 +5174,7 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
       </SetupTableCard>
       <MarketingFormModal
         isOpen={isModalOpen}
+        isEditing={Boolean(editing)}
         kind={kind}
         form={form}
         debtors={debtorContracts.debtorOptions}

@@ -25,21 +25,21 @@ function DefaultAuthBrandPanel() {
 
         <div className="my-2 flex items-center justify-center">
           <X
-            className="h-11 w-11 shrink-0 text-[#157ec3]"
+            className="h-11 w-11 -translate-y-3 shrink-0 text-[#157ec3]"
             strokeWidth={3.4}
             aria-hidden="true"
           />
         </div>
 
         <Image
-          src="/branding/logo-bsam.png"
-          alt="Logo Bank Syariah Artha Madani"
-          width={9581}
-          height={4846}
+          src="/branding/logo-bprs-riyal-irsyadi.png"
+          alt="Logo Bank Syariah Riyal Irsyadi"
+          width={2465}
+          height={346}
           priority
           unoptimized
           className="h-auto w-full object-contain"
-          style={{ maxWidth: 355 }}
+          style={{ maxWidth: 520 }}
         />
       </div>
 
