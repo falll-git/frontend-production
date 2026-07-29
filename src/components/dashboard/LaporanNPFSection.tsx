@@ -56,7 +56,7 @@ function formatRatio(value: number) {
 
 function getRatioTone(value: number) {
   if (value < 5) {
-    return "text-emerald-600";
+    return "text-emerald-700";
   }
 
   if (value <= 10) {
