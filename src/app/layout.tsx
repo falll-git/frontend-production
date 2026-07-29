@@ -4,12 +4,13 @@ import { AuthProvider } from "@/components/auth/AuthProvider";
 import { AppToastProvider } from "@/components/ui/AppToastProvider";
 import { connection } from "next/server";
 import ClientErrorMonitor from "@/components/system/ClientErrorMonitor";
+import { appBrand } from "@/config/branding";
 
 export const metadata = {
-  title: "Ruwang Arsip - Sistem Manajemen Arsip Digital",
+  title: `${appBrand.productName} - Sistem Manajemen Arsip Digital`,
   description: "Sistem Manajemen Arsip Digital Terpadu",
   icons: {
-    icon: "/branding/logo-ruwang-arsip.png",
+    icon: appBrand.ruwangLogo.src,
   },
 };
 
@@ -21,7 +22,7 @@ export default async function RootLayout({
   await connection();
 
   return (
-    <html lang="id">
+    <html lang="id" data-app-brand={appBrand.key}>
       <body>
         <ClientErrorMonitor />
         <AuthProvider>

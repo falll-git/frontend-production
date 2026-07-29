@@ -2,51 +2,93 @@ import Image from "next/image";
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { TextAnimate } from "@/components/improve/TextAnimate";
+import { appBrand, type BrandLogoAsset } from "@/config/branding";
 
 type AuthSplitLayoutProps = {
   children: ReactNode;
   leftPanel?: ReactNode;
-  brandMode?: "default" | "ruwang-only";
 };
 
-function DefaultAuthBrandPanel({
-  brandMode = "default",
-}: Pick<AuthSplitLayoutProps, "brandMode">) {
-  const showPartnerBrand = brandMode === "default";
+function CroppedBrandLogo({
+  logo,
+  maxWidth,
+  priority = false,
+  testId,
+}: {
+  logo: BrandLogoAsset;
+  maxWidth: number;
+  priority?: boolean;
+  testId: string;
+}) {
+  const { contentBox } = logo;
+  const imageWidthPercent = (logo.sourceWidth / contentBox.width) * 100;
+  const imageHeightPercent = (logo.sourceHeight / contentBox.height) * 100;
+  const imageLeftPercent = -(contentBox.x / contentBox.width) * 100;
+  const imageTopPercent = -(contentBox.y / contentBox.height) * 100;
 
   return (
-    <div className="w-full max-w-[38rem] space-y-2">
+    <div
+      data-testid={testId}
+      className="relative mx-auto w-full shrink-0 overflow-hidden"
+      style={{
+        maxWidth,
+        aspectRatio: `${contentBox.width} / ${contentBox.height}`,
+      }}
+    >
+      <Image
+        src={logo.src}
+        alt={logo.alt}
+        width={logo.sourceWidth}
+        height={logo.sourceHeight}
+        priority={priority}
+        unoptimized
+        className="absolute max-w-none object-contain"
+        style={{
+          width: `${imageWidthPercent}%`,
+          height: `${imageHeightPercent}%`,
+          left: `${imageLeftPercent}%`,
+          top: `${imageTopPercent}%`,
+        }}
+      />
+    </div>
+  );
+}
+
+function DefaultAuthBrandPanel() {
+  const partnerLogo = appBrand.partnerLogo;
+
+  return (
+    <div
+      className="w-full max-w-[38rem] space-y-2"
+      data-brand-key={appBrand.key}
+    >
       <div className="flex flex-col items-center justify-center">
-        <Image
-          src="/branding/logo-ruwang-arsip.png"
-          alt="Logo Ruwang Arsip"
-          width={1536}
-          height={1024}
+        <CroppedBrandLogo
+          logo={appBrand.ruwangLogo}
+          maxWidth={appBrand.authLogoLayout.ruwangMaxWidth}
           priority
-          unoptimized
-          className="mx-auto h-auto w-full object-contain"
-          style={{ maxWidth: 405 }}
+          testId="ruwang-brand-logo"
         />
 
-        {showPartnerBrand ? (
+        {partnerLogo && appBrand.authLogoLayout.partnerMaxWidth ? (
           <>
-            <div className="my-2 flex items-center justify-center">
+            <div className="my-2.5 flex items-center justify-center">
               <X
-                className="h-11 w-11 -translate-y-3 shrink-0 text-[#157ec3]"
+                className="shrink-0 text-[#157ec3]"
+                style={{
+                  width: appBrand.authLogoLayout.separatorSize,
+                  height: appBrand.authLogoLayout.separatorSize,
+                }}
                 strokeWidth={3.4}
                 aria-hidden="true"
               />
             </div>
 
-            <Image
-              src="/branding/logo-bprs-riyal-irsyadi.png"
-              alt="Logo Bank Syariah Riyal Irsyadi"
-              width={2465}
-              height={346}
+            <CroppedBrandLogo
+              logo={partnerLogo}
+              maxWidth={appBrand.authLogoLayout.partnerMaxWidth}
               priority
-              unoptimized
-              className="h-auto w-full object-contain"
-              style={{ maxWidth: 520 }}
+              testId="partner-brand-logo"
             />
           </>
         ) : null}
@@ -80,12 +122,14 @@ function DefaultAuthBrandPanel({
 export default function AuthSplitLayout({
   children,
   leftPanel,
-  brandMode = "default",
 }: AuthSplitLayoutProps) {
   return (
-    <main className="m-0 flex h-screen w-full overflow-hidden p-0">
+    <main
+      className="m-0 flex h-screen w-full overflow-hidden p-0"
+      data-app-brand={appBrand.key}
+    >
       <section className="hidden flex-1 items-center justify-center bg-white px-12 lg:flex">
-        {leftPanel ?? <DefaultAuthBrandPanel brandMode={brandMode} />}
+        {leftPanel ?? <DefaultAuthBrandPanel />}
       </section>
 
       <section className="flex flex-1 items-center justify-center bg-[#157ec3] p-4 sm:p-6 lg:p-10">

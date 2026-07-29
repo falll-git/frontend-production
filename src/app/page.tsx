@@ -76,7 +76,7 @@ export default function LoginPage() {
   };
 
   return (
-    <AuthSplitLayout brandMode="ruwang-only">
+    <AuthSplitLayout>
       <div className="space-y-4">
         <div className="auth-card animate-auth-in rounded-3xl px-7 py-8 sm:px-8 sm:py-9">
           <div className="relative z-10">
