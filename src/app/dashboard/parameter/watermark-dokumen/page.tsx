@@ -167,10 +167,6 @@ function fieldLabel(option: WatermarkOption): string {
   return option.label || option.key;
 }
 
-function toCssBackgroundImage(url: string): string {
-  return `url("${url.replace(/"/g, '\\"')}")`;
-}
-
 export default function SetupWatermarkDokumenPage() {
   const { showToast } = useAppToast();
   const { user } = useAuth();
@@ -852,12 +848,11 @@ export default function SetupWatermarkDokumenPage() {
               <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                 <div className="flex h-24 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-white">
                   {previewImageUrl ? (
-                    <div
-                      aria-label="Watermark"
-                      className="h-20 w-full bg-contain bg-center bg-no-repeat"
-                      style={{
-                        backgroundImage: toCssBackgroundImage(previewImageUrl),
-                      }}
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={previewImageUrl}
+                      alt="Watermark"
+                      className="h-20 w-full object-contain"
                     />
                   ) : (
                     <ImageIcon className="h-8 w-8 text-gray-300" aria-hidden="true" />
@@ -1071,16 +1066,20 @@ export default function SetupWatermarkDokumenPage() {
                       previewImageUrl && (
                         <span
                           aria-hidden="true"
-                          className="block bg-contain bg-center bg-no-repeat"
+                          className="block"
                           style={{
                             width: `${Math.max(24, form.image_scale * 160)}px`,
                             height: `${Math.max(24, form.image_scale * 160)}px`,
                             opacity: form.image_opacity,
-                            backgroundImage: toCssBackgroundImage(
-                              previewImageUrl,
-                            ),
                           }}
-                        />
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={previewImageUrl}
+                            alt=""
+                            className="h-full w-full object-contain"
+                          />
+                        </span>
                       )}
                     {isTextWatermark(form.watermark_type) && (
                       <span

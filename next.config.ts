@@ -1,33 +1,5 @@
 import type { NextConfig } from "next";
-import { readFileSync, statSync } from "node:fs";
-import { isAbsolute } from "node:path";
-
-function resolveFileBackedEnv(key: string) {
-  const directValue = (process.env[key] || "").trim();
-  const fileKey = `${key}_FILE`;
-  const filePath = (process.env[fileKey] || "").trim();
-  if (!filePath) return directValue;
-  if (directValue) {
-    throw new Error(`${key} dan ${fileKey} tidak boleh diisi bersamaan.`);
-  }
-  if (process.env.NODE_ENV === "production" && !isAbsolute(filePath)) {
-    throw new Error(`${fileKey} wajib memakai absolute path di production.`);
-  }
-  let stats: ReturnType<typeof statSync>;
-  let value: string;
-  try {
-    stats = statSync(filePath);
-    value = readFileSync(filePath, "utf8").trim();
-  } catch {
-    throw new Error(`${fileKey} tidak dapat dibaca.`);
-  }
-  if (!stats.isFile() || stats.size < 1 || stats.size > 64 * 1024) {
-    throw new Error(`${fileKey} harus berupa file 1 byte sampai 64 KiB.`);
-  }
-  if (!value) throw new Error(`${fileKey} tidak boleh menunjuk ke file kosong.`);
-  process.env[key] = value;
-  return value;
-}
+import { resolveFileBackedEnv } from "./src/lib/file-backed-env";
 
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || "";
 const serverActionsEncryptionKey =
