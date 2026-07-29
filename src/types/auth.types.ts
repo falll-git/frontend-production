@@ -47,7 +47,7 @@ export interface LoginResponse {
   status: boolean;
   message: string;
   data: {
-    data: {
+    data?: {
       id: string;
       name: string;
       username: string;
@@ -71,7 +71,7 @@ export interface LoginResponse {
         division_name?: string;
       };
     };
-    token: string;
+    token?: string;
   };
 }
 

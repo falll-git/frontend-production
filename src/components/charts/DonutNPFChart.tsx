@@ -81,7 +81,11 @@ export default function DonutNPFChart({
         className="flex h-[300px] min-h-[300px] w-full min-w-[1px] max-w-[360px] justify-center"
       >
         {chartWidth > 0 ? (
-          <PieChart width={Math.min(chartWidth, 360)} height={300}>
+          <PieChart
+            width={Math.min(chartWidth, 360)}
+            height={300}
+            accessibilityLayer={false}
+          >
             <Pie
               data={data}
               dataKey="outstandingPokok"

@@ -37,6 +37,7 @@ import SetupStatusBadge, {
   type SetupStatusTone,
 } from "@/components/ui/SetupStatusBadge";
 import type { PaginationMeta } from "@/types/api.types";
+import { refreshNotificationPanel } from "@/lib/notification-refresh";
 
 const PAGE_LIMIT = 10;
 
@@ -281,9 +282,16 @@ export default function Notification() {
     [],
   );
 
-  const refreshPanel = useCallback(async () => {
-    await Promise.all([loadNotifications({ page: 1 }), refreshUnreadCount()]);
-  }, [loadNotifications, refreshUnreadCount]);
+  const refreshPanel = useCallback(
+    async ({ showRefreshing = false }: { showRefreshing?: boolean } = {}) => {
+      await refreshNotificationPanel({
+        loadNotifications,
+        refreshUnreadCount,
+        showRefreshing,
+      });
+    },
+    [loadNotifications, refreshUnreadCount],
+  );
 
   useEffect(() => {
     refreshPanel().catch(() => {});
@@ -318,10 +326,7 @@ export default function Notification() {
 
     setIsOpen(true);
     try {
-      await Promise.all([
-        loadNotifications({ page: 1, showRefreshing: true }),
-        refreshUnreadCount(),
-      ]);
+      await refreshPanel({ showRefreshing: true });
     } catch {
       return;
     }

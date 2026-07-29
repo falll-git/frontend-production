@@ -6,12 +6,17 @@ import { TextAnimate } from "@/components/improve/TextAnimate";
 type AuthSplitLayoutProps = {
   children: ReactNode;
   leftPanel?: ReactNode;
+  brandMode?: "default" | "ruwang-only";
 };
 
-function DefaultAuthBrandPanel() {
+function DefaultAuthBrandPanel({
+  brandMode = "default",
+}: Pick<AuthSplitLayoutProps, "brandMode">) {
+  const showPartnerBrand = brandMode === "default";
+
   return (
     <div className="w-full max-w-[38rem] space-y-2">
-      <div className="flex flex-col items-center">
+      <div className="flex flex-col items-center justify-center">
         <Image
           src="/branding/logo-ruwang-arsip.png"
           alt="Logo Ruwang Arsip"
@@ -19,28 +24,32 @@ function DefaultAuthBrandPanel() {
           height={1024}
           priority
           unoptimized
-          className="h-auto w-full object-contain"
+          className="mx-auto h-auto w-full object-contain"
           style={{ maxWidth: 405 }}
         />
 
-        <div className="my-2 flex items-center justify-center">
-          <X
-            className="h-11 w-11 -translate-y-3 shrink-0 text-[#157ec3]"
-            strokeWidth={3.4}
-            aria-hidden="true"
-          />
-        </div>
+        {showPartnerBrand ? (
+          <>
+            <div className="my-2 flex items-center justify-center">
+              <X
+                className="h-11 w-11 -translate-y-3 shrink-0 text-[#157ec3]"
+                strokeWidth={3.4}
+                aria-hidden="true"
+              />
+            </div>
 
-        <Image
-          src="/branding/logo-bprs-riyal-irsyadi.png"
-          alt="Logo Bank Syariah Riyal Irsyadi"
-          width={2465}
-          height={346}
-          priority
-          unoptimized
-          className="h-auto w-full object-contain"
-          style={{ maxWidth: 520 }}
-        />
+            <Image
+              src="/branding/logo-bprs-riyal-irsyadi.png"
+              alt="Logo Bank Syariah Riyal Irsyadi"
+              width={2465}
+              height={346}
+              priority
+              unoptimized
+              className="h-auto w-full object-contain"
+              style={{ maxWidth: 520 }}
+            />
+          </>
+        ) : null}
       </div>
 
       <div className="pt-8">
@@ -71,11 +80,12 @@ function DefaultAuthBrandPanel() {
 export default function AuthSplitLayout({
   children,
   leftPanel,
+  brandMode = "default",
 }: AuthSplitLayoutProps) {
   return (
     <main className="m-0 flex h-screen w-full overflow-hidden p-0">
       <section className="hidden flex-1 items-center justify-center bg-white px-12 lg:flex">
-        {leftPanel ?? <DefaultAuthBrandPanel />}
+        {leftPanel ?? <DefaultAuthBrandPanel brandMode={brandMode} />}
       </section>
 
       <section className="flex flex-1 items-center justify-center bg-[#157ec3] p-4 sm:p-6 lg:p-10">

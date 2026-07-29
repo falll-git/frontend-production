@@ -506,7 +506,7 @@ export default function SetupWatermarkDokumenPage() {
   return (
     <DashboardPageShell spacing="md">
       <FeatureHeader
-        title="Setup Watermark Dokumen"
+        title="Pengaturan Watermark Dokumen"
         subtitle="Konfigurasi watermark file dokumen."
         icon={<Stamp />}
         className={SETUP_PAGE_WIDTH_XL_CLASS}
@@ -703,10 +703,14 @@ export default function SetupWatermarkDokumenPage() {
             </div>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className="lg:col-span-2">
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="watermark-text-template"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
                   Template Teks
                 </label>
                 <SetupTextarea
+                  id="watermark-text-template"
                   value={form.text_template}
                   disabled={!canUpdate || isFetching}
                   onChange={(event) =>
@@ -732,11 +736,15 @@ export default function SetupWatermarkDokumenPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label
+                  id="watermark-text-color-label"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
                   Warna Teks
                 </label>
                 <div className="flex gap-2">
                   <input
+                    aria-labelledby="watermark-text-color-label"
                     type="color"
                     value={form.text_color}
                     disabled={!canUpdate || isFetching}
@@ -746,6 +754,7 @@ export default function SetupWatermarkDokumenPage() {
                     className="h-11 w-14 rounded-lg border border-gray-200 bg-white p-1"
                   />
                   <SetupTextInput
+                    aria-labelledby="watermark-text-color-label"
                     value={form.text_color}
                     disabled={!canUpdate || isFetching}
                     onChange={(event) =>
@@ -757,10 +766,14 @@ export default function SetupWatermarkDokumenPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="watermark-font-family"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
                   Font
                 </label>
                 <SetupTextInput
+                  id="watermark-font-family"
                   value={form.font_family}
                   disabled={!canUpdate || isFetching}
                   onChange={(event) =>
@@ -770,10 +783,14 @@ export default function SetupWatermarkDokumenPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="watermark-text-opacity"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
                   Opacity Teks: {Math.round(form.text_opacity * 100)}%
                 </label>
                 <input
+                  id="watermark-text-opacity"
                   type="range"
                   min={0}
                   max={1}
@@ -788,10 +805,14 @@ export default function SetupWatermarkDokumenPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="watermark-font-size"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
                   Ukuran Font
                 </label>
                 <SetupTextInput
+                  id="watermark-font-size"
                   type="number"
                   min={8}
                   max={200}
@@ -857,10 +878,14 @@ export default function SetupWatermarkDokumenPage() {
 
             <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="watermark-image-opacity"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
                   Opacity Gambar: {Math.round(form.image_opacity * 100)}%
                 </label>
                 <input
+                  id="watermark-image-opacity"
                   type="range"
                   min={0}
                   max={1}
@@ -874,10 +899,14 @@ export default function SetupWatermarkDokumenPage() {
                 />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="watermark-image-scale"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
                   Skala Gambar: {Math.round(form.image_scale * 100)}%
                 </label>
                 <input
+                  id="watermark-image-scale"
                   type="range"
                   min={0.05}
                   max={2}
@@ -899,11 +928,15 @@ export default function SetupWatermarkDokumenPage() {
               <h2 className="text-lg font-bold text-gray-900">Posisi</h2>
             </div>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <label className="block w-full max-w-[320px]">
+              <label
+                htmlFor="watermark-position"
+                className="block w-full max-w-[320px]"
+              >
                 <span className="text-sm font-medium text-gray-700">
                   Posisi
                 </span>
                 <SetupSelect
+                  id="watermark-position"
                   value={form.position}
                   disabled={!canUpdate || isFetching}
                   onChange={(event) => updateForm("position", event.target.value)}
@@ -933,10 +966,14 @@ export default function SetupWatermarkDokumenPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor="watermark-rotation"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
                   Rotasi: {form.rotation} derajat
                 </label>
                 <input
+                  id="watermark-rotation"
                   type="range"
                   min={-360}
                   max={360}
@@ -952,10 +989,14 @@ export default function SetupWatermarkDokumenPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="watermark-spacing-x"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
                     Jarak X
                   </label>
                   <SetupTextInput
+                    id="watermark-spacing-x"
                     type="number"
                     min={80}
                     max={1200}
@@ -967,10 +1008,14 @@ export default function SetupWatermarkDokumenPage() {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-gray-700">
+                  <label
+                    htmlFor="watermark-spacing-y"
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
                     Jarak Y
                   </label>
                   <SetupTextInput
+                    id="watermark-spacing-y"
                     type="number"
                     min={80}
                     max={1200}

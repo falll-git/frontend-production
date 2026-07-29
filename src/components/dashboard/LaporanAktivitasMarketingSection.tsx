@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, SearchX } from "lucide-react";
+import { Activity, Eye, SearchX } from "lucide-react";
 
 import DashboardModal from "@/components/ui/DashboardModal";
+import SetupActionMenu from "@/components/ui/SetupActionMenu";
 import { useDocumentPreviewContext } from "@/components/ui/DocumentPreviewContext";
+import Pagination from "@/components/ui/Pagination";
 import {
   SetupDataTable,
   SetupDataTableBody,
@@ -16,6 +18,7 @@ import {
 } from "@/components/ui/SetupDataTable";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupFilePreviewGroup from "@/components/ui/SetupFilePreviewGroup";
+import SetupRecordDetailSection from "@/components/ui/SetupRecordDetailSection";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupSelect from "@/components/ui/SetupSelect";
 import SetupStatusBadge, {
@@ -64,6 +67,8 @@ const sortOptions: Array<{ value: SortFilter; label: string }> = [
   { value: "TERBARU", label: "Terbaru" },
   { value: "TERLAMA", label: "Terlama" },
 ];
+
+const PAGE_SIZE = 10;
 
 const aktivitasBadgeMeta: Record<
   JenisAktivitas,
@@ -138,25 +143,6 @@ function mapActivityItem(item: DebtorMarketingReportActivity): AktivitasMarketin
   };
 }
 
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | null | undefined;
-}) {
-  return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-        {label}
-      </p>
-      <p className="mt-1 whitespace-pre-wrap break-words text-sm font-medium text-gray-900">
-        {valueOrDash(value)}
-      </p>
-    </div>
-  );
-}
-
 export default function LaporanAktivitasMarketingSection({
   widget,
   showTitle = true,
@@ -169,6 +155,7 @@ export default function LaporanAktivitasMarketingSection({
     useState<AktivitasFilter>("SEMUA");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<SortFilter>("TERBARU");
+  const [page, setPage] = useState(1);
   const [aktivitasItems, setAktivitasItems] = useState<AktivitasMarketingItem[]>(
     [],
   );
@@ -250,6 +237,13 @@ export default function LaporanAktivitasMarketingSection({
       });
   }, [aktivitasItems, searchTerm, selectedAktivitas, sortBy]);
 
+  const lastPage = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
+  const currentPage = Math.min(page, lastPage);
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredItems.slice(start, start + PAGE_SIZE);
+  }, [currentPage, filteredItems]);
+
   const activeMeta = activeItem
     ? aktivitasBadgeMeta[activeItem.jenisAktivitas]
     : null;
@@ -270,9 +264,10 @@ export default function LaporanAktivitasMarketingSection({
           <div className="min-w-[13.75rem] flex-1 sm:flex-none">
             <SetupSelect
               value={selectedAktivitas}
-              onChange={(event) =>
-                setSelectedAktivitas(event.target.value as AktivitasFilter)
-              }
+              onChange={(event) => {
+                setSelectedAktivitas(event.target.value as AktivitasFilter);
+                setPage(1);
+              }}
               aria-label="Filter jenis aktivitas marketing"
             >
               {aktivitasOptions.map((option) => (
@@ -285,7 +280,10 @@ export default function LaporanAktivitasMarketingSection({
 
           <SetupSearchInput
             value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
+            onChange={(event) => {
+              setSearchTerm(event.target.value);
+              setPage(1);
+            }}
             placeholder="Cari nasabah, kontrak, ringkasan, atau status..."
             containerClassName="min-w-[16.25rem] flex-[2]"
           />
@@ -293,7 +291,10 @@ export default function LaporanAktivitasMarketingSection({
           <div className="min-w-[9.375rem] flex-1 sm:flex-none">
             <SetupSelect
               value={sortBy}
-              onChange={(event) => setSortBy(event.target.value as SortFilter)}
+              onChange={(event) => {
+                setSortBy(event.target.value as SortFilter);
+                setPage(1);
+              }}
               aria-label="Urutan tanggal aktivitas marketing"
             >
               {sortOptions.map((option) => (
@@ -316,25 +317,19 @@ export default function LaporanAktivitasMarketingSection({
                   <SetupDataTableHeaderCell>Ringkasan</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Target</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Status</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className="text-center">Aksi</SetupDataTableHeaderCell>
                 </SetupDataTableRow>
               </SetupDataTableHead>
               <SetupDataTableBody>
-                {filteredItems.map((item) => {
+                {paginatedItems.map((item) => {
                   const aktivitasMeta = aktivitasBadgeMeta[item.jenisAktivitas];
 
                   return (
                     <SetupDataTableRow
                       key={item.id}
-                      role="button"
-                      tabIndex={0}
                       title="Double-click untuk melihat detail aktivitas"
-                      className="cursor-pointer transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
+                      className="cursor-pointer transition-colors hover:bg-gray-50"
                       onDoubleClick={() => setActiveItem(item)}
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter") return;
-                        event.preventDefault();
-                        setActiveItem(item);
-                      }}
                     >
                       <SetupDataTableCell>
                         {formatDisplayDate(item.tanggal)}
@@ -364,16 +359,38 @@ export default function LaporanAktivitasMarketingSection({
                       <SetupDataTableCell>
                         <SetupStatusBadge status={item.status} />
                       </SetupDataTableCell>
+                      <SetupDataTableCell className="text-center">
+                        <div
+                          className="flex items-center justify-center"
+                          onClick={(event) => event.stopPropagation()}
+                          onDoubleClick={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => event.stopPropagation()}
+                        >
+                          <SetupActionMenu
+                            label={`Buka aksi aktivitas ${item.namaNasabah}`}
+                            menuLabel={`Aksi aktivitas ${item.namaNasabah}`}
+                            items={[
+                              {
+                                key: "detail",
+                                label: "Detail",
+                                icon: Eye,
+                                tone: "blue",
+                                onClick: () => setActiveItem(item),
+                              },
+                            ]}
+                          />
+                        </div>
+                      </SetupDataTableCell>
                     </SetupDataTableRow>
                   );
                 })}
                 {isLoading ? (
-                  <SetupDataTableEmptyRow colSpan={6}>
+                  <SetupDataTableEmptyRow colSpan={7}>
                     Memuat aktivitas marketing...
                   </SetupDataTableEmptyRow>
                 ) : null}
                 {!isLoading && errorMessage ? (
-                  <SetupDataTableEmptyRow colSpan={6}>
+                  <SetupDataTableEmptyRow colSpan={7}>
                     {errorMessage}
                   </SetupDataTableEmptyRow>
                 ) : null}
@@ -391,102 +408,165 @@ export default function LaporanAktivitasMarketingSection({
               />
             </div>
           ) : null}
+          {!isLoading && !errorMessage && filteredItems.length > 0 ? (
+            <Pagination
+              page={currentPage}
+              lastPage={lastPage}
+              total={filteredItems.length}
+              limit={PAGE_SIZE}
+              onPageChange={setPage}
+            />
+          ) : null}
         </div>
       </div>
 
       <DashboardModal
         isOpen={Boolean(activeItem)}
-        title={activeMeta?.label ?? "Detail Aktivitas"}
-        description="Detail aktivitas marketing bersifat read-only dari dashboard."
+        title={activeMeta ? `Detail ${activeMeta.label}` : "Detail Aktivitas"}
+        description={
+          activeItem
+            ? activeItem.noKontrak !== "-"
+              ? activeItem.noKontrak
+              : activeItem.namaNasabah
+            : undefined
+        }
         onClose={() => setActiveItem(null)}
-        maxWidth="3xl"
-        bodyClassName="max-h-[75dvh] space-y-4 overflow-y-auto p-5"
+        maxWidth="4xl"
+        bodyClassName="max-h-[70vh] space-y-5 overflow-y-auto p-6"
+        footer={
+          <button
+            type="button"
+            className="uiverse-modal-button uiverse-modal-button--neutral"
+            onClick={() => setActiveItem(null)}
+          >
+            Tutup
+          </button>
+        }
       >
         {activeItem ? (
           <>
-            <div className="flex flex-wrap items-center gap-3">
-              {activeMeta ? (
-                <SetupStatusBadge
-                  status={activeMeta.label}
-                  label={activeMeta.label}
-                  tone={activeMeta.tone}
-                  showIcon={false}
-                />
-              ) : null}
-              <SetupStatusBadge status={activeItem.status} />
-            </div>
+            <SetupRecordDetailSection
+              title="Aktivitas dan Nasabah"
+              rows={[
+                {
+                  label: "Jenis Aktivitas",
+                  value: activeMeta ? (
+                    <SetupStatusBadge
+                      status={activeMeta.label}
+                      label={activeMeta.label}
+                      tone={activeMeta.tone}
+                      showIcon={false}
+                    />
+                  ) : (
+                    "-"
+                  ),
+                },
+                {
+                  label: "Status",
+                  value: <SetupStatusBadge status={activeItem.status} />,
+                },
+                { label: "Nasabah", value: activeItem.namaNasabah },
+                { label: "Nomor Kontrak", value: activeItem.noKontrak },
+              ]}
+            />
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <DetailRow label="Nasabah" value={activeItem.namaNasabah} />
-              <DetailRow label="Kontrak" value={activeItem.noKontrak} />
-              <DetailRow
-                label="Tanggal Aktivitas"
-                value={formatDisplayDate(activeItem.tanggal)}
+            <SetupRecordDetailSection
+              title="Jadwal Aktivitas"
+              rows={[
+                {
+                  label: "Tanggal Aktivitas",
+                  value: formatDisplayDate(activeItem.tanggal),
+                },
+                {
+                  label: "Target Tanggal",
+                  value: formatDisplayDate(activeItem.targetDate),
+                },
+              ]}
+            />
+
+            {activeItem.jenisAktivitas === "ACTION_PLAN" ? (
+              <SetupRecordDetailSection
+                title="Detail Action Plan"
+                rows={[
+                  {
+                    label: "Action Plan",
+                    value: valueOrDash(activeItem.source.action_plan),
+                  },
+                ]}
               />
-              <DetailRow
-                label="Target Tanggal"
-                value={formatDisplayDate(activeItem.targetDate)}
+            ) : null}
+
+            {activeItem.jenisAktivitas === "VISIT_RESULT" ? (
+              <>
+                <SetupRecordDetailSection
+                  title="Detail Hasil Kunjungan"
+                  rows={[
+                    {
+                      label: "Hasil Kunjungan",
+                      value: valueOrDash(activeItem.source.visit_result),
+                    },
+                    {
+                      label: "Kesimpulan",
+                      value: valueOrDash(activeItem.source.conclusion),
+                    },
+                  ]}
+                />
+                <section className="min-w-0 space-y-3">
+                  <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-gray-500">
+                    Lokasi Kunjungan
+                  </h3>
+                  <VisitLocationDetails location={activeItem.source} />
+                </section>
+              </>
+            ) : null}
+
+            {activeItem.jenisAktivitas === "HANDLING_STEP" ? (
+              <SetupRecordDetailSection
+                title="Detail Langkah Penanganan"
+                rows={[
+                  {
+                    label: "Langkah Penanganan",
+                    value: valueOrDash(activeItem.source.handling_step),
+                  },
+                  {
+                    label: "Hasil Penanganan",
+                    value: valueOrDash(activeItem.source.handling_result),
+                  },
+                ]}
               />
-            </div>
+            ) : null}
 
-            <div className="grid gap-3">
-              {activeItem.jenisAktivitas === "ACTION_PLAN" ? (
-                <DetailRow
-                  label="Action Plan"
-                  value={activeItem.source.action_plan}
-                />
-              ) : null}
-              {activeItem.jenisAktivitas === "VISIT_RESULT" ? (
-                <>
-                  <DetailRow
-                    label="Hasil Kunjungan"
-                    value={activeItem.source.visit_result}
-                  />
-                  <DetailRow
-                    label="Kesimpulan"
-                    value={activeItem.source.conclusion}
-                  />
-                  <section className="min-w-0 space-y-2">
-                    <div>
-                      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-600">
-                        Lokasi Kunjungan
-                      </h3>
-                      <p className="mt-1 text-xs leading-5 text-gray-500">
-                        Alamat manual dan geotag yang direkam saat kunjungan.
-                      </p>
-                    </div>
-                    <VisitLocationDetails location={activeItem.source} />
-                  </section>
-                </>
-              ) : null}
-              {activeItem.jenisAktivitas === "HANDLING_STEP" ? (
-                <>
-                  <DetailRow
-                    label="Langkah Penanganan"
-                    value={activeItem.source.handling_step}
-                  />
-                  <DetailRow
-                    label="Hasil Penanganan"
-                    value={activeItem.source.handling_result}
-                  />
-                </>
-              ) : null}
-              <DetailRow label="Catatan" value={activeItem.source.notes} />
-            </div>
-
-            <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                File Pendukung
-              </p>
-              <div className="mt-2">
-                <SetupFilePreviewGroup
-                  file={activeItem.source.file}
-                  files={activeItem.source.files}
-                  align="start"
-                  onOpen={openFile}
-                />
-              </div>
-            </div>
+            <SetupRecordDetailSection
+              title="Catatan dan File"
+              rows={[
+                {
+                  label: "Catatan",
+                  value: valueOrDash(activeItem.source.notes),
+                },
+                {
+                  label: "Jumlah File",
+                  value: String(
+                    Array.isArray(activeItem.source.files) &&
+                      activeItem.source.files.length > 0
+                      ? activeItem.source.files.length
+                      : activeItem.source.file
+                        ? 1
+                        : 0,
+                  ),
+                },
+                {
+                  label: "Aksi File",
+                  value: (
+                    <SetupFilePreviewGroup
+                      file={activeItem.source.file}
+                      files={activeItem.source.files}
+                      align="start"
+                      onOpen={openFile}
+                    />
+                  ),
+                },
+              ]}
+            />
           </>
         ) : null}
       </DashboardModal>

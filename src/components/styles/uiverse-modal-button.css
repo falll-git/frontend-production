@@ -78,11 +78,11 @@
 
 .uiverse-modal-button--primary {
   --modal-button-color: #ffffff;
-  --modal-button-border: #157ec3;
-  --modal-button-hover-border: #126fae;
-  --modal-button-fill: #126fae;
+  --modal-button-border: #126fae;
+  --modal-button-hover-border: #0d5a8f;
+  --modal-button-fill: #0d5a8f;
 
-  background: #157ec3;
+  background: #126fae;
 }
 
 .uiverse-modal-button--danger {
@@ -93,10 +93,10 @@
 }
 
 .uiverse-modal-button--success {
-  --modal-button-color: #059669;
-  --modal-button-border: rgba(5, 150, 105, 0.55);
-  --modal-button-hover-border: rgba(5, 150, 105, 0.75);
-  --modal-button-fill: rgba(5, 150, 105, 0.08);
+  --modal-button-color: #047857;
+  --modal-button-border: rgba(4, 120, 87, 0.55);
+  --modal-button-hover-border: rgba(4, 120, 87, 0.75);
+  --modal-button-fill: rgba(4, 120, 87, 0.08);
 }
 
 .watermark-type-button {

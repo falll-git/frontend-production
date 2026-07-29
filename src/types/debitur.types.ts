@@ -239,10 +239,45 @@ export type DebtorCollateral = SlikReferenceFields & {
   operation_code: string | null;
   period_month: string | null;
   last_import_period_month: string | null;
+  latest_appraisal_date: string | null;
+  latest_appraisal_source: "REPORTER" | null;
+  next_appraisal_due_date: string | null;
+  appraisal_warning_start_date: string | null;
+  appraisal_status: "NOT_AVAILABLE" | "CURRENT" | "DUE_SOON" | "OVERDUE";
+  appraisal_status_label: string;
+  appraisal_days_remaining: number | null;
+  has_expiry_date: boolean;
+  expiry_date: string | null;
+  expiry_note: string | null;
+  expiry_warning_start_date: string | null;
+  expiry_status:
+    | "NOT_APPLICABLE"
+    | "NOT_SET"
+    | "CURRENT"
+    | "DUE_SOON"
+    | "EXPIRED";
+  expiry_status_label: string;
+  expiry_days_remaining: number | null;
+  expiry_updated_by: string | null;
+  expiry_updated_at: string | null;
+  expiry_updater: DebtorUserSummary | null;
   debtor: DebtorRecord | null;
   contract: Pick<DebtorContract, "id" | "debtor_id" | "no_kontrak" | "status"> | null;
   created_at: string | null;
   updated_at: string | null;
+};
+
+export type DebtorCollateralExpiryPayload = {
+  has_expiry_date: boolean;
+  expiry_date: string | null;
+  expiry_note?: string | null;
+};
+
+export type DebtorCollateralExpiryImportSummary = {
+  total_rows: number;
+  updated_rows: number;
+  status_yes: number;
+  status_no: number;
 };
 
 export type DebtorDocumentChecklistStatus = {
@@ -284,6 +319,7 @@ export type DebtorMarketingActivity = {
   contract: DebtorContract | null;
   activity_type: DebtorParameterSummary | null;
   created_by: string | null;
+  creator: DebtorUserSummary | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -307,6 +343,7 @@ export type DebtorMarketingTimelineEntry = {
   timeline_group_id: string | null;
   related_activity_id: string | null;
   created_by: string | null;
+  creator: DebtorUserSummary | null;
   visit_address: string | null;
   visit_latitude: number | null;
   visit_longitude: number | null;
@@ -400,6 +437,7 @@ export type DebtorIdebReporterGroup = {
   active_facility_count: number;
   paid_off_facility_count: number;
   write_off_facility_count: number;
+  inactive_facility_count: number;
   worst_collectibility: string | number | null;
   active_worst_collectibility: string | number | null;
   highest_days_past_due: number;
@@ -415,6 +453,29 @@ export type DebtorIdebReporterGroup = {
   collateral_count: number;
 };
 
+export type DebtorIdebConclusionIndicator = "GREEN" | "YELLOW" | "RED" | "GRAY";
+
+export type DebtorIdebParameterizedConclusion = {
+  rule_number: number | null;
+  rule_code: string;
+  indicator: DebtorIdebConclusionIndicator;
+  indicator_label: string;
+  condition: string;
+  conclusion: string;
+  reference_period: string | null;
+  evidence_text: string;
+  evidence: {
+    matched_facility_count: number;
+    matched_observation_count: number;
+    reporters: string[];
+    account_numbers: string[];
+    collectibility_levels: number[];
+    highest_days_past_due: number | null;
+    legal_process_detected: boolean;
+    write_off_detected: boolean;
+  };
+};
+
 export type DebtorIdebReportSummary = {
   reporter_count: number;
   derived_reporter_count: number;
@@ -423,6 +484,7 @@ export type DebtorIdebReportSummary = {
   active_facilities_count: number;
   paid_off_facilities_count: number;
   write_off_facilities_count: number;
+  inactive_facilities_count: number;
   reported_worst_collectibility: string | number | null;
   overall_worst_collectibility: string | number | null;
   active_worst_collectibility: string | number | null;
@@ -439,6 +501,7 @@ export type DebtorIdebReportSummary = {
   write_off_plafond: number;
   write_off_outstanding: number;
   write_off_arrears: number;
+  parameterized_conclusion: DebtorIdebParameterizedConclusion | null;
   reporter_groups: DebtorIdebReporterGroup[];
   priority_reporters: DebtorIdebReporterGroup[];
   collateral_source: "IDEB" | "A01" | null;
@@ -488,6 +551,7 @@ export type DebtorIdebReportUpload = DebtorIdebPendingUpload & {
   active_facilities_count: number;
   paid_off_facilities_count: number;
   write_off_facilities_count: number;
+  inactive_facilities_count: number;
   active_outstanding: number;
   active_arrears: number;
   paid_off_plafond: number;
@@ -510,61 +574,6 @@ export type DebtorIdebReportUpload = DebtorIdebPendingUpload & {
 export type DebtorIdebResolvePayload = {
   debtor_id: string;
   contract_id?: string | null;
-};
-
-export type DebtorIdebComparisonStatus =
-  | "MATCHED"
-  | "DIFFERENT"
-  | "EXTERNAL_ONLY"
-  | "INTERNAL_ONLY";
-
-export type DebtorIdebComparisonFacility = {
-  reporter?: string | null;
-  account_number?: string | null;
-  contract_id?: string | null;
-  no_kontrak?: string | null;
-  facility_number?: string | null;
-  product?: string | null;
-  akad?: string | null;
-  plafond?: number | null;
-  outstanding?: number | null;
-  collectibility?: string | number | null;
-  dpd?: number | null;
-  condition?: string | null;
-  due_date?: string | null;
-  period_month?: string | null;
-};
-
-export type DebtorIdebComparisonDifference = {
-  field: string;
-  label: string;
-  external: string | number | null;
-  internal: string | number | null;
-};
-
-export type DebtorIdebComparisonItem = {
-  status: DebtorIdebComparisonStatus;
-  status_label: string;
-  match_key: string | null;
-  external: DebtorIdebComparisonFacility | null;
-  internal: DebtorIdebComparisonFacility | null;
-  differences: DebtorIdebComparisonDifference[];
-};
-
-export type DebtorIdebComparisonSummary = {
-  total: number;
-  matched: number;
-  different: number;
-  external_only: number;
-  internal_only: number;
-};
-
-export type DebtorIdebComparison = {
-  ideb_upload_id: string;
-  debtor_id: string;
-  period_month: string | null;
-  summary: DebtorIdebComparisonSummary;
-  items: DebtorIdebComparisonItem[];
 };
 
 export type DebtorWorkflowPrint = {

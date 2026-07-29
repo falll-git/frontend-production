@@ -17,6 +17,7 @@ import SetupActionMenu, {
 } from "@/components/ui/SetupActionMenu";
 import SetupCollectibilityBadge from "@/components/ui/SetupCollectibilityBadge";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
+import SetupSelect from "@/components/ui/SetupSelect";
 import {
   SetupDataTable,
   SetupDataTableBody,
@@ -49,13 +50,14 @@ import {
 } from "@/lib/ideb-facility-filter";
 import { debiturService } from "@/services/debitur.service";
 import type {
-  DebtorIdebComparison,
+  DebtorIdebParameterizedConclusion,
   DebtorIdebReportUpload,
   DebtorIdebSummaryDetail,
 } from "@/types/debitur.types";
 import type { PaginationMeta } from "@/types/api.types";
 
 type IdebRecord = Record<string, unknown>;
+type IdebDetailTab = "SUMMARY" | "FACILITIES" | "COLLATERAL" | "CONCLUSION";
 
 const IDEB_REPORT_PAGE_SIZE = 10;
 const EMPTY_META: PaginationMeta = {
@@ -146,33 +148,78 @@ function downloadBrowserFile(blob: Blob, fileName: string) {
 }
 
 function getFacilities(item: DebtorIdebReportUpload | null): IdebRecord[] {
-  return sortFacilitiesByRisk(
+  return sortFacilitiesForAll(
     (item?.summary_detail?.facilities || []).filter((entry) => asRecord(entry)) as IdebRecord[],
   );
 }
 
+const IDEB_PAID_OFF_CONDITION_CODES = new Set(["02", "05", "06", "12", "17"]);
+const IDEB_WRITE_OFF_CONDITION_CODES = new Set(["03", "04"]);
+
+function facilityCondition(facility: IdebRecord) {
+  return textValue(facility, ["condition", "condition_code", "status"]) ?? "";
+}
+
+function facilityConditionCode(facility: IdebRecord) {
+  const explicitCode = (textValue(facility, ["condition_code", "kode_kondisi"]) ?? "")
+    .toUpperCase();
+  if (explicitCode) {
+    if (/^\d$/.test(explicitCode)) return `0${explicitCode}`;
+    const explicitMatch = /^(\d{2})(?:\D|$)/.exec(explicitCode);
+    if (explicitMatch) return explicitMatch[1];
+  }
+  return /^(\d{2})(?:\D|$)/.exec(facilityCondition(facility))?.[1] ?? "";
+}
+
 function isPaidOffFacility(facility: IdebRecord) {
-  const code = display(textValue(facility, ["condition_code"])).toUpperCase();
-  const condition = display(textValue(facility, ["condition", "status"])).toUpperCase();
-  return (
-    code === "02" ||
-    condition === "02" ||
-    condition.startsWith("02 ") ||
-    condition.includes("LUNAS")
-  );
+  const code = facilityConditionCode(facility);
+  const condition = facilityCondition(facility).toUpperCase();
+  return IDEB_PAID_OFF_CONDITION_CODES.has(code) || condition.includes("LUNAS");
 }
 
 function isWriteOffFacility(facility: IdebRecord) {
-  const code = display(textValue(facility, ["condition_code"])).toUpperCase();
-  const condition = display(textValue(facility, ["condition", "status"])).toUpperCase();
+  const code = facilityConditionCode(facility);
+  const condition = facilityCondition(facility).toUpperCase();
   const compact = condition.replace(/[^A-Z0-9]/g, "");
   return (
-    code === "03" ||
-    condition === "03" ||
-    condition.startsWith("03 ") ||
+    IDEB_WRITE_OFF_CONDITION_CODES.has(code) ||
     compact.includes("HAPUSBUKU") ||
-    compact.includes("DIHAPUSBUKUKAN")
+    compact.includes("DIHAPUSBUKUKAN") ||
+    compact.includes("HAPUSTAGIH")
   );
+}
+
+type IdebFacilityLifecycle = "ACTIVE" | "PAID_OFF" | "WRITE_OFF" | "INACTIVE";
+
+function classifyFacility(facility: IdebRecord): IdebFacilityLifecycle {
+  if (isWriteOffFacility(facility)) return "WRITE_OFF";
+  if (isPaidOffFacility(facility)) return "PAID_OFF";
+  const code = facilityConditionCode(facility);
+  if (code) return code === "00" ? "ACTIVE" : "INACTIVE";
+  const compactCondition = facilityCondition(facility)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+  if (
+    compactCondition === "AKTIF" ||
+    compactCondition === "ACTIVE" ||
+    compactCondition.includes("FASILITASAKTIF")
+  ) {
+    return "ACTIVE";
+  }
+  return "INACTIVE";
+}
+
+function facilityLifecycleLabel(facility: IdebRecord) {
+  switch (classifyFacility(facility)) {
+    case "ACTIVE":
+      return "Aktif";
+    case "PAID_OFF":
+      return "Lunas";
+    case "WRITE_OFF":
+      return "Hapus Buku / Tagih";
+    default:
+      return "Nonaktif";
+  }
 }
 
 function facilityCollectibility(facility: IdebRecord) {
@@ -216,8 +263,7 @@ function facilityRiskSortValue(facility: IdebRecord) {
   };
 }
 
-function sortFacilitiesByRisk(facilities: IdebRecord[]) {
-  return [...facilities].sort((left, right) => {
+function compareFacilitiesByRisk(left: IdebRecord, right: IdebRecord) {
     const leftRisk = facilityRiskSortValue(left);
     const rightRisk = facilityRiskSortValue(right);
     return (
@@ -230,6 +276,29 @@ function sortFacilitiesByRisk(facilities: IdebRecord[]) {
         display(textValue(right, ["reporter_name", "reporter_code"])),
       )
     );
+}
+
+function sortFacilitiesByRisk(facilities: IdebRecord[]) {
+  return [...facilities].sort(compareFacilitiesByRisk);
+}
+
+function facilityLifecycleRank(facility: IdebRecord) {
+  switch (classifyFacility(facility)) {
+    case "ACTIVE":
+      return 0;
+    case "WRITE_OFF":
+      return 1;
+    case "INACTIVE":
+      return 2;
+    case "PAID_OFF":
+      return 3;
+  }
+}
+
+function sortFacilitiesForAll(facilities: IdebRecord[]) {
+  return [...facilities].sort((left, right) => {
+    const lifecycleDifference = facilityLifecycleRank(left) - facilityLifecycleRank(right);
+    return lifecycleDifference || compareFacilitiesByRisk(left, right);
   });
 }
 
@@ -459,7 +528,7 @@ function getHistoryRows(summary: DebtorIdebSummaryDetail | null | undefined) {
 function summaryMetric(item: DebtorIdebReportUpload | null) {
   const facilities = getFacilities(item);
   const activeFacilities = facilities.filter(
-    (facility) => !isPaidOffFacility(facility) && !isWriteOffFacility(facility),
+    (facility) => classifyFacility(facility) === "ACTIVE",
   );
   const paidOffFacilities = facilities.filter(isPaidOffFacility);
   const writeOffFacilities = facilities.filter(isWriteOffFacility);
@@ -513,7 +582,7 @@ function summaryMetric(item: DebtorIdebReportUpload | null) {
     activeWorstCollectibility:
       reportSummary?.active_worst_collectibility ??
       item?.active_worst_collectibility ??
-      null,
+      worstCollectibility(null, activeFacilities),
     reporterCount: reportSummary?.reporter_count ?? item?.reporter_count ?? 0,
     worstCollectibility:
       reportSummary?.worst_collectibility ??
@@ -525,9 +594,7 @@ function summaryMetric(item: DebtorIdebReportUpload | null) {
 function filterFacilities(facilities: IdebRecord[], filter: IdebFacilityFilter) {
   if (filter === "ACTIVE") {
     return sortFacilitiesByRisk(
-      facilities.filter(
-        (facility) => !isPaidOffFacility(facility) && !isWriteOffFacility(facility),
-      ),
+      facilities.filter((facility) => classifyFacility(facility) === "ACTIVE"),
     );
   }
   if (filter === "PAID_OFF") {
@@ -547,7 +614,7 @@ function filterFacilities(facilities: IdebRecord[], filter: IdebFacilityFilter) 
       facilities.filter((facility) => facilityArrears(facility) > 0),
     );
   }
-  return sortFacilitiesByRisk(facilities);
+  return sortFacilitiesForAll(facilities);
 }
 
 function InfoItem({ label, value }: { label: string; value: string | number | null | undefined }) {
@@ -607,6 +674,125 @@ function SectionCard({
   );
 }
 
+function conclusionIndicatorBadgeClass(
+  indicator: DebtorIdebParameterizedConclusion["indicator"] | undefined,
+) {
+  return {
+    GREEN: "border-emerald-300 bg-emerald-100 text-emerald-800",
+    YELLOW: "border-amber-300 bg-amber-100 text-amber-900",
+    RED: "border-red-300 bg-red-100 text-red-800",
+    GRAY: "border-slate-300 bg-slate-100 text-slate-700",
+  }[indicator ?? "GRAY"];
+}
+
+function ParameterizedConclusionPanel({
+  result,
+  sourceConclusion,
+}: {
+  result: DebtorIdebParameterizedConclusion | null | undefined;
+  sourceConclusion?: string | null;
+}) {
+  if (!result) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-700">
+        Kesimpulan terparameter belum tersedia. Data sumber perlu diperiksa sebelum keputusan dibuat.
+      </div>
+    );
+  }
+
+  const tone = {
+    GREEN: {
+      panel: "border-emerald-200 bg-emerald-50",
+      badge: "border-emerald-300 bg-emerald-100 text-emerald-800",
+      title: "text-emerald-950",
+    },
+    YELLOW: {
+      panel: "border-amber-200 bg-amber-50",
+      badge: "border-amber-300 bg-amber-100 text-amber-900",
+      title: "text-amber-950",
+    },
+    RED: {
+      panel: "border-red-200 bg-red-50",
+      badge: "border-red-300 bg-red-100 text-red-800",
+      title: "text-red-950",
+    },
+    GRAY: {
+      panel: "border-slate-200 bg-slate-50",
+      badge: "border-slate-300 bg-slate-100 text-slate-700",
+      title: "text-slate-900",
+    },
+  }[result.indicator];
+  const normalizedSourceConclusion = sourceConclusion?.trim();
+
+  return (
+    <div className="space-y-3">
+      <div className={`rounded-xl border p-4 ${tone.panel}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className={`rounded-full border px-3 py-1 text-xs font-bold ${tone.badge}`}>
+            Indikator {result.indicator_label}
+          </span>
+          <span className="text-xs font-semibold text-slate-600">
+            {result.rule_number === null
+              ? "Belum ada aturan yang terpenuhi"
+              : `Aturan matrix ${result.rule_number}`}
+          </span>
+        </div>
+        <p className={`mt-4 text-base font-bold leading-7 ${tone.title}`}>
+          {result.conclusion}
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="rounded-lg border border-white/80 bg-white/70 p-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+              Kondisi yang Dinilai
+            </p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-800">
+              {result.condition}
+            </p>
+          </div>
+          <div className="rounded-lg border border-white/80 bg-white/70 p-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+              Bukti dari Data IDEB
+            </p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-slate-800">
+              {result.evidence_text}
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-600">
+          <span>Posisi data: {formatPeriod(result.reference_period)}</span>
+          {result.evidence.collectibility_levels.length > 0 ? (
+            <span>KOL terdeteksi: {result.evidence.collectibility_levels.join(", ")}</span>
+          ) : null}
+          {result.evidence.highest_days_past_due !== null ? (
+            <span>DPD tertinggi bukti: {formatNumber(result.evidence.highest_days_past_due)} hari</span>
+          ) : null}
+        </div>
+        {result.evidence.reporters.length > 0 ? (
+          <p className="mt-3 text-xs font-medium leading-5 text-slate-600">
+            Pelapor terkait: {result.evidence.reporters.join(", ")}
+          </p>
+        ) : null}
+        <p className="mt-3 border-t border-slate-300/60 pt-3 text-xs font-medium leading-5 text-slate-600">
+          Hasil matrix merupakan ringkasan otomatis. Verifikasi terhadap data IDEB sumber
+          tetap diperlukan sebelum keputusan pembiayaan dibuat.
+        </p>
+      </div>
+
+      {normalizedSourceConclusion && normalizedSourceConclusion !== result.conclusion ? (
+        <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-700">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+            Catatan Kesimpulan dari File Sumber
+          </p>
+          <p className="mt-2">{normalizedSourceConclusion}</p>
+          <p className="mt-2 text-xs font-medium text-slate-500">
+            Catatan ini hanya informasi dan tidak menggantikan hasil matrix di atas.
+          </p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function DebtorIdebReportClient() {
   const { showToast } = useAppToast();
   const [items, setItems] = useState<DebtorIdebReportUpload[]>([]);
@@ -614,11 +800,9 @@ export default function DebtorIdebReportClient() {
   const [search, setSearch] = useState("");
   const [linkStatus, setLinkStatus] = useState("");
   const [facilityFilter, setFacilityFilter] = useState<IdebFacilityFilter>("ALL");
+  const [detailTab, setDetailTab] = useState<IdebDetailTab>("SUMMARY");
   const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [comparison, setComparison] = useState<DebtorIdebComparison | null>(null);
-  const [isLoadingComparison, setIsLoadingComparison] = useState(false);
-  const [comparisonError, setComparisonError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
   const activationRef = useRef<{ id: string; time: number } | null>(null);
@@ -648,48 +832,12 @@ export default function DebtorIdebReportClient() {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    let ignore = false;
-
-    async function loadComparison() {
-      if (!selected?.debtor_id) {
-        setComparison(null);
-        setComparisonError(null);
-        setIsLoadingComparison(false);
-        return;
-      }
-
-      setIsLoadingComparison(true);
-      setComparisonError(null);
-      try {
-        const result = await debiturService.getIdebComparison(selected.debtor_id, selected.id);
-        if (!ignore) setComparison(result);
-      } catch (error) {
-        if (!ignore) {
-          setComparison(null);
-          setComparisonError(
-            error instanceof Error
-              ? error.message
-              : "Perbandingan dengan F01 internal belum tersedia.",
-          );
-        }
-      } finally {
-        if (!ignore) setIsLoadingComparison(false);
-      }
-    }
-
-    void loadComparison();
-
-    return () => {
-      ignore = true;
-    };
-  }, [selected]);
-
   const openDetail = async (item: DebtorIdebReportUpload) => {
     try {
       const detail = await debiturService.getIdebReportDetail(item.id);
       setSelected(detail);
       setFacilityFilter("ALL");
+      setDetailTab("SUMMARY");
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : "Gagal memuat detail IDEB",
@@ -733,13 +881,17 @@ export default function DebtorIdebReportClient() {
     () => filterFacilities(selectedFacilities, facilityFilter),
     [facilityFilter, selectedFacilities],
   );
+  const selectedMetric = summaryMetric(selected);
   const filteredWorstCollectibility = facilitiesWorstCollectibility(filteredFacilities);
+  const displayedWorstCollectibility =
+    facilityFilter === "ALL"
+      ? selectedMetric.activeWorstCollectibility
+      : filteredWorstCollectibility;
   const filteredHighestDaysPastDue = filteredFacilities.reduce(
     (highest, facility) => Math.max(highest, facilityDaysPastDue(facility) ?? 0),
     0,
   );
   const filteredCollateralCount = facilitiesCollateralCount(filteredFacilities);
-  const selectedMetric = summaryMetric(selected);
   const identity = asRecord(selected?.summary_detail?.identity);
   const collateralRows = useMemo(
     () => getCollaterals(selected, selectedFacilities),
@@ -772,10 +924,13 @@ export default function DebtorIdebReportClient() {
       <section className={SETUP_PAGE_SEARCH_CARD_CLASS}>
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px_auto] lg:items-end">
           <div>
-            <label className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Cari Data</label>
+            <label className={SETUP_PAGE_SEARCH_LABEL_CLASS} htmlFor="ideb-report-search">
+              Cari Data
+            </label>
             <div className={SETUP_PAGE_SEARCH_WRAPPER_CLASS}>
-              <FileSearch className={SETUP_PAGE_SEARCH_ICON_CLASS} />
+              <FileSearch className={SETUP_PAGE_SEARCH_ICON_CLASS} aria-hidden="true" />
               <input
+                id="ideb-report-search"
                 className={SETUP_PAGE_SEARCH_INPUT_CLASS}
                 value={search}
                 onChange={(event) => {
@@ -787,8 +942,11 @@ export default function DebtorIdebReportClient() {
             </div>
           </div>
           <div>
-            <label className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Status Link</label>
-            <select
+            <label className={SETUP_PAGE_SEARCH_LABEL_CLASS} htmlFor="ideb-link-status">
+              Status Link
+            </label>
+            <SetupSelect
+              id="ideb-link-status"
               className="app-select"
               value={linkStatus}
               onChange={(event) => {
@@ -799,13 +957,13 @@ export default function DebtorIdebReportClient() {
               <option value="">Semua</option>
               <option value="TERHUBUNG">Terhubung</option>
               <option value="BELUM_TERHUBUNG">Belum Terhubung</option>
-            </select>
+            </SetupSelect>
           </div>
         </div>
       </section>
 
       <SetupTableCard variant="report">
-        <SetupDataTable variant="report" density="compact" className="min-w-[1280px]">
+        <SetupDataTable variant="report" density="compact" className="min-w-[1420px]">
           <SetupDataTableHead>
             <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
@@ -832,8 +990,9 @@ export default function DebtorIdebReportClient() {
                 Tunggakan
               </SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                KOL
+                KOL Aktif
               </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Kesimpulan Matrix</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Status</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Petugas / Uploader</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
@@ -864,19 +1023,15 @@ export default function DebtorIdebReportClient() {
               return (
                 <SetupDataTableRow
                   key={item.id}
-                  role="button"
-                  tabIndex={0}
                   title="Double-click untuk melihat detail IDEB"
                   className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200`}
                   onClick={() => activateRow(item)}
                   onDoubleClick={() => void openDetail(item)}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter") return;
-                    event.preventDefault();
-                    void openDetail(item);
-                  }}
                 >
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}
+                    mobileHidden
+                  >
                     {(meta.page - 1) * meta.limit + index + 1}
                   </SetupDataTableCell>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
@@ -891,16 +1046,28 @@ export default function DebtorIdebReportClient() {
                     <p className="font-semibold text-slate-900">{formatDate(item.result_date)}</p>
                     <p className="mt-1 text-xs text-slate-500">{formatPeriod(item.period_month)}</p>
                   </SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}
+                    mobileHidden
+                  >
                     {formatNumber(item.reporter_count)}
                   </SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}
+                    mobileHidden
+                  >
                     {formatNumber(item.active_facilities_count)}
                   </SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}
+                    mobileHidden
+                  >
                     {formatNumber(item.paid_off_facilities_count)}
                   </SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}
+                    mobileHidden
+                  >
                     {formatCurrency(item.total_plafond)}
                   </SetupDataTableCell>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
@@ -910,14 +1077,27 @@ export default function DebtorIdebReportClient() {
                     {formatCurrency(item.total_arrears)}
                   </SetupDataTableCell>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <SetupCollectibilityBadge value={item.worst_collectibility} wrap />
+                    <SetupCollectibilityBadge value={item.active_worst_collectibility} wrap />
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                    <span
+                      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${conclusionIndicatorBadgeClass(
+                        item.report_summary?.parameterized_conclusion?.indicator,
+                      )}`}
+                    >
+                      {item.report_summary?.parameterized_conclusion?.indicator_label ??
+                        "Belum Tersedia"}
+                    </span>
                   </SetupDataTableCell>
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
                     <SetupStatusBadge
                       status={item.link_status === "TERHUBUNG" ? "Terhubung" : "Belum Terhubung"}
                     />
                   </SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_CELL_CLASS}
+                    mobileHidden
+                  >
                     <p className="line-clamp-2 font-semibold text-slate-900">
                       {display(item.officer_name)}
                     </p>
@@ -941,7 +1121,7 @@ export default function DebtorIdebReportClient() {
               );
             })}
             {items.length === 0 ? (
-              <SetupDataTableEmptyRow colSpan={13}>
+              <SetupDataTableEmptyRow colSpan={14}>
                 {isLoading ? "Memuat laporan IDEB..." : "Belum ada hasil IDEB."}
               </SetupDataTableEmptyRow>
             ) : null}
@@ -1006,7 +1186,37 @@ export default function DebtorIdebReportClient() {
               </div>
             </div>
 
-            <SectionCard title="Profil Pokok Debitur">
+            <div
+              className="flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-1"
+              role="tablist"
+              aria-label="Bagian detail IDEB"
+            >
+              {([
+                ["SUMMARY", "Ringkasan"],
+                ["FACILITIES", "Fasilitas"],
+                ["COLLATERAL", "Agunan & Penjamin"],
+                ["CONCLUSION", "Kesimpulan"],
+              ] as Array<[IdebDetailTab, string]>).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={detailTab === value}
+                  className={`min-h-10 shrink-0 rounded-md px-3 text-sm font-semibold transition ${
+                    detailTab === value
+                      ? "bg-white text-[#157ec3] shadow-sm"
+                      : "text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                  }`}
+                  onClick={() => setDetailTab(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {detailTab === "SUMMARY" ? (
+              <>
+              <SectionCard title="Profil Pokok Debitur">
               <div className="grid gap-3 md:grid-cols-2">
                 <InfoItem
                   label="Nama Lengkap"
@@ -1076,10 +1286,13 @@ export default function DebtorIdebReportClient() {
                 />
                 <InfoItem label="Diunggah Oleh" value={selected.uploader?.name} />
                 <InfoItem label="Jumlah Lembaga / PJK" value={formatNumber(selectedMetric.reporterCount)} />
-                <InfoItem label="Kualitas Terburuk" value={String(selectedMetric.worstCollectibility ?? "-")} />
                 <InfoItem
-                  label="Kualitas Terburuk Aktif"
+                  label="Kualitas Terburuk Aktif (Acuan)"
                   value={String(selectedMetric.activeWorstCollectibility ?? "-")}
+                />
+                <InfoItem
+                  label="Kualitas Terburuk Historis (Informasi)"
+                  value={String(selectedMetric.worstCollectibility ?? "-")}
                 />
                 <InfoItem
                   label="DPD Tertinggi"
@@ -1092,8 +1305,14 @@ export default function DebtorIdebReportClient() {
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <MetricCard
-                  label="KOL Terburuk"
-                  value={<SetupCollectibilityBadge value={selectedMetric.worstCollectibility} size="md" wrap />}
+                  label="KOL Terburuk Aktif"
+                  value={
+                    <SetupCollectibilityBadge
+                      value={selectedMetric.activeWorstCollectibility}
+                      size="md"
+                      wrap
+                    />
+                  }
                 />
                 <MetricCard
                   label="Total Baki Debet Aktif"
@@ -1137,8 +1356,12 @@ export default function DebtorIdebReportClient() {
                 </div>
               ) : null}
             </SectionCard>
+              </>
+            ) : null}
 
-            <SectionCard title="Ringkasan Posisi Fasilitas Kredit">
+            {detailTab === "FACILITIES" ? (
+              <>
+              <SectionCard title="Ringkasan Posisi Fasilitas Kredit">
               <div className="mb-3 flex flex-wrap gap-2">
                 {IDEB_FACILITY_FILTERS.map((filter) => (
                   <button
@@ -1156,17 +1379,19 @@ export default function DebtorIdebReportClient() {
                 ))}
               </div>
               <p className="mb-3 text-sm font-semibold leading-6 text-slate-500">
-                Daftar diurutkan dari risiko tertinggi berdasarkan KOL, DPD, tunggakan,
-                dan baki debet. Filter aktif juga digunakan pada bagian posisi fasilitas
-                di PDF; bagian laporan lainnya tetap menampilkan data lengkap.
+                Pada pilihan Semua, fasilitas aktif ditempatkan lebih dahulu lalu diurutkan
+                berdasarkan KOL, DPD, tunggakan, dan baki debet. Filter yang dipilih juga
+                digunakan pada daftar fasilitas di PDF; bagian laporan lainnya tetap
+                menampilkan data lengkap.
               </p>
               <SetupTableCard variant="nested">
-                <SetupDataTable variant="nested" density="compact" className="min-w-[1120px]">
+                <SetupDataTable variant="nested" density="compact" className="min-w-[1220px]">
                   <SetupDataTableHead>
                     <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                       <SetupDataTableHeaderCell>Pelapor</SetupDataTableHeaderCell>
                       <SetupDataTableHeaderCell>Jenis Kredit / Pembiayaan</SetupDataTableHeaderCell>
                       <SetupDataTableHeaderCell>Tanggal Akad</SetupDataTableHeaderCell>
+                      <SetupDataTableHeaderCell>Status Fasilitas</SetupDataTableHeaderCell>
                       <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>Plafon</SetupDataTableHeaderCell>
                       <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>Baki Debet</SetupDataTableHeaderCell>
                       <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>KOL</SetupDataTableHeaderCell>
@@ -1199,6 +1424,12 @@ export default function DebtorIdebReportClient() {
                             ]),
                           )}
                         </SetupDataTableCell>
+                        <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                          <SetupStatusBadge
+                            status={facilityLifecycleLabel(facility)}
+                            showIcon={false}
+                          />
+                        </SetupDataTableCell>
                         <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                           {formatCurrency(facilityPlafond(facility))}
                         </SetupDataTableCell>
@@ -1226,9 +1457,9 @@ export default function DebtorIdebReportClient() {
                     ))}
                     {filteredFacilities.length > 0 ? (
                       <SetupDataTableRow className="bg-slate-100 font-bold text-slate-900">
-                        <SetupDataTableCell colSpan={3} className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                        <SetupDataTableCell colSpan={4} className={SETUP_PAGE_MODERN_CELL_CLASS}>
                           {facilityFilter === "ALL"
-                            ? "Total keseluruhan"
+                            ? "Total keseluruhan (KOL aktif)"
                             : `Total filter ${getIdebFacilityFilterLabel(facilityFilter)}`}
                         </SetupDataTableCell>
                         <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
@@ -1238,7 +1469,7 @@ export default function DebtorIdebReportClient() {
                           {formatCurrency(filteredFacilities.reduce((total, facility) => total + facilityOutstanding(facility), 0))}
                         </SetupDataTableCell>
                         <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                          <SetupCollectibilityBadge value={filteredWorstCollectibility} wrap />
+                          <SetupCollectibilityBadge value={displayedWorstCollectibility} wrap />
                         </SetupDataTableCell>
                         <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
                           {filteredHighestDaysPastDue > 0
@@ -1255,7 +1486,7 @@ export default function DebtorIdebReportClient() {
                         </SetupDataTableCell>
                       </SetupDataTableRow>
                     ) : (
-                      <SetupDataTableEmptyRow colSpan={9}>
+                      <SetupDataTableEmptyRow colSpan={10}>
                         Belum ada fasilitas IDEB pada filter ini.
                       </SetupDataTableEmptyRow>
                     )}
@@ -1315,150 +1546,11 @@ export default function DebtorIdebReportClient() {
                 </SetupDataTable>
               </SetupTableCard>
             </SectionCard>
+              </>
+            ) : null}
 
-            <SectionCard title="Perbandingan dengan F01 Internal">
-              <div className="mb-4 grid gap-3 md:grid-cols-4">
-                <MetricCard label="Cocok" value={formatNumber(comparison?.summary.matched ?? 0)} />
-                <MetricCard
-                  label="Beda Data"
-                  value={formatNumber(comparison?.summary.different ?? 0)}
-                />
-                <MetricCard
-                  label="Fasilitas Eksternal"
-                  value={formatNumber(comparison?.summary.external_only ?? 0)}
-                />
-                <MetricCard
-                  label="Internal Tidak Muncul"
-                  value={formatNumber(comparison?.summary.internal_only ?? 0)}
-                />
-              </div>
-
-              {!selected.debtor_id ? (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700">
-                  Belum terhubung ke debitur internal, sehingga perbandingan F01 belum tersedia.
-                </div>
-              ) : (
-                <SetupTableCard variant="nested">
-                  <SetupDataTable variant="nested" density="compact" className="min-w-[1040px]">
-                    <SetupDataTableHead>
-                      <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-                        <SetupDataTableHeaderCell>Status</SetupDataTableHeaderCell>
-                        <SetupDataTableHeaderCell>Fasilitas IDEB</SetupDataTableHeaderCell>
-                        <SetupDataTableHeaderCell>F01 Internal</SetupDataTableHeaderCell>
-                        <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                          KOL
-                        </SetupDataTableHeaderCell>
-                        <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
-                          Outstanding
-                        </SetupDataTableHeaderCell>
-                        <SetupDataTableHeaderCell>Perbedaan</SetupDataTableHeaderCell>
-                      </SetupDataTableRow>
-                    </SetupDataTableHead>
-                    <SetupDataTableBody>
-                      {(comparison?.items ?? []).map((item, index) => {
-                        const external = item.external;
-                        const internal = item.internal;
-                        const differences =
-                          item.differences.length > 0
-                            ? item.differences.map((entry) => entry.label).join(", ")
-                            : "Sesuai";
-
-                        return (
-                          <SetupDataTableRow
-                            key={`${item.match_key ?? "comparison"}-${index}`}
-                            className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
-                          >
-                            <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
-                              <SetupStatusBadge status={item.status_label} showIcon={false} />
-                            </SetupDataTableCell>
-                            <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
-                              {external ? (
-                                <>
-                                  <p className="font-semibold text-slate-900">
-                                    {display(external.reporter)}
-                                  </p>
-                                  <p className="mt-1 text-xs text-slate-500">
-                                    {display(external.account_number)}
-                                  </p>
-                                  <p className="mt-2 line-clamp-2 text-sm text-slate-700">
-                                    {display(external.product)}
-                                  </p>
-                                </>
-                              ) : (
-                                "-"
-                              )}
-                            </SetupDataTableCell>
-                            <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
-                              {internal ? (
-                                <>
-                                  <p className="font-semibold text-slate-900">
-                                    {display(internal.no_kontrak)}
-                                  </p>
-                                  <p className="mt-1 text-xs text-slate-500">
-                                    {display(internal.facility_number)}
-                                  </p>
-                                  <p className="mt-2 line-clamp-2 text-sm text-slate-700">
-                                    {display(internal.product)}
-                                  </p>
-                                </>
-                              ) : (
-                                "-"
-                              )}
-                            </SetupDataTableCell>
-                            <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                              <div className="flex flex-col items-center gap-1">
-                                {external ? (
-                                  <SetupCollectibilityBadge value={external.collectibility} wrap />
-                                ) : null}
-                                {internal ? (
-                                  <SetupCollectibilityBadge value={internal.collectibility} wrap />
-                                ) : null}
-                                {!external && !internal ? "-" : null}
-                              </div>
-                            </SetupDataTableCell>
-                            <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                              <div className="space-y-1">
-                                <p>{formatCurrency(external?.outstanding)}</p>
-                                <p className="text-xs text-slate-500">
-                                  Internal: {formatCurrency(internal?.outstanding)}
-                                </p>
-                              </div>
-                            </SetupDataTableCell>
-                            <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
-                              <span className="line-clamp-2 text-sm text-slate-700" title={differences}>
-                                {differences}
-                              </span>
-                            </SetupDataTableCell>
-                          </SetupDataTableRow>
-                        );
-                      })}
-
-                      {isLoadingComparison ? (
-                        <SetupDataTableEmptyRow colSpan={6}>
-                          Memuat perbandingan IDEB dengan F01 internal...
-                        </SetupDataTableEmptyRow>
-                      ) : null}
-
-                      {!isLoadingComparison && comparisonError ? (
-                        <SetupDataTableEmptyRow colSpan={6}>
-                          {comparisonError}
-                        </SetupDataTableEmptyRow>
-                      ) : null}
-
-                      {!isLoadingComparison &&
-                      !comparisonError &&
-                      (!comparison || comparison.items.length === 0) ? (
-                        <SetupDataTableEmptyRow colSpan={6}>
-                          Belum ada data yang bisa dibandingkan.
-                        </SetupDataTableEmptyRow>
-                      ) : null}
-                    </SetupDataTableBody>
-                  </SetupDataTable>
-                </SetupTableCard>
-              )}
-            </SectionCard>
-
-            <div className="grid gap-5">
+            {detailTab === "COLLATERAL" ? (
+              <div className="grid gap-5">
               <SectionCard title="Agunan">
                 <SetupTableCard variant="nested">
                   <SetupDataTable variant="nested" density="compact" className="min-w-[760px]">
@@ -1585,13 +1677,17 @@ export default function DebtorIdebReportClient() {
                   </p>
                 ) : null}
               </SectionCard>
-            </div>
-
-            <SectionCard title="Kesimpulan">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-900">
-                {display(selected.summary_detail?.conclusion)}
               </div>
-            </SectionCard>
+            ) : null}
+
+            {detailTab === "CONCLUSION" ? (
+              <SectionCard title="Kesimpulan">
+                <ParameterizedConclusionPanel
+                  result={selected.report_summary?.parameterized_conclusion}
+                  sourceConclusion={selected.summary_detail?.conclusion}
+                />
+              </SectionCard>
+            ) : null}
 
           </div>
         ) : null}

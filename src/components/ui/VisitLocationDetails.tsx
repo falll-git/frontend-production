@@ -1,10 +1,13 @@
 import { ExternalLink, MapPin } from "lucide-react";
 
-import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
+import SetupStatusBadge, {
+  type SetupStatusTone,
+} from "@/components/ui/SetupStatusBadge";
 import {
   buildGoogleMapsUrl,
   formatVisitAccuracy,
   formatVisitCoordinate,
+  getVisitLocationAccuracyLevel,
   hasValidVisitLocation,
 } from "@/lib/visit-location";
 import { formatDateTime } from "@/lib/utils/date";
@@ -20,20 +23,25 @@ type VisitLocationValues = {
 export function VisitLocationStatusBadge({
   latitude,
   longitude,
+  label,
+  tone,
 }: {
   latitude: number | null | undefined;
   longitude: number | null | undefined;
+  label?: string;
+  tone?: SetupStatusTone;
 }) {
   const hasLocation = hasValidVisitLocation({
     visit_latitude: latitude,
     visit_longitude: longitude,
   });
+  const status = hasLocation ? label || "Lokasi Tercatat" : "Belum Ada";
 
   return (
     <SetupStatusBadge
-      status={hasLocation ? "Lokasi Tercatat" : "Belum Ada"}
-      label={hasLocation ? "Lokasi Tercatat" : "Belum Ada"}
-      tone={hasLocation ? "emerald" : "amber"}
+      status={status}
+      label={status}
+      tone={hasLocation ? tone || "emerald" : "amber"}
     />
   );
 }
@@ -44,18 +52,35 @@ export default function VisitLocationDetails({
   missingMessage = "Lokasi belum tercatat.",
   availableMessage = "Koordinat tersimpan bersama aktivitas.",
   showAddress = true,
+  statusLabel,
+  statusTone,
+  onMapsOpen,
 }: {
   location: VisitLocationValues;
   recordedAtLabel?: string;
   missingMessage?: string;
   availableMessage?: string;
   showAddress?: boolean;
+  statusLabel?: string;
+  statusTone?: SetupStatusTone;
+  onMapsOpen?: () => void;
 }) {
   const hasLocation = hasValidVisitLocation(location);
   const mapsUrl = buildGoogleMapsUrl(
     location.visit_latitude,
     location.visit_longitude,
   );
+  const accuracyLevel = getVisitLocationAccuracyLevel(
+    location.visit_location_accuracy_m,
+  );
+  const accuracyStatus =
+    accuracyLevel === "PRECISE"
+      ? { label: "Presisi Tinggi", tone: "emerald" as const }
+      : accuracyLevel === "ACCEPTABLE"
+        ? { label: "Cukup Akurat", tone: "sky" as const }
+        : accuracyLevel === "LOW"
+          ? { label: "Akurasi Rendah", tone: "red" as const }
+          : { label: "Belum Terukur", tone: "slate" as const };
 
   return (
     <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -74,6 +99,8 @@ export default function VisitLocationDetails({
         <VisitLocationStatusBadge
           latitude={location.visit_latitude}
           longitude={location.visit_longitude}
+          label={statusLabel}
+          tone={statusTone}
         />
       </div>
 
@@ -108,8 +135,15 @@ export default function VisitLocationDetails({
           <dt className="text-xs font-semibold uppercase tracking-[0.06em] text-slate-500">
             Akurasi
           </dt>
-          <dd className="mt-1 text-sm font-semibold text-slate-900">
-            {formatVisitAccuracy(location.visit_location_accuracy_m)}
+          <dd className="mt-1 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
+            <span>{formatVisitAccuracy(location.visit_location_accuracy_m)}</span>
+            {hasLocation ? (
+              <SetupStatusBadge
+                status={accuracyStatus.label}
+                label={accuracyStatus.label}
+                tone={accuracyStatus.tone}
+              />
+            ) : null}
           </dd>
         </div>
         <div className="min-w-0 px-4 py-3">
@@ -128,6 +162,7 @@ export default function VisitLocationDetails({
             href={mapsUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={onMapsOpen}
             className="uiverse-modal-button uiverse-modal-button--primary w-full justify-center sm:w-auto"
           >
             <ExternalLink className="size-4" aria-hidden="true" />

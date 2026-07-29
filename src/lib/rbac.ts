@@ -445,6 +445,9 @@ export function getDashboardRouteDecision(
   roleId?: string | null,
 ): RouteAccessDecision {
   const normalizedPath = normalizePath(pathname);
+  if (normalizedPath === "/dashboard/account/security" && roleId) {
+    return allow();
+  }
   const runtimeDecision = getRuntimeRouteDecision(normalizedPath, roleId);
   if (runtimeDecision) return runtimeDecision;
   if (normalizedPath === "/dashboard" && roleId) return allow();

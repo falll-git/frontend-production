@@ -1,0 +1,35 @@
+name: DAST baseline
+
+on:
+  schedule:
+    - cron: "23 4 * * 6"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  zap-baseline:
+    if: ${{ vars.DAST_TARGET_URL != '' }}
+    environment: staging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Validate staging target
+        env:
+          DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
+        run: |
+          node -e "const u=new URL(process.env.DAST_TARGET_URL); if(u.protocol!=='https:'||['localhost','127.0.0.1','::1'].includes(u.hostname)) process.exit(1)"
+      - name: Passive ZAP baseline
+        env:
+          DAST_TARGET_URL: ${{ vars.DAST_TARGET_URL }}
+        run: |
+          docker run --rm -v "$PWD:/zap/wrk/:rw" -t ghcr.io/zaproxy/zaproxy@sha256:8d387b1a63e3425beef4846e39719f5af2a787753af2d8b6558c6257d7a577a2 zap-baseline.py -t "$DAST_TARGET_URL" -m 2 -I -J zap-report.json -w zap-report.md
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: zap-baseline-report
+          path: |
+            zap-report.json
+            zap-report.md
+          if-no-files-found: warn

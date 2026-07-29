@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowLeft,
   CircleCheck,
   FolderOpen,
   Gauge,
@@ -11,6 +10,7 @@ import {
 import { useEffect, useState } from "react";
 
 import StorageSummaryCard from "@/components/arsip/StorageSummaryCard";
+import DashboardModal from "@/components/ui/DashboardModal";
 import Pagination from "@/components/ui/Pagination";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
@@ -100,35 +100,33 @@ export default function RakGridModal({
     !isLoading && paginationMeta.total === 0 && debouncedSearch.length > 0;
 
   return (
-    <div
-      data-dashboard-overlay="true"
-      className="fixed inset-0 z-[1400] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm animate-fade-in"
-      onClick={onClose}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl min-w-0 flex-col overflow-hidden rounded-lg bg-white shadow-sm"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50/50 px-5 py-4">
+    <DashboardModal
+      isOpen
+      title={`${lemari.kodeLemari} \u00B7 ${kantor.namaKantor}`}
+      description={`${paginationMeta.total} rak`}
+      onClose={onClose}
+      maxWidth="5xl"
+      bodyClassName="px-4 py-5 sm:px-5 sm:py-6"
+      footerClassName="flex items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 p-4 sm:p-5"
+      footer={
+        <>
           <button
             type="button"
+            className="uiverse-modal-button uiverse-modal-button--neutral"
             onClick={onBack}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50"
-            aria-label="Kembali"
           >
-            <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+            Kembali
           </button>
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <h3 className="truncate text-lg font-bold text-gray-900">
-              {lemari.kodeLemari} {"\u00B7"} {kantor.namaKantor}
-            </h3>
-            <p className="text-sm text-gray-500">{paginationMeta.total} Rak</p>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-5 py-6">
+          <button
+            type="button"
+            className="uiverse-modal-button uiverse-modal-button--neutral"
+            onClick={onClose}
+          >
+            Tutup
+          </button>
+        </>
+      }
+    >
           <div className="mb-5">
             <SetupSearchInput
               value={searchTerm}
@@ -243,25 +241,6 @@ export default function RakGridModal({
               />
             </div>
           )}
-        </div>
-
-        <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-5 py-4">
-          <button
-            type="button"
-            className="uiverse-modal-button uiverse-modal-button--neutral"
-            onClick={onBack}
-          >
-            Kembali
-          </button>
-          <button
-            type="button"
-            className="uiverse-modal-button uiverse-modal-button--neutral"
-            onClick={onClose}
-          >
-            Tutup
-          </button>
-        </div>
-      </div>
-    </div>
+    </DashboardModal>
   );
 }

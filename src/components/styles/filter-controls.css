@@ -1,0 +1,12 @@
+.setup-filter-card {
+  min-width: 0;
+}
+
+.setup-filter-card :where(.grid, .flex) > *,
+.setup-filter-card > * {
+  min-width: 0;
+}
+
+.setup-filter-card :where(input, select, button[aria-haspopup="listbox"], button[aria-haspopup="dialog"]) {
+  max-width: 100%;
+}

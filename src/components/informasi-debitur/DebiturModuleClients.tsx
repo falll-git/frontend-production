@@ -5,6 +5,7 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -18,7 +19,9 @@ import {
   BarChart3,
   BriefcaseBusiness,
   Building2,
+  CalendarClock,
   CalendarX2,
+  CheckCircle2,
   ClipboardList,
   Download,
   Eye,
@@ -40,6 +43,11 @@ import {
 } from "lucide-react";
 
 import { useProtectedAction } from "@/hooks/useProtectedAction";
+import {
+  CollateralExpiryModal,
+  CollateralMonitoringBadge,
+  CollateralMonitoringCell,
+} from "@/components/informasi-debitur/CollateralMonitoring";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import BasicDateInput from "@/components/ui/BasicDateInput";
 import DashboardModal from "@/components/ui/DashboardModal";
@@ -50,7 +58,9 @@ import MultiFileUploadField from "@/components/ui/MultiFileUploadField";
 import Pagination from "@/components/ui/Pagination";
 import SetupActionMenu from "@/components/ui/SetupActionMenu";
 import SetupAddButton from "@/components/ui/SetupAddButton";
-import SetupCollectibilityBadge from "@/components/ui/SetupCollectibilityBadge";
+import SetupCollectibilityBadge, {
+  formatCollectibilityLabel,
+} from "@/components/ui/SetupCollectibilityBadge";
 import SetupExcelButton from "@/components/ui/SetupExcelButton";
 import {
   SetupDataTable,
@@ -79,6 +89,7 @@ import SetupStatusBadge, {
 } from "@/components/ui/SetupStatusBadge";
 import SetupTextarea from "@/components/ui/SetupTextarea";
 import SetupTextInput from "@/components/ui/SetupTextInput";
+import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
 import VisitLocationDetails, {
   VisitLocationStatusBadge,
 } from "@/components/ui/VisitLocationDetails";
@@ -97,11 +108,19 @@ import {
 } from "@/components/ui/setupPageStyles";
 import { SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import { DOCUMENT_UPLOAD_MAX_SIZE_LABEL } from "@/lib/upload-limits";
-import { formatDateOnly } from "@/lib/utils/date";
+import { formatDateOnly, formatDateTime } from "@/lib/utils/date";
 import {
+  areVisitLocationSamplesConsistent,
+  getVisitLocationVerificationStep,
   hasValidVisitLocation,
+  isAcceptableVisitLocationAccuracy,
+  isLikelyGpsCapableMobileDevice,
   isValidVisitLatitude,
   isValidVisitLongitude,
+  normalizeVisitLocationSample,
+  selectBestVisitLocationSample,
+  VISIT_LOCATION_PRECISE_ACCURACY_M,
+  type VisitLocationSample,
 } from "@/lib/visit-location";
 import { exportToExcel } from "@/lib/utils/exportExcel";
 import { validateDomainUploadFile } from "@/lib/utils/file";
@@ -115,6 +134,7 @@ import type { PaginationMeta } from "@/types/api.types";
 import type { UserRecord } from "@/types/auth.types";
 import type {
   DebtorCollateral,
+  DebtorCollateralExpiryPayload,
   DebtorCollateralReport,
   DebtorCompletenessReport,
   DebtorContract,
@@ -168,6 +188,9 @@ type DebtorListViewDefinition = {
 
 const SLIK_IMPORT_MAX_FILE_SIZE_MB = 500;
 const SLIK_IMPORT_MAX_FILE_SIZE_BYTES = SLIK_IMPORT_MAX_FILE_SIZE_MB * 1024 * 1024;
+const COLLATERAL_EXPIRY_IMPORT_MAX_FILE_SIZE_MB = 5;
+const COLLATERAL_EXPIRY_IMPORT_MAX_FILE_SIZE_BYTES =
+  COLLATERAL_EXPIRY_IMPORT_MAX_FILE_SIZE_MB * 1024 * 1024;
 const DOUBLE_ROW_ACTIVATION_DELAY_MS = 420;
 const DOUBLE_ROW_ACTIVATION_SUPPRESS_MS = 250;
 
@@ -245,6 +268,8 @@ type MarketingFormState = {
   visit_location_accuracy_m: number | null;
   visit_location_recorded_at: string | null;
   visit_location_captured_in_session: boolean;
+  visit_location_maps_opened_in_session: boolean;
+  visit_location_confirmed_in_session: boolean;
   visit_result: string;
   conclusion: string;
   handling_step: string;
@@ -428,6 +453,17 @@ function downloadBrowserFile(blob: Blob, fileName: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function validateCollateralExpiryImportFile(file: File) {
+  if (!file.name.toLowerCase().endsWith(".xlsx")) {
+    return "Format file harus XLSX sesuai template.";
+  }
+  if (file.size <= 0) return "File yang dipilih kosong atau rusak.";
+  if (file.size > COLLATERAL_EXPIRY_IMPORT_MAX_FILE_SIZE_BYTES) {
+    return `Ukuran file maksimal ${COLLATERAL_EXPIRY_IMPORT_MAX_FILE_SIZE_MB} MB.`;
+  }
+  return null;
 }
 
 function periodLabel(value: string | null | undefined) {
@@ -676,27 +712,12 @@ function collectibilityLabel(
   collectibility: DebtorContract["latest_collectibility"] | null | undefined,
 ) {
   if (!collectibility) return "-";
-  const level = Number(collectibility.level ?? collectibility.code);
   const rawName = String(collectibility.name ?? "").trim();
-  const normalizedName = rawName
-    .replace(/^kol\s*\d+\s*[-/]?\s*/i, "")
-    .trim();
-  const name =
-    normalizedName ||
-    (level === 1
-      ? "Lancar"
-      : level === 2
-        ? "Dalam Perhatian Khusus"
-        : level === 3
-          ? "Kurang Lancar"
-          : level === 4
-            ? "Diragukan"
-            : level === 5
-              ? "Macet"
-              : rawName);
 
-  if (Number.isFinite(level)) return `KOL ${level} - ${name || "-"}`;
-  return name || rawName || "-";
+  return formatCollectibilityLabel(
+    collectibility.level ?? collectibility.code,
+    rawName,
+  );
 }
 
 function activityKindLabel(kind: string) {
@@ -967,6 +988,8 @@ function emptyMarketingForm(): MarketingFormState {
     visit_location_accuracy_m: null,
     visit_location_recorded_at: null,
     visit_location_captured_in_session: false,
+    visit_location_maps_opened_in_session: false,
+    visit_location_confirmed_in_session: false,
     visit_result: "",
     conclusion: "",
     handling_step: "",
@@ -991,6 +1014,8 @@ function marketingToForm(item: DebtorMarketingActivity): MarketingFormState {
     visit_location_accuracy_m: item.visit_location_accuracy_m,
     visit_location_recorded_at: item.visit_location_recorded_at,
     visit_location_captured_in_session: false,
+    visit_location_maps_opened_in_session: false,
+    visit_location_confirmed_in_session: false,
     visit_result: item.visit_result ?? "",
     conclusion: item.conclusion ?? "",
     handling_step: item.handling_step ?? "",
@@ -1016,9 +1041,11 @@ function buildMarketingPayload(form: MarketingFormState): DebtorMarketingPayload
     handling_step: form.handling_step || null,
     handling_result: form.handling_result || null,
     notes: form.notes || null,
-    file: files[0] ?? null,
-    files,
   };
+  if (files.length > 0) {
+    payload.file = files[0];
+    payload.files = files;
+  }
 
   if (
     form.visit_location_captured_in_session &&
@@ -1207,6 +1234,19 @@ function validateMarketingForm(
   ) {
     return "Lokasi kunjungan yang baru diambil tidak valid. Silakan ambil ulang lokasi";
   }
+  if (
+    form.visit_location_captured_in_session &&
+    !isAcceptableVisitLocationAccuracy(form.visit_location_accuracy_m)
+  ) {
+    return "Akurasi lokasi harus 100 meter atau lebih baik. Pindah ke area terbuka lalu ambil ulang lokasi";
+  }
+  const verificationStep = getVisitLocationVerificationStep(form);
+  if (verificationStep === "open-maps") {
+    return "Buka titik lokasi di Maps terlebih dahulu sebelum menyimpan Hasil Kunjungan";
+  }
+  if (verificationStep === "confirm") {
+    return "Buka titik di Maps dan pastikan lokasinya sesuai sebelum menyimpan Hasil Kunjungan";
+  }
 
   return null;
 }
@@ -1219,15 +1259,26 @@ function geolocationErrorMessage(error: GeolocationPositionError) {
     return "Lokasi saat ini tidak tersedia. Pastikan layanan lokasi perangkat aktif, lalu coba lagi.";
   }
   if (error.code === error.TIMEOUT) {
-    return "Pengambilan lokasi melewati batas waktu 15 detik. Coba lagi di area dengan sinyal lokasi yang lebih baik.";
+    return "Pengambilan lokasi melewati batas waktu. Coba lagi di area terbuka dengan GPS dan lokasi presisi aktif.";
   }
 
   return "Lokasi tidak dapat diambil. Periksa layanan lokasi perangkat, lalu coba lagi.";
 }
 
-function FieldLabel({ children, required = false }: { children: string; required?: boolean }) {
+function FieldLabel({
+  children,
+  htmlFor,
+  required = false,
+}: {
+  children: string;
+  htmlFor?: string;
+  required?: boolean;
+}) {
   return (
-    <label className="mb-2 block text-sm font-medium text-gray-700">
+    <label
+      className="mb-2 block text-sm font-medium text-gray-700"
+      htmlFor={htmlFor}
+    >
       {children}
       {required ? <span className="text-red-500"> *</span> : null}
     </label>
@@ -1258,12 +1309,16 @@ function SelectField({
   searchPlaceholder?: string;
 }) {
   const placeholder = emptyLabel ?? `Pilih ${label.toLowerCase()}`;
+  const fieldId = useId();
 
   return (
     <div>
-      <FieldLabel required={required}>{label}</FieldLabel>
+      <FieldLabel htmlFor={fieldId} required={required}>
+        {label}
+      </FieldLabel>
       {searchable ? (
         <SearchableSelect
+          id={fieldId}
           value={value}
           options={options}
           loadOptions={loadOptions}
@@ -1276,7 +1331,11 @@ function SelectField({
           clearable={includeEmpty}
         />
       ) : (
-      <SetupSelect value={value} onChange={(event) => onChange(event.target.value)}>
+      <SetupSelect
+        id={fieldId}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
         {includeEmpty ? <option value="">{placeholder}</option> : null}
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -1304,10 +1363,15 @@ function TextField({
   type?: string;
   placeholder?: string;
 }) {
+  const fieldId = useId();
+
   return (
     <div>
-      <FieldLabel required={required}>{label}</FieldLabel>
+      <FieldLabel htmlFor={fieldId} required={required}>
+        {label}
+      </FieldLabel>
       <SetupTextInput
+        id={fieldId}
         type={type}
         value={value}
         placeholder={placeholder}
@@ -1328,10 +1392,15 @@ function TextareaField({
   onChange: (value: string) => void;
   required?: boolean;
 }) {
+  const fieldId = useId();
+
   return (
     <div className="md:col-span-2">
-      <FieldLabel required={required}>{label}</FieldLabel>
+      <FieldLabel htmlFor={fieldId} required={required}>
+        {label}
+      </FieldLabel>
       <SetupTextarea
+        id={fieldId}
         rows={4}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -1351,10 +1420,19 @@ function DateField({
   onChange: (value: string) => void;
   required?: boolean;
 }) {
+  const fieldId = useId();
+
   return (
     <div>
-      <FieldLabel required={required}>{label}</FieldLabel>
-      <BasicDateInput value={value} onChange={onChange} />
+      <FieldLabel htmlFor={fieldId} required={required}>
+        {label}
+      </FieldLabel>
+      <BasicDateInput
+        id={fieldId}
+        aria-label={label}
+        value={value}
+        onChange={onChange}
+      />
     </div>
   );
 }
@@ -1406,14 +1484,14 @@ function DetailItem({
 
   return (
     <div
-      className={`rounded-lg border border-gray-200 bg-gray-50 p-4 ${
+      className={`grid gap-1 border-b border-gray-100 py-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-4 ${
         wide ? "md:col-span-2" : ""
       }`}
     >
-      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-400">
+      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-700">
         {label}
       </p>
-      <div className="mt-2 break-words text-sm font-semibold text-gray-900">
+      <div className="min-w-0 break-words text-sm font-semibold text-gray-900">
         {displayValue}
       </div>
     </div>
@@ -1479,7 +1557,7 @@ function useMasterOptions() {
           branchService.getAll({ is_active: true }),
           productService.getAll({ is_active: true }),
           contractTypeService.getAll({ is_active: true }),
-          userService.getAll(),
+          userService.getAssignableAll(),
         ]);
 
         if (ignore) return;
@@ -2123,7 +2201,7 @@ function CollateralDetailModal({
               </p>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <DetailItem label="Nomor / Kode Agunan" value={collateral.collateral_number} />
+              <DetailItem label="Kode Register" value={collateral.collateral_number} />
               <DetailItem label="Jenis Agunan" value={collateralType} />
               <DetailItem
                 label="Status Link"
@@ -2170,18 +2248,66 @@ function CollateralDetailModal({
               </p>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <DetailItem label="Nilai Pasar" value={formatCurrencyOrDash(collateral.market_value)} />
-              <DetailItem label="Nilai Appraisal" value={formatCurrencyOrDash(collateral.appraisal_value)} />
+              <DetailItem label="Nilai NJOP/HT" value={formatCurrencyOrDash(collateral.market_value)} />
+              <DetailItem label="Nilai Taksasi" value={formatCurrencyOrDash(collateral.appraisal_value)} />
               <DetailItem
                 label="Nilai Appraisal Independen"
                 value={formatCurrencyOrDash(collateral.independent_appraisal_value)}
               />
-              <DetailItem label="Tanggal Appraisal Pelapor" value={formatDateOnly(collateral.reporter_appraisal_date)} />
+              <DetailItem label="Tanggal Penilaian Pelapor" value={formatDateOnly(collateral.reporter_appraisal_date)} />
               <DetailItem label="Appraiser Independen" value={collateral.independent_appraiser_name} />
               <DetailItem label="Tanggal Appraisal Independen" value={formatDateOnly(collateral.independent_appraisal_date)} />
               <DetailItem label="Jenis Pengikatan" value={slikDisplay(collateral.binding_type_display, collateral.binding_type_code)} />
               <DetailItem label="Tanggal Pengikatan" value={formatDateOnly(collateral.binding_date)} />
               <DetailItem label="Rating" value={collateral.rating} />
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-4 space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
+                Monitoring Taksasi dan Masa Berlaku
+              </h3>
+              <p className="text-sm leading-6 text-gray-500">
+                Jadwal penilaian ulang tahunan dan tanggal berakhir operasional agunan.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <DetailItem
+                label="Tanggal Penilaian Pelapor"
+                value={
+                  <div className="space-y-2">
+                    <p className="font-semibold text-slate-900">
+                      {formatDateOnly(collateral.latest_appraisal_date)}
+                    </p>
+                    <CollateralMonitoringBadge
+                      status={collateral.appraisal_status}
+                      label={collateral.appraisal_status_label}
+                    />
+                  </div>
+                }
+              />
+              <DetailItem
+                label="Kewajiban Penilaian Berikutnya"
+                value={formatDateOnly(collateral.next_appraisal_due_date)}
+              />
+              <DetailItem
+                label="Tanggal Expired"
+                value={
+                  <CollateralMonitoringCell
+                    date={collateral.expiry_date}
+                    status={collateral.expiry_status}
+                    label={collateral.expiry_status_label}
+                  />
+                }
+              />
+              {collateral.expiry_updated_at ? (
+                <DetailItem
+                  label="Pengubah dan Waktu Perubahan"
+                  value={`${collateral.expiry_updater?.name ?? "Pengguna tidak tersedia"} / ${formatDateTime(collateral.expiry_updated_at)}`}
+                />
+              ) : null}
+              <DetailItem label="Keterangan Expired" value={collateral.expiry_note} />
             </div>
           </section>
 
@@ -2854,8 +2980,7 @@ function DebtorTable({
   onDelete?: (debtor: DebtorRecord) => void;
   onAddContract?: (debtor: DebtorRecord) => void;
 }) {
-  const showActions = Boolean(onEdit || onDelete || onAddContract);
-  const colSpan = showActions ? 13 : 12;
+  const colSpan = 13;
 
   return (
     <SetupDataTable variant="portfolio" density="compact" className="min-w-[1760px]">
@@ -2872,7 +2997,7 @@ function DebtorTable({
         <SetupDataTableCol className="w-[150px]" />
         <SetupDataTableCol className="w-[140px]" />
         <SetupDataTableCol className="w-[110px]" />
-        {showActions ? <SetupDataTableCol className="w-[88px]" /> : null}
+        <SetupDataTableCol className="w-[88px]" />
       </SetupDataTableColGroup>
       <SetupDataTableHead>
         <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
@@ -2896,11 +3021,9 @@ function DebtorTable({
           <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
             Status
           </SetupDataTableHeaderCell>
-          {showActions ? (
-            <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-              Aksi
-            </SetupDataTableHeaderCell>
-          ) : null}
+          <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+            Aksi
+          </SetupDataTableHeaderCell>
         </SetupDataTableRow>
       </SetupDataTableHead>
       <SetupDataTableBody>
@@ -3004,15 +3127,14 @@ function DebtorTable({
             <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
               <SetupStatusBadge status={statusLabel(item.status)} />
             </SetupDataTableCell>
-            {showActions ? (
-              <SetupDataTableCell
-                className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
-                onDoubleClick={(event) => event.stopPropagation()}
-              >
-                <SetupActionMenu
-                  label={`Aksi ${item.name}`}
-                  menuLabel={`Aksi untuk ${item.name}`}
-                  items={[
+            <SetupDataTableCell
+              className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+              onDoubleClick={(event) => event.stopPropagation()}
+            >
+              <SetupActionMenu
+                label={`Aksi ${item.name}`}
+                menuLabel={`Aksi untuk ${item.name}`}
+                items={[
                     {
                       key: "view",
                       label: "Detail",
@@ -3043,10 +3165,9 @@ function DebtorTable({
                       disabled: !canDelete || !onDelete,
                       onClick: () => onDelete?.(item),
                     },
-                  ]}
-                />
-              </SetupDataTableCell>
-            ) : null}
+                ]}
+              />
+            </SetupDataTableCell>
           </SetupDataTableRow>
         ))}
         {isLoading ? (
@@ -3267,6 +3388,8 @@ function CollateralTable({
   emptyAction,
   onViewCollateral,
   onViewDebtor,
+  onEditExpiry,
+  canUpdate,
   collateralTypeLabels,
 }: {
   items: DebtorCollateral[];
@@ -3276,20 +3399,25 @@ function CollateralTable({
   emptyAction?: ReactNode;
   onViewCollateral: (collateral: DebtorCollateral) => void;
   onViewDebtor: (debtorId: string) => void;
+  onEditExpiry: (collateral: DebtorCollateral) => void;
+  canUpdate: boolean;
   collateralTypeLabels: Map<string, string>;
 }) {
   return (
-    <SetupDataTable variant="portfolio" density="compact" className="min-w-[1240px]">
+    <SetupDataTable variant="portfolio" density="compact" className="min-w-[2180px]">
       <SetupDataTableColGroup>
         <SetupDataTableCol className="w-[56px]" />
         <SetupDataTableCol className="w-[170px]" />
-        <SetupDataTableCol className="w-[170px]" />
-        <SetupDataTableCol className="w-[200px]" />
+        <SetupDataTableCol className="w-[160px]" />
         <SetupDataTableCol className="w-[160px]" />
         <SetupDataTableCol className="w-[180px]" />
+        <SetupDataTableCol className="w-[210px]" />
         <SetupDataTableCol className="w-[180px]" />
-        <SetupDataTableCol className="w-[150px]" />
-        <SetupDataTableCol className="w-[260px]" />
+        <SetupDataTableCol className="w-[180px]" />
+        <SetupDataTableCol className="w-[170px]" />
+        <SetupDataTableCol className="w-[170px]" />
+        <SetupDataTableCol className="w-[220px]" />
+        <SetupDataTableCol className="w-[240px]" />
         <SetupDataTableCol className="w-[88px]" />
       </SetupDataTableColGroup>
       <SetupDataTableHead>
@@ -3297,14 +3425,17 @@ function CollateralTable({
           <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
             No
           </SetupDataTableHeaderCell>
-          <SetupDataTableHeaderCell>No / Kode Agunan</SetupDataTableHeaderCell>
-          <SetupDataTableHeaderCell>No Fasilitas F01</SetupDataTableHeaderCell>
-          <SetupDataTableHeaderCell>Nama Nasabah</SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>Kode Register</SetupDataTableHeaderCell>
           <SetupDataTableHeaderCell>Jenis Agunan</SetupDataTableHeaderCell>
           <SetupDataTableHeaderCell>Pemilik</SetupDataTableHeaderCell>
           <SetupDataTableHeaderCell>Bukti Kepemilikan</SetupDataTableHeaderCell>
-          <SetupDataTableHeaderCell>Nilai</SetupDataTableHeaderCell>
-          <SetupDataTableHeaderCell>Alamat / Keterangan</SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>Tanggal Expired</SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>Lokasi Dati</SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>Pengikatan</SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>Nilai NJOP/HT</SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>Nilai Taksasi</SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>Tanggal Penilaian Pelapor</SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>Keterangan</SetupDataTableHeaderCell>
           <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
             Aksi
           </SetupDataTableHeaderCell>
@@ -3313,7 +3444,6 @@ function CollateralTable({
       <SetupDataTableBody>
         {items.map((item, index) => {
           const debtorId = item.debtor_id || item.debtor?.id || item.contract?.debtor_id || "";
-          const isLinked = Boolean(debtorId || item.contract_id || item.contract?.id);
 
           return (
             <SetupDataTableRow
@@ -3330,29 +3460,6 @@ function CollateralTable({
                 </SetupTableCode>
               </SetupDataTableCell>
               <SetupDataTableCell>
-                <div className="space-y-1">
-                  <SetupTableCode>{item.facility_number ?? "-"}</SetupTableCode>
-                  <SetupTableSecondaryText>
-                    Kontrak: {item.contract?.no_kontrak ?? "-"}
-                  </SetupTableSecondaryText>
-                  <SetupStatusBadge
-                    status={isLinked ? "Terhubung" : "Belum Terhubung"}
-                    tone={isLinked ? "emerald" : "amber"}
-                    showIcon={false}
-                  />
-                </div>
-              </SetupDataTableCell>
-              <SetupDataTableCell>
-                <div className="space-y-1">
-                  <SetupTablePrimaryText>{item.debtor?.name ?? "-"}</SetupTablePrimaryText>
-                  <SetupTableSecondaryText>
-                    {[item.debtor?.debtor_number, item.debtor?.identity_number]
-                      .filter(Boolean)
-                      .join(" / ") || "CIF belum tersedia"}
-                  </SetupTableSecondaryText>
-                </div>
-              </SetupDataTableCell>
-              <SetupDataTableCell>
                 <SetupTablePrimaryText>
                   {item.collateral_type_display ??
                     (item.collateral_type
@@ -3361,21 +3468,56 @@ function CollateralTable({
                     : "-")}
                 </SetupTablePrimaryText>
               </SetupDataTableCell>
-              <SetupDataTableCell>{item.owner_name ?? "-"}</SetupDataTableCell>
+              <SetupDataTableCell>
+                <SetupTablePrimaryText>{item.owner_name ?? "-"}</SetupTablePrimaryText>
+              </SetupDataTableCell>
               <SetupDataTableCell>
                 <SetupTableCode className="bg-white">
                   {item.proof_number ?? "-"}
                 </SetupTableCode>
               </SetupDataTableCell>
               <SetupDataTableCell>
+                <CollateralMonitoringCell
+                  date={item.expiry_date}
+                  status={item.expiry_status}
+                  label={item.expiry_status_label}
+                />
+              </SetupDataTableCell>
+              <SetupDataTableCell>
+                {item.location_city_display ?? item.location_city_code ?? "-"}
+              </SetupDataTableCell>
+              <SetupDataTableCell>
+                <SetupTablePrimaryText>
+                  {item.binding_type_display ?? item.binding_type_code ?? "-"}
+                </SetupTablePrimaryText>
+                <SetupTableSecondaryText>
+                  {formatDateOnly(item.binding_date)}
+                </SetupTableSecondaryText>
+              </SetupDataTableCell>
+              <SetupDataTableCell>
                 <SetupTableMoney>
-                  {formatCurrency(item.market_value ?? item.appraisal_value)}
+                  {formatCurrency(item.market_value)}
                 </SetupTableMoney>
               </SetupDataTableCell>
               <SetupDataTableCell>
-                <SetupTableSecondaryText as="div" className="whitespace-normal">
-                  {item.address ?? item.description ?? "-"}
-                </SetupTableSecondaryText>
+                <SetupTableMoney>{formatCurrency(item.appraisal_value)}</SetupTableMoney>
+              </SetupDataTableCell>
+              <SetupDataTableCell>
+                <CollateralMonitoringCell
+                  date={item.reporter_appraisal_date}
+                  status={item.appraisal_status}
+                  label={item.appraisal_status_label}
+                />
+              </SetupDataTableCell>
+              <SetupDataTableCell>
+                <div className="space-y-1">
+                  <SetupTableSecondaryText as="div" className="whitespace-normal">
+                    Expired: {item.expiry_note ?? "-"}
+                  </SetupTableSecondaryText>
+                  <SetupTableSecondaryText as="div" className="whitespace-normal">
+                    Agunan: {item.description ?? "-"}
+                  </SetupTableSecondaryText>
+                </div>
               </SetupDataTableCell>
               <SetupDataTableCell
                 className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
@@ -3400,6 +3542,14 @@ function CollateralTable({
                         if (debtorId) onViewDebtor(debtorId);
                       },
                     },
+                    {
+                      key: "expiry",
+                      label: "Atur Monitoring Expired",
+                      icon: CalendarClock,
+                      tone: "blue" as const,
+                      disabled: !canUpdate,
+                      onClick: () => onEditExpiry(item),
+                    },
                   ]}
                 />
               </SetupDataTableCell>
@@ -3407,13 +3557,13 @@ function CollateralTable({
           );
         })}
         {isLoading ? (
-          <SetupDataTableEmptyRow colSpan={10}>
+          <SetupDataTableEmptyRow colSpan={13}>
             Memuat data agunan...
           </SetupDataTableEmptyRow>
         ) : null}
         {!isLoading && items.length === 0 ? (
           <SetupDataTableEmptyRow
-            colSpan={10}
+            colSpan={13}
             tone="debitur"
             isFiltered={isFiltered}
             description={
@@ -3585,6 +3735,7 @@ function DebtorSearchPanel({
       <div>
         <FieldLabel>Jenis CIF</FieldLabel>
         <SetupSelect
+          aria-label="Jenis CIF"
           value={customerType}
           onChange={(event) => onCustomerTypeChange(event.target.value)}
         >
@@ -3597,7 +3748,11 @@ function DebtorSearchPanel({
       </div>
       <div>
         <FieldLabel>Status</FieldLabel>
-        <SetupSelect value={status} onChange={(event) => onStatusChange(event.target.value)}>
+        <SetupSelect
+          aria-label="Status debitur"
+          value={status}
+          onChange={(event) => onStatusChange(event.target.value)}
+        >
           {debtorStatusOptions.map((option) => (
             <option key={option.label} value={option.value}>
               {option.label}
@@ -3660,6 +3815,7 @@ function FinancingSearchPanel({
       <div>
         <FieldLabel>Kolektibilitas</FieldLabel>
         <SetupSelect
+          aria-label="Kolektibilitas"
           value={collectibilityLevel}
           onChange={(event) => onCollectibilityLevelChange(event.target.value)}
         >
@@ -3702,6 +3858,7 @@ function CollateralSearchPanel({
       <div>
         <FieldLabel>Jenis Agunan</FieldLabel>
         <SetupSelect
+          aria-label="Jenis agunan"
           value={collateralType}
           onChange={(event) => onCollateralTypeChange(event.target.value)}
         >
@@ -3715,6 +3872,7 @@ function CollateralSearchPanel({
       <div>
         <FieldLabel>Status Link</FieldLabel>
         <SetupSelect
+          aria-label="Status link agunan"
           value={linkStatus}
           onChange={(event) => onLinkStatusChange(event.target.value)}
         >
@@ -3782,12 +3940,19 @@ function DebtorListSummaryCards({
 export function DebtorListClient() {
   const [activeView, setActiveView] = useState<DebtorListView>("cif");
   const { showToast } = useAppToast();
-  const { hasCapability } = useProtectedAction();
+  const { hasCapability, ensureCapability } = useProtectedAction();
   const table = useDebtorTable();
   const financingTable = useFinancingListTable(activeView === "financing");
   const collateralTable = useCollateralTable(activeView === "collateral");
   const [selectedContract, setSelectedContract] = useState<DebtorContract | null>(null);
   const [selectedCollateral, setSelectedCollateral] = useState<DebtorCollateral | null>(null);
+  const [expiryCollateral, setExpiryCollateral] = useState<DebtorCollateral | null>(null);
+  const [isExpiryImportOpen, setIsExpiryImportOpen] = useState(false);
+  const [expiryImportFile, setExpiryImportFile] = useState<File | null>(null);
+  const [expiryImportError, setExpiryImportError] = useState<string | null>(null);
+  const [isExpiryImporting, setIsExpiryImporting] = useState(false);
+  const [isExpiryTemplateDownloading, setIsExpiryTemplateDownloading] =
+    useState(false);
   const [collateralTypes, setCollateralTypes] = useState<ParameterMasterRecord[]>([]);
   const router = useRouter();
   const collateralTypeOptions = useMemo(
@@ -3837,6 +4002,10 @@ export function DebtorListClient() {
     "/dashboard/informasi-debitur/master-debitur",
     "create",
   );
+  const canUpdateCollateral = hasCapability(
+    "/dashboard/informasi-debitur/master-debitur",
+    "update",
+  );
   const importSlikAction = canImportSlik ? (
     <SetupAddButton
       label="Import SLIK"
@@ -3882,18 +4051,137 @@ export function DebtorListClient() {
   const financingNpfCount = financingTable.items.filter(
     (item) => item.latest_collectibility?.is_npf,
   ).length;
-  const collateralLinkedCount = collateralTable.items.filter((item) =>
-    Boolean(item.debtor_id || item.debtor?.id || item.contract_id || item.contract?.id),
-  ).length;
   const collateralValue = collateralTable.items.reduce(
     (total, item) => total + Number(item.market_value ?? item.appraisal_value ?? 0),
     0,
   );
+  const collateralReappraisalWarnings = collateralTable.items.filter(
+    (item) =>
+      item.appraisal_status === "DUE_SOON" ||
+      item.appraisal_status === "OVERDUE",
+  ).length;
+  const collateralExpiryWarnings = collateralTable.items.filter(
+    (item) =>
+      item.expiry_status === "DUE_SOON" ||
+      item.expiry_status === "EXPIRED",
+  ).length;
+
+  const saveCollateralExpiry = async (payload: DebtorCollateralExpiryPayload) => {
+    if (!expiryCollateral) return;
+    if (
+      !ensureCapability(
+        "/dashboard/informasi-debitur/master-debitur",
+        "update",
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const updated = await debiturService.updateCollateralExpiry(
+        expiryCollateral.id,
+        payload,
+      );
+      setSelectedCollateral((current) =>
+        current?.id === updated.id ? updated : current,
+      );
+      showToast("Monitoring expired agunan diperbarui", "success");
+      await collateralTable.reload();
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Gagal memperbarui monitoring expired agunan",
+        "error",
+      );
+      throw error;
+    }
+  };
+
+  const openExpiryImport = () => {
+    if (
+      !ensureCapability(
+        "/dashboard/informasi-debitur/master-debitur",
+        "update",
+      )
+    ) {
+      return;
+    }
+    setExpiryImportFile(null);
+    setExpiryImportError(null);
+    setIsExpiryImportOpen(true);
+  };
+
+  const closeExpiryImport = () => {
+    if (isExpiryImporting) return;
+    setIsExpiryImportOpen(false);
+    setExpiryImportFile(null);
+    setExpiryImportError(null);
+  };
+
+  const downloadExpiryTemplate = async () => {
+    setIsExpiryTemplateDownloading(true);
+    try {
+      const template = await debiturService.downloadCollateralExpiryTemplate();
+      downloadBrowserFile(template.blob, template.fileName);
+      showToast("Template update expired agunan diunduh", "success");
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Gagal mengunduh template expired agunan",
+        "error",
+      );
+    } finally {
+      setIsExpiryTemplateDownloading(false);
+    }
+  };
+
+  const importCollateralExpiry = async () => {
+    if (!expiryImportFile) {
+      setExpiryImportError("Pilih file XLSX yang sudah diisi.");
+      return;
+    }
+    const validation = validateCollateralExpiryImportFile(expiryImportFile);
+    if (validation) {
+      setExpiryImportError(validation);
+      return;
+    }
+
+    setIsExpiryImporting(true);
+    setExpiryImportError(null);
+    try {
+      const result = await debiturService.importCollateralExpiry(expiryImportFile);
+      showToast(
+        `${formatNumber(result.updated_rows)} agunan diperbarui (YA: ${formatNumber(result.status_yes)}, TIDAK: ${formatNumber(result.status_no)}).`,
+        "success",
+      );
+      setIsExpiryImportOpen(false);
+      setExpiryImportFile(null);
+      try {
+        await collateralTable.reload();
+      } catch {
+        showToast(
+          "Data sudah tersimpan, tetapi tabel belum berhasil dimuat ulang.",
+          "warning",
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Gagal mengunggah data expired agunan";
+      setExpiryImportError(message);
+      showToast(message, "error");
+    } finally {
+      setIsExpiryImporting(false);
+    }
+  };
 
   return (
     <DashboardPageShell spacing="md">
       <FeatureHeader
-        title="List Debitur"
+        title="Daftar Debitur"
         subtitle="Eksplorasi data CIF, pembiayaan F01, dan agunan A01 hasil import SLIK."
         icon={<Users />}
       />
@@ -3991,7 +4279,24 @@ export function DebtorListClient() {
             onCollateralTypeChange={collateralTable.setCollateralType}
             onLinkStatusChange={collateralTable.setLinkStatus}
           />
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="flex flex-col justify-end gap-2 sm:flex-row">
+            <SetupExcelButton
+              label="Download Template Expired"
+              loading={isExpiryTemplateDownloading}
+              onClick={() => void downloadExpiryTemplate()}
+            />
+            {canUpdateCollateral ? (
+              <button
+                type="button"
+                className="uiverse-modal-button uiverse-modal-button--primary"
+                onClick={openExpiryImport}
+              >
+                <Upload className="h-4 w-4" aria-hidden="true" />
+                <span>Upload Excel Expired</span>
+              </button>
+            ) : null}
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               label="Total Agunan"
               value={formatNumber(collateralTable.meta.total)}
@@ -3999,15 +4304,21 @@ export function DebtorListClient() {
               icon={FileArchive}
             />
             <StatCard
-              label="Terhubung"
-              value={`${formatNumber(collateralLinkedCount)} / ${formatNumber(collateralTable.items.length)}`}
-              description="Relasi A01 pada halaman ini"
-              icon={FileCheck2}
+              label="Taksasi Perlu Dicek"
+              value={formatNumber(collateralReappraisalWarnings)}
+              description="Pada halaman ini: segera jatuh tempo atau terlambat"
+              icon={CalendarClock}
             />
             <StatCard
-              label="Nilai Agunan"
+              label="Masa Berlaku"
+              value={formatNumber(collateralExpiryWarnings)}
+              description="Pada halaman ini: mendekati atau sudah berakhir"
+              icon={AlertTriangle}
+            />
+            <StatCard
+              label="Total Nilai Agunan"
               value={formatCurrency(collateralValue)}
-              description="Nilai pasar/appraisal halaman ini"
+              description="Pada halaman ini: NJOP/HT, atau Taksasi jika kosong"
               icon={FolderOpen}
             />
           </div>
@@ -4066,6 +4377,8 @@ export function DebtorListClient() {
               collateralTypeLabels={collateralTypeLabels}
               onViewCollateral={setSelectedCollateral}
               onViewDebtor={openDetailById}
+              onEditExpiry={setExpiryCollateral}
+              canUpdate={canUpdateCollateral}
             />
             <Pagination
               page={collateralTable.meta.page}
@@ -4089,6 +4402,95 @@ export function DebtorListClient() {
         isOpen={selectedCollateral !== null}
         onClose={() => setSelectedCollateral(null)}
       />
+      <CollateralExpiryModal
+        item={expiryCollateral}
+        isOpen={expiryCollateral !== null}
+        onClose={() => setExpiryCollateral(null)}
+        onSave={saveCollateralExpiry}
+      />
+      <DashboardModal
+        isOpen={isExpiryImportOpen}
+        title="Upload Excel Expired Agunan"
+        description="Perbarui monitoring expired berdasarkan Kode Register tiap agunan."
+        maxWidth="2xl"
+        closeDisabled={isExpiryImporting}
+        onClose={closeExpiryImport}
+        footer={
+          <>
+            <button
+              type="button"
+              className="uiverse-modal-button uiverse-modal-button--neutral"
+              onClick={closeExpiryImport}
+              disabled={isExpiryImporting}
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              className="uiverse-modal-button uiverse-modal-button--primary"
+              onClick={() => void importCollateralExpiry()}
+              disabled={isExpiryImporting || !expiryImportFile}
+            >
+              {isExpiryImporting ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Upload className="h-4 w-4" aria-hidden="true" />
+              )}
+              <span>
+                {isExpiryImporting ? "Memproses..." : "Upload & Perbarui"}
+              </span>
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+            Upload bersifat atomik: jika satu baris salah, Kode Register tidak
+            ditemukan, atau cocok ke lebih dari satu agunan, seluruh upload
+            dibatalkan dan tidak ada data yang diubah.
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700">
+            Gunakan sheet <strong>Update Expired</strong> dengan kolom tetap:
+            No Register Agunan, Status [YA]/[Tidak], Tanggal Expired, dan
+            Keterangan. Status YA wajib memiliki tanggal; status TIDAK wajib
+            mengosongkan tanggal. Maksimal 1.000 baris dan 5 MB.
+          </div>
+          <div className="flex justify-end">
+            <SetupExcelButton
+              label="Unduh Template Resmi"
+              loading={isExpiryTemplateDownloading}
+              disabled={isExpiryImporting}
+              onClick={() => void downloadExpiryTemplate()}
+            />
+          </div>
+          <FileUploadField
+            id="collateral-expiry-import-file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            label="File Update Expired Agunan"
+            file={expiryImportFile}
+            disabled={isExpiryImporting}
+            emptyFileMeta="XLSX • maksimal 5 MB"
+            helperText="Unduh dan isi template resmi agar header serta format tanggal tetap sesuai."
+            validateFile={validateCollateralExpiryImportFile}
+            onChange={(event) => {
+              setExpiryImportFile(event.target.files?.[0] ?? null);
+              setExpiryImportError(null);
+            }}
+            onClear={() => {
+              setExpiryImportFile(null);
+              setExpiryImportError(null);
+            }}
+          />
+          {expiryImportError ? (
+            <div
+              role="alert"
+              className="whitespace-pre-wrap break-words rounded-lg border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700"
+            >
+              {expiryImportError}
+            </div>
+          ) : null}
+        </div>
+      </DashboardModal>
     </DashboardPageShell>
   );
 }
@@ -4369,6 +4771,7 @@ export function DebtorMasterClient() {
             <div>
               <FieldLabel>Status</FieldLabel>
               <SetupSelect
+                aria-label="Status kontrak"
                 value={contractTable.status}
                 onChange={(event) => contractTable.setStatus(event.target.value)}
               >
@@ -4505,6 +4908,7 @@ function VisitLocationCaptureSection({
   isEditing,
   isSaving,
   isLocating,
+  locationCaptureCleanupRef,
   locationRequestIdRef,
   form,
   onChange,
@@ -4513,16 +4917,22 @@ function VisitLocationCaptureSection({
   isEditing: boolean;
   isSaving: boolean;
   isLocating: boolean;
+  locationCaptureCleanupRef: MutableRefObject<(() => void) | null>;
   locationRequestIdRef: MutableRefObject<number>;
   form: MarketingFormState;
   onChange: (patch: Partial<MarketingFormState>) => void;
   onLocatingChange: (isLocating: boolean) => void;
 }) {
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [captureStatus, setCaptureStatus] = useState<string | null>(null);
   const hasLocation = hasValidVisitLocation(form);
+  const verificationStep = getVisitLocationVerificationStep(form);
+  const isLocationConfirmed = verificationStep === "verified";
 
   const captureLocation = () => {
+    locationCaptureCleanupRef.current?.();
     setLocationError(null);
+    setCaptureStatus(null);
 
     if (typeof navigator === "undefined" || !navigator.geolocation) {
       setLocationError(
@@ -4530,50 +4940,199 @@ function VisitLocationCaptureSection({
       );
       return;
     }
+    if (!window.isSecureContext) {
+      setLocationError(
+        "Lokasi hanya dapat diambil melalui koneksi HTTPS yang aman.",
+      );
+      return;
+    }
+
+    const browserNavigator = navigator as Navigator & {
+      userAgentData?: { mobile?: boolean };
+    };
+    const coarsePointer =
+      typeof window.matchMedia === "function"
+        ? window.matchMedia("(pointer: coarse)").matches
+        : false;
+    const isFieldDevice = isLikelyGpsCapableMobileDevice({
+      userAgent: navigator.userAgent,
+      userAgentDataMobile: browserNavigator.userAgentData?.mobile,
+      maxTouchPoints: navigator.maxTouchPoints,
+      coarsePointer,
+    });
+    if (!isFieldDevice) {
+      setLocationError(
+        "Geotag kunjungan harus diambil melalui ponsel atau tablet dengan GPS. Browser laptop dapat mengirim lokasi Wi-Fi/IP yang berbeda kota.",
+      );
+      return;
+    }
 
     const requestId = locationRequestIdRef.current + 1;
     locationRequestIdRef.current = requestId;
     onLocatingChange(true);
+    setCaptureStatus("Mengaktifkan GPS dan menunggu sampel lokasi presisi...");
 
-    navigator.geolocation.getCurrentPosition(
+    const startedAt = Date.now();
+    const samples: VisitLocationSample[] = [];
+    let settled = false;
+    let watchId: number | null = null;
+    let softTimeout: ReturnType<typeof setTimeout> | null = null;
+    let hardTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const cleanup = () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+      if (softTimeout) {
+        clearTimeout(softTimeout);
+        softTimeout = null;
+      }
+      if (hardTimeout) {
+        clearTimeout(hardTimeout);
+        hardTimeout = null;
+      }
+      if (locationCaptureCleanupRef.current === cleanup) {
+        locationCaptureCleanupRef.current = null;
+      }
+    };
+
+    const failCapture = (message: string) => {
+      if (settled || locationRequestIdRef.current !== requestId) return;
+      settled = true;
+      cleanup();
+      setCaptureStatus(null);
+      setLocationError(message);
+      onLocatingChange(false);
+    };
+
+    const finishCapture = (sample: VisitLocationSample) => {
+      if (settled || locationRequestIdRef.current !== requestId) return;
+      settled = true;
+      cleanup();
+      onChange({
+        visit_latitude: sample.latitude,
+        visit_longitude: sample.longitude,
+        visit_location_accuracy_m: sample.accuracy,
+        visit_location_recorded_at: new Date(sample.timestamp).toISOString(),
+        visit_location_captured_in_session: true,
+        visit_location_maps_opened_in_session: false,
+        visit_location_confirmed_in_session: false,
+      });
+      setCaptureStatus(
+        `Titik stabil diperoleh dengan akurasi ${Math.round(sample.accuracy)} meter. Periksa hasilnya di Maps.`,
+      );
+      onLocatingChange(false);
+    };
+
+    const tryFinishCapture = ({
+      allowSinglePreciseSample = false,
+    }: {
+      allowSinglePreciseSample?: boolean;
+    } = {}) => {
+      const recentSamples = samples.slice(-3);
+      const bestSample = selectBestVisitLocationSample(recentSamples);
+      if (
+        !bestSample ||
+        !isAcceptableVisitLocationAccuracy(bestSample.accuracy) ||
+        !areVisitLocationSamplesConsistent(recentSamples)
+      ) {
+        return false;
+      }
+
+      const hasEnoughSamples =
+        recentSamples.length >= 2 ||
+        (allowSinglePreciseSample &&
+          bestSample.accuracy <= VISIT_LOCATION_PRECISE_ACCURACY_M);
+      if (!hasEnoughSamples) return false;
+
+      finishCapture(bestSample);
+      return true;
+    };
+
+    locationCaptureCleanupRef.current = cleanup;
+    watchId = navigator.geolocation.watchPosition(
       (position) => {
         if (locationRequestIdRef.current !== requestId) return;
 
-        const latitude = position.coords.latitude;
-        const longitude = position.coords.longitude;
-        if (!isValidVisitLatitude(latitude) || !isValidVisitLongitude(longitude)) {
-          setLocationError(
-            "Koordinat yang diterima dari perangkat tidak valid. Silakan ambil ulang lokasi.",
+        const sample = normalizeVisitLocationSample({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          timestamp: position.timestamp,
+        });
+        if (!sample) {
+          setCaptureStatus(
+            "Sampel lokasi belum valid atau belum segar. Menunggu pembaruan GPS...",
           );
-          onLocatingChange(false);
           return;
         }
 
-        const accuracy =
-          Number.isFinite(position.coords.accuracy) && position.coords.accuracy >= 0
-            ? position.coords.accuracy
-            : null;
+        samples.push(sample);
+        if (samples.length > 6) samples.shift();
 
-        onChange({
-          visit_latitude: latitude,
-          visit_longitude: longitude,
-          visit_location_accuracy_m: accuracy,
-          visit_location_recorded_at: new Date().toISOString(),
-          visit_location_captured_in_session: true,
-        });
-        onLocatingChange(false);
+        const recentSamples = samples.slice(-3);
+        const bestSample = selectBestVisitLocationSample(recentSamples);
+        const isStable = areVisitLocationSamplesConsistent(recentSamples);
+        setCaptureStatus(
+          isStable
+            ? `Menerima ${samples.length} sampel GPS. Akurasi terbaik ${Math.round(bestSample?.accuracy ?? sample.accuracy)} meter...`
+            : "Posisi GPS masih berpindah. Menunggu titik yang stabil...",
+        );
+
+        if (
+          Date.now() - startedAt >= 3_000 &&
+          bestSample &&
+          bestSample.accuracy <= VISIT_LOCATION_PRECISE_ACCURACY_M &&
+          recentSamples.length >= 2 &&
+          isStable
+        ) {
+          finishCapture(bestSample);
+        }
       },
       (error) => {
         if (locationRequestIdRef.current !== requestId) return;
-        setLocationError(geolocationErrorMessage(error));
-        onLocatingChange(false);
+        if (error.code === error.TIMEOUT && samples.length > 0) {
+          if (!tryFinishCapture({ allowSinglePreciseSample: true })) {
+            setCaptureStatus(
+              "GPS belum mencapai akurasi yang cukup. Masih mencoba...",
+            );
+          }
+          return;
+        }
+        failCapture(geolocationErrorMessage(error));
       },
       {
         enableHighAccuracy: true,
-        timeout: 15_000,
+        timeout: 25_000,
         maximumAge: 0,
       },
     );
+
+    softTimeout = setTimeout(() => {
+      if (
+        !tryFinishCapture({
+          allowSinglePreciseSample: true,
+        })
+      ) {
+        setCaptureStatus(
+          "Akurasi atau kestabilan titik belum cukup. Tetap di area terbuka...",
+        );
+      }
+    }, 12_000);
+
+    hardTimeout = setTimeout(() => {
+      if (
+        tryFinishCapture({
+          allowSinglePreciseSample: true,
+        })
+      ) {
+        return;
+      }
+      failCapture(
+        "Lokasi belum dapat diverifikasi dengan akurasi maksimal 100 meter. Aktifkan GPS dan lokasi presisi, pindah ke area terbuka, lalu ambil ulang.",
+      );
+    }, 25_000);
   };
 
   const missingMessage = isEditing
@@ -4583,7 +5142,7 @@ function VisitLocationCaptureSection({
   return (
     <SetupFormSection
       title="Lokasi Kunjungan"
-      description="Lokasi hanya diambil setelah Anda menekan tombol dan menyetujui izin browser. Koordinat tidak dapat diisi manual."
+      description="Lokasi diambil dari perangkat setelah izin browser diberikan dan wajib diperiksa di Maps. Gunakan perangkat dengan GPS serta lokasi presisi untuk hasil paling akurat."
       contentClassName="md:grid-cols-1"
     >
       <div className="min-w-0 space-y-3">
@@ -4602,11 +5161,85 @@ function VisitLocationCaptureSection({
           missingMessage={missingMessage}
           availableMessage={
             form.visit_location_captured_in_session
-              ? "Koordinat baru siap disimpan bersama aktivitas."
+              ? isLocationConfirmed
+                ? "Titik sudah diperiksa dan siap disimpan bersama aktivitas."
+                : "Koordinat terdeteksi. Periksa titik di Maps sebelum menyimpan."
               : "Koordinat tersimpan bersama aktivitas."
           }
           showAddress={false}
+          statusLabel={
+            form.visit_location_captured_in_session
+              ? isLocationConfirmed
+                ? "Siap Disimpan"
+                : "Perlu Verifikasi"
+              : undefined
+          }
+          statusTone={
+            form.visit_location_captured_in_session
+              ? isLocationConfirmed
+                ? "emerald"
+                : "amber"
+              : undefined
+          }
+          onMapsOpen={() =>
+            onChange({
+              visit_location_maps_opened_in_session: true,
+            })
+          }
         />
+
+        {form.visit_location_captured_in_session && hasLocation ? (
+          <div
+            className={`rounded-xl border px-4 py-3 ${
+              isLocationConfirmed
+                ? "border-emerald-200 bg-emerald-50"
+                : "border-amber-200 bg-amber-50"
+            }`}
+          >
+            <div className="flex min-w-0 items-start gap-3">
+              {isLocationConfirmed ? (
+                <CheckCircle2
+                  className="mt-0.5 size-5 shrink-0 text-emerald-600"
+                  aria-hidden="true"
+                />
+              ) : (
+                <AlertTriangle
+                  className="mt-0.5 size-5 shrink-0 text-amber-600"
+                  aria-hidden="true"
+                />
+              )}
+              <div className="min-w-0 space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    Pastikan titik benar sebelum disimpan
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                    Buka Maps terlebih dahulu. Jika titik tidak sesuai lokasi
+                    kunjungan, jangan simpan dan ambil ulang di area terbuka
+                    dengan GPS serta izin lokasi presisi aktif.
+                  </p>
+                </div>
+                <UiverseCheckbox
+                  checked={isLocationConfirmed}
+                  onCheckedChange={(checked) =>
+                    onChange({
+                      visit_location_confirmed_in_session: checked,
+                    })
+                  }
+                  disabled={
+                    isSaving || !form.visit_location_maps_opened_in_session
+                  }
+                  label="Saya sudah membuka Maps dan memastikan titik ini sesuai lokasi kunjungan."
+                />
+                {!form.visit_location_maps_opened_in_session ? (
+                  <p className="text-xs font-medium text-amber-700">
+                    Tombol konfirmasi aktif setelah titik dibuka di Maps.
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {locationError ? (
           <div
@@ -4641,7 +5274,12 @@ function VisitLocationCaptureSection({
           </button>
           {isLocating ? (
             <p className="text-xs font-medium leading-5 text-slate-500" aria-live="polite">
-              Menunggu posisi perangkat. Proses dapat berlangsung hingga 15 detik.
+              {captureStatus ||
+                "Menunggu posisi perangkat. Proses dapat berlangsung hingga 25 detik."}
+            </p>
+          ) : captureStatus ? (
+            <p className="text-xs font-medium leading-5 text-emerald-700" aria-live="polite">
+              {captureStatus}
             </p>
           ) : null}
         </div>
@@ -4675,6 +5313,7 @@ function MarketingFormModal({
 }) {
   const config = getMarketingConfig(kind);
   const [isLocating, setIsLocating] = useState(false);
+  const locationCaptureCleanupRef = useRef<(() => void) | null>(null);
   const locationRequestIdRef = useRef(0);
   const contractOptions = toContractOptions(
     form.debtor_id
@@ -4685,12 +5324,14 @@ function MarketingFormModal({
   useEffect(
     () => () => {
       locationRequestIdRef.current += 1;
+      locationCaptureCleanupRef.current?.();
     },
     [],
   );
 
   const closeMarketingForm = () => {
     locationRequestIdRef.current += 1;
+    locationCaptureCleanupRef.current?.();
     setIsLocating(false);
     onClose();
   };
@@ -4708,7 +5349,13 @@ function MarketingFormModal({
           onClose={closeMarketingForm}
           onSave={onSave}
           isSaving={isSaving}
-          saveDisabled={kind === "visit-results" && isLocating}
+          saveDisabled={
+            kind === "visit-results" &&
+            (isLocating ||
+              ["open-maps", "confirm"].includes(
+                getVisitLocationVerificationStep(form),
+              ))
+          }
         />
       }
     >
@@ -4739,6 +5386,7 @@ function MarketingFormModal({
           isEditing={isEditing}
           isSaving={isSaving}
           isLocating={isLocating}
+          locationCaptureCleanupRef={locationCaptureCleanupRef}
           locationRequestIdRef={locationRequestIdRef}
           form={form}
           onChange={onChange}
@@ -4807,7 +5455,16 @@ function MarketingDetailModal({
                 label="Status"
                 value={<SetupStatusBadge status={statusLabel(item.status)} />}
               />
-              <DetailItem label="Dibuat Oleh" value={item.created_by} />
+              <DetailItem
+                label="Dibuat Oleh"
+                value={
+                  item.creator
+                    ? item.creator.division_name
+                      ? `${item.creator.name} / ${item.creator.division_name}`
+                      : item.creator.name
+                    : item.created_by
+                }
+              />
               <DetailItem label="Debitur" value={item.debtor?.name} />
               <DetailItem label="Identitas Debitur" value={debtorIdentity} />
               <DetailItem label="Kontrak" value={item.contract?.no_kontrak} />
@@ -5044,7 +5701,11 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
         />
         <div>
           <FieldLabel>Status</FieldLabel>
-          <SetupSelect value={status} onChange={(event) => setStatus(event.target.value)}>
+          <SetupSelect
+            aria-label="Status aktivitas marketing"
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+          >
             {activityStatusOptions.map((option) => (
               <option key={option.label} value={option.value}>
                 {option.label}
@@ -6125,7 +6786,7 @@ export function DebtorImportClient({
           </div>
 
           {monitoringTab === "history" ? (
-            <div className="grid gap-4 md:grid-cols-[minmax(280px,1fr)_180px_220px_180px]">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(280px,1fr)_180px_220px_180px]">
               <SetupSearchInput
                 id="monitoring-import-search"
                 label="Cari Import"
@@ -6139,6 +6800,7 @@ export function DebtorImportClient({
               <div>
                 <FieldLabel>Tipe Import</FieldLabel>
                 <SetupSelect
+                  aria-label="Tipe import"
                   value={importTypeFilter}
                   onChange={(event) => {
                     setImportTypeFilter(event.target.value);
@@ -6153,6 +6815,7 @@ export function DebtorImportClient({
               <div>
                 <FieldLabel>Status</FieldLabel>
                 <SetupSelect
+                  aria-label="Status import"
                   value={importStatusFilter}
                   onChange={(event) => {
                     setImportStatusFilter(event.target.value);
@@ -6170,6 +6833,7 @@ export function DebtorImportClient({
               <div>
                 <FieldLabel>Periode Data</FieldLabel>
                 <SetupTextInput
+                  aria-label="Periode data import"
                   type="month"
                   value={importPeriodFilter}
                   onChange={(event) => {
@@ -6219,16 +6883,8 @@ export function DebtorImportClient({
                 <SetupDataTableRow
                   key={item.id}
                   className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer`}
-                  role="button"
-                  tabIndex={0}
                   title="Klik dua kali untuk melihat detail IDEB"
                   onDoubleClick={() => openResolveIdeb(item)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      openResolveIdeb(item);
-                    }
-                  }}
                 >
                   <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                     {(pendingIdebMeta.page - 1) * pendingIdebMeta.limit + index + 1}
@@ -6368,16 +7024,8 @@ export function DebtorImportClient({
               <SetupDataTableRow
                 key={item.id}
                 className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer`}
-                role="button"
-                tabIndex={0}
                 title="Klik dua kali untuk melihat detail job import"
                 onDoubleClick={() => setSelectedImportJob(item)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setSelectedImportJob(item);
-                  }
-                }}
               >
                 <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                   {(meta.page - 1) * meta.limit + index + 1}
@@ -6923,7 +7571,7 @@ export function DebtorCompletenessAuditReportClient() {
           />
         </div>
 
-        <div className="grid gap-4 border-b border-gray-200 px-5 py-4 lg:grid-cols-[minmax(240px,1fr)_180px_180px_180px] xl:grid-cols-[minmax(280px,1fr)_180px_180px_180px_220px_160px_140px]">
+        <div className="grid gap-4 border-b border-gray-200 px-5 py-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-[minmax(240px,1.4fr)_repeat(auto-fit,minmax(140px,1fr))]">
           <SetupSearchInput
             label="Cari Isu"
             value={search}
@@ -6936,6 +7584,7 @@ export function DebtorCompletenessAuditReportClient() {
           <div>
             <FieldLabel>Cabang</FieldLabel>
             <SetupSelect
+              aria-label="Cabang"
               value={branchId}
               onChange={(event) => resetPage(setBranchId)(event.target.value)}
               disabled={options.isLoading}
@@ -6951,6 +7600,7 @@ export function DebtorCompletenessAuditReportClient() {
           <div>
             <FieldLabel>PIC</FieldLabel>
             <SetupSelect
+              aria-label="PIC"
               value={marketingUserId}
               onChange={(event) => resetPage(setMarketingUserId)(event.target.value)}
               disabled={options.isLoading}
@@ -6966,6 +7616,7 @@ export function DebtorCompletenessAuditReportClient() {
           <div>
             <FieldLabel>Jenis CIF</FieldLabel>
             <SetupSelect
+              aria-label="Jenis CIF"
               value={customerType}
               onChange={(event) => resetPage(setCustomerType)(event.target.value)}
             >
@@ -6979,6 +7630,7 @@ export function DebtorCompletenessAuditReportClient() {
           <div>
             <FieldLabel>Jenis Isu</FieldLabel>
             <SetupSelect
+              aria-label="Jenis isu"
               value={issueType}
               onChange={(event) => resetPage(setIssueType)(event.target.value)}
             >
@@ -6992,6 +7644,7 @@ export function DebtorCompletenessAuditReportClient() {
           <div>
             <FieldLabel>Periode SLIK</FieldLabel>
             <SetupTextInput
+              aria-label="Periode SLIK"
               type="month"
               value={periodMonth}
               onChange={(event) => resetPage(setPeriodMonth)(event.target.value)}
@@ -7000,6 +7653,7 @@ export function DebtorCompletenessAuditReportClient() {
           <div>
             <FieldLabel>KOL</FieldLabel>
             <SetupSelect
+              aria-label="Kolektibilitas"
               value={collectibilityLevel}
               onChange={(event) => resetPage(setCollectibilityLevel)(event.target.value)}
             >
@@ -7013,7 +7667,7 @@ export function DebtorCompletenessAuditReportClient() {
         </div>
 
         <SetupTableCard variant="report" className="border-0 shadow-none">
-          <SetupDataTable variant="report" density="compact" className="min-w-[1420px]">
+          <SetupDataTable variant="report" density="compact" className="min-w-[1500px]">
             <SetupDataTableHead>
               <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>
@@ -7027,6 +7681,9 @@ export function DebtorCompletenessAuditReportClient() {
                 <SetupDataTableHeaderCell>Dokumen Wajib</SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell>Dampak</SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell>Rekomendasi</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
+                  Aksi
+                </SetupDataTableHeaderCell>
               </SetupDataTableRow>
             </SetupDataTableHead>
             <SetupDataTableBody>
@@ -7041,8 +7698,6 @@ export function DebtorCompletenessAuditReportClient() {
                     className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} ${
                       debtorId ? "cursor-pointer hover:bg-[#157ec3]/5" : ""
                     }`}
-                    role={debtorId ? "button" : undefined}
-                    tabIndex={debtorId ? 0 : undefined}
                     title={debtorId ? "Klik dua kali untuk melihat detail debitur" : undefined}
                     onClick={
                       debtorId
@@ -7062,19 +7717,6 @@ export function DebtorCompletenessAuditReportClient() {
                               `audit-${rowKey}`,
                               () => openDebtorDetail(debtorId),
                             )
-                        : undefined
-                    }
-                    onKeyDown={
-                      debtorId
-                        ? (event) => {
-                            if (event.key !== "Enter") return;
-                            event.preventDefault();
-                            triggerDoubleRowActivation(
-                              reportRowActivationRef,
-                              `audit-${rowKey}`,
-                              () => openDebtorDetail(debtorId),
-                            );
-                          }
                         : undefined
                     }
                   >
@@ -7132,16 +7774,42 @@ export function DebtorCompletenessAuditReportClient() {
                         {item.recommendation}
                       </span>
                     </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      {debtorId ? (
+                        <div
+                          className="flex items-center justify-center"
+                          onClick={(event) => event.stopPropagation()}
+                          onDoubleClick={(event) => event.stopPropagation()}
+                          onKeyDown={(event) => event.stopPropagation()}
+                        >
+                          <SetupActionMenu
+                            label={`Buka aksi debitur ${debtor?.name ?? debtorId}`}
+                            menuLabel={`Aksi debitur ${debtor?.name ?? debtorId}`}
+                            items={[
+                              {
+                                key: "detail",
+                                label: "Detail Debitur",
+                                icon: Eye,
+                                tone: "blue",
+                                onClick: () => openDebtorDetail(debtorId),
+                              },
+                            ]}
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-sm text-slate-400">-</span>
+                      )}
+                    </SetupDataTableCell>
                   </SetupDataTableRow>
                 );
               })}
               {isLoading ? (
-                <SetupDataTableEmptyRow colSpan={9}>
+                <SetupDataTableEmptyRow colSpan={10}>
                   Memuat audit kelengkapan SLIK...
                 </SetupDataTableEmptyRow>
               ) : null}
               {!isLoading && (data?.items.length ?? 0) === 0 ? (
-                <SetupDataTableEmptyRow colSpan={9}>
+                <SetupDataTableEmptyRow colSpan={10}>
                   Belum ada isu kelengkapan sesuai filter.
                 </SetupDataTableEmptyRow>
               ) : null}
@@ -7450,7 +8118,7 @@ export function DebtorReportClient() {
         },
         {
           icon: Banknote,
-          label: "Nilai Pasar",
+          label: "Total Nilai NJOP/HT",
           value: formatCurrency(overview.collaterals?.total_market_value ?? 0),
         },
       ],
@@ -7574,12 +8242,25 @@ export function DebtorReportClient() {
               debitur: item.debtor?.name ?? "-",
               kontrak: item.contract?.no_kontrak ?? "-",
               fasilitas_f01: item.facility_number ?? "-",
-              no_agunan: item.collateral_number,
+              kode_register: item.collateral_number,
               jenis_agunan: item.collateral_type_display ?? item.collateral_type ?? "-",
+              pemilik: item.owner_name ?? "-",
+              bukti_kepemilikan: item.proof_number ?? "-",
+              tanggal_expired: item.has_expiry_date
+                ? formatDateOnly(item.expiry_date)
+                : "Tidak Berlaku",
+              status_expired: item.expiry_status_label,
+              lokasi_dati: item.location_city_display ?? item.location_city_code ?? "-",
               pengikatan: item.binding_type_display ?? item.binding_type_code ?? "-",
-              nilai_pasar: formatCurrency(item.market_value),
-              nilai_appraisal: formatCurrency(item.appraisal_value),
-              lokasi: item.location_city_display ?? item.location_city_code ?? "-",
+              nilai_njop_ht: formatCurrency(item.market_value),
+              nilai_taksasi: formatCurrency(item.appraisal_value),
+              tanggal_penilaian_pelapor: formatDateOnly(item.reporter_appraisal_date),
+              kewajiban_penilaian_berikutnya: formatDateOnly(item.next_appraisal_due_date),
+              status_penilaian: item.appraisal_status_label,
+              keterangan_expired: item.expiry_note ?? "-",
+              keterangan_agunan: item.description ?? "-",
+              pengubah_expired: item.expiry_updater?.name ?? "-",
+              waktu_perubahan_expired: formatDateTime(item.expiry_updated_at),
               status_link:
                 reportCollateralDebtorId(item) || item.contract_id || item.contract?.id
                   ? "Terhubung"
@@ -7698,7 +8379,7 @@ export function DebtorReportClient() {
               <StatCard label="Total Agunan" value={formatNumber(collaterals?.summary.total_collaterals ?? 0)} />
               <StatCard label="Terhubung" value={formatNumber(collaterals?.summary.linked_collaterals ?? 0)} />
               <StatCard label="Belum Link" value={formatNumber(collaterals?.summary.unlinked_collaterals ?? 0)} />
-              <StatCard label="Nilai Pasar" value={formatCurrency(collaterals?.summary.total_market_value ?? 0)} />
+              <StatCard label="Total Nilai NJOP/HT" value={formatCurrency(collaterals?.summary.total_market_value ?? 0)} />
             </>
           ) : null}
           {activeReport === "completeness" ? (
@@ -7712,7 +8393,7 @@ export function DebtorReportClient() {
           ) : null}
         </div>
 
-        <div className="grid gap-4 border-b border-gray-200 px-5 py-4 lg:grid-cols-[minmax(220px,1fr)_180px_180px_180px] xl:grid-cols-[minmax(260px,1fr)_180px_180px_180px_180px_180px]">
+        <div className="grid gap-4 border-b border-gray-200 px-5 py-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-[minmax(260px,1.4fr)_repeat(auto-fit,minmax(140px,1fr))]">
           <SetupSearchInput
             label="Cari Data"
             value={search}
@@ -7724,7 +8405,11 @@ export function DebtorReportClient() {
           />
           <div>
             <FieldLabel>Cabang</FieldLabel>
-            <SetupSelect value={branchId} onChange={(event) => resetPage(setBranchId)(event.target.value)}>
+            <SetupSelect
+              aria-label="Cabang"
+              value={branchId}
+              onChange={(event) => resetPage(setBranchId)(event.target.value)}
+            >
               <option value="">Semua Cabang</option>
               {options.branches.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -7735,7 +8420,11 @@ export function DebtorReportClient() {
           </div>
           <div>
             <FieldLabel>PIC</FieldLabel>
-            <SetupSelect value={marketingUserId} onChange={(event) => resetPage(setMarketingUserId)(event.target.value)}>
+            <SetupSelect
+              aria-label="PIC"
+              value={marketingUserId}
+              onChange={(event) => resetPage(setMarketingUserId)(event.target.value)}
+            >
               <option value="">Semua PIC</option>
               {options.users.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -7746,7 +8435,11 @@ export function DebtorReportClient() {
           </div>
           <div>
             <FieldLabel>Jenis CIF</FieldLabel>
-            <SetupSelect value={customerType} onChange={(event) => resetPage(setCustomerType)(event.target.value)}>
+            <SetupSelect
+              aria-label="Jenis CIF"
+              value={customerType}
+              onChange={(event) => resetPage(setCustomerType)(event.target.value)}
+            >
               {customerTypeFilterOptions.map((option) => (
                 <option key={option.label} value={option.value}>
                   {option.label}
@@ -7763,7 +8456,11 @@ export function DebtorReportClient() {
                   : "Status"}
             </FieldLabel>
             {activeReport === "collaterals" ? (
-              <SetupSelect value={linkStatus} onChange={(event) => resetPage(setLinkStatus)(event.target.value)}>
+              <SetupSelect
+                aria-label="Status link agunan"
+                value={linkStatus}
+                onChange={(event) => resetPage(setLinkStatus)(event.target.value)}
+              >
                 {collateralLinkStatusOptions.map((option) => (
                   <option key={option.label} value={option.value}>
                     {option.label}
@@ -7771,7 +8468,11 @@ export function DebtorReportClient() {
                 ))}
               </SetupSelect>
             ) : activeReport === "completeness" ? (
-              <SetupSelect value={issueType} onChange={(event) => resetPage(setIssueType)(event.target.value)}>
+              <SetupSelect
+                aria-label="Jenis isu kelengkapan"
+                value={issueType}
+                onChange={(event) => resetPage(setIssueType)(event.target.value)}
+              >
                 {completenessIssueOptions.map((option) => (
                   <option key={option.label} value={option.value}>
                     {option.label}
@@ -7779,7 +8480,11 @@ export function DebtorReportClient() {
                 ))}
               </SetupSelect>
             ) : (
-              <SetupSelect value={status} onChange={(event) => resetPage(setStatus)(event.target.value)}>
+              <SetupSelect
+                aria-label="Status laporan"
+                value={status}
+                onChange={(event) => resetPage(setStatus)(event.target.value)}
+              >
                 {(activeReport === "facilities" ? contractStatusFilterOptions : debtorStatusOptions).map((option) => (
                   <option key={option.label} value={option.value}>
                     {option.label}
@@ -7791,6 +8496,7 @@ export function DebtorReportClient() {
           <div>
             <FieldLabel>Periode SLIK</FieldLabel>
             <SetupTextInput
+              aria-label="Periode SLIK"
               type="month"
               value={periodMonth}
               onChange={(event) => resetPage(setPeriodMonth)(event.target.value)}
@@ -7800,6 +8506,7 @@ export function DebtorReportClient() {
             <div>
               <FieldLabel>Jenis Agunan</FieldLabel>
               <SetupTextInput
+                aria-label="Jenis agunan"
                 value={collateralType}
                 onChange={(event) => resetPage(setCollateralType)(event.target.value)}
                 placeholder="Kode atau nama jenis agunan"
@@ -7808,7 +8515,11 @@ export function DebtorReportClient() {
           ) : activeReport !== "completeness" ? (
             <div>
               <FieldLabel>KOL</FieldLabel>
-              <SetupSelect value={collectibilityLevel} onChange={(event) => resetPage(setCollectibilityLevel)(event.target.value)}>
+              <SetupSelect
+                aria-label="Kolektibilitas"
+                value={collectibilityLevel}
+                onChange={(event) => resetPage(setCollectibilityLevel)(event.target.value)}
+              >
                 {collectibilityLevelOptions.map((option) => (
                   <option key={option.label} value={option.value}>
                     {option.label}
@@ -7843,8 +8554,6 @@ export function DebtorReportClient() {
                     <SetupDataTableRow
                       key={item.id}
                       className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer hover:bg-[#157ec3]/5`}
-                      role="button"
-                      tabIndex={0}
                       title="Klik dua kali untuk melihat detail debitur"
                       onClick={() =>
                         handleDoubleRowClick(
@@ -7860,15 +8569,6 @@ export function DebtorReportClient() {
                           () => openDebtorDetail(item.id),
                         )
                       }
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter") return;
-                        event.preventDefault();
-                        triggerDoubleRowActivation(
-                          reportRowActivationRef,
-                          `portfolio-${item.id}`,
-                          () => openDebtorDetail(item.id),
-                        );
-                      }}
                     >
                       <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                         {((portfolio?.meta.page ?? 1) - 1) * (portfolio?.meta.limit ?? SETUP_TABLE_PAGE_SIZE) + index + 1}
@@ -7962,8 +8662,6 @@ export function DebtorReportClient() {
                       className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} ${
                         debtorId ? "cursor-pointer hover:bg-[#157ec3]/5" : ""
                       }`}
-                      role={debtorId ? "button" : undefined}
-                      tabIndex={debtorId ? 0 : undefined}
                       title={debtorId ? "Klik dua kali untuk melihat detail debitur" : undefined}
                       onClick={
                         debtorId
@@ -7983,19 +8681,6 @@ export function DebtorReportClient() {
                                 `facility-${item.id}`,
                                 () => openDebtorDetail(debtorId),
                               )
-                          : undefined
-                      }
-                      onKeyDown={
-                        debtorId
-                          ? (event) => {
-                              if (event.key !== "Enter") return;
-                              event.preventDefault();
-                              triggerDoubleRowActivation(
-                                reportRowActivationRef,
-                                `facility-${item.id}`,
-                                () => openDebtorDetail(debtorId),
-                              );
-                            }
                           : undefined
                       }
                     >
@@ -8077,35 +8762,34 @@ export function DebtorReportClient() {
           ) : null}
 
           {activeReport === "collaterals" ? (
-            <SetupDataTable variant="report" density="compact" className="min-w-[1480px]">
+            <SetupDataTable variant="report" density="compact" className="min-w-[2360px]">
               <SetupDataTableHead>
                 <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
                   <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Debitur</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell>No Fasilitas F01</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell>No Agunan</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Kode Register</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Jenis Agunan</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Pemilik</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Bukti Kepemilikan</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Tanggal Expired</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Lokasi Dati</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Pengikatan</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell>Nilai Pasar</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell>Nilai Appraisal</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell>Lokasi</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell>Status Link</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Nilai NJOP/HT</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Nilai Taksasi</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Tanggal Penilaian Pelapor</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Keterangan</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
                 </SetupDataTableRow>
               </SetupDataTableHead>
               <SetupDataTableBody>
                 {(collaterals?.items ?? []).map((item, index) => {
                   const debtorId = reportCollateralDebtorId(item);
-                  const isLinked = Boolean(debtorId || item.contract_id || item.contract?.id);
-
                   return (
                     <SetupDataTableRow
                       key={item.id}
                       className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} ${
                         debtorId ? "cursor-pointer hover:bg-[#157ec3]/5" : ""
                       }`}
-                      role={debtorId ? "button" : undefined}
-                      tabIndex={debtorId ? 0 : undefined}
                       title={debtorId ? "Klik dua kali untuk melihat detail debitur" : undefined}
                       onClick={
                         debtorId
@@ -8127,19 +8811,6 @@ export function DebtorReportClient() {
                               )
                           : undefined
                       }
-                      onKeyDown={
-                        debtorId
-                          ? (event) => {
-                              if (event.key !== "Enter") return;
-                              event.preventDefault();
-                              triggerDoubleRowActivation(
-                                reportRowActivationRef,
-                                `collateral-${item.id}`,
-                                () => openDebtorDetail(debtorId),
-                              );
-                            }
-                          : undefined
-                      }
                     >
                       <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
                         {((collaterals?.meta.page ?? 1) - 1) * (collaterals?.meta.limit ?? SETUP_TABLE_PAGE_SIZE) + index + 1}
@@ -8148,21 +8819,43 @@ export function DebtorReportClient() {
                         <SetupTablePrimaryText>{item.debtor?.name ?? "-"}</SetupTablePrimaryText>
                         <SetupTableSecondaryText>{item.debtor?.debtor_number ?? "-"}</SetupTableSecondaryText>
                       </SetupDataTableCell>
+                      <SetupDataTableCell><SetupTableCode>{item.collateral_number}</SetupTableCode></SetupDataTableCell>
+                      <SetupDataTableCell>{item.collateral_type_display ?? item.collateral_type ?? "-"}</SetupDataTableCell>
+                      <SetupDataTableCell>{item.owner_name ?? "-"}</SetupDataTableCell>
+                      <SetupDataTableCell><SetupTableCode>{item.proof_number ?? "-"}</SetupTableCode></SetupDataTableCell>
+                      <SetupDataTableCell>
+                        <CollateralMonitoringCell
+                          date={item.expiry_date}
+                          status={item.expiry_status}
+                          label={item.expiry_status_label}
+                        />
+                      </SetupDataTableCell>
+                      <SetupDataTableCell>{item.location_city_display ?? item.location_city_code ?? "-"}</SetupDataTableCell>
                       <SetupDataTableCell>
                         <div className="space-y-1">
-                          <SetupTableCode>{item.facility_number ?? "-"}</SetupTableCode>
-                          <SetupTableSecondaryText>
-                            Kontrak: {item.contract?.no_kontrak ?? "-"}
+                          <SetupTablePrimaryText>{item.binding_type_display ?? item.binding_type_code ?? "-"}</SetupTablePrimaryText>
+                          <SetupTableSecondaryText>{formatDateOnly(item.binding_date)}</SetupTableSecondaryText>
+                        </div>
+                      </SetupDataTableCell>
+                      <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.market_value)}</SetupTableMoney></SetupDataTableCell>
+                      <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.appraisal_value)}</SetupTableMoney></SetupDataTableCell>
+                      <SetupDataTableCell>
+                        <CollateralMonitoringCell
+                          date={item.reporter_appraisal_date}
+                          status={item.appraisal_status}
+                          label={item.appraisal_status_label}
+                        />
+                      </SetupDataTableCell>
+                      <SetupDataTableCell>
+                        <div className="space-y-1">
+                          <SetupTableSecondaryText as="div" className="whitespace-normal">
+                            Expired: {item.expiry_note ?? "-"}
+                          </SetupTableSecondaryText>
+                          <SetupTableSecondaryText as="div" className="whitespace-normal">
+                            Agunan: {item.description ?? "-"}
                           </SetupTableSecondaryText>
                         </div>
                       </SetupDataTableCell>
-                      <SetupDataTableCell><SetupTableCode>{item.collateral_number}</SetupTableCode></SetupDataTableCell>
-                      <SetupDataTableCell>{item.collateral_type_display ?? item.collateral_type ?? "-"}</SetupDataTableCell>
-                      <SetupDataTableCell>{item.binding_type_display ?? item.binding_type_code ?? "-"}</SetupDataTableCell>
-                      <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.market_value)}</SetupTableMoney></SetupDataTableCell>
-                      <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.appraisal_value)}</SetupTableMoney></SetupDataTableCell>
-                      <SetupDataTableCell>{item.location_city_display ?? item.location_city_code ?? "-"}</SetupDataTableCell>
-                      <SetupDataTableCell><SetupStatusBadge status={isLinked ? "Terhubung" : "Belum Terhubung"} /></SetupDataTableCell>
                       <SetupDataTableCell
                         className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
                         onClick={(event) => event.stopPropagation()}
@@ -8185,8 +8878,8 @@ export function DebtorReportClient() {
                     </SetupDataTableRow>
                   );
                 })}
-                {isLoading ? <SetupDataTableEmptyRow colSpan={11}>Memuat laporan agunan...</SetupDataTableEmptyRow> : null}
-                {!isLoading && (collaterals?.items.length ?? 0) === 0 ? <SetupDataTableEmptyRow colSpan={11}>Belum ada data agunan sesuai filter.</SetupDataTableEmptyRow> : null}
+                {isLoading ? <SetupDataTableEmptyRow colSpan={14}>Memuat laporan agunan...</SetupDataTableEmptyRow> : null}
+                {!isLoading && (collaterals?.items.length ?? 0) === 0 ? <SetupDataTableEmptyRow colSpan={14}>Belum ada data agunan sesuai filter.</SetupDataTableEmptyRow> : null}
               </SetupDataTableBody>
             </SetupDataTable>
           ) : null}
@@ -8220,8 +8913,6 @@ export function DebtorReportClient() {
                       className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} ${
                         debtorId ? "cursor-pointer hover:bg-[#157ec3]/5" : ""
                       }`}
-                      role={debtorId ? "button" : undefined}
-                      tabIndex={debtorId ? 0 : undefined}
                       title={debtorId ? "Klik dua kali untuk melihat detail debitur" : undefined}
                       onClick={
                         debtorId
@@ -8241,19 +8932,6 @@ export function DebtorReportClient() {
                                 `completeness-${rowKey}`,
                                 () => openDebtorDetail(debtorId),
                               )
-                          : undefined
-                      }
-                      onKeyDown={
-                        debtorId
-                          ? (event) => {
-                              if (event.key !== "Enter") return;
-                              event.preventDefault();
-                              triggerDoubleRowActivation(
-                                reportRowActivationRef,
-                                `completeness-${rowKey}`,
-                                () => openDebtorDetail(debtorId),
-                              );
-                            }
                           : undefined
                       }
                     >

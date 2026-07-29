@@ -73,6 +73,13 @@ export type ParameterMasterField = {
   options?: ParameterMasterOption[];
   defaultValue?: string | number | boolean;
   colSpan?: "single" | "full";
+  helperText?: string;
+  min?: number;
+  max?: number;
+  enabledWhen?: {
+    key: string;
+    equals: string | number | boolean;
+  };
 };
 
 export type ParameterMasterColumn = {
@@ -159,6 +166,21 @@ function normalizeTextInput(key: string, value: unknown): string {
   return key === "code" ? text.toUpperCase() : text;
 }
 
+function isFieldEnabled(
+  field: ParameterMasterField,
+  form: ParameterMasterPayload,
+): boolean {
+  if (!field.enabledWhen) return true;
+  const currentValue = form[field.enabledWhen.key];
+  const expectedValue = field.enabledWhen.equals;
+
+  if (typeof expectedValue === "boolean") {
+    return toBoolean(currentValue) === expectedValue;
+  }
+
+  return currentValue === expectedValue;
+}
+
 function buildPayload(
   fields: ParameterMasterField[],
   form: ParameterMasterPayload,
@@ -166,6 +188,10 @@ function buildPayload(
 ): ParameterMasterPayload {
   const payload = Object.fromEntries(
     fields.map((field) => {
+      if (!isFieldEnabled(field, form)) {
+        return [field.key, null];
+      }
+
       const value = form[field.key];
       if (field.type === "status" || field.type === "boolean") {
         return [field.key, toBoolean(value, field.type === "status")];
@@ -342,6 +368,7 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
 
   const validateForm = () => {
     for (const field of config.fields) {
+      if (!isFieldEnabled(field, form)) continue;
       const value = form[field.key];
 
       if (field.required && field.type === "number") {
@@ -673,6 +700,7 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
         {config.fields.map((field) => {
           const value = form[field.key];
           const fieldId = `field-${field.key}`;
+          const fieldEnabled = isFieldEnabled(field, form);
 
           return (
             <div
@@ -684,7 +712,9 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
                 className="mb-2 block text-sm font-medium text-gray-700"
               >
                 {field.label}
-                {field.required ? <span className="text-red-500"> *</span> : null}
+                {field.required && fieldEnabled ? (
+                  <span className="text-red-500"> *</span>
+                ) : null}
               </label>
 
               {field.type === "textarea" ? (
@@ -699,6 +729,7 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
                   }
                   placeholder={field.placeholder}
                   rows={4}
+                  disabled={!fieldEnabled}
                 />
               ) : field.type === "select" ? (
                 <SetupSelect
@@ -710,6 +741,7 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
                       [field.key]: event.target.value,
                     }))
                   }
+                  disabled={!fieldEnabled}
                 >
                   <option value="">Pilih {field.label.toLowerCase()}</option>
                   {(field.options ?? []).map((option) => (
@@ -728,6 +760,7 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
                       [field.key]: event.target.value === "true",
                     }))
                   }
+                  disabled={!fieldEnabled}
                 >
                   {field.type === "status" ? (
                     <>
@@ -753,8 +786,16 @@ export default function ParameterMasterPage({ config }: { config: ParameterMaste
                     }))
                   }
                   placeholder={field.placeholder}
+                  min={field.min}
+                  max={field.max}
+                  disabled={!fieldEnabled}
                 />
               )}
+              {field.helperText ? (
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  {field.helperText}
+                </p>
+              ) : null}
             </div>
           );
         })}

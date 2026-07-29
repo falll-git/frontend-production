@@ -225,7 +225,7 @@ export default function SetupPrioritasSuratPage() {
   return (
     <DashboardPageShell spacing="md">
       <FeatureHeader
-        title="Setup Prioritas Surat"
+        title="Master Prioritas Surat"
         subtitle="Kelola master sifat atau prioritas surat."
         icon={<Mail />}
         className={SETUP_PAGE_WIDTH_XL_CLASS}

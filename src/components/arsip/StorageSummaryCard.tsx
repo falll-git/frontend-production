@@ -41,7 +41,7 @@ export default function StorageSummaryCard({
           {icon}
         </div>
         <div className="flex flex-col items-end">
-          <span className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-gray-400">
+          <span className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-gray-700">
             {totalLabel}
           </span>
           <span className="text-xl font-semibold tabular-nums text-gray-800">

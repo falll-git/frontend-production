@@ -219,7 +219,7 @@ export default function SetupDivisiPage() {
   return (
     <DashboardPageShell spacing="md">
       <FeatureHeader
-        title="Setup Divisi"
+        title="Master Divisi"
         subtitle="Kelola master divisi yang dipakai lintas modul."
         icon={<Building2 />}
         className={SETUP_PAGE_WIDTH_XL_CLASS}

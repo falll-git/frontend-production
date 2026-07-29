@@ -66,7 +66,7 @@ export default function RelatedUsersPicker({
       setUsers([]);
 
       try {
-        const result = await userService.getPage({
+        const result = await userService.getAssignablePage({
           page,
           limit: RELATED_USERS_PAGE_SIZE,
           search: debouncedQuery || undefined,
@@ -126,17 +126,17 @@ export default function RelatedUsersPicker({
             disabled={disabled || isLoading}
           />
         </div>
-        <div className="grid max-h-64 gap-2 overflow-y-auto p-3 md:grid-cols-2">
+        <div className="max-h-64 divide-y divide-gray-100 overflow-y-auto px-4">
           {users.map((item) => {
             const checked = selectedIds.includes(item.id);
 
             return (
               <div
                 key={item.id}
-                className={`rounded-lg border px-3 py-3 transition-colors ${
+                className={`py-3 transition-colors ${
                   checked
-                    ? "border-blue-200 bg-blue-50"
-                    : "border-gray-200 bg-white hover:border-gray-300"
+                    ? "bg-blue-50"
+                    : "bg-white hover:bg-gray-50"
                 }`}
               >
                 <UiverseCheckbox
@@ -160,13 +160,13 @@ export default function RelatedUsersPicker({
           })}
 
           {isBusy ? (
-            <div className="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center text-sm font-medium text-gray-500 md:col-span-2">
+            <div className="px-4 py-8 text-center text-sm font-medium text-gray-600">
               Memuat user terkait...
             </div>
           ) : null}
 
           {!isBusy && errorMessage ? (
-            <div className="rounded-lg border border-dashed border-red-200 bg-red-50 px-4 py-8 text-center text-sm font-medium text-red-600 md:col-span-2">
+            <div className="bg-red-50 px-4 py-8 text-center text-sm font-medium text-red-700">
               {errorMessage}
             </div>
           ) : null}
@@ -182,7 +182,6 @@ export default function RelatedUsersPicker({
               icon={UsersRound}
               isFiltered={debouncedQuery.length > 0}
               variant="compact"
-              className="md:col-span-2"
             />
           ) : null}
         </div>

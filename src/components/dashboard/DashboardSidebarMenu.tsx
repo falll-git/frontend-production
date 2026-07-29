@@ -43,6 +43,8 @@ function MenuBranch({
         className={`${
           depth === 0 ? "sidebar-menu-item" : "sidebar-submenu-item"
         }${linkSize} ${leafActive ? "active" : ""}`}
+        aria-label={node.name}
+        title={node.name}
       >
         <MenuLucideIcon
           icon={node.icon}
@@ -67,6 +69,8 @@ function MenuBranch({
         className={buttonClass}
         onClick={() => toggleOpen(node.id)}
         aria-expanded={isOpen}
+        aria-label={node.name}
+        title={node.name}
       >
         <div
           className={`flex items-center min-w-0 ${depth === 0 ? "gap-3" : "gap-2"}`}

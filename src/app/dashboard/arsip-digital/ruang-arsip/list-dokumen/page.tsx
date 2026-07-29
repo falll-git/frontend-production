@@ -304,7 +304,7 @@ export default function ListDokumenPage() {
       setIsOwnershipLoading(true);
       try {
         const [userRows, divisionRows] = await Promise.all([
-          userService.getAll(),
+          userService.getAssignableAll(),
           divisionService.getAll(),
         ]);
 
@@ -668,7 +668,7 @@ export default function ListDokumenPage() {
   return (
     <DashboardPageShell spacing="md">
       <FeatureHeader
-        title="List Dokumen Digital"
+        title="Daftar Dokumen"
         subtitle="Daftar seluruh dokumen yang tersimpan dalam sistem."
         icon={<FileText />}
         actions={
@@ -688,8 +688,14 @@ export default function ListDokumenPage() {
           </div>
 
           <div>
-            <p className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Filter Jenis Dokumen</p>
+            <label
+              htmlFor="document-type-filter"
+              className={SETUP_PAGE_SEARCH_LABEL_CLASS}
+            >
+              Filter Jenis Dokumen
+            </label>
             <SetupSelect
+              id="document-type-filter"
               value={filterJenis}
               onChange={(event) => setFilterJenis(event.target.value)}
             >

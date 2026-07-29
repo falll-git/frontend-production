@@ -33,11 +33,11 @@ type PasswordActionPageProps = {
 type PageState = "verifying" | "ready" | "invalid" | "success";
 
 const PASSWORD_REQUIREMENT_MESSAGE =
-  "Password minimal 8 karakter serta wajib mengandung huruf dan angka.";
+  "Password minimal 12 karakter serta wajib mengandung huruf dan angka.";
 const PASSWORD_MAX_LENGTH_MESSAGE = "Password maksimal 128 karakter.";
 
 function isPasswordRequirementValid(value: string): boolean {
-  return value.length >= 8 && /[A-Za-z]/.test(value) && /\d/.test(value);
+  return value.length >= 12 && /[A-Za-z]/.test(value) && /\d/.test(value);
 }
 
 function buildUsedMessage(mode: PasswordActionMode): string {
@@ -82,7 +82,7 @@ function humanizeSubmitError(
   }
 
   if (
-    /at least 8|minimal 8|huruf dan angka|letter.*number|wajib mengandung/i.test(
+    /at least (?:8|12)|minimal (?:8|12)|huruf dan angka|letter.*number|wajib mengandung/i.test(
       message,
     )
   ) {
@@ -261,9 +261,9 @@ export default function PasswordActionPage({
               >
                 <ShieldAlert className="h-8 w-8 text-white" />
               </div>
-              <h2 className="mt-3 text-xl font-semibold text-slate-800">
+              <h1 className="mt-3 text-xl font-semibold text-slate-800">
                 {invalidTitle}
-              </h2>
+              </h1>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 {feedbackMessage || invalidDescription}
               </p>
@@ -277,7 +277,7 @@ export default function PasswordActionPage({
                 {mode === "reset" ? (
                   <Link
                     href="/forgot-password"
-                    className="inline-flex items-center gap-2 text-sm font-semibold text-[#157ec3] transition-colors hover:text-[#0d5a8f]"
+                    className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#0d5a8f] transition-colors hover:text-[#083f66]"
                   >
                     Minta Link Reset Baru
                   </Link>
@@ -298,9 +298,9 @@ export default function PasswordActionPage({
               >
                 <Check className="h-8 w-8 text-white" />
               </div>
-              <h2 className="mt-3 text-xl font-semibold text-slate-800">
+              <h1 className="mt-3 text-xl font-semibold text-slate-800">
                 {successTitle}
-              </h2>
+              </h1>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 {successDescription}
               </p>
@@ -316,9 +316,9 @@ export default function PasswordActionPage({
           {pageState === "ready" ? (
             <>
               <header className="mb-6 text-center">
-                <h2 className="text-xl font-semibold text-slate-800">
+                <h1 className="text-xl font-semibold text-slate-800">
                   {heading}
-                </h2>
+                </h1>
               </header>
 
               <form onSubmit={handleSubmit} className="space-y-5" noValidate>
@@ -330,9 +330,10 @@ export default function PasswordActionPage({
                     Password Baru
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-[#157ec3]" />
+                    <Lock className="absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-[#0d5a8f]" />
                     <input
                       id={`${mode}-password`}
+                      name="password"
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(event) => {
@@ -342,11 +343,12 @@ export default function PasswordActionPage({
                       placeholder="Masukkan password baru"
                       className="auth-input auth-input-with-action"
                       autoComplete="new-password"
+                      required
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((prev) => !prev)}
-                      className="absolute right-4 top-1/2 z-10 -translate-y-1/2 text-[#157ec3] transition-colors hover:text-[#0d5a8f]"
+                      className="absolute right-2 top-1/2 z-10 inline-flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-[#0d5a8f] transition-colors hover:bg-sky-50 hover:text-[#083f66] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#0d5a8f]"
                       aria-label={
                         showPassword ? "Sembunyikan password" : "Tampilkan password"
                       }
@@ -368,9 +370,10 @@ export default function PasswordActionPage({
                     Konfirmasi Password
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-[#157ec3]" />
+                    <Lock className="absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-[#0d5a8f]" />
                     <input
                       id={`${mode}-confirm-password`}
+                      name="confirmPassword"
                       type={showConfirmPassword ? "text" : "password"}
                       value={confirmPassword}
                       onChange={(event) => {
@@ -380,11 +383,12 @@ export default function PasswordActionPage({
                       placeholder="Ulangi password baru"
                       className="auth-input auth-input-with-action"
                       autoComplete="new-password"
+                      required
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword((prev) => !prev)}
-                      className="absolute right-4 top-1/2 z-10 -translate-y-1/2 text-[#157ec3] transition-colors hover:text-[#0d5a8f]"
+                      className="absolute right-2 top-1/2 z-10 inline-flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-[#0d5a8f] transition-colors hover:bg-sky-50 hover:text-[#083f66] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#0d5a8f]"
                       aria-label={
                         showConfirmPassword
                           ? "Sembunyikan konfirmasi password"
@@ -419,7 +423,7 @@ export default function PasswordActionPage({
               <div className="mt-5 text-center">
                 <Link
                   href="/"
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-[#157ec3] transition-colors hover:text-[#0d5a8f]"
+                  className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#0d5a8f] transition-colors hover:text-[#083f66]"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   Kembali ke Halaman Login
@@ -429,7 +433,7 @@ export default function PasswordActionPage({
           ) : null}
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-[#157ec3]">
+            <p className="text-sm text-[#0d5a8f]">
               &copy; 2026 RuwangArsip &middot; v1.0.0
             </p>
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import type { InputHTMLAttributes, ReactNode } from "react";
+import { useId, type InputHTMLAttributes, type ReactNode } from "react";
 import { Search } from "lucide-react";
 
 import {
@@ -33,12 +33,15 @@ export default function SetupSearchInput({
   type = "text",
   ...props
 }: SetupSearchInputProps) {
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
+
   return (
-    <div className={containerClassName}>
+    <div className={joinClasses("min-w-0 max-w-full", containerClassName)} data-ui-control="search">
       {label ? (
         <label
           className={joinClasses(SETUP_PAGE_SEARCH_LABEL_CLASS, "block", labelClassName)}
-          htmlFor={id}
+          htmlFor={inputId}
         >
           {label}
         </label>
@@ -50,7 +53,7 @@ export default function SetupSearchInput({
         />
         <input
           {...props}
-          id={id}
+          id={inputId}
           type={type}
           className={joinClasses(SETUP_PAGE_SEARCH_INPUT_CLASS, inputClassName, className)}
         />

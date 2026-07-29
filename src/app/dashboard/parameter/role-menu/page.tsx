@@ -803,8 +803,8 @@ export default function SetupRoleMenuPage() {
   return (
     <DashboardPageShell spacing="md">
       <FeatureHeader
-        title="Setup Akses Menu per Role"
-        subtitle="Pilih role yang mau diatur, lalu tentukan menu mana yang boleh dibuka atau dikelola."
+        title="Akses Menu per Peran"
+        subtitle="Pilih peran yang mau diatur, lalu tentukan menu mana yang boleh dibuka atau dikelola."
         icon={<KeyRound />}
         className={SETUP_PAGE_WIDTH_XL_CLASS}
         actions={null}

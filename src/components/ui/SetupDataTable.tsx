@@ -235,11 +235,13 @@ export function SetupDataTableHeaderCell({
 
 type SetupDataTableCellProps = ComponentPropsWithoutRef<"td"> & {
   mobileLabel?: string;
+  mobileHidden?: boolean;
 };
 
 export function SetupDataTableCell({
   className,
   mobileLabel,
+  mobileHidden = false,
   ...props
 }: SetupDataTableCellProps) {
   return (
@@ -250,6 +252,7 @@ export function SetupDataTableCell({
         className,
       )}
       data-mobile-label={mobileLabel || undefined}
+      data-mobile-hidden={mobileHidden ? "true" : undefined}
       {...props}
     />
   );
@@ -278,11 +281,21 @@ type SetupTableCardProps = ComponentPropsWithoutRef<"div"> & {
 
 export function SetupTableScroll({
   className,
+  tabIndex = 0,
+  role = "region",
+  "aria-label": ariaLabel = "Tabel data",
   ...props
 }: ComponentPropsWithoutRef<"div">) {
   return (
     <div
-      className={cn("setup-table-scroll", SETUP_PAGE_TABLE_SCROLL_CLASS, className)}
+      className={cn(
+        "setup-table-scroll focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1773B0]/40",
+        SETUP_PAGE_TABLE_SCROLL_CLASS,
+        className,
+      )}
+      tabIndex={tabIndex}
+      role={role}
+      aria-label={ariaLabel}
       {...props}
     />
   );

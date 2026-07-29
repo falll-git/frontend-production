@@ -2,19 +2,43 @@
   "name": "ruang-arsip",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
+    "postinstall": "node scripts/patch-brace-expansion.cjs",
     "dev": "next dev --webpack",
     "dev:turbo": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:visit-location": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/lib/visit-location.test.mjs"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:visit-location": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/lib/visit-location.test.mjs",
+    "test:e2e:server": "npm run build && npm run start",
+    "test:e2e:preflight": "node scripts/verify-e2e-credentials.mjs",
+    "test:e2e:preflight:test": "node --test scripts/brace-expansion-compat.test.mjs scripts/verify-e2e-credentials.test.mjs scripts/verify-ci-workflow.test.mjs",
+    "test:e2e:run": "playwright test",
+    "test:e2e": "npm run test:e2e:preflight && npm run test:e2e:run",
+    "test:e2e:public": "playwright test --project=public-desktop --project=public-mobile",
+    "test:a11y": "npm run test:e2e:preflight && playwright test tests/e2e/accessibility-public.spec.ts tests/e2e/accessibility.spec.ts",
+    "test:a11y:all": "npm run test:e2e:preflight && playwright test tests/e2e/route-accessibility.spec.ts tests/e2e/dynamic-route-accessibility.spec.ts --project=authenticated-desktop --project=authenticated-mobile",
+    "test:visual": "npm run test:e2e:preflight && playwright test tests/e2e/visual-public.spec.ts tests/e2e/visual-dashboard.spec.ts",
+    "test:visual:update": "npm run test:visual -- --update-snapshots",
+    "test:csp-production": "node scripts/verify-production-csp.mjs",
+    "audit:dependencies": "npm audit --audit-level=high",
+    "ci:verify-workflow": "node scripts/verify-ci-workflow.mjs",
+    "quality": "npm run ci:verify-workflow && npm run lint && npm run typecheck && npm run test:coverage && npm run test:visit-location && npm run test:e2e:preflight:test && npm run build",
+    "quality:browser": "npm run test:e2e:preflight && npm run test:csp-production && npm run test:e2e:run",
+    "quality:release": "npm run quality && npm run audit:dependencies && npm run quality:browser"
   },
   "dependencies": {
     "axios": "^1.16.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.563.0",
-    "next": "^16.2.6",
+    "next": "16.2.11",
     "pdfjs-dist": "^5.4.296",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -24,16 +48,26 @@
     "write-excel-file": "^4.0.6"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9",
-    "eslint-config-next": "^16.2.6",
+    "eslint-config-next": "16.2.11",
+    "jsdom": "^29.1.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   },
   "overrides": {
-    "postcss": "8.5.10"
+    "brace-expansion": "5.0.8",
+    "postcss": "8.5.22",
+    "sharp": "0.35.3"
   }
 }

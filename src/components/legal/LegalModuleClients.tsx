@@ -11,6 +11,7 @@ import {
   Eye,
   FileArchive,
   FileCheck2,
+  FileClock,
   FilePlus2,
   FileText,
   Landmark,
@@ -21,7 +22,14 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { MAX_TABLE_PAGE_SIZE, SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
@@ -66,6 +74,11 @@ import SetupTextarea from "@/components/ui/SetupTextarea";
 import SetupTextInput from "@/components/ui/SetupTextInput";
 import SetupFilePreviewGroup from "@/components/ui/SetupFilePreviewGroup";
 import {
+  LegalClaimDetailContent,
+  LegalDepositDetailContent,
+  LegalProgressDetailContent,
+} from "@/components/legal/LegalRecordDetailContent";
+import {
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS,
   SETUP_PAGE_MODERN_NUMBER_CELL_CLASS,
@@ -73,6 +86,10 @@ import {
   SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS,
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
   SETUP_PAGE_SEARCH_CARD_CLASS,
+  SETUP_PAGE_SEGMENTED_BUTTON_ACTIVE_CLASS,
+  SETUP_PAGE_SEGMENTED_BUTTON_BASE_CLASS,
+  SETUP_PAGE_SEGMENTED_BUTTON_INACTIVE_CLASS,
+  SETUP_PAGE_SEGMENTED_GROUP_CLASS,
 } from "@/components/ui/setupPageStyles";
 import {
   createParameterMasterService,
@@ -106,6 +123,51 @@ type Option = {
   label: string;
 };
 
+type AuditPeriodMode = "day" | "month" | "year";
+
+const AUDIT_FIELD_LABEL_CLASS =
+  "mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500";
+
+function padDatePart(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function localAuditDayValue(date = new Date()) {
+  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
+}
+
+function localAuditMonthValue(date = new Date()) {
+  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}`;
+}
+
+function buildAuditPeriodRange(
+  mode: AuditPeriodMode,
+  day: string,
+  month: string,
+  year: string,
+) {
+  const now = new Date();
+
+  if (mode === "month") {
+    const match = /^(\d{4})-(\d{2})$/.exec(month);
+    const selectedYear = Number(match?.[1] ?? now.getFullYear());
+    const selectedMonth = Number(match?.[2] ?? now.getMonth() + 1);
+    const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+    const prefix = `${selectedYear}-${padDatePart(selectedMonth)}`;
+    return { date_from: `${prefix}-01`, date_to: `${prefix}-${padDatePart(lastDay)}` };
+  }
+
+  if (mode === "year") {
+    const selectedYear = Number(year) || now.getFullYear();
+    return { date_from: `${selectedYear}-01-01`, date_to: `${selectedYear}-12-31` };
+  }
+
+  const selectedDay = /^\d{4}-\d{2}-\d{2}$/.test(day)
+    ? day
+    : localAuditDayValue(now);
+  return { date_from: selectedDay, date_to: selectedDay };
+}
+
 type LegalProgressType = "notary" | "insurance" | "kjpp";
 
 type LegalFlowStep = {
@@ -115,28 +177,6 @@ type LegalFlowStep = {
   value: string | number;
   icon: LucideIcon;
 };
-
-type DetailRow = {
-  label: string;
-  value: ReactNode;
-};
-
-function InfoItem({
-  label,
-  value,
-}: {
-  label: string;
-  value: ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-      <div className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-        {label}
-      </div>
-      <div className="mt-2 text-lg font-bold text-gray-800">{value}</div>
-    </div>
-  );
-}
 
 type ProgressFormState = {
   contract_id: string;
@@ -478,19 +518,6 @@ function statusLabel(status: string | null | undefined) {
     .join(" ");
 }
 
-function depositActionLabel(action: string | null | undefined) {
-  const normalized = String(action ?? "").trim().toUpperCase();
-  if (!normalized) return "-";
-  if (normalized === "TITIPAN") return "Titipan";
-  if (["PEMBAYARAN", "BAYAR", "PAID"].includes(normalized)) return "Pembayaran";
-  if (["REFUND", "PROSES", "PROCESS", "DIPROSES"].includes(normalized)) return "Refund";
-  return normalized
-    .toLowerCase()
-    .split("_")
-    .map((item) => item.charAt(0).toUpperCase() + item.slice(1))
-    .join(" ");
-}
-
 function insuranceStatusValue(status: string | null | undefined) {
   const normalized = String(status ?? "").trim().toUpperCase();
   if (["AKTIF", "EXPIRED", "KLAIM"].includes(normalized)) return normalized;
@@ -547,9 +574,20 @@ function openFile(
   window.open(previewableUrl, "_blank", "noopener,noreferrer");
 }
 
-function FieldLabel({ children, required = false }: { children: string; required?: boolean }) {
+function FieldLabel({
+  children,
+  required = false,
+  htmlFor,
+}: {
+  children: string;
+  required?: boolean;
+  htmlFor?: string;
+}) {
   return (
-    <label className="mb-2 block text-sm font-medium text-gray-700">
+    <label
+      htmlFor={htmlFor}
+      className="mb-2 block text-sm font-medium text-gray-700"
+    >
       {children}
       {required ? <span className="text-red-500"> *</span> : null}
     </label>
@@ -571,10 +609,13 @@ function TextField({
   type?: string;
   placeholder?: string;
 }) {
+  const fieldId = useId();
+
   return (
     <div>
-      <FieldLabel required={required}>{label}</FieldLabel>
+      <FieldLabel required={required} htmlFor={fieldId}>{label}</FieldLabel>
       <SetupTextInput
+        id={fieldId}
         type={type}
         value={value}
         placeholder={placeholder}
@@ -595,10 +636,17 @@ function TextareaField({
   onChange: (value: string) => void;
   required?: boolean;
 }) {
+  const fieldId = useId();
+
   return (
     <div className="md:col-span-full">
-      <FieldLabel required={required}>{label}</FieldLabel>
-      <SetupTextarea rows={4} value={value} onChange={(event) => onChange(event.target.value)} />
+      <FieldLabel required={required} htmlFor={fieldId}>{label}</FieldLabel>
+      <SetupTextarea
+        id={fieldId}
+        rows={4}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </div>
   );
 }
@@ -628,13 +676,15 @@ function SelectField({
   loadOptions?: (query: string) => Promise<Option[]>;
   searchPlaceholder?: string;
 }) {
+  const fieldId = useId();
   const placeholder = emptyLabel ?? `Pilih ${label.toLowerCase()}`;
 
   return (
     <div>
-      <FieldLabel required={required}>{label}</FieldLabel>
+      <FieldLabel required={required} htmlFor={fieldId}>{label}</FieldLabel>
       {searchable ? (
         <SearchableSelect
+          id={fieldId}
           value={value}
           options={options}
           loadOptions={loadOptions}
@@ -648,7 +698,12 @@ function SelectField({
           loadingLabel={`Memuat ${label.toLowerCase()}...`}
         />
       ) : (
-      <SetupSelect value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
+      <SetupSelect
+        id={fieldId}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+      >
         {includeEmpty ? <option value="">{placeholder}</option> : null}
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -674,10 +729,18 @@ function DateField({
   required?: boolean;
   disabled?: boolean;
 }) {
+  const fieldId = useId();
+
   return (
     <div>
-      <FieldLabel required={required}>{label}</FieldLabel>
-      <BasicDateInput value={value} required={required} disabled={disabled} onChange={onChange} />
+      <FieldLabel required={required} htmlFor={fieldId}>{label}</FieldLabel>
+      <BasicDateInput
+        id={fieldId}
+        value={value}
+        required={required}
+        disabled={disabled}
+        onChange={onChange}
+      />
     </div>
   );
 }
@@ -823,7 +886,7 @@ function LegalFlowBoard({
         </div>
         <SetupStatusBadge status="Aktif" showIcon />
       </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-6 2xl:grid-cols-5">
         {steps.map((step, index) => {
           const Icon = step.icon;
 
@@ -831,7 +894,9 @@ function LegalFlowBoard({
             <ProtectedLink
               key={step.href}
               href={step.href}
-              className="group rounded-lg border border-gray-200 bg-white p-4 transition hover:border-[rgba(21,126,195,0.42)] hover:bg-gray-50 hover:shadow-sm"
+              className={`group rounded-lg border border-gray-200 bg-white p-4 transition hover:border-[rgba(21,126,195,0.42)] hover:bg-gray-50 hover:shadow-sm lg:col-span-2 2xl:col-span-1 ${
+                index === 3 ? "lg:col-start-2 2xl:col-start-auto" : ""
+              }`}
             >
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -851,28 +916,6 @@ function LegalFlowBoard({
           );
         })}
       </div>
-    </section>
-  );
-}
-
-function LegalDetailGrid({ rows }: { rows: DetailRow[] }) {
-  return (
-    <div className="grid gap-3 md:grid-cols-2">
-      {rows.map((row) => (
-        <div key={row.label} className="rounded-lg border border-gray-200 bg-gray-50/70 p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">{row.label}</p>
-          <div className="mt-2 text-sm font-semibold text-gray-900">{row.value}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function LegalDetailSection({ title, rows }: { title: string; rows: DetailRow[] }) {
-  return (
-    <section className="space-y-3">
-      <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-gray-500">{title}</h3>
-      <LegalDetailGrid rows={rows} />
     </section>
   );
 }
@@ -1247,7 +1290,7 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
   const isKjpp = type === "kjpp";
   const config = isNotary
     ? {
-        title: "Progress Pihak Ketiga Notaris",
+        title: "Progress Notaris",
         subtitle: "Pantau progress pengurusan akta dan dokumen notaris.",
         icon: <Landmark />,
         typeLabel: "Jenis Akta",
@@ -1255,14 +1298,14 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
       }
     : isKjpp
       ? {
-          title: "Progress Pihak Ketiga KJPP",
+          title: "Progress KJPP",
           subtitle: "Pantau progress penilaian agunan dan laporan KJPP.",
           icon: <Building2 />,
           typeLabel: "Jenis Penilaian",
           dateLabel: "Tanggal Terima",
         }
       : {
-          title: "Progress Pihak Ketiga Asuransi",
+          title: "Progress Asuransi",
           subtitle: "Pantau polis, masa berlaku, dan status asuransi.",
           icon: <ShieldCheck />,
           typeLabel: "Jenis Asuransi",
@@ -1640,93 +1683,13 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
         }
       >
         {detailTarget ? (
-          <>
-            <LegalDetailSection
-              title="Kontrak dan Pihak Ketiga"
-              rows={[
-                { label: "Nomor Kontrak", value: detailTarget.contract?.no_kontrak ?? "-" },
-                { label: "Debitur", value: detailTarget.contract?.debtor?.name ?? "-" },
-                {
-                  label: "Agunan",
-                  value: detailTarget.collateral
-                    ? collateralOptionLabel(detailTarget.collateral)
-                    : "-",
-                },
-                { label: "Pihak Ketiga", value: getRecordText(detailTarget.third_party, "name") || "-" },
-                { label: "Status", value: <SetupStatusBadge status={statusLabel(detailTarget.status)} /> },
-              ]}
-            />
-            <LegalDetailSection
-              title="Detail Progress"
-              rows={[
-                {
-                  label: config.typeLabel,
-                  value: isNotary
-                    ? detailTarget.deed_type ?? "-"
-                    : isKjpp
-                      ? detailTarget.appraisal_type ?? "-"
-                      : detailTarget.insurance_type ?? "-",
-                },
-                {
-                  label: config.dateLabel,
-                  value: formatDateOnly(isNotary || isKjpp ? detailTarget.received_at : detailTarget.period_start),
-                },
-                {
-                  label: isNotary ? "Nomor Akta" : isKjpp ? "Nomor Laporan" : "Nomor Polis",
-                  value: isNotary
-                    ? detailTarget.deed_number ?? "-"
-                    : isKjpp
-                      ? detailTarget.report_number ?? "-"
-                      : detailTarget.policy_number ?? "-",
-                },
-                {
-                  label: isKjpp ? "Objek Jaminan" : "Tanggal Selesai",
-                  value: isKjpp
-                    ? detailTarget.collateral_object ?? "-"
-                    : formatDateOnly(isNotary ? detailTarget.completed_at : detailTarget.period_end),
-                },
-                {
-                  label: isKjpp ? "Nilai Taksasi" : "Nilai Pertanggungan",
-                  value: isKjpp
-                    ? formatCurrency(detailTarget.appraisal_value)
-                    : isNotary
-                      ? "-"
-                      : formatCurrency(detailTarget.coverage_amount),
-                },
-                ...(isNotary || isKjpp
-                  ? []
-                  : [
-                      {
-                        label: "Nilai Premi",
-                        value: formatCurrency(detailTarget.premium_amount),
-                      },
-                    ]),
-                { label: "Catatan", value: detailTarget.notes || "-" },
-              ]}
-            />
-            <LegalDetailSection
-              title="Dokumen"
-              rows={[
-                {
-                  label: "Jumlah File",
-                  value: String(resolvePreviewFiles(detailTarget.files, detailTarget.file).length || 0),
-                },
-                {
-                  label: "Aksi",
-                  value: (
-                    <SetupFilePreviewGroup
-                      file={detailTarget.file}
-                      files={detailTarget.files}
-                      onOpen={(previewFile) =>
-                        openFile(previewFile.url, previewFile.name, openPreview)
-                      }
-                      align="start"
-                    />
-                  ),
-                },
-              ]}
-            />
-          </>
+          <LegalProgressDetailContent
+            item={detailTarget}
+            type={type}
+            onOpenFile={(previewFile) =>
+              openFile(previewFile.url, previewFile.name, openPreview)
+            }
+          />
         ) : null}
       </DashboardModal>
       <DeleteConfirmModal
@@ -2091,65 +2054,12 @@ export function LegalClaimClient() {
         }
       >
         {detailTarget ? (
-          <>
-            <LegalDetailSection
-              title="Kontrak dan Klaim"
-              rows={[
-                { label: "Nomor Kontrak", value: detailTarget.contract?.no_kontrak ?? "-" },
-                { label: "Debitur", value: detailTarget.contract?.debtor?.name ?? "-" },
-                {
-                  label: "Agunan",
-                  value: detailTarget.collateral
-                    ? collateralOptionLabel(detailTarget.collateral)
-                    : "-",
-                },
-                {
-                  label: "Progress Asuransi",
-                  value:
-                    detailTarget.insurance_progress?.policy_number ||
-                    detailTarget.insurance_progress?.insurance_type ||
-                    "-",
-                },
-                { label: "Nomor Polis", value: detailTarget.policy_number || "-" },
-                { label: "Status", value: <SetupStatusBadge status={statusLabel(detailTarget.status)} /> },
-              ]}
-            />
-            <LegalDetailSection
-              title="Nilai dan Realisasi"
-              rows={[
-                { label: "Jenis Klaim", value: detailTarget.claim_type || "-" },
-                { label: "Nominal Klaim", value: formatCurrency(detailTarget.claim_amount) },
-                { label: "Tanggal Pengajuan", value: formatDateOnly(detailTarget.submitted_at) },
-                { label: "Nominal Disetujui", value: formatCurrency(detailTarget.approved_amount) },
-                { label: "Nominal Cair", value: formatCurrency(detailTarget.disbursed_amount) },
-                { label: "Tanggal Cair", value: formatDateOnly(detailTarget.disbursed_at) },
-              ]}
-            />
-            <LegalDetailSection
-              title="Catatan dan File"
-              rows={[
-                { label: "Alasan Ditolak", value: detailTarget.rejection_reason || "-" },
-                { label: "Catatan", value: detailTarget.notes || "-" },
-                {
-                  label: "Jumlah File",
-                  value: String(resolvePreviewFiles(detailTarget.files, detailTarget.file).length || 0),
-                },
-                {
-                  label: "Aksi File",
-                  value: (
-                    <SetupFilePreviewGroup
-                      file={detailTarget.file}
-                      files={detailTarget.files}
-                      onOpen={(previewFile) =>
-                        openFile(previewFile.url, previewFile.name, openPreview)
-                      }
-                      align="start"
-                    />
-                  ),
-                },
-              ]}
-            />
-          </>
+          <LegalClaimDetailContent
+            item={detailTarget}
+            onOpenFile={(previewFile) =>
+              openFile(previewFile.url, previewFile.name, openPreview)
+            }
+          />
         ) : null}
       </DashboardModal>
       <DeleteConfirmModal
@@ -2587,76 +2497,14 @@ export function LegalDepositClient({ type, title }: { type: "ASURANSI" | "NOTARI
           </button>
         }
       >
-        <LegalDetailSection
-          title="Relasi Titipan"
-          rows={[
-            { label: "Nomor Kontrak", value: historyTarget?.contract?.no_kontrak ?? "-" },
-            { label: "Debitur", value: historyTarget?.contract?.debtor?.name ?? "-" },
-            {
-              label: "Jenis Titipan",
-              value:
-                getRecordText(historyTarget?.deposit_type, "name", "label") ||
-                depositTypeLabel(historyTarget?.type),
-            },
-            {
-              label: "Pihak Ketiga",
-              value: getRecordText(historyTarget?.third_party, "name") || "-",
-            },
-            { label: "Status", value: <SetupStatusBadge status={statusLabel(historyTarget?.status)} /> },
-            { label: "Catatan", value: historyTarget?.notes || "-" },
-          ]}
-        />
-        <div className="grid gap-3 md:grid-cols-4">
-          <InfoItem label="Total Titipan" value={formatCurrency(historyTarget?.total_deposit_amount ?? historyTarget?.nominal)} />
-          <InfoItem label="Pembayaran" value={formatCurrency(historyTarget?.total_payment_amount ?? historyTarget?.paid_amount)} />
-          <InfoItem label="Refund" value={formatCurrency(historyTarget?.total_refund_amount ?? historyTarget?.processed_amount)} />
-          <InfoItem label="Saldo Akhir" value={formatCurrency(historyTarget?.balance_amount ?? historyTarget?.remaining_amount)} />
-        </div>
-        <div>
-          <h3 className="mb-3 text-sm font-bold uppercase tracking-[0.08em] text-gray-500">
-            Riwayat Transaksi
-          </h3>
-          <SetupTableCard variant="nested">
-            <SetupDataTable variant="nested" density="compact" className="min-w-[760px]">
-              <SetupDataTableHead>
-                <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell>Tanggal</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell>Jenis</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell>Nominal</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell>Catatan</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>File</SetupDataTableHeaderCell>
-                </SetupDataTableRow>
-              </SetupDataTableHead>
-              <SetupDataTableBody>
-                {(historyTarget?.transactions ?? []).map((transaction, index) => (
-                  <SetupDataTableRow key={transaction.id} className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}>
-                    <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>{index + 1}</SetupDataTableCell>
-                    <SetupDataTableCell>{formatDateOnly(transaction.transaction_date)}</SetupDataTableCell>
-                    <SetupDataTableCell>{depositActionLabel(transaction.action)}</SetupDataTableCell>
-                    <SetupDataTableCell><SetupTableMoney>{formatCurrency(transaction.amount)}</SetupTableMoney></SetupDataTableCell>
-                    <SetupDataTableCell>{transaction.notes || "-"}</SetupDataTableCell>
-                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                      <SetupFilePreviewGroup
-                        file={transaction.file}
-                        files={transaction.files}
-                        label="Lihat File"
-                        onOpen={(previewFile) =>
-                          openFile(previewFile.url, previewFile.name, openPreview)
-                        }
-                      />
-                    </SetupDataTableCell>
-                  </SetupDataTableRow>
-                ))}
-                {(historyTarget?.transactions ?? []).length === 0 ? (
-                  <SetupDataTableEmptyRow colSpan={6}>
-                    Belum ada transaksi pada dana titipan ini.
-                  </SetupDataTableEmptyRow>
-                ) : null}
-              </SetupDataTableBody>
-            </SetupDataTable>
-          </SetupTableCard>
-        </div>
+        {historyTarget ? (
+          <LegalDepositDetailContent
+            item={historyTarget}
+            onOpenFile={(previewFile) =>
+              openFile(previewFile.url, previewFile.name, openPreview)
+            }
+          />
+        ) : null}
       </DashboardModal>
       <DeleteConfirmModal
         isOpen={Boolean(deleteTarget)}
@@ -2716,7 +2564,7 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   appraisal_type: "Jenis Penilaian",
   report_number: "Nomor Laporan",
   collateral_object: "Objek Agunan",
-  appraisal_value: "Nilai Penilaian",
+  appraisal_value: "Nilai Taksasi",
   claim_type: "Jenis Klaim",
   claim_amount: "Nilai Klaim",
   submitted_at: "Tanggal Pengajuan",
@@ -3232,6 +3080,7 @@ function AuditDeviceAndSystem({ item }: { item: LegalActivityLog }) {
 function LegalActivityLogSection() {
   const { showToast } = useAppToast();
   const { openPreview } = useDocumentPreviewContext();
+  const now = useMemo(() => new Date(), []);
   const [items, setItems] = useState<LegalActivityLog[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
   const [page, setPage] = useState(1);
@@ -3239,10 +3088,17 @@ function LegalActivityLogSection() {
   const [action, setAction] = useState("");
   const [entityType, setEntityType] = useState("");
   const [source, setSource] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [periodMode, setPeriodMode] = useState<AuditPeriodMode>("day");
+  const [day, setDay] = useState(localAuditDayValue(now));
+  const [month, setMonth] = useState(localAuditMonthValue(now));
+  const [year, setYear] = useState(String(now.getFullYear()));
   const [isLoading, setIsLoading] = useState(true);
   const [detailTarget, setDetailTarget] = useState<LegalActivityLog | null>(null);
+
+  const periodRange = useMemo(
+    () => buildAuditPeriodRange(periodMode, day, month, year),
+    [day, month, periodMode, year],
+  );
 
   const load = useCallback(async () => {
     try {
@@ -3254,8 +3110,7 @@ function LegalActivityLogSection() {
         action,
         entity_type: entityType,
         source,
-        date_from: dateFrom,
-        date_to: dateTo,
+        ...periodRange,
       });
       setItems(result.items);
       setMeta(result.meta);
@@ -3264,7 +3119,7 @@ function LegalActivityLogSection() {
     } finally {
       setIsLoading(false);
     }
-  }, [action, dateFrom, dateTo, entityType, page, search, showToast, source]);
+  }, [action, entityType, page, periodRange, search, showToast, source]);
 
   useEffect(() => {
     void load();
@@ -3275,28 +3130,17 @@ function LegalActivityLogSection() {
     [openPreview],
   );
 
-  const handleDateFromChange = (value: string) => {
-    setPage(1);
-    setDateFrom(value);
-    if (value && dateTo && value > dateTo) setDateTo("");
-  };
-
-  const handleDateToChange = (value: string) => {
-    if (value && dateFrom && value < dateFrom) {
-      showToast("Tanggal akhir tidak boleh lebih awal dari tanggal mulai", "error");
-      return;
-    }
-    setPage(1);
-    setDateTo(value);
-  };
-
   const selectFilters = (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+        <label
+          htmlFor="legal-audit-action"
+          className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500"
+        >
           Aktivitas
-        </p>
+        </label>
         <SetupSelect
+          id="legal-audit-action"
           value={action}
           onChange={(event) => {
             setPage(1);
@@ -3312,10 +3156,14 @@ function LegalActivityLogSection() {
         </SetupSelect>
       </div>
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+        <label
+          htmlFor="legal-audit-entity-type"
+          className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500"
+        >
           Jenis Data
-        </p>
+        </label>
         <SetupSelect
+          id="legal-audit-entity-type"
           value={entityType}
           onChange={(event) => {
             setPage(1);
@@ -3331,10 +3179,14 @@ function LegalActivityLogSection() {
         </SetupSelect>
       </div>
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+        <label
+          htmlFor="legal-audit-source"
+          className="mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-gray-500"
+        >
           Sumber
-        </p>
+        </label>
         <SetupSelect
+          id="legal-audit-source"
           value={source}
           onChange={(event) => {
             setPage(1);
@@ -3354,6 +3206,22 @@ function LegalActivityLogSection() {
 
   return (
     <section className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">
+            Riwayat Aktivitas Legal
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-gray-500">
+            Jejak perubahan khusus data legal. Log lintas modul tersedia di Pusat Log Aktivitas.
+          </p>
+        </div>
+        <ProtectedLink
+          href="/dashboard/activity-centre"
+          className="inline-flex min-h-10 items-center justify-center rounded-lg border border-[#0d5a8f]/30 bg-white px-4 text-sm font-semibold text-[#0d5a8f] transition hover:bg-[#0d5a8f]/5"
+        >
+          Buka Pusat Log Aktivitas
+        </ProtectedLink>
+      </div>
       <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} space-y-4`}>
         <div className="grid gap-4 xl:grid-cols-[minmax(320px,1.4fr)_minmax(0,2fr)] xl:items-end">
           <SetupSearchInput
@@ -3369,30 +3237,70 @@ function LegalActivityLogSection() {
           {selectFilters}
         </div>
 
-        <div className="border-t border-gray-100 pt-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:ml-auto xl:max-w-[560px]">
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
-                Dari Tanggal
-              </p>
-              <BasicDateInput
-                value={dateFrom}
-                placeholder="Pilih tanggal mulai"
-                aria-label="Tanggal mulai audit"
-                onChange={handleDateFromChange}
-              />
+        <div className="flex flex-col gap-4 border-t border-gray-100 pt-4 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <p className={AUDIT_FIELD_LABEL_CLASS}>Cakupan Waktu</p>
+            <div className={`${SETUP_PAGE_SEGMENTED_GROUP_CLASS} w-fit`}>
+              {([
+                ["day", "Hari"],
+                ["month", "Bulan"],
+                ["year", "Tahun"],
+              ] as Array<[AuditPeriodMode, string]>).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`${SETUP_PAGE_SEGMENTED_BUTTON_BASE_CLASS} ${
+                    periodMode === value
+                      ? SETUP_PAGE_SEGMENTED_BUTTON_ACTIVE_CLASS
+                      : SETUP_PAGE_SEGMENTED_BUTTON_INACTIVE_CLASS
+                  }`}
+                  onClick={() => {
+                    setPage(1);
+                    setPeriodMode(value);
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
-                Sampai Tanggal
-              </p>
-              <BasicDateInput
-                value={dateTo}
-                placeholder="Pilih tanggal akhir"
-                aria-label="Tanggal akhir audit"
-                onChange={handleDateToChange}
+          </div>
+          <div className="w-full xl:max-w-xs">
+            <label className={AUDIT_FIELD_LABEL_CLASS} htmlFor="legal-audit-period-value">
+              Periode
+            </label>
+            {periodMode === "day" ? (
+              <SetupTextInput
+                id="legal-audit-period-value"
+                type="date"
+                value={day}
+                onChange={(event) => {
+                  setPage(1);
+                  setDay(event.target.value);
+                }}
               />
-            </div>
+            ) : periodMode === "month" ? (
+              <SetupTextInput
+                id="legal-audit-period-value"
+                type="month"
+                value={month}
+                onChange={(event) => {
+                  setPage(1);
+                  setMonth(event.target.value);
+                }}
+              />
+            ) : (
+              <SetupTextInput
+                id="legal-audit-period-value"
+                type="number"
+                min="2000"
+                max="2100"
+                value={year}
+                onChange={(event) => {
+                  setPage(1);
+                  setYear(event.target.value);
+                }}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -3475,8 +3383,21 @@ function LegalActivityLogSection() {
               </SetupDataTableRow>
             ))}
             {items.length === 0 ? (
-              <SetupDataTableEmptyRow colSpan={7}>
-                {isLoading ? "Memuat audit aktivitas legal..." : "Belum ada audit aktivitas legal."}
+              <SetupDataTableEmptyRow
+                colSpan={7}
+                state={isLoading ? "loading" : "empty"}
+                description={
+                  isLoading
+                    ? "Data audit legal sedang dimuat."
+                    : "Ubah periode atau filter untuk melihat aktivitas legal lainnya."
+                }
+                icon={FileClock}
+                tone="legal"
+                isFiltered={Boolean(search || action || entityType || source)}
+              >
+                {isLoading
+                  ? "Memuat audit aktivitas legal..."
+                  : "Belum ada audit aktivitas legal pada periode ini."}
               </SetupDataTableEmptyRow>
             ) : null}
           </SetupDataTableBody>
@@ -3553,35 +3474,40 @@ export function LegalReportClient() {
       label: "Notaris",
       value: data?.notary ?? 0,
       icon: Landmark,
+      href: "/dashboard/legal/progress/notaris",
     },
     {
       label: "Asuransi",
       value: data?.insurance ?? 0,
       icon: ShieldCheck,
+      href: "/dashboard/legal/progress/asuransi",
     },
     {
       label: "KJPP",
       value: data?.kjpp ?? 0,
       icon: Building2,
+      href: "/dashboard/legal/progress/kjpp",
     },
     {
       label: "Klaim",
       value: data?.claims ?? 0,
       icon: FileCheck2,
+      href: "/dashboard/legal/progress/klaim",
     },
     {
       label: "Dana Titipan",
       value: data?.deposits ?? 0,
       icon: Banknote,
+      href: "/dashboard/legal/titipan/asuransi",
     },
   ];
 
   return (
     <DashboardPageShell spacing="md">
       <FeatureHeader
-        title="Audit Aktivitas Legal"
-        subtitle="Jejak perubahan data legal berdasarkan user, waktu, aksi, dan data yang terdampak."
-        icon={<Activity />}
+        title="Laporan Legal"
+        subtitle="Ringkasan operasional legal, progress pihak ketiga, klaim, dana titipan, dan riwayat aktivitas legal."
+        icon={<ClipboardList />}
       />
 
       <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
@@ -3591,10 +3517,11 @@ export function LegalReportClient() {
               Ringkasan Data Legal
             </p>
             <h2 className="mt-2 text-xl font-bold text-gray-900">
-              Area data yang masuk pengawasan audit
+              Ringkasan Operasional Legal
             </h2>
             <p className="mt-2 text-sm leading-6 text-gray-500">
-              Progress pihak ketiga dan dana titipan tetap diakses dari shortcut dashboard. Halaman ini difokuskan untuk memeriksa jejak perubahan data legal.
+              Pantau jumlah pekerjaan pihak ketiga, klaim, dan dana titipan. Buka
+              setiap kartu untuk meninjau proses pada modul terkait.
             </p>
           </div>
 
@@ -3603,8 +3530,9 @@ export function LegalReportClient() {
               const Icon = item.icon;
 
               return (
-                <div
+                <ProtectedLink
                   key={item.label}
+                  href={item.href}
                   className={`rounded-lg border border-gray-100 bg-white p-4 shadow-sm xl:col-span-2 min-[1800px]:col-span-1 ${
                     index === 3
                       ? "xl:col-start-2 min-[1800px]:col-start-auto"
@@ -3626,7 +3554,7 @@ export function LegalReportClient() {
                       {isLoading ? "-" : item.value}
                     </p>
                   </div>
-                </div>
+                </ProtectedLink>
               );
             })}
           </div>

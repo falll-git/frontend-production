@@ -213,14 +213,14 @@ export default function RequestPeminjamanPage() {
   return (
     <DashboardPageShell>
       <FeatureHeader
-        title="Request Peminjaman"
+        title="Permintaan Peminjaman"
         subtitle="Ajukan permohonan peminjaman dokumen fisik."
         icon={<BookOpen />}
       />
 
       {showCreateBlockedNotice && (
         <DashboardNotice
-          title="Akses request belum aktif"
+          title="Akses permintaan belum aktif"
           tone="amber"
           icon={<AlertCircle className="h-5 w-5" />}
           className="mb-6 w-full"

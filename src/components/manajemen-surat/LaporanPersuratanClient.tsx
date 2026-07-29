@@ -67,7 +67,6 @@ import SetupTextarea from "@/components/ui/SetupTextarea";
 import SetupActionMenu from "@/components/ui/SetupActionMenu";
 import SetupCloseListButton from "@/components/ui/SetupCloseListButton";
 import SetupExcelButton from "@/components/ui/SetupExcelButton";
-import SetupModalCloseButton from "@/components/ui/SetupModalCloseButton";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
 import WatermarkFileStatus from "@/components/ui/WatermarkFileStatus";
 import { useDocumentPreviewContext } from "@/components/ui/DocumentPreviewContext";
@@ -663,12 +662,12 @@ function PersuratanInfoItem({
 }) {
   return (
     <div
-      className={`rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 ${className}`.trim()}
+      className={`grid gap-1 border-b border-slate-100 py-3 last:border-b-0 sm:grid-cols-[145px_minmax(0,1fr)] sm:gap-4 ${className}`.trim()}
     >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
         {label}
       </p>
-      <div className="mt-2 break-words text-sm font-semibold leading-6 text-slate-900">
+      <div className="min-w-0 break-words text-sm font-semibold leading-6 text-slate-900">
         {children ?? value ?? "-"}
       </div>
     </div>
@@ -704,21 +703,23 @@ function WorkflowTimelineSection({
   return (
     <section className="space-y-4">
       <PersuratanSectionTitle title={title} description={description} />
-      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+      <div className="rounded-lg border border-gray-200 bg-white px-4">
         {dispositions.length === 0 ? (
-          <SetupEmptyState
-            title="Belum ada riwayat disposisi."
-            description="Riwayat akan muncul setelah surat diproses atau diteruskan."
-            icon={History}
-            tone="import"
-            variant="panel"
-          />
+          <div className="py-4">
+            <SetupEmptyState
+              title="Belum ada riwayat disposisi."
+              description="Riwayat akan muncul setelah surat diproses atau diteruskan."
+              icon={History}
+              tone="import"
+              variant="compact"
+            />
+          </div>
         ) : (
-          <ol className="space-y-3">
+          <ol className="divide-y divide-slate-100">
             {dispositions.map((item) => (
               <li
                 key={item.id}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4"
+                className="py-4"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1">
@@ -1244,6 +1245,7 @@ function EditCorrespondenceModal({
       : target.kind === "surat-keluar"
         ? "Ubah Surat Keluar"
         : "Ubah Memorandum";
+  const formId = `edit-correspondence-${target.kind}-form`;
 
   const handleChange = (
     event: React.ChangeEvent<
@@ -1393,37 +1395,46 @@ function EditCorrespondenceModal({
   };
 
   return (
-    <div
-      data-dashboard-overlay="true"
-      className="fixed inset-0 z-[70] flex items-center justify-center p-4"
-    >
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div
-        className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl min-w-0 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-6 py-4">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Perubahan mengikuti izin update pada role-menu.
-            </p>
-          </div>
-          <SetupModalCloseButton
+    <DashboardModal
+      isOpen
+      title={title}
+      description="Perubahan mengikuti izin update pada role-menu."
+      maxWidth="3xl"
+      onClose={onClose}
+      bodyClassName="p-5 sm:p-6"
+      footer={
+        <>
+          <button
+            type="button"
             onClick={onClose}
-            aria-label="Tutup modal"
-            title="Tutup"
-          />
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6">
+            disabled={isSubmitting}
+            className="uiverse-modal-button uiverse-modal-button--neutral h-11 px-4"
+          >
+            Batal
+          </button>
+          <button
+            type="submit"
+            form={formId}
+            disabled={isSubmitting || isOptionsLoading || !form.storageId}
+            className="uiverse-modal-button uiverse-modal-button--primary h-11 px-4"
+          >
+            {isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
+          </button>
+        </>
+      }
+    >
+        <form id={formId} onSubmit={handleSubmit}>
           <div className="grid gap-5 md:grid-cols-2">
             {target.kind !== "memorandum" ? (
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor={`${formId}-letter-priority`}
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
                   Sifat Surat <span className="text-red-500">*</span>
                 </label>
                 <SetupSelect
+                  id={`${formId}-letter-priority`}
                   name="letterPriorityId"
                   value={form.letterPriorityId}
                   onChange={handleChange}
@@ -1442,10 +1453,14 @@ function EditCorrespondenceModal({
               </div>
             ) : (
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor={`${formId}-origin-division`}
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
                   Divisi Asal <span className="text-red-500">*</span>
                 </label>
                 <SetupSelect
+                  id={`${formId}-origin-division`}
                   name="originDivisionId"
                   value={form.originDivisionId}
                   onChange={handleChange}
@@ -1562,10 +1577,14 @@ function EditCorrespondenceModal({
 
             {target.kind === "surat-keluar" ? (
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">
+                <label
+                  htmlFor={`${formId}-delivery-media`}
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
                   Media Pengiriman <span className="text-red-500">*</span>
                 </label>
                 <SetupSelect
+                  id={`${formId}-delivery-media`}
                   name="deliveryMedia"
                   value={form.deliveryMedia}
                   onChange={handleChange}
@@ -1718,26 +1737,8 @@ function EditCorrespondenceModal({
             </div>
           </div>
 
-          <div className="mt-6 flex flex-col justify-end gap-3 border-t border-gray-100 pt-5 sm:flex-row">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="uiverse-modal-button uiverse-modal-button--neutral h-11 px-4"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || isOptionsLoading || !form.storageId}
-              className="uiverse-modal-button uiverse-modal-button--primary h-11 px-4"
-            >
-              {isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+    </DashboardModal>
   );
 }
 
@@ -3526,7 +3527,10 @@ export default function LaporanPersuratanClient() {
                           setSelectedDetail({ kind: "surat-masuk", record })
                         }
                       >
-                        <SetupDataTableCell className={REPORT_NUMBER_CELL_CLASS}>
+                        <SetupDataTableCell
+                          className={REPORT_NUMBER_CELL_CLASS}
+                          mobileHidden
+                        >
                           {(suratMasukPaginationMeta.page - 1) *
                             suratMasukPaginationMeta.limit +
                             index +
@@ -3543,15 +3547,24 @@ export default function LaporanPersuratanClient() {
                             {record.perihal}
                           </span>
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                        <SetupDataTableCell
+                          className={REPORT_TABLE_CELL_CLASS}
+                          mobileHidden
+                        >
                           <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
                             {formatDisplayDate(record.tanggalTerima)}
                           </span>
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                        <SetupDataTableCell
+                          className={REPORT_TABLE_CELL_CLASS}
+                          mobileHidden
+                        >
                           <span className={TABLE_TEXT_CLASS}>{record.sifat}</span>
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                        <SetupDataTableCell
+                          className={REPORT_TABLE_CELL_CLASS}
+                          mobileHidden
+                        >
                           {record.current_holder_names.length > 0 ? (
                             <span
                               className={TABLE_MULTILINE_TEXT_CLASS}
@@ -3566,7 +3579,10 @@ export default function LaporanPersuratanClient() {
                         <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
                           <SuratMasukStatusBadge status={record.status} />
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                        <SetupDataTableCell
+                          className={REPORT_TABLE_CELL_CLASS}
+                          mobileHidden
+                        >
                           <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
                             {formatDetailTenggatValue(record.tenggatWaktu)}
                           </span>
@@ -3717,7 +3733,10 @@ export default function LaporanPersuratanClient() {
                           setSelectedDetail({ kind: "surat-keluar", record })
                         }
                       >
-                        <SetupDataTableCell className={REPORT_NUMBER_CELL_CLASS}>
+                        <SetupDataTableCell
+                          className={REPORT_NUMBER_CELL_CLASS}
+                          mobileHidden
+                        >
                           {(suratKeluarPaginationMeta.page - 1) *
                             suratKeluarPaginationMeta.limit +
                             index +
@@ -3729,15 +3748,24 @@ export default function LaporanPersuratanClient() {
                         <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
                           <span className={TABLE_TEXT_STRONG_CLASS}>{record.namaSurat}</span>
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                        <SetupDataTableCell
+                          className={REPORT_TABLE_CELL_CLASS}
+                          mobileHidden
+                        >
                           <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
                             {formatDisplayDate(record.tanggalKirim)}
                           </span>
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                        <SetupDataTableCell
+                          className={REPORT_TABLE_CELL_CLASS}
+                          mobileHidden
+                        >
                           <span className={TABLE_TEXT_CLASS}>{record.sifat}</span>
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                        <SetupDataTableCell
+                          className={REPORT_TABLE_CELL_CLASS}
+                          mobileHidden
+                        >
                           <span className={TABLE_TEXT_CLASS}>{record.media}</span>
                         </SetupDataTableCell>
                         <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
@@ -3851,7 +3879,10 @@ export default function LaporanPersuratanClient() {
                           setSelectedDetail({ kind: "memorandum", record })
                         }
                       >
-                        <SetupDataTableCell className={REPORT_NUMBER_CELL_CLASS}>
+                        <SetupDataTableCell
+                          className={REPORT_NUMBER_CELL_CLASS}
+                          mobileHidden
+                        >
                           {(memorandumPaginationMeta.page - 1) *
                             memorandumPaginationMeta.limit +
                             index +
@@ -3867,15 +3898,24 @@ export default function LaporanPersuratanClient() {
                             {record.perihal}
                           </span>
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                        <SetupDataTableCell
+                          className={REPORT_TABLE_CELL_CLASS}
+                          mobileHidden
+                        >
                           <span className={TABLE_TEXT_CLASS}>{record.divisiAsal}</span>
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                        <SetupDataTableCell
+                          className={REPORT_TABLE_CELL_CLASS}
+                          mobileHidden
+                        >
                           <span className={TABLE_TEXT_CLASS}>
                             {formatJoinedNames(record.divisiTujuanAwal)}
                           </span>
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                        <SetupDataTableCell
+                          className={REPORT_TABLE_CELL_CLASS}
+                          mobileHidden
+                        >
                           <p
                             className={TABLE_MULTILINE_STRONG_CLASS}
                             title={
@@ -3889,7 +3929,10 @@ export default function LaporanPersuratanClient() {
                               : formatJoinedNames(record.penerima)}
                           </p>
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                        <SetupDataTableCell
+                          className={REPORT_TABLE_CELL_CLASS}
+                          mobileHidden
+                        >
                           <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
                             {formatDisplayDate(record.tanggal)}
                           </span>
@@ -3902,7 +3945,10 @@ export default function LaporanPersuratanClient() {
                             label={record.statusLabel ?? "Baru"}
                           />
                         </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
+                        <SetupDataTableCell
+                          className={REPORT_TABLE_CELL_CLASS}
+                          mobileHidden
+                        >
                           <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
                             {formatDetailTenggatValue(record.tenggatWaktu)}
                           </span>

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function StorageUsagePage() {
-  redirect("/dashboard");
+  redirect("/dashboard#penggunaan-storage");
 }

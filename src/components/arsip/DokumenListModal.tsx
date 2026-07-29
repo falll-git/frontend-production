@@ -13,12 +13,12 @@ import {
 } from "@/components/ui/SetupDataTable";
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft,
   FolderOpen,
   SearchX,
 } from "lucide-react";
 
 import { useDocumentPreviewContext } from "@/components/ui/DocumentPreviewContext";
+import DashboardModal from "@/components/ui/DashboardModal";
 import Pagination from "@/components/ui/Pagination";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupViewButton from "@/components/ui/SetupViewButton";
@@ -172,36 +172,36 @@ export default function DokumenListModal({
   };
 
   return (
-    <div
-      data-dashboard-overlay="true"
-      className="fixed inset-0 z-[1400] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm animate-fade-in"
-      onClick={onClose}
+    <DashboardModal
+      isOpen
+      title={`${rak.namaRak} \u00B7 ${lemari.kodeLemari}`}
+      description={kantor.namaKantor}
+      onClose={onClose}
+      maxWidth="5xl"
+      headerActions={
+        <SetupExcelButton onClick={handleExport} loading={exportLoading} />
+      }
+      bodyClassName="p-0"
+      footerClassName="flex items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 p-4 sm:p-5"
+      footer={
+        <>
+          <button
+            type="button"
+            className="uiverse-modal-button uiverse-modal-button--neutral"
+            onClick={onBack}
+          >
+            Kembali
+          </button>
+          <button
+            type="button"
+            className="uiverse-modal-button uiverse-modal-button--neutral"
+            onClick={onClose}
+          >
+            Tutup
+          </button>
+        </>
+      }
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl min-w-0 flex-col overflow-hidden rounded-lg bg-white shadow-sm"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 px-5 py-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <button
-              type="button"
-              onClick={onBack}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50"
-              aria-label="Kembali"
-            >
-              <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-            </button>
-            <h3 className="truncate text-lg font-bold text-gray-900">
-              {rak.namaRak} {"\u00B7"} {lemari.kodeLemari} {"\u00B7"}{" "}
-              {kantor.namaKantor}
-            </h3>
-          </div>
-          <SetupExcelButton onClick={handleExport} loading={exportLoading} />
-        </div>
-
-        <div className="flex-1 overflow-auto">
           <div className="border-b border-gray-100 bg-white px-5 py-4">
             <div className="grid grid-cols-1 gap-4">
               <SetupSearchInput
@@ -364,25 +364,6 @@ export default function DokumenListModal({
               />
             </div>
           )}
-        </div>
-
-        <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-5 py-4">
-          <button
-            type="button"
-            className="uiverse-modal-button uiverse-modal-button--neutral"
-            onClick={onBack}
-          >
-            Kembali
-          </button>
-          <button
-            type="button"
-            className="uiverse-modal-button uiverse-modal-button--neutral"
-            onClick={onClose}
-          >
-            Tutup
-          </button>
-        </div>
-      </div>
-    </div>
+    </DashboardModal>
   );
 }

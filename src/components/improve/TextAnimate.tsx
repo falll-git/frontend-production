@@ -28,8 +28,8 @@ export function TextAnimate({
       className={["text-animate", `text-animate--${animation}`, className]
         .filter(Boolean)
         .join(" ")}
-      aria-label={text}
     >
+      <span className="sr-only">{text}</span>
       {units.map((unit, index) => {
         const isSpace = /^\s+$/.test(unit);
 

@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useRef,
   useState,
   type MouseEvent,
 } from "react";
@@ -97,6 +98,7 @@ export default function SetupActionMenu({
   const activeItems = items.filter((item) => !item.disabled);
   const menuWidth = getMenuWidth(activeItems.length);
   const menuHeight = getMenuHeight(activeItems.length);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<ActionMenuPosition | null>(null);
 
@@ -138,7 +140,27 @@ export default function SetupActionMenu({
       if (event.key === "Escape") closeMenu();
     };
 
-    const handleViewportChange = () => closeMenu();
+    const handleViewportChange = () => {
+      const trigger = triggerRef.current;
+      if (!trigger?.isConnected) {
+        closeMenu();
+        return;
+      }
+
+      const rect = trigger.getBoundingClientRect();
+      const isOutsideViewport =
+        rect.bottom < 0 ||
+        rect.top > window.innerHeight ||
+        rect.right < 0 ||
+        rect.left > window.innerWidth;
+
+      if (isOutsideViewport) {
+        closeMenu();
+        return;
+      }
+
+      setPosition(getActionMenuPosition(trigger, menuWidth, menuHeight));
+    };
 
     document.addEventListener("pointerdown", handlePointerDown, true);
     document.addEventListener("keydown", handleKeyDown);
@@ -151,7 +173,7 @@ export default function SetupActionMenu({
       window.removeEventListener("resize", handleViewportChange);
       window.removeEventListener("scroll", handleViewportChange, true);
     };
-  }, [closeMenu, isOpen]);
+  }, [closeMenu, isOpen, menuHeight, menuWidth]);
 
   useEffect(() => {
     const handleOtherMenuOpen = (event: Event) => {
@@ -169,6 +191,7 @@ export default function SetupActionMenu({
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         data-setup-action-toggle="true"
         onClick={handleToggle}

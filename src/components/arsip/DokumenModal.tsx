@@ -12,9 +12,10 @@ import {
   SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useEffect, useState } from "react";
-import { ArrowLeft, FolderOpen, SearchX } from "lucide-react";
+import { FolderOpen, SearchX } from "lucide-react";
 
 import { useDocumentPreviewContext } from "@/components/ui/DocumentPreviewContext";
+import DashboardModal from "@/components/ui/DashboardModal";
 import Pagination from "@/components/ui/Pagination";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupViewButton from "@/components/ui/SetupViewButton";
@@ -130,32 +131,34 @@ export default function DokumenModal({
     !isLoading && paginationMeta.total === 0 && debouncedSearch.length > 0;
 
   return (
-    <div
-      data-dashboard-overlay="true"
-      className="fixed inset-0 z-[1400] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm animate-fade-in"
-      onClick={onCloseAll}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl min-w-0 flex-col overflow-hidden rounded-lg bg-white shadow-sm"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50/50 px-5 py-4">
+    <DashboardModal
+      isOpen
+      title={`${rak.namaRak} \u00B7 ${lemari.kodeLemari}`}
+      description={namaKantor}
+      onClose={onCloseAll}
+      maxWidth="5xl"
+      bodyClassName="p-0"
+      footerClassName="flex items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 p-4 sm:p-5"
+      footer={
+        <>
           <button
             type="button"
+            className="uiverse-modal-button uiverse-modal-button--neutral"
             onClick={onBack}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50"
-            aria-label="Kembali"
           >
-            <ArrowLeft className="h-5 w-5" aria-hidden="true" />
+            Kembali
           </button>
-          <h3 className="truncate text-lg font-bold text-gray-900">
-            {lemari.kodeLemari} {"\u00B7"} {rak.namaRak} {"\u00B7"} {namaKantor}
-          </h3>
-        </div>
-
-        <div className="border-b border-gray-100 bg-white px-5 py-4">
+          <button
+            type="button"
+            className="uiverse-modal-button uiverse-modal-button--neutral"
+            onClick={onCloseAll}
+          >
+            Tutup
+          </button>
+        </>
+      }
+    >
+        <div className="border-b border-gray-100 bg-white px-4 py-4 sm:px-5">
           <div className="grid grid-cols-1 gap-4">
             <SetupSearchInput
               value={searchTerm}
@@ -170,7 +173,7 @@ export default function DokumenModal({
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto">
+        <div>
           {errorMessage ? (
             <div className="flex min-h-[300px] flex-col items-center justify-center px-6 text-center">
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-slate-900">
@@ -319,24 +322,6 @@ export default function DokumenModal({
             </div>
           )}
         </div>
-
-        <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-5 py-4">
-          <button
-            type="button"
-            className="uiverse-modal-button uiverse-modal-button--neutral"
-            onClick={onBack}
-          >
-            Kembali
-          </button>
-          <button
-            type="button"
-            className="uiverse-modal-button uiverse-modal-button--neutral"
-            onClick={onCloseAll}
-          >
-            Tutup
-          </button>
-        </div>
-      </div>
-    </div>
+    </DashboardModal>
   );
 }

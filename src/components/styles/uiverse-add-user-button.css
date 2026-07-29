@@ -1,7 +1,7 @@
 .uiverse-add-user-button {
-  --add-user-main: #157ec3;
-  --add-user-hover: #126fae;
-  --add-user-active: #0f5f95;
+  --add-user-main: #0d5a8f;
+  --add-user-hover: #0b4d7c;
+  --add-user-active: #083f67;
 
   width: auto;
   min-width: 0;

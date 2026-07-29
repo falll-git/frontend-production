@@ -4,6 +4,29 @@ import {
   clearAuthBrowserStorage,
   hasPersistedAuthSession,
 } from "@/lib/auth-storage";
+import {
+  createClientRequestId,
+  reportClientError,
+  resolveApiResource,
+} from "@/lib/client-error-reporting";
+
+export class ApiRequestError extends Error {
+  readonly requestId: string | null;
+  readonly statusCode: number | null;
+
+  constructor(
+    message: string,
+    { requestId = null, statusCode = null }: {
+      requestId?: string | null;
+      statusCode?: number | null;
+    } = {},
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.requestId = requestId;
+    this.statusCode = statusCode;
+  }
+}
 
 function getApiMessage(payload: unknown): string | null {
   if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
@@ -42,6 +65,42 @@ export function setAccessToken(token: string | null) {
   if (token) {
     authFailureRedirecting = false;
   }
+}
+
+function safeRequestId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  return /^[A-Za-z0-9._:-]{8,128}$/.test(normalized) ? normalized : null;
+}
+
+function responseRequestId(error: {
+  response?: { data?: unknown; headers?: unknown };
+  config?: { headers?: unknown };
+}) {
+  const payload = error.response?.data;
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    const fromBody = safeRequestId(
+      (payload as Record<string, unknown>).request_id,
+    );
+    if (fromBody) return fromBody;
+  }
+
+  const responseHeaders = error.response?.headers as
+    | { get?: (name: string) => unknown; [key: string]: unknown }
+    | undefined;
+  const fromResponseHeader = safeRequestId(
+    responseHeaders?.get?.("x-request-id") ?? responseHeaders?.["x-request-id"],
+  );
+  if (fromResponseHeader) return fromResponseHeader;
+
+  const requestHeaders = error.config?.headers as
+    | { get?: (name: string) => unknown; [key: string]: unknown }
+    | undefined;
+  return safeRequestId(
+    requestHeaders?.get?.("X-Request-Id") ??
+      requestHeaders?.["X-Request-Id"] ??
+      requestHeaders?.["x-request-id"],
+  );
 }
 
 export function getAccessToken(): string | null {
@@ -87,7 +146,10 @@ function refreshAccessToken(): Promise<string> {
     .post(
       `${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`,
       { remember: hasPersistedAuthSession() },
-      { withCredentials: true },
+      {
+        withCredentials: true,
+        headers: { "X-Request-Id": createClientRequestId() },
+      },
     )
     .then((res) => {
       if (hasFailedApiFlag(res.data)) {
@@ -108,6 +170,9 @@ function refreshAccessToken(): Promise<string> {
 }
 
 api.interceptors.request.use((config) => {
+  if (!config.headers["X-Request-Id"]) {
+    config.headers["X-Request-Id"] = createClientRequestId();
+  }
   if (accessToken) {
     config.headers.Authorization = `Bearer ${accessToken}`;
   }
@@ -161,9 +226,25 @@ api.interceptors.response.use(
       }
     }
 
+    const statusCode = Number.isInteger(error.response?.status)
+      ? Number(error.response.status)
+      : null;
+    const requestId = responseRequestId(error);
+
+    if (statusCode === null || statusCode >= 500) {
+      void reportClientError(Object.assign(new Error(), { name: "ApiRequestError" }), {
+        boundary: "api",
+        eventType: "api_error",
+        relatedRequestId: requestId || undefined,
+        apiResource: resolveApiResource(originalRequest?.url),
+        responseStatus: statusCode ?? 0,
+      });
+    }
+
     return Promise.reject(
-      new Error(
+      new ApiRequestError(
         getApiMessage(error.response?.data) ?? "Terjadi kesalahan pada server",
+        { requestId, statusCode },
       ),
     );
   },

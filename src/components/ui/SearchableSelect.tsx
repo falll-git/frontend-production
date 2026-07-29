@@ -7,11 +7,14 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, Loader2, Search, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { getAnchoredPopupPosition } from "@/lib/ui/anchored-popup";
 
 export type SearchableSelectOption = {
   value: string;
@@ -84,6 +87,8 @@ export default function SearchableSelect({
   const controlId = id ?? generatedId;
   const listboxId = `${controlId}-listbox`;
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const requestIdRef = useRef(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -94,6 +99,7 @@ export default function SearchableSelect({
   const [isLoading, setIsLoading] = useState(false);
   const [hasLoadError, setHasLoadError] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [popupStyle, setPopupStyle] = useState<CSSProperties>({});
 
   const allKnownOptions = useMemo(
     () =>
@@ -149,13 +155,43 @@ export default function SearchableSelect({
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
-      if (!wrapperRef.current?.contains(target)) close();
+      if (wrapperRef.current?.contains(target)) return;
+      if (popupRef.current?.contains(target)) return;
+      close();
     };
 
     document.addEventListener("pointerdown", handlePointerDown);
 
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [close, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const updatePosition = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setPopupStyle(
+        getAnchoredPopupPosition(rect, {
+          estimatedHeight: 320,
+          minimumUsableHeight: 160,
+          minimumWidth: 240,
+          preferredWidth: rect.width,
+          viewportHeight: window.innerHeight,
+          viewportWidth: window.innerWidth,
+        }),
+      );
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -238,13 +274,18 @@ export default function SearchableSelect({
   };
 
   return (
-    <div ref={wrapperRef} className={cn("relative", className)}>
+    <div
+      ref={wrapperRef}
+      className={cn("relative w-full min-w-0 max-w-full", className)}
+      data-ui-control="searchable-select"
+    >
       {name ? <input type="hidden" name={name} value={value} /> : null}
       <button
         id={controlId}
+        ref={triggerRef}
         type="button"
         className={cn(
-          "app-select searchable-select-trigger flex min-h-[42px] items-center justify-between gap-2.5 text-left",
+          "app-select searchable-select-trigger flex min-h-11 items-center justify-between gap-2.5 text-left",
           !currentOption && "text-gray-400",
           buttonClassName,
         )}
@@ -278,11 +319,13 @@ export default function SearchableSelect({
         </span>
       </button>
 
-      {isOpen ? (
+      {isOpen && typeof document !== "undefined" ? createPortal(
         <div
+          ref={popupRef}
           id={listboxId}
           role="listbox"
-          className="absolute left-0 right-0 z-[80] mt-2 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl ring-1 ring-black/5"
+          className="fixed z-[10000] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl ring-1 ring-black/5"
+          style={popupStyle}
         >
           <div className="relative border-b border-gray-100">
             <Search
@@ -293,14 +336,14 @@ export default function SearchableSelect({
               ref={inputRef}
               type="search"
               value={query}
-              className="h-11 w-full border-0 bg-white py-2 pl-9 pr-3 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:ring-0"
+              className="h-11 w-full border-0 bg-white py-2 pl-9 pr-3 text-sm text-gray-800 outline-none placeholder:text-gray-500 focus:ring-0"
               placeholder={searchPlaceholder}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={handleInputKeyDown}
             />
           </div>
 
-          <div className="max-h-64 overflow-y-auto py-1">
+          <div className="max-h-[min(16rem,calc(100vh-5rem))] overflow-y-auto overscroll-contain py-1">
             {isLoading ? (
               <div className="flex items-center gap-2 px-3 py-3 text-sm text-gray-500">
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -362,7 +405,8 @@ export default function SearchableSelect({
                 })
               : null}
           </div>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );

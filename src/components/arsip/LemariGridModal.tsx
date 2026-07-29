@@ -15,6 +15,7 @@ import {
 import { useEffect, useState } from "react";
 
 import StorageSummaryCard from "@/components/arsip/StorageSummaryCard";
+import DashboardModal from "@/components/ui/DashboardModal";
 import Pagination from "@/components/ui/Pagination";
 import SetupExcelButton from "@/components/ui/SetupExcelButton";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
@@ -127,30 +128,26 @@ export default function LemariGridModal({
   };
 
   return (
-    <div
-      data-dashboard-overlay="true"
-      className="fixed inset-0 z-[1400] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm animate-fade-in"
-      onClick={onClose}
+    <DashboardModal
+      isOpen
+      title={kantor.namaKantor}
+      description={`${paginationMeta.total} lemari`}
+      onClose={onClose}
+      maxWidth="5xl"
+      headerActions={
+        <SetupExcelButton onClick={handleExport} loading={exportLoading} />
+      }
+      bodyClassName="px-4 py-5 sm:px-5 sm:py-6"
+      footer={
+        <button
+          type="button"
+          className="uiverse-modal-button uiverse-modal-button--neutral"
+          onClick={onClose}
+        >
+          Tutup
+        </button>
+      }
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl min-w-0 flex-col overflow-hidden rounded-lg bg-white shadow-sm"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between border-b border-gray-100 bg-gray-50/50 px-5 py-4">
-          <div className="min-w-0">
-            <h3 className="truncate text-lg font-bold text-gray-900">
-              {kantor.namaKantor}
-            </h3>
-            <p className="text-sm text-gray-500">
-              {paginationMeta.total} Lemari
-            </p>
-          </div>
-          <SetupExcelButton onClick={handleExport} loading={exportLoading} />
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-5 py-6">
           <div className="mb-5">
             <SetupSearchInput
               value={searchTerm}
@@ -289,18 +286,6 @@ export default function LemariGridModal({
               />
             </div>
           )}
-        </div>
-
-        <div className="flex items-center justify-end border-t border-gray-100 bg-gray-50 px-5 py-4">
-          <button
-            type="button"
-            className="uiverse-modal-button uiverse-modal-button--neutral"
-            onClick={onClose}
-          >
-            Tutup
-          </button>
-        </div>
-      </div>
-    </div>
+    </DashboardModal>
   );
 }

@@ -338,7 +338,7 @@ export default function HistorisDisposisiPage() {
                 onClick={() => setReportScope("my")}
                 className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                   reportScope === "my"
-                    ? "bg-[#157ec3] text-white shadow-sm"
+                    ? "bg-[#0d5a8f] text-white shadow-sm"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
               >
@@ -349,7 +349,7 @@ export default function HistorisDisposisiPage() {
                 onClick={() => setReportScope("all")}
                 className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                   reportScope === "all"
-                    ? "bg-[#157ec3] text-white shadow-sm"
+                    ? "bg-[#0d5a8f] text-white shadow-sm"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
               >
@@ -373,7 +373,7 @@ export default function HistorisDisposisiPage() {
                     onClick={() => setMyReportFilter(key)}
                     className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                       myReportFilter === key
-                        ? "bg-[#157ec3] text-white shadow-sm"
+                        ? "bg-[#0d5a8f] text-white shadow-sm"
                         : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                     }`}
                   >

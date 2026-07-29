@@ -15,6 +15,8 @@ import type {
   DebtorActivityLog,
   DebtorBranchSummary,
   DebtorCollateral,
+  DebtorCollateralExpiryPayload,
+  DebtorCollateralExpiryImportSummary,
   DebtorCollateralReport,
   DebtorCollateralReportSummary,
   DebtorCollectibilitySummary,
@@ -28,13 +30,9 @@ import type {
   DebtorDocumentChecklistStatus,
   DebtorDocumentPayload,
   DebtorFileMeta,
-  DebtorIdebComparison,
-  DebtorIdebComparisonDifference,
-  DebtorIdebComparisonFacility,
-  DebtorIdebComparisonItem,
-  DebtorIdebComparisonSummary,
   DebtorIdebPendingUpload,
   DebtorIdebOtherBprs,
+  DebtorIdebParameterizedConclusion,
   DebtorIdebReporterGroup,
   DebtorIdebReportSummary,
   DebtorIdebReportUpload,
@@ -680,6 +678,14 @@ function mapCollateral(record: unknown): DebtorCollateral | null {
     "collateralNumber",
   );
   if (!id || !collateralNumber) return null;
+  const hasExpiryDate =
+    readBoolean(item, "has_expiry_date", "hasExpiryDate") === true;
+  const expiryStatus = readString(item, "expiry_status", "expiryStatus");
+  const expiryStatusLabel = readString(
+    item,
+    "expiry_status_label",
+    "expiryStatusLabel",
+  );
 
   return {
     id,
@@ -749,6 +755,54 @@ function mapCollateral(record: unknown): DebtorCollateral | null {
       "last_import_period_month",
       "lastImportPeriodMonth",
     ),
+    latest_appraisal_date: normalizeDate(item.latest_appraisal_date),
+    latest_appraisal_source:
+      readString(item, "latest_appraisal_source", "latestAppraisalSource") ===
+      "REPORTER"
+        ? "REPORTER"
+        : null,
+    next_appraisal_due_date: normalizeDate(item.next_appraisal_due_date),
+    appraisal_warning_start_date: normalizeDate(
+      item.appraisal_warning_start_date,
+    ),
+    appraisal_status:
+      (readString(item, "appraisal_status", "appraisalStatus") as
+        | DebtorCollateral["appraisal_status"]
+        | undefined) ?? "NOT_AVAILABLE",
+    appraisal_status_label:
+      readString(
+        item,
+        "appraisal_status_label",
+        "appraisalStatusLabel",
+      ) ?? "Tanggal penilaian belum tersedia",
+    appraisal_days_remaining: readNumber(
+      item,
+      "appraisal_days_remaining",
+      "appraisalDaysRemaining",
+    ),
+    has_expiry_date: hasExpiryDate,
+    expiry_date: hasExpiryDate ? normalizeDate(item.expiry_date) : null,
+    expiry_note: nullableString(item, "expiry_note", "expiryNote"),
+    expiry_warning_start_date: hasExpiryDate
+      ? normalizeDate(item.expiry_warning_start_date)
+      : null,
+    expiry_status: hasExpiryDate
+      ? ((expiryStatus as DebtorCollateral["expiry_status"] | undefined) ??
+        "NOT_SET")
+      : "NOT_APPLICABLE",
+    expiry_status_label: hasExpiryDate
+      ? (expiryStatusLabel ?? "Tanggal berakhir belum diisi")
+      : "Tidak Berlaku",
+    expiry_days_remaining: hasExpiryDate
+      ? readNumber(item, "expiry_days_remaining", "expiryDaysRemaining")
+      : null,
+    expiry_updated_by: nullableString(
+      item,
+      "expiry_updated_by",
+      "expiryUpdatedBy",
+    ),
+    expiry_updated_at: normalizeDate(item.expiry_updated_at),
+    expiry_updater: mapUser(item.expiry_updater),
     debtor: mapDebtor(item.debtor, false),
     contract: mapContract(item.contract, false),
     created_at: nullableString(item, "created_at", "createdAt"),
@@ -802,6 +856,7 @@ function mapMarketingActivity(record: unknown): DebtorMarketingActivity | null {
     contract: mapContract(item.contract, false),
     activity_type: mapParameter(item.activity_type),
     created_by: nullableString(item, "created_by", "createdBy"),
+    creator: mapUser(item.creator),
     created_at: nullableString(item, "created_at", "createdAt"),
     updated_at: nullableString(item, "updated_at", "updatedAt"),
   };
@@ -864,6 +919,7 @@ function mapMarketingTimelineEntry(record: unknown): DebtorMarketingTimelineEntr
       "relatedActivityId",
     ),
     created_by: nullableString(item, "created_by", "createdBy"),
+    creator: mapUser(item.creator),
     visit_address: nullableString(item, "visit_address", "visitAddress"),
     visit_latitude: readNumber(item, "visit_latitude", "visitLatitude"),
     visit_longitude: readNumber(item, "visit_longitude", "visitLongitude"),
@@ -1070,6 +1126,7 @@ function mapIdebReporterGroup(record: unknown): DebtorIdebReporterGroup | null {
     active_facility_count: numberValueAny(item, "active_facility_count", "activeFacilityCount"),
     paid_off_facility_count: numberValueAny(item, "paid_off_facility_count", "paidOffFacilityCount"),
     write_off_facility_count: numberValueAny(item, "write_off_facility_count", "writeOffFacilityCount"),
+    inactive_facility_count: numberValueAny(item, "inactive_facility_count", "inactiveFacilityCount"),
     worst_collectibility:
       readString(item, "worst_collectibility", "worstCollectibility") ??
       readNumber(item, "worst_collectibility", "worstCollectibility"),
@@ -1087,6 +1144,78 @@ function mapIdebReporterGroup(record: unknown): DebtorIdebReporterGroup | null {
     write_off_outstanding: numberValueAny(item, "write_off_outstanding", "writeOffOutstanding"),
     write_off_arrears: numberValueAny(item, "write_off_arrears", "writeOffArrears"),
     collateral_count: numberValueAny(item, "collateral_count", "collateralCount"),
+  };
+}
+
+function mapIdebParameterizedConclusion(
+  record: unknown,
+): DebtorIdebParameterizedConclusion | null {
+  const item = asRecord(record);
+  if (!item) return null;
+  const ruleCode = readString(item, "rule_code", "ruleCode");
+  const indicator = readString(item, "indicator")?.toUpperCase();
+  const indicatorLabel = readString(item, "indicator_label", "indicatorLabel");
+  const condition = readString(item, "condition");
+  const conclusion = readString(item, "conclusion");
+  const evidenceText = readString(item, "evidence_text", "evidenceText");
+  if (
+    !ruleCode ||
+    !indicatorLabel ||
+    !condition ||
+    !conclusion ||
+    !evidenceText ||
+    !indicator ||
+    !["GREEN", "YELLOW", "RED", "GRAY"].includes(indicator)
+  ) {
+    return null;
+  }
+
+  const evidence = asRecord(item.evidence) ?? {};
+  const reporters = Array.isArray(evidence.reporters)
+    ? evidence.reporters.filter((entry): entry is string => typeof entry === "string")
+    : [];
+  const accountNumbers = Array.isArray(evidence.account_numbers)
+    ? evidence.account_numbers.filter((entry): entry is string => typeof entry === "string")
+    : [];
+  const collectibilityLevels = Array.isArray(evidence.collectibility_levels)
+    ? evidence.collectibility_levels
+        .map((entry) => Number(entry))
+        .filter((entry) => Number.isInteger(entry) && entry >= 1 && entry <= 5)
+    : [];
+
+  return {
+    rule_number: readNumber(item, "rule_number", "ruleNumber"),
+    rule_code: ruleCode,
+    indicator: indicator as DebtorIdebParameterizedConclusion["indicator"],
+    indicator_label: indicatorLabel,
+    condition,
+    conclusion,
+    reference_period: nullableString(item, "reference_period", "referencePeriod"),
+    evidence_text: evidenceText,
+    evidence: {
+      matched_facility_count: numberValueAny(
+        evidence,
+        "matched_facility_count",
+        "matchedFacilityCount",
+      ),
+      matched_observation_count: numberValueAny(
+        evidence,
+        "matched_observation_count",
+        "matchedObservationCount",
+      ),
+      reporters,
+      account_numbers: accountNumbers,
+      collectibility_levels: collectibilityLevels,
+      highest_days_past_due: readNumber(
+        evidence,
+        "highest_days_past_due",
+        "highestDaysPastDue",
+      ),
+      legal_process_detected:
+        readBoolean(evidence, "legal_process_detected", "legalProcessDetected") === true,
+      write_off_detected:
+        readBoolean(evidence, "write_off_detected", "writeOffDetected") === true,
+    },
   };
 }
 
@@ -1113,6 +1242,7 @@ function mapIdebReportSummary(record: unknown): DebtorIdebReportSummary | null {
     active_facilities_count: numberValueAny(item, "active_facilities_count", "activeFacilitiesCount"),
     paid_off_facilities_count: numberValueAny(item, "paid_off_facilities_count", "paidOffFacilitiesCount"),
     write_off_facilities_count: numberValueAny(item, "write_off_facilities_count", "writeOffFacilitiesCount"),
+    inactive_facilities_count: numberValueAny(item, "inactive_facilities_count", "inactiveFacilitiesCount"),
     reported_worst_collectibility:
       readString(item, "reported_worst_collectibility", "reportedWorstCollectibility") ??
       readNumber(item, "reported_worst_collectibility", "reportedWorstCollectibility"),
@@ -1137,6 +1267,9 @@ function mapIdebReportSummary(record: unknown): DebtorIdebReportSummary | null {
     write_off_plafond: numberValueAny(item, "write_off_plafond", "writeOffPlafond"),
     write_off_outstanding: numberValueAny(item, "write_off_outstanding", "writeOffOutstanding"),
     write_off_arrears: numberValueAny(item, "write_off_arrears", "writeOffArrears"),
+    parameterized_conclusion: mapIdebParameterizedConclusion(
+      item.parameterized_conclusion ?? item.parameterizedConclusion,
+    ),
     reporter_groups: reporterGroups,
     priority_reporters: priorityReporters,
     collateral_source: collateralSource === "IDEB" || collateralSource === "A01" ? collateralSource : null,
@@ -1218,6 +1351,7 @@ function mapIdebReportUpload(record: unknown): DebtorIdebReportUpload | null {
     active_facilities_count: numberValueAny(item, "active_facilities_count", "activeFacilitiesCount"),
     paid_off_facilities_count: numberValueAny(item, "paid_off_facilities_count", "paidOffFacilitiesCount"),
     write_off_facilities_count: numberValueAny(item, "write_off_facilities_count", "writeOffFacilitiesCount"),
+    inactive_facilities_count: numberValueAny(item, "inactive_facilities_count", "inactiveFacilitiesCount"),
     active_outstanding: numberValueAny(item, "active_outstanding", "activeOutstanding"),
     active_arrears: numberValueAny(item, "active_arrears", "activeArrears"),
     paid_off_plafond: numberValueAny(item, "paid_off_plafond", "paidOffPlafond"),
@@ -1241,89 +1375,6 @@ function mapIdebReportUpload(record: unknown): DebtorIdebReportUpload | null {
     received_parts: numberValueAny(item, "received_parts", "receivedParts") || 1,
     part_display: readString(item, "part_display", "partDisplay") ?? "-",
     report_summary: mapIdebReportSummary(item.report_summary),
-  };
-}
-
-function mapIdebComparisonSummary(record: unknown): DebtorIdebComparisonSummary {
-  const item = asRecord(record) ?? {};
-  return {
-    total: numberValue(item, "total"),
-    matched: numberValue(item, "matched"),
-    different: numberValue(item, "different"),
-    external_only: numberValue(item, "external_only"),
-    internal_only: numberValue(item, "internal_only"),
-  };
-}
-
-function mapIdebComparisonFacility(record: unknown): DebtorIdebComparisonFacility | null {
-  const item = asRecord(record);
-  if (!item) return null;
-  return {
-    reporter: nullableString(item, "reporter"),
-    account_number: nullableString(item, "account_number", "accountNumber"),
-    contract_id: nullableString(item, "contract_id", "contractId"),
-    no_kontrak: nullableString(item, "no_kontrak", "noKontrak"),
-    facility_number: nullableString(item, "facility_number", "facilityNumber"),
-    product: nullableString(item, "product"),
-    akad: nullableString(item, "akad"),
-    plafond: readNumber(item, "plafond"),
-    outstanding: readNumber(item, "outstanding"),
-    collectibility:
-      readString(item, "collectibility") ?? readNumber(item, "collectibility"),
-    dpd: readNumber(item, "dpd"),
-    condition: nullableString(item, "condition"),
-    due_date: nullableString(item, "due_date", "dueDate"),
-    period_month: nullableString(item, "period_month", "periodMonth"),
-  };
-}
-
-function mapIdebComparisonDifference(record: unknown): DebtorIdebComparisonDifference | null {
-  const item = asRecord(record);
-  if (!item) return null;
-  const field = readString(item, "field");
-  const label = readString(item, "label");
-  if (!field || !label) return null;
-  return {
-    field,
-    label,
-    external:
-      readString(item, "external") ?? readNumber(item, "external") ?? null,
-    internal:
-      readString(item, "internal") ?? readNumber(item, "internal") ?? null,
-  };
-}
-
-function mapIdebComparisonItem(record: unknown): DebtorIdebComparisonItem | null {
-  const item = asRecord(record);
-  if (!item) return null;
-  const status = readString(item, "status") as DebtorIdebComparisonItem["status"] | null;
-  if (!status) return null;
-  return {
-    status,
-    status_label: readString(item, "status_label", "statusLabel") ?? status,
-    match_key: nullableString(item, "match_key", "matchKey"),
-    external: mapIdebComparisonFacility(item.external),
-    internal: mapIdebComparisonFacility(item.internal),
-    differences: Array.isArray(item.differences)
-      ? item.differences
-          .map((entry) => mapIdebComparisonDifference(entry))
-          .filter((entry): entry is DebtorIdebComparisonDifference => entry !== null)
-      : [],
-  };
-}
-
-function mapIdebComparison(record: unknown): DebtorIdebComparison {
-  const item = extractRecord(record) ?? {};
-  return {
-    ideb_upload_id: readString(item, "ideb_upload_id", "idebUploadId") ?? "",
-    debtor_id: readString(item, "debtor_id", "debtorId") ?? "",
-    period_month: nullableString(item, "period_month", "periodMonth"),
-    summary: mapIdebComparisonSummary(item.summary),
-    items: Array.isArray(item.items)
-      ? item.items
-          .map((entry) => mapIdebComparisonItem(entry))
-          .filter((entry): entry is DebtorIdebComparisonItem => entry !== null)
-      : [],
   };
 }
 
@@ -2014,6 +2065,53 @@ export const debiturService = {
     });
   },
 
+  updateCollateralExpiry: async (
+    id: string,
+    payload: DebtorCollateralExpiryPayload,
+  ): Promise<DebtorCollateral> => {
+    const res = await api.put(`/debtors/collaterals/${id}/expiry`, payload);
+    const mapped = mapCollateral(extractRecord(res.data));
+    if (!mapped) {
+      throw new Error("Respons pembaruan tanggal berakhir agunan tidak valid");
+    }
+    return mapped;
+  },
+
+  downloadCollateralExpiryTemplate: async (): Promise<{
+    blob: Blob;
+    fileName: string;
+  }> => {
+    const res = await api.get("/debtors/collaterals/expiry-template", {
+      responseType: "blob",
+    });
+    const header = res.headers["content-disposition"];
+    return {
+      blob: res.data,
+      fileName:
+        readContentDispositionFileName(
+          Array.isArray(header) ? header[0] : header,
+        ) || "template-update-expired-agunan.xlsx",
+    };
+  },
+
+  importCollateralExpiry: async (
+    file: File,
+  ): Promise<DebtorCollateralExpiryImportSummary> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await api.post(
+      "/debtors/collaterals/expiry-import",
+      formData,
+    );
+    const record = extractRecord(res.data) ?? {};
+    return {
+      total_rows: readNumber(record, "total_rows", "totalRows") ?? 0,
+      updated_rows: readNumber(record, "updated_rows", "updatedRows") ?? 0,
+      status_yes: readNumber(record, "status_yes", "statusYes") ?? 0,
+      status_no: readNumber(record, "status_no", "statusNo") ?? 0,
+    };
+  },
+
   getContractById: async (id: string): Promise<DebtorContract> => {
     const res = await api.get(`/debtor-contracts/${id}`);
     const mapped = mapContract(extractRecord(res.data));
@@ -2239,16 +2337,6 @@ export const debiturService = {
     const mapped = mapIdebPendingUpload(extractRecord(res.data));
     if (!mapped) throw new Error("Respons resolve IDEB dari server tidak valid");
     return mapped;
-  },
-
-  getIdebComparison: async (
-    debtorId: string,
-    idebUploadId: string,
-  ): Promise<DebtorIdebComparison> => {
-    const res = await api.get(`/debtors/${debtorId}/ideb-comparison`, {
-      params: { ideb_upload_id: idebUploadId },
-    });
-    return mapIdebComparison(res.data);
   },
 
   downloadIdebResumePdf: async (

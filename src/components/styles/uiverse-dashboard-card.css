@@ -284,21 +284,69 @@
 @media (max-width: 640px) {
   .uiverse-card,
   .uiverse-card--module-report {
-    min-height: 210px;
+    min-height: 0;
+    border-radius: 14px;
   }
 
   .uiverse-card-content,
   .uiverse-card--module-report .uiverse-card-content {
-    padding: 1.1rem;
-    gap: 0.65rem;
+    display: grid;
+    grid-template-areas:
+      "image text"
+      "image footer";
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 0.35rem 0.85rem;
+    padding: 0.9rem;
   }
 
   .uiverse-card-image,
   .uiverse-card--module-report .uiverse-card-image {
-    height: 86px;
+    grid-area: image;
+    width: 56px;
+    height: 56px;
+    margin: 0;
+    border-radius: 12px;
+    align-self: center;
   }
 
-  .uiverse-card-footer {
-    padding-top: 0.75rem;
+  .uiverse-card-image svg,
+  .uiverse-card--module-report .uiverse-card-image svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .uiverse-card-text {
+    grid-area: text;
+    gap: 0.15rem;
+  }
+
+  .uiverse-card-title {
+    font-size: 0.95rem;
+  }
+
+  .uiverse-card-description {
+    font-size: 0.75rem;
+  }
+
+  .uiverse-card-footer,
+  .uiverse-card--module-report .uiverse-card-footer {
+    grid-area: footer;
+    margin: 0;
+    padding: 0;
+    border-top: 0;
+  }
+
+  .uiverse-card-price {
+    font-size: 0.78rem;
+  }
+
+  .uiverse-card-button {
+    width: 28px;
+    height: 28px;
+  }
+
+  .uiverse-card:hover,
+  .uiverse-card--module-report:hover {
+    transform: none;
   }
 }

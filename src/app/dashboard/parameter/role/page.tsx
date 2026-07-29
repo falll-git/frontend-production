@@ -224,8 +224,8 @@ export default function SetupRolePage() {
   return (
     <DashboardPageShell spacing="md">
       <FeatureHeader
-        title="Setup Role"
-        subtitle="Atur role yang dipakai di sistem."
+        title="Master Peran"
+        subtitle="Atur peran pengguna yang dipakai di sistem."
         icon={<Shield />}
         className={SETUP_PAGE_WIDTH_XL_CLASS}
         actions={

@@ -284,7 +284,7 @@ export default function HistorisPeminjamanPage() {
       ) : null}
 
       <FeatureHeader
-        title="Historis Peminjaman Dokumen"
+        title="Historis Peminjaman"
         subtitle="Riwayat peminjaman dokumen yang sudah dikembalikan."
         icon={<History />}
         actions={
@@ -339,10 +339,14 @@ export default function HistorisPeminjamanPage() {
             />
           </div>
           <div>
-            <label className={SETUP_PAGE_SEARCH_LABEL_CLASS}>
+            <label
+              htmlFor="borrower-filter"
+              className={SETUP_PAGE_SEARCH_LABEL_CLASS}
+            >
               Filter Peminjam
             </label>
             <SetupSelect
+              id="borrower-filter"
               value={filterPeminjam}
               onChange={(event) => setFilterPeminjam(event.target.value)}
             >

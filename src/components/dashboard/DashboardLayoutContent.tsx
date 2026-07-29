@@ -9,6 +9,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { CalendarDays, Clock, LogOut, Menu, X } from "lucide-react";
 import PageLoader from "@/components/ui/PageLoader";
@@ -25,8 +26,25 @@ import {
   getDashboardRouteDecision,
 } from "@/lib/rbac";
 import { formatDateDisplay, toIsoDate } from "@/lib/utils/date";
+import type { DashboardMenuNode } from "@/types/rbac.types";
 
 const SIDEBAR_OPEN_STORAGE_KEY = "ruang-arsip.dashboard.sidebar-open";
+
+function findMenuTrail(
+  nodes: DashboardMenuNode[],
+  pathname: string,
+  parentTrail: DashboardMenuNode[] = [],
+): DashboardMenuNode[] | null {
+  for (const node of nodes) {
+    const trail = [...parentTrail, node];
+    if (node.url === pathname) return trail;
+
+    const childTrail = findMenuTrail(node.children, pathname, trail);
+    if (childTrail) return childTrail;
+  }
+
+  return null;
+}
 
 export default function DashboardLayoutContent({ children }: { children: ReactNode }) {
   const { isPreviewOpen } = useDocumentPreviewContext();
@@ -50,7 +68,10 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
   const [now, setNow] = useState(() => new Date());
   const [isDesktop, setIsDesktop] = useState(false);
   const routeDecision = getDashboardRouteDecision(pathname, role, user?.role_id);
-  const pageTitle = getMenuTitleForPath(dashboardMenus, pathname) ?? "Dashboard";
+  const pageTitle =
+    pathname === "/dashboard/account/security"
+      ? "Profil"
+      : (getMenuTitleForPath(dashboardMenus, pathname) ?? "Dashboard");
   const lastScrollYRef = useRef(0);
   const scrollTickingRef = useRef(false);
 
@@ -234,6 +255,10 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
     () => filterMenuTreeForRoleRead(user?.role_id, dashboardMenus),
     [user?.role_id, dashboardMenus],
   );
+  const breadcrumbTrail = useMemo(
+    () => findMenuTrail(visibleMenus, pathname) ?? [],
+    [pathname, visibleMenus],
+  );
 
   if (status !== "authenticated" || !user || !role || !routeDecision.allowed) {
     return <PageLoader />;
@@ -243,6 +268,10 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
   const shouldOffsetMain =
     isDesktop && sidebarOpen && !isPreviewOpen && !isOverlayOpen;
   const isSidebarExpanded = !isDesktop || sidebarOpen;
+  const isSidebarHidden =
+    isPreviewOpen ||
+    isOverlayOpen ||
+    (isDesktop ? !sidebarOpen : !mobileMenuOpen);
 
   const handleSidebarNavClickCapture = (
     event: React.MouseEvent<HTMLElement>,
@@ -276,6 +305,13 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
         background: "linear-gradient(135deg, #f8fafc 0%, #e6f2fa 100%)",
       }}
     >
+      <a
+        href="#dashboard-content"
+        className="fixed left-3 top-3 z-[10001] -translate-y-20 rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-[#0d5a8f] shadow-lg transition-transform focus:translate-y-0 focus:outline-2 focus:outline-offset-2 focus:outline-[#0d5a8f]"
+      >
+        Langsung ke konten utama
+      </a>
+
       {mobileMenuOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -284,13 +320,15 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
       )}
 
       <aside
+        aria-hidden={isSidebarHidden}
+        inert={isSidebarHidden}
         className={`fixed left-0 top-0 z-50 h-screen transition-all duration-300 ease-in-out flex-col ${
           mobileMenuOpen ? "flex" : "hidden"
         } lg:flex`}
         style={{
           width: `${sidebarWidth}px`,
           background:
-            "linear-gradient(180deg, #157ec3 0%, #0f5f96 50%, #0d5a8f 100%)",
+            "linear-gradient(180deg, #126fae 0%, #0f5f96 50%, #0d5a8f 100%)",
           boxShadow: "4px 0 30px rgba(21, 126, 195, 0.2)",
           overflow: "hidden",
           transform:
@@ -358,22 +396,29 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
           }}
         >
           <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
-              style={{ background: "rgba(255, 255, 255, 0.2)", flexShrink: 0 }}
+            <Link
+              href="/dashboard/account/security"
+              className="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1 transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              aria-label="Buka profil"
+              title="Profil"
             >
-              {user.name.charAt(0)}
-            </div>
-            {sidebarOpen && (
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">
-                  {user.name}
-                </p>
-                <p className="text-xs text-white/70">
-                  {getRoleLabel(role)}
-                </p>
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
+                style={{ background: "rgba(255, 255, 255, 0.2)", flexShrink: 0 }}
+              >
+                {user.name.charAt(0)}
               </div>
-            )}
+              {sidebarOpen && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">
+                    {user.name}
+                  </p>
+                  <p className="text-xs text-white/90">
+                    {getRoleLabel(role)}
+                  </p>
+                </div>
+              )}
+            </Link>
             <button
               type="button"
               onClick={() => {
@@ -432,15 +477,48 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
                 <Menu className="h-7 w-7" aria-hidden="true" />
               )}
             </button>
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate text-base font-bold text-gray-800 sm:text-lg">
-                {pageTitle}
-              </h2>
-            </div>
+            <nav
+              className="min-w-0 flex-1"
+              aria-label="Breadcrumb"
+            >
+              <ol className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-slate-500 sm:gap-2">
+                <li className="shrink-0">
+                  {pathname === "/dashboard" ? (
+                    <span className="text-slate-800">Dashboard</span>
+                  ) : (
+                    <Link
+                      href="/dashboard"
+                      className="transition-colors hover:text-[#157ec3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#157ec3]/30"
+                    >
+                      Dashboard
+                    </Link>
+                  )}
+                </li>
+                {pathname !== "/dashboard" ? (
+                  <>
+                    <li aria-hidden="true" className="text-slate-300">
+                      /
+                    </li>
+                    <li
+                      className="min-w-0 truncate text-slate-800"
+                      aria-current="page"
+                      title={
+                        breadcrumbTrail.length > 0
+                          ? breadcrumbTrail.map((item) => item.name).join(" / ")
+                          : pageTitle
+                      }
+                    >
+                      {breadcrumbTrail.at(-1)?.name ?? pageTitle}
+                    </li>
+                  </>
+                ) : null}
+              </ol>
+            </nav>
           </div>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <Notification />
             <div
+              data-testid="dashboard-clock"
               className="hidden sm:flex items-center rounded-full border text-sm shadow-sm overflow-hidden"
               style={{
                 background:
@@ -475,6 +553,7 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
             </div>
 
             <div
+              data-testid="dashboard-clock"
               className="sm:hidden flex items-center gap-1.5 rounded-full border px-2.5 py-2 text-xs shadow-sm"
               style={{
                 background:
@@ -494,7 +573,21 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
           </div>
         </header>
 
-        <div className="w-full min-w-0 max-w-full p-3 sm:p-4 lg:p-6">{children}</div>
+        <div className="flex min-h-[calc(100dvh-76px)] w-full min-w-0 max-w-full flex-col">
+          <div
+            id="dashboard-content"
+            tabIndex={-1}
+            className="w-full min-w-0 max-w-full flex-1 p-3 sm:p-4 lg:p-6"
+          >
+            {children}
+          </div>
+          <footer
+            data-testid="dashboard-copyright"
+            className="px-4 pb-5 pt-2 text-center text-xs font-medium text-[#0d5a8f] sm:px-6 sm:pb-6"
+          >
+            © {now.getFullYear()} RuwangArsip · v1.0.0
+          </footer>
+        </div>
       </main>
     </div>
   );

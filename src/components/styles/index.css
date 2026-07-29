@@ -18,6 +18,7 @@
 @import "./base-input.css";
 @import "./base-textarea.css";
 @import "./base-select.css";
+@import "./filter-controls.css";
 @import "./dashboard-welcome.css";
 @import "./notification-button.css";
 @import "./skeleton.css";

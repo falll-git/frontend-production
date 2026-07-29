@@ -626,7 +626,7 @@ export default function ManajemenUserPage() {
     }
 
     if (!formData.role_id) {
-      showToast("Role wajib dipilih.", "warning");
+      showToast("Peran wajib dipilih.", "warning");
       return;
     }
 
@@ -789,12 +789,12 @@ export default function ManajemenUserPage() {
   return (
     <DashboardPageShell spacing="md">
       <FeatureHeader
-        title="Manajemen User"
-        subtitle="Kelola pengguna, role, dan akses sistem"
+        title="Manajemen Pengguna"
+        subtitle="Kelola pengguna, peran, dan akses sistem."
         icon={<Users />}
         actions={
           <SetupAddButton
-            label="Tambah User"
+            label="Tambah Pengguna"
             onClick={handleAdd}
             disabled={isFetching || roles.length === 0 || !canCreateUsers}
           />
@@ -804,17 +804,22 @@ export default function ManajemenUserPage() {
       <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} ${SETUP_PAGE_WIDTH_2XL_CLASS}`}>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
           <SetupSearchInput
+            id="user-search"
             label="Cari Data"
             labelClassName={SETUP_PAGE_SEARCH_LABEL_CLASS}
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            placeholder="Cari berdasarkan nama, username, email, no. handphone, divisi, atau role..."
+            placeholder="Cari berdasarkan nama, username, email, no. handphone, divisi, atau peran..."
           />
           <div>
-            <label className={`block ${SETUP_PAGE_SEARCH_LABEL_CLASS}`}>
-              Status User
+            <label
+              htmlFor="user-status-filter"
+              className={`block ${SETUP_PAGE_SEARCH_LABEL_CLASS}`}
+            >
+              Status Pengguna
             </label>
             <SetupSelect
+              id="user-status-filter"
               value={statusFilter}
               onChange={(event) =>
                 setStatusFilter(event.target.value as UserStatusFilter)
@@ -864,7 +869,7 @@ export default function ManajemenUserPage() {
                   Divisi
                 </SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                  Role
+                  Peran
                 </SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                   Akses Restrict
@@ -897,7 +902,10 @@ export default function ManajemenUserPage() {
                     key={user.id}
                     className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
                   >
-                    <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                    <SetupDataTableCell
+                      className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}
+                      mobileHidden
+                    >
                       {rowNumber}
                     </SetupDataTableCell>
                     <SetupDataTableCell
@@ -915,18 +923,21 @@ export default function ManajemenUserPage() {
                     <SetupDataTableCell
                       className={`${SETUP_PAGE_MODERN_CELL_CLASS} truncate text-gray-700`}
                       title={user.email}
+                      mobileHidden
                     >
                       {user.email}
                     </SetupDataTableCell>
                     <SetupDataTableCell
                       className={`${SETUP_PAGE_MODERN_CENTER_CELL_CLASS} truncate text-gray-700`}
                       title={user.phone ?? user.phone_number ?? "-"}
+                      mobileHidden
                     >
                       {user.phone ?? user.phone_number ?? "-"}
                     </SetupDataTableCell>
                     <SetupDataTableCell
                       className={`${SETUP_PAGE_MODERN_CENTER_CELL_CLASS} truncate text-gray-700`}
                       title={resolvedDivisionName}
+                      mobileHidden
                     >
                       {resolvedDivisionName}
                     </SetupDataTableCell>
@@ -936,7 +947,10 @@ export default function ManajemenUserPage() {
                     >
                       {resolvedRoleName}
                     </SetupDataTableCell>
-                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                    <SetupDataTableCell
+                      className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                      mobileHidden
+                    >
                       <SetupStatusBadge
                         status={canAccessRestrictedDocuments ? "Ya" : "Tidak"}
                         label={canAccessRestrictedDocuments ? "Ya" : "Tidak"}
@@ -961,7 +975,7 @@ export default function ManajemenUserPage() {
                     </SetupDataTableCell>
                     <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
                       <SetupActionMenu
-                        label="Buka aksi user"
+                        label="Buka aksi pengguna"
                         menuLabel={`Aksi untuk ${user.name}`}
                         items={getUserActionItems(user)}
                       />
@@ -971,12 +985,12 @@ export default function ManajemenUserPage() {
               })}
               {!isFetching && filteredUsers.length === 0 && (
                 <SetupDataTableEmptyRow colSpan={11}>
-                  Tidak ada user yang cocok.
+                  Tidak ada pengguna yang cocok.
                 </SetupDataTableEmptyRow>
               )}
               {isFetching && (
                 <SetupDataTableEmptyRow colSpan={11}>
-                  Memuat data user...
+                  Memuat data pengguna...
                 </SetupDataTableEmptyRow>
               )}
             </SetupDataTableBody>
@@ -996,7 +1010,7 @@ export default function ManajemenUserPage() {
         title={editUser ? "Edit Pengguna" : "Tambah Pengguna"}
         description={
           editUser
-            ? "Perbarui data akun, divisi, role, dan akses dokumen pengguna."
+            ? "Perbarui data akun, divisi, peran, dan akses dokumen pengguna."
             : "Buat akun pengguna baru dan kirim link aktivasi lewat email."
         }
         onClose={() => setShowModal(false)}
@@ -1051,26 +1065,31 @@ export default function ManajemenUserPage() {
         }
       >
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="user-name"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
                   Nama Lengkap <span className="text-red-500">*</span>
                 </label>
                 <SetupTextInput
+                  id="user-name"
                   value={formData.name}
                   onChange={(event) =>
                     setFormData((prev) => ({ ...prev, name: event.target.value }))
                   }
                   placeholder="Masukkan nama pengguna"
                 />
-                <p className="mt-2 text-xs text-slate-500">
-                  Nama ini akan tampil di sistem.
-                </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="user-username"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
                   Username <span className="text-red-500">*</span>
                 </label>
                 <SetupTextInput
+                  id="user-username"
                   value={formData.username}
                   onChange={(event) =>
                     setFormData((prev) => ({
@@ -1086,10 +1105,14 @@ export default function ManajemenUserPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="user-email"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
                   Email <span className="text-red-500">*</span>
                 </label>
                 <SetupTextInput
+                  id="user-email"
                   type="email"
                   value={formData.email}
                   onChange={(event) =>
@@ -1103,10 +1126,14 @@ export default function ManajemenUserPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="user-phone"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
                   No. Handphone
                 </label>
                 <SetupTextInput
+                  id="user-phone"
                   type="tel"
                   value={formData.phone}
                   onChange={(event) =>
@@ -1117,16 +1144,17 @@ export default function ManajemenUserPage() {
                   }
                   placeholder="Masukkan nomor telepon"
                 />
-                <p className="mt-2 text-xs text-slate-500">
-                  Boleh dikosongkan.
-                </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label
+                  htmlFor="user-division"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
                   Divisi <span className="text-red-500">*</span>
                 </label>
                 <SetupSelect
+                  id="user-division"
                   value={formData.division_id}
                   onChange={(event) =>
                     setFormData((prev) => ({
@@ -1142,16 +1170,17 @@ export default function ManajemenUserPage() {
                     </option>
                   ))}
                 </SetupSelect>
-                <p className="mt-2 text-xs text-slate-500">
-                  Pilih divisi tempat pengguna bertugas.
-                </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Role <span className="text-red-500">*</span>
+                <label
+                  htmlFor="user-role"
+                  className="block text-sm font-medium text-gray-700 mb-2"
+                >
+                  Peran <span className="text-red-500">*</span>
                 </label>
                 <SetupSelect
+                  id="user-role"
                   value={formData.role_id}
                   onChange={(event) =>
                     setFormData((prev) => ({
@@ -1160,7 +1189,7 @@ export default function ManajemenUserPage() {
                     }))
                   }
                 >
-                  <option value="">Pilih role</option>
+                  <option value="">Pilih peran</option>
                   {roles.map((roleOption) => (
                     <option key={roleOption.id} value={roleOption.id}>
                       {roleOption.name}
@@ -1168,13 +1197,14 @@ export default function ManajemenUserPage() {
                   ))}
                 </SetupSelect>
                 <p className="mt-2 text-xs text-slate-500">
-                  Role menentukan menu dan aksi yang bisa diakses.
+                  Peran menentukan menu dan aksi yang bisa diakses.
                 </p>
               </div>
 
               <DashboardNotice
                 title="Akses Dokumen Restrict"
                 description="Aktifkan kalau pengguna boleh melihat dokumen restrict."
+                className="md:col-span-2"
               >
                 <div className="pt-1">
                   <UiverseCheckbox

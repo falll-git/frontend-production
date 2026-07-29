@@ -1,5 +1,6 @@
 import axios from "axios";
 import api from "@/lib/axios";
+import { createClientRequestId } from "@/lib/client-error-reporting";
 import type {
   ForgotPasswordResponse,
   LoginResponse,
@@ -76,6 +77,7 @@ export const authService = {
       undefined,
       {
         withCredentials: true,
+        headers: { "X-Request-Id": createClientRequestId() },
         validateStatus: (status) =>
           (status >= 200 && status < 300) || status === 401 || status === 403,
       },

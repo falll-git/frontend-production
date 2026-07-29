@@ -43,6 +43,8 @@ export default function SetupState({
 
   return (
     <div
+      role={variant === "error" ? "alert" : variant === "loading" ? "status" : undefined}
+      aria-live={variant === "loading" ? "polite" : undefined}
       className={cn(
         "mx-auto flex w-full max-w-xl items-start gap-3 rounded-lg border text-left",
         compact ? "px-3 py-2.5" : "px-4 py-3.5",

@@ -67,7 +67,7 @@ export default function SetupReportSelectorCards<TKey extends string>({
               </div>
 
               <div className="flex w-24 shrink-0 flex-col items-end text-right">
-                <span className="mb-1 text-xs font-semibold uppercase leading-tight tracking-wider text-gray-400">
+                <span className="mb-1 text-xs font-semibold uppercase leading-tight tracking-wider text-gray-700">
                   {card.totalLabel}
                 </span>
                 <span className="max-w-full break-words text-xl font-semibold tabular-nums text-gray-800">

@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { ArrowUpDown, Search, SearchX, X } from "lucide-react";
+import { ArrowUpDown, Search, SearchX } from "lucide-react";
 
 import type {
   KolektibilitasItem,
@@ -23,6 +22,9 @@ import {
 } from "@/components/ui/SetupDataTable";
 import { COLLECTIBILITY_CHART_COLORS } from "@/components/ui/SetupCollectibilityBadge";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
+import DashboardModal from "@/components/ui/DashboardModal";
+import Pagination from "@/components/ui/Pagination";
+import SetupSelect from "@/components/ui/SetupSelect";
 import { formatNumber, formatRupiah } from "@/lib/utils/laporan";
 
 type SortOption =
@@ -37,6 +39,16 @@ const sortOptions: Array<{ value: SortOption; label: string }> = [
   { value: "NAME_ASC", label: "A-Z" },
   { value: "NAME_DESC", label: "Z-A" },
 ];
+
+const MODAL_PAGE_SIZE = 10;
+
+const COLLECTIBILITY_TEXT_COLORS: Record<NpfKolektibilitasLevel, string> = {
+  1: "#047857",
+  2: "#3f6212",
+  3: "#854d0e",
+  4: "#713f12",
+  5: "#b91c1c",
+};
 
 function formatPercentage(value: number) {
   return new Intl.NumberFormat("id-ID", {
@@ -65,6 +77,7 @@ export default function KolektibilitasTable({
     useState<NpfKolektibilitasLevel | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOption, setSortOption] = useState<SortOption>("OUTSTANDING_DESC");
+  const [page, setPage] = useState(1);
   const selectedKol =
     controlledSelectedKol === undefined
       ? internalSelectedKol
@@ -95,6 +108,7 @@ export default function KolektibilitasTable({
         return {
           ...item,
           color: COLLECTIBILITY_CHART_COLORS[level],
+          textColor: COLLECTIBILITY_TEXT_COLORS[level],
           level,
           shortLabel: getShortLabel(item.label),
           percentage:
@@ -143,6 +157,16 @@ export default function KolektibilitasTable({
       });
   }, [nasabah, searchTerm, selectedKol, sortOption]);
 
+  const modalLastPage = Math.max(
+    1,
+    Math.ceil(visibleNasabah.length / MODAL_PAGE_SIZE),
+  );
+  const currentModalPage = Math.min(page, modalLastPage);
+  const paginatedNasabah = useMemo(() => {
+    const start = (currentModalPage - 1) * MODAL_PAGE_SIZE;
+    return visibleNasabah.slice(start, start + MODAL_PAGE_SIZE);
+  }, [currentModalPage, visibleNasabah]);
+
   useEffect(() => {
     if (selectedKol === null) {
       return undefined;
@@ -169,6 +193,7 @@ export default function KolektibilitasTable({
     updateSelectedKol(kol);
     setSearchTerm("");
     setSortOption("OUTSTANDING_DESC");
+    setPage(1);
   };
 
   const closeModal = () => {
@@ -239,7 +264,7 @@ export default function KolektibilitasTable({
                   </SetupDataTableCell>
                   <SetupDataTableCell
                     className="px-4 py-3 text-right text-sm font-semibold"
-                    style={{ color: item.color }}
+                    style={{ color: item.textColor }}
                   >
                     {formatPercentage(item.percentage)}%
                   </SetupDataTableCell>
@@ -250,42 +275,15 @@ export default function KolektibilitasTable({
         </div>
       </div>
 
-      {selectedRow
-        ? createPortal(
-            <div
-              data-dashboard-overlay="true"
-              className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm animate-fade-in"
-              onClick={closeModal}
-            >
-              <div
-                className="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl min-w-0 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl animate-scale-in"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className="shrink-0 border-b border-gray-100 px-4 py-4 sm:px-6 sm:py-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span
-                        className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: selectedRow.color }}
-                        aria-hidden="true"
-                      />
-                      <h3 className="min-w-0 break-words text-base font-bold text-gray-900 sm:text-xl">
-                        Nasabah Kol {selectedRow.level} -{" "}
-                        {selectedRow.shortLabel}
-                      </h3>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={closeModal}
-                      className="rounded-full p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
-                      aria-label="Tutup"
-                    >
-                      <X className="h-5 w-5" aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+      {selectedRow ? (
+        <DashboardModal
+          isOpen
+          title={`Nasabah Kol ${selectedRow.level} - ${selectedRow.shortLabel}`}
+          description={`${formatNumber(selectedRow.jumlahNasabah)} nasabah dalam kelompok kolektibilitas ini.`}
+          maxWidth="4xl"
+          onClose={closeModal}
+          bodyClassName="p-4 sm:p-6"
+        >
                   <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_240px] md:items-end">
                     <div>
                       <div className="relative">
@@ -295,10 +293,12 @@ export default function KolektibilitasTable({
                         />
                         <input
                           type="text"
+                          aria-label="Cari nama nasabah"
                           value={searchTerm}
-                          onChange={(event) =>
-                            setSearchTerm(event.target.value)
-                          }
+                          onChange={(event) => {
+                            setSearchTerm(event.target.value);
+                            setPage(1);
+                          }}
                           className="app-input app-input-with-icon"
                           placeholder="Cari nama nasabah..."
                         />
@@ -311,11 +311,13 @@ export default function KolektibilitasTable({
                           className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
                           aria-hidden="true"
                         />
-                        <select
+                        <SetupSelect
+                          aria-label="Urutkan daftar nasabah"
                           value={sortOption}
-                          onChange={(event) =>
-                            setSortOption(event.target.value as SortOption)
-                          }
+                          onChange={(event) => {
+                            setSortOption(event.target.value as SortOption);
+                            setPage(1);
+                          }}
                           className="app-select app-input-with-icon"
                         >
                           {sortOptions.map((option) => (
@@ -323,7 +325,7 @@ export default function KolektibilitasTable({
                               {option.label}
                             </option>
                           ))}
-                        </select>
+                        </SetupSelect>
                       </div>
                     </div>
                   </div>
@@ -349,7 +351,7 @@ export default function KolektibilitasTable({
                             </SetupDataTableRow>
                           </SetupDataTableHead>
                           <SetupDataTableBody className="divide-y divide-gray-100">
-                            {visibleNasabah.map((item) => (
+                            {paginatedNasabah.map((item) => (
                               <SetupDataTableRow
                                 key={item.noKontrak}
                                 className="transition-colors hover:bg-gray-50"
@@ -382,13 +384,18 @@ export default function KolektibilitasTable({
                         />
                       </div>
                     )}
+                    {visibleNasabah.length > 0 ? (
+                      <Pagination
+                        page={currentModalPage}
+                        lastPage={modalLastPage}
+                        total={visibleNasabah.length}
+                        limit={MODAL_PAGE_SIZE}
+                        onPageChange={setPage}
+                      />
+                    ) : null}
                   </div>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+        </DashboardModal>
+      ) : null}
     </>
   );
 }

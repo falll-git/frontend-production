@@ -15,6 +15,7 @@ export default function SetupTextInput({
     <input
       type={type}
       className={joinClasses("app-input", className)}
+      data-ui-control={type === "date" || type === "month" ? "date" : "input"}
       {...props}
     />
   );

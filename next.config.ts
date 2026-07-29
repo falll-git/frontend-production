@@ -1,23 +1,46 @@
 import type { NextConfig } from "next";
+import { readFileSync, statSync } from "node:fs";
+import { isAbsolute } from "node:path";
+
+function resolveFileBackedEnv(key: string) {
+  const directValue = (process.env[key] || "").trim();
+  const fileKey = `${key}_FILE`;
+  const filePath = (process.env[fileKey] || "").trim();
+  if (!filePath) return directValue;
+  if (directValue) {
+    throw new Error(`${key} dan ${fileKey} tidak boleh diisi bersamaan.`);
+  }
+  if (process.env.NODE_ENV === "production" && !isAbsolute(filePath)) {
+    throw new Error(`${fileKey} wajib memakai absolute path di production.`);
+  }
+  let stats: ReturnType<typeof statSync>;
+  let value: string;
+  try {
+    stats = statSync(filePath);
+    value = readFileSync(filePath, "utf8").trim();
+  } catch {
+    throw new Error(`${fileKey} tidak dapat dibaca.`);
+  }
+  if (!stats.isFile() || stats.size < 1 || stats.size > 64 * 1024) {
+    throw new Error(`${fileKey} harus berupa file 1 byte sampai 64 KiB.`);
+  }
+  if (!value) throw new Error(`${fileKey} tidak boleh menunjuk ke file kosong.`);
+  process.env[key] = value;
+  return value;
+}
 
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || "";
 const serverActionsEncryptionKey =
-  (process.env.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY || "").trim();
+  resolveFileBackedEnv("NEXT_SERVER_ACTIONS_ENCRYPTION_KEY");
 const deploymentId =
   process.env.NEXT_DEPLOYMENT_ID ||
   process.env.DEPLOYMENT_VERSION ||
   process.env.GIT_HASH ||
   "";
+const appRelease =
+  process.env.NEXT_PUBLIC_APP_RELEASE || deploymentId;
 const backendApiUrl = publicApiUrl.startsWith("http") ? publicApiUrl : "";
 const isProduction = process.env.NODE_ENV === "production";
-const backendOrigin = (() => {
-  try {
-    return backendApiUrl ? new URL(backendApiUrl).origin : "";
-  } catch {
-    return "";
-  }
-})();
-
 if (isProduction && !backendApiUrl) {
   throw new Error("NEXT_PUBLIC_API_URL wajib diisi dengan URL backend production.");
 }
@@ -44,39 +67,13 @@ if (isProduction && serverActionsEncryptionKey) {
   }
 }
 
-const scriptSource = [
-  "script-src",
-  "'self'",
-  "'unsafe-inline'",
-  ...(isProduction ? [] : ["'unsafe-eval'"]),
-].join(" ");
-
-const devConnectSources = isProduction
-  ? []
-  : [
-      "http://localhost:3000",
-      "http://127.0.0.1:3000",
-      "ws://localhost:3000",
-      "ws://127.0.0.1:3000",
-    ];
-
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  "base-uri 'self'",
-  "object-src 'none'",
-  "frame-ancestors 'none'",
-  scriptSource,
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  `connect-src 'self'${backendOrigin ? ` ${backendOrigin}` : ""}${devConnectSources.length ? ` ${devConnectSources.join(" ")}` : ""}`,
-  `frame-src 'self' blob: data:${backendOrigin ? ` ${backendOrigin}` : ""}`,
-].join("; ");
-
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   productionBrowserSourceMaps: false,
   ...(deploymentId ? { deploymentId } : {}),
+  ...(appRelease
+    ? { env: { NEXT_PUBLIC_APP_RELEASE: appRelease } }
+    : {}),
   allowedDevOrigins: ["localhost", "127.0.0.1"],
   poweredByHeader: false,
   compress: true,
@@ -109,10 +106,6 @@ const nextConfig: NextConfig = {
         source: "/((?!api(?:/|$)).*)",
         headers: [
           {
-            key: "Content-Security-Policy",
-            value: contentSecurityPolicy,
-          },
-          {
             key: "Referrer-Policy",
             value: "no-referrer",
           },
@@ -128,6 +121,14 @@ const nextConfig: NextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(self)",
           },
+          ...(isProduction
+            ? [
+                {
+                  key: "Strict-Transport-Security",
+                  value: "max-age=31536000; includeSubDomains",
+                },
+              ]
+            : []),
         ],
       },
     ];

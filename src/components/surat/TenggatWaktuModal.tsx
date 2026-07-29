@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, Users } from "lucide-react";
 import BasicDateInput from "@/components/ui/BasicDateInput";
 import DashboardModal from "@/components/ui/DashboardModal";
 import SetupTextarea from "@/components/ui/SetupTextarea";
@@ -101,51 +100,28 @@ export default function TenggatWaktuModal({
             </p>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.9fr)]">
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-              <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-sky-600">
-                  <Users className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-lg font-semibold text-slate-950">
-                    Tujuan Awal
-                  </h3>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    Disposisi pertama dikirim ke penerima aktif pada divisi yang
-                    dipilih.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Divisi Tujuan
-                </p>
-                <p className="mt-2 break-words text-sm font-semibold leading-6 text-slate-900">
-                  {disposisi.length > 0 ? disposisi.join(", ") : "-"}
+          <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white px-4 sm:px-5">
+            <div className="grid gap-2 py-4 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-5">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Tujuan Awal</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Penerima aktif pada divisi yang dipilih.
                 </p>
               </div>
+              <p className="break-words text-sm font-semibold leading-6 text-slate-900">
+                {disposisi.length > 0 ? disposisi.join(", ") : "-"}
+              </p>
             </div>
 
-            <div className="rounded-2xl border border-gray-200 bg-slate-50 p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-              <div className="mb-4 flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm">
-                  <CalendarDays className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-950">
-                    Masa Tindak Lanjut
-                  </h3>
-                  <p className="mt-1 text-sm leading-6 text-slate-500">
-                    Kosongkan jika tidak membutuhkan tenggat.
-                  </p>
-                </div>
+            <div className="grid gap-2 py-4 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-5">
+              <div>
+                <label className="text-sm font-semibold text-slate-900">
+                  Tenggat Tindak Lanjut
+                </label>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Kosongkan jika tidak membutuhkan tenggat.
+                </p>
               </div>
-
-              <label className="mb-2 block text-sm font-semibold text-slate-700">
-                Tenggat Tindak Lanjut
-              </label>
               <BasicDateInput
                 value={tenggatWaktu}
                 onChange={setTenggatWaktu}
@@ -156,7 +132,7 @@ export default function TenggatWaktuModal({
         </section>
 
         {showNoteField ? (
-          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+          <section>
             <label className="mb-2 block text-sm font-semibold text-slate-700">
               {noteLabel}
             </label>

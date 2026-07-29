@@ -76,7 +76,7 @@ export default function LoginPage() {
   };
 
   return (
-    <AuthSplitLayout>
+    <AuthSplitLayout brandMode="ruwang-only">
       <div className="space-y-4">
         <div className="auth-card animate-auth-in rounded-3xl px-7 py-8 sm:px-8 sm:py-9">
           <div className="relative z-10">
@@ -98,16 +98,20 @@ export default function LoginPage() {
                 </label>
                 <div className="relative">
                   <User
-                    className="absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#157ec3]"
+                    className="absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#0d5a8f]"
                     aria-hidden="true"
                   />
                   <input
                     id="username"
+                    name="username"
                     type="text"
+                    autoComplete="username"
+                    required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Masukkan username"
                     className="auth-input"
+                    maxLength={128}
                   />
                 </div>
               </div>
@@ -121,21 +125,25 @@ export default function LoginPage() {
                 </label>
                 <div className="relative">
                   <Lock
-                    className="absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#157ec3]"
+                    className="absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#0d5a8f]"
                     aria-hidden="true"
                   />
                   <input
                     id="password"
+                    name="password"
                     type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Masukkan password"
                     className="auth-input auth-input-with-action"
+                    maxLength={128}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-4 top-1/2 z-10 -translate-y-1/2 text-[#157ec3] transition-colors hover:text-[#0d5a8f]"
+                    className="absolute right-2 top-1/2 z-10 inline-flex size-10 -translate-y-1/2 items-center justify-center rounded-full text-[#0d5a8f] transition-colors hover:bg-sky-50 hover:text-[#083f66] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#0d5a8f]"
                     aria-label={
                       showPassword
                         ? "Sembunyikan password"
@@ -161,7 +169,7 @@ export default function LoginPage() {
 
                 <Link
                   href="/forgot-password"
-                  className="text-sm font-semibold text-[#157ec3] transition-colors hover:text-[#0d5a8f]"
+                  className="text-sm font-semibold text-[#0d5a8f] transition-colors hover:text-[#083f66]"
                 >
                   Lupa Password?
                 </Link>
@@ -184,12 +192,12 @@ export default function LoginPage() {
             </form>
 
             <div className="mt-6 text-center">
-              <p className="text-sm text-[#157ec3]">
+              <p className="text-sm text-[#0d5a8f]">
                 &copy; 2026 RuwangArsip &middot; v1.0.0
               </p>
               <p className="mt-1 text-sm text-slate-500">
                 Belum memiliki akun?{" "}
-                <span className="font-semibold text-[#157ec3]">
+                <span className="font-semibold text-[#0d5a8f]">
                   Hubungi administrator.
                 </span>
               </p>

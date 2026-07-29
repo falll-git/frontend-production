@@ -306,7 +306,7 @@ function SetupTempatPenyimpananPageContent() {
   return (
     <DashboardPageShell spacing="md">
       <FeatureHeader
-        title="Setup Tempat Penyimpanan"
+        title="Master Tempat Penyimpanan"
         subtitle="Kelola master lokasi penyimpanan dokumen fisik."
         icon={<Warehouse />}
         className={SETUP_PAGE_WIDTH_XL_CLASS}

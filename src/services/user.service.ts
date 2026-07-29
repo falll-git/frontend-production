@@ -260,6 +260,32 @@ async function getUsersPage({
   };
 }
 
+async function getAssignableUsersPage({
+  page = 1,
+  limit = SETUP_TABLE_PAGE_SIZE,
+  search,
+}: PageQuery = {}): Promise<PaginatedResult<UserRecord>> {
+  const res = await api.get("/users/assignable", {
+    params: {
+      page,
+      limit,
+      ...(search ? { search } : {}),
+    },
+  });
+  const items = extractList(res.data)
+    .map((record) => mapUser(record))
+    .filter((item): item is UserRecord => item !== null);
+
+  return {
+    items,
+    meta: extractPaginationMeta(res.data, {
+      page,
+      limit,
+      total: items.length,
+    }),
+  };
+}
+
 export const userService = {
   getPage: getUsersPage,
   getAll: async (params: Pick<UserPageQuery, "status" | "search"> = {}): Promise<UserRecord[]> => {
@@ -272,6 +298,28 @@ export const userService = {
 
     for (let page = 2; page <= first.meta.lastPage; page += 1) {
       const next = await getUsersPage({
+        page,
+        limit: MAX_TABLE_PAGE_SIZE,
+        ...params,
+      });
+      all.push(...next.items);
+    }
+
+    return all;
+  },
+  getAssignablePage: getAssignableUsersPage,
+  getAssignableAll: async (
+    params: Pick<PageQuery, "search"> = {},
+  ): Promise<UserRecord[]> => {
+    const first = await getAssignableUsersPage({
+      page: 1,
+      limit: MAX_TABLE_PAGE_SIZE,
+      ...params,
+    });
+    const all = [...first.items];
+
+    for (let page = 2; page <= first.meta.lastPage; page += 1) {
+      const next = await getAssignableUsersPage({
         page,
         limit: MAX_TABLE_PAGE_SIZE,
         ...params,

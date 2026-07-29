@@ -140,7 +140,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #64748b;
+  color: #475569;
   font-size: 0.75rem;
   font-weight: 500;
   line-height: 1.35;
@@ -251,6 +251,10 @@
     padding: 0.32rem 0 !important;
     text-align: left !important;
     white-space: normal !important;
+  }
+
+  .setup-responsive-table__cell[data-mobile-hidden="true"] {
+    display: none !important;
   }
 
   .setup-responsive-table__body .setup-responsive-table__row:not(:last-child)

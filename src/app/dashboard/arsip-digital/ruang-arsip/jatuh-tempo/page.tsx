@@ -185,7 +185,7 @@ export default function JatuhTempoPage() {
       </div>
 
       <FeatureHeader
-        title="Peminjaman Jatuh Tempo"
+        title="Jatuh Tempo Peminjaman"
         subtitle={subtitle}
         icon={<Clock />}
       />

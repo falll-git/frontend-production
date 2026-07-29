@@ -298,7 +298,7 @@ export default function AcceptPeminjamanPage() {
   return (
     <DashboardPageShell>
       <FeatureHeader
-        title="Accept Peminjaman"
+        title="Proses Peminjaman"
         subtitle="Kelola persetujuan, penyerahan, dan pengembalian dokumen fisik."
         icon={<ClipboardCheck />}
       />

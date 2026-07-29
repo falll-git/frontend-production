@@ -4,6 +4,14 @@ export const COLLECTIBILITY_LEVELS = [1, 2, 3, 4, 5] as const;
 
 export type CollectibilityLevel = (typeof COLLECTIBILITY_LEVELS)[number];
 
+export const COLLECTIBILITY_LABELS: Record<CollectibilityLevel, string> = {
+  1: "Lancar",
+  2: "Dalam Perhatian Khusus",
+  3: "Kurang Lancar",
+  4: "Diragukan",
+  5: "Macet",
+};
+
 export const COLLECTIBILITY_CHART_COLORS: Record<CollectibilityLevel, string> = {
   1: "#00B050",
   2: "#92D050",
@@ -13,7 +21,7 @@ export const COLLECTIBILITY_CHART_COLORS: Record<CollectibilityLevel, string> = 
 };
 
 const LEVEL_CLASS: Record<CollectibilityLevel | "unknown", string> = {
-  1: "border-emerald-600 bg-emerald-500 text-white",
+  1: "border-emerald-700 bg-emerald-700 text-white",
   2: "border-lime-400 bg-lime-300 text-lime-950",
   3: "border-yellow-300 bg-yellow-200 text-yellow-950",
   4: "border-yellow-400 bg-yellow-400 text-yellow-950",
@@ -55,9 +63,33 @@ export function getCollectibilityLevel(
     prefixedMatch?.[1] ?? leadingMatch?.[1] ?? firstStandaloneMatch?.[1];
   const level = Number(rawLevel);
 
-  return COLLECTIBILITY_LEVELS.includes(level as CollectibilityLevel)
-    ? (level as CollectibilityLevel)
-    : null;
+  if (COLLECTIBILITY_LEVELS.includes(level as CollectibilityLevel)) {
+    return level as CollectibilityLevel;
+  }
+
+  const normalizedName = normalized.toUpperCase();
+  const nameLevel = Object.entries(COLLECTIBILITY_LABELS).find(
+    ([, label]) => label.toUpperCase() === normalizedName,
+  )?.[0];
+
+  if (normalizedName === "DPK") return 2;
+
+  return nameLevel ? (Number(nameLevel) as CollectibilityLevel) : null;
+}
+
+export function formatCollectibilityLabel(
+  value: string | number | null | undefined,
+  fallback?: string | number | null,
+) {
+  const level = getCollectibilityLevel(value) ?? getCollectibilityLevel(fallback);
+
+  if (level) return `${level} - ${COLLECTIBILITY_LABELS[level]}`;
+
+  const fallbackText = String(fallback ?? "").trim();
+  if (fallbackText) return fallbackText;
+
+  const valueText = String(value ?? "").trim();
+  return valueText || "-";
 }
 
 export function getCollectibilityChartColor(
@@ -77,10 +109,7 @@ export default function SetupCollectibilityBadge({
   textClassName = "",
 }: SetupCollectibilityBadgeProps) {
   const level = getCollectibilityLevel(value);
-  const displayValue =
-    value === null || value === undefined || String(value).trim() === ""
-      ? "-"
-      : value;
+  const displayValue = formatCollectibilityLabel(value);
 
   return (
     <span

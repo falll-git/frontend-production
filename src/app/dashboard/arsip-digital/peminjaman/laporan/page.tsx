@@ -418,10 +418,14 @@ export default function LaporanPeminjamanPage() {
           </div>
 
           <div>
-            <label className={SETUP_PAGE_SEARCH_LABEL_CLASS}>
+            <label
+              htmlFor="loan-status-filter"
+              className={SETUP_PAGE_SEARCH_LABEL_CLASS}
+            >
               Status Peminjaman
             </label>
             <SetupSelect
+              id="loan-status-filter"
               value={filterStatus}
               onChange={(event) => setFilterStatus(event.target.value)}
             >
@@ -437,13 +441,27 @@ export default function LaporanPeminjamanPage() {
           </div>
 
           <div>
-            <label className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Dari Tanggal</label>
-            <BasicDateInput value={dateFrom} onChange={setDateFrom} />
+            <label htmlFor="loan-date-from" className={SETUP_PAGE_SEARCH_LABEL_CLASS}>
+              Dari Tanggal
+            </label>
+            <BasicDateInput
+              id="loan-date-from"
+              aria-label="Dari tanggal"
+              value={dateFrom}
+              onChange={setDateFrom}
+            />
           </div>
 
           <div>
-            <label className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Sampai Tanggal</label>
-            <BasicDateInput value={dateTo} onChange={setDateTo} />
+            <label htmlFor="loan-date-to" className={SETUP_PAGE_SEARCH_LABEL_CLASS}>
+              Sampai Tanggal
+            </label>
+            <BasicDateInput
+              id="loan-date-to"
+              aria-label="Sampai tanggal"
+              value={dateTo}
+              onChange={setDateTo}
+            />
           </div>
         </div>
       </div>

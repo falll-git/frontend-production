@@ -398,16 +398,19 @@ export default function DashboardOverviewClient() {
   return (
     <>
       <div
-        className="welcome-banner rounded-2xl p-4 text-white animate-fade-in lg:p-8"
+        className="welcome-banner rounded-2xl p-4 text-white animate-fade-in sm:p-5"
         style={{
           background: "linear-gradient(135deg, #157ec3 0%, #0d5a8f 100%)",
         }}
       >
         <div className="flex items-center justify-between gap-6">
           <div className="min-w-0">
-            <h1 className="mb-2 text-xl font-bold leading-tight lg:text-3xl">
+            <h1 className="text-xl font-bold leading-tight sm:text-2xl">
               Assalamualaikum, {user?.name ?? "Pengguna"}!
             </h1>
+            <p className="mt-1 text-sm text-white/75">
+              Pilih modul atau laporan yang perlu ditindaklanjuti.
+            </p>
           </div>
 
           <div className="hidden items-center md:flex">
@@ -423,21 +426,21 @@ export default function DashboardOverviewClient() {
         </div>
       </div>
 
-      {!isWidgetLoading && storageUsageWidget ? (
-        <div className="mt-8 animate-fade-in">
-          <StorageOverviewWidget widget={storageUsageWidget} />
-        </div>
+      {!isWidgetLoading ? (
+        <span className="sr-only" data-testid="dashboard-widgets-ready">
+          Ringkasan dashboard selesai dimuat
+        </span>
       ) : null}
 
       {isWidgetLoading ? (
-        <div className="mt-8 animate-fade-in">
+        <div className="mt-6 animate-fade-in">
           <DashboardSkeletonModules count={4} />
         </div>
       ) : moduleReportCards.length > 0 ? (
-        <div className="mt-8 animate-fade-in">
+        <section className="mt-6 animate-fade-in" aria-labelledby="dashboard-modules-title">
           <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-800">
             <Grid2x2 className="h-6 w-6 text-gray-600" aria-hidden="true" />
-            Laporan Modul
+            <span id="dashboard-modules-title">Akses Cepat Modul</span>
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {moduleReportCards.map((widget) => {
@@ -452,7 +455,7 @@ export default function DashboardOverviewClient() {
               );
             })}
           </div>
-        </div>
+        </section>
       ) : null}
 
       {!isWidgetLoading && dashboardReportSections.length > 0 ? (
@@ -468,10 +471,10 @@ export default function DashboardOverviewClient() {
       ) : null}
 
       {!isWidgetLoading && secondaryReportCards.length > 0 ? (
-        <div className="mt-8 animate-fade-in">
+        <section className="mt-8 animate-fade-in" aria-labelledby="dashboard-other-reports-title">
           <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-800">
             <BarChart3 className="h-6 w-6 text-gray-600" aria-hidden="true" />
-            Laporan Lainnya
+            <span id="dashboard-other-reports-title">Laporan Lainnya</span>
           </h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {secondaryReportCards.map((widget) => {
@@ -490,6 +493,18 @@ export default function DashboardOverviewClient() {
               );
             })}
           </div>
+        </section>
+      ) : null}
+
+      {!isWidgetLoading && storageUsageWidget ? (
+        <div
+          id="penggunaan-storage"
+          className="mt-10 scroll-mt-24 border-t border-slate-200 pt-8 animate-fade-in"
+        >
+          <p className="mb-5 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+            Administrasi Sistem
+          </p>
+          <StorageOverviewWidget widget={storageUsageWidget} />
         </div>
       ) : null}
     </>

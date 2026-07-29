@@ -377,33 +377,9 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
     };
   }, [syncRuntimeRbac]);
 
-  const signIn = useCallback(
-    async (
-      username: string,
-      password: string,
-      options?: { remember?: boolean },
-    ): Promise<SignInResult> => {
-      const remember = options?.remember ?? false;
-
-      let payload: unknown;
-      try {
-        payload = await authService.login(
-          normalizeUsername(username),
-          password,
-          { remember },
-        );
-      } catch (error) {
-        return {
-          ok: false,
-          message:
-            error instanceof Error
-              ? error.message
-              : "Terjadi kesalahan pada server",
-        };
-      }
-
+  const finalizeSignIn = useCallback(
+    async (payload: unknown, remember: boolean): Promise<SignInResult> => {
       const token = extractToken(payload);
-
       if (!token) {
         return {
           ok: false,
@@ -478,6 +454,33 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
       return { ok: true, user: publicUser };
     },
     [syncRuntimeRbac],
+  );
+
+  const signIn = useCallback(
+    async (
+      username: string,
+      password: string,
+      options?: { remember?: boolean },
+    ): Promise<SignInResult> => {
+      const remember = options?.remember ?? false;
+      try {
+        const payload = await authService.login(
+          normalizeUsername(username),
+          password,
+          { remember },
+        );
+        return finalizeSignIn(payload, remember);
+      } catch (error) {
+        return {
+          ok: false,
+          message:
+            error instanceof Error
+              ? error.message
+              : "Terjadi kesalahan pada server",
+        };
+      }
+    },
+    [finalizeSignIn],
   );
 
   const signOut = useCallback(async () => {

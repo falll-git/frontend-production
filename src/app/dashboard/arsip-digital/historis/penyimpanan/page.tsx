@@ -313,8 +313,14 @@ export default function HistorisPenyimpananPage() {
             />
           </div>
           <div>
-            <label className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Filter Aksi</label>
+            <label
+              htmlFor="storage-action-filter"
+              className={SETUP_PAGE_SEARCH_LABEL_CLASS}
+            >
+              Filter Aksi
+            </label>
             <SetupSelect
+              id="storage-action-filter"
               value={filterAksi}
               onChange={(event) =>
                 setFilterAksi(

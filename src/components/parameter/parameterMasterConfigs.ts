@@ -121,7 +121,7 @@ function simpleCodeNameConfig(
 }
 
 export const branchParameterConfig: ParameterMasterPageConfig = {
-  title: "Setup Cabang",
+  title: "Master Cabang",
   subtitle: "Kelola master cabang yang dipakai di modul debitur dan legal.",
   entityLabel: "cabang",
   endpoint: "/branches",
@@ -147,7 +147,7 @@ export const branchParameterConfig: ParameterMasterPageConfig = {
 };
 
 export const financingProductParameterConfig = simpleCodeNameConfig({
-  title: "Setup Produk Pembiayaan",
+  title: "Master Produk Pembiayaan",
   subtitle: "Kelola pilihan produk pembiayaan untuk data debitur.",
   entityLabel: "produk pembiayaan",
   endpoint: "/financing-products",
@@ -157,7 +157,7 @@ export const financingProductParameterConfig = simpleCodeNameConfig({
 });
 
 export const contractTypeParameterConfig = simpleCodeNameConfig({
-  title: "Setup Jenis Akad",
+  title: "Master Jenis Akad",
   subtitle: "Kelola master jenis akad yang dipakai di kontrak debitur.",
   entityLabel: "jenis akad",
   endpoint: "/contract-types",
@@ -167,7 +167,7 @@ export const contractTypeParameterConfig = simpleCodeNameConfig({
 });
 
 export const mailDeliveryMediaParameterConfig = simpleCodeNameConfig({
-  title: "Setup Media Pengiriman Surat",
+  title: "Master Media Pengiriman Surat",
   subtitle: "Kelola media pengiriman yang bisa dipilih pada Surat Keluar.",
   entityLabel: "media pengiriman surat",
   endpoint: "/mail-delivery-media",
@@ -188,7 +188,7 @@ export const mailDeliveryMediaParameterConfig = simpleCodeNameConfig({
 });
 
 export const collateralTypeParameterConfig = simpleCodeNameConfig({
-  title: "Setup Jenis Agunan",
+  title: "Master Jenis Agunan",
   subtitle: "Kelola label/filter jenis agunan untuk data A01 dan jaminan debitur.",
   entityLabel: "jenis agunan",
   endpoint: "/collateral-types",
@@ -198,7 +198,7 @@ export const collateralTypeParameterConfig = simpleCodeNameConfig({
 });
 
 export const documentChecklistParameterConfig: ParameterMasterPageConfig = {
-  title: "Setup Checklist Dokumen",
+  title: "Master Checklist Dokumen",
   subtitle: "Kelola daftar dokumen wajib atau opsional untuk kebutuhan proses.",
   entityLabel: "checklist dokumen",
   endpoint: "/document-checklists",
@@ -228,7 +228,7 @@ export const documentChecklistParameterConfig: ParameterMasterPageConfig = {
 };
 
 export const depositTypeParameterConfig = simpleCodeNameConfig({
-  title: "Setup Jenis Titipan",
+  title: "Master Jenis Titipan",
   subtitle: "Kelola master jenis titipan untuk kebutuhan legal.",
   entityLabel: "jenis titipan",
   endpoint: "/deposit-types",
@@ -253,7 +253,7 @@ export const depositTypeParameterConfig = simpleCodeNameConfig({
 });
 
 export const legalProcessTypeParameterConfig = simpleCodeNameConfig({
-  title: "Setup Jenis Proses Legal",
+  title: "Master Jenis Proses Legal",
   subtitle: "Kelola jenis proses untuk progress notaris, asuransi, KJPP, dan klaim.",
   entityLabel: "jenis proses legal",
   endpoint: "/legal-process-types",
@@ -327,7 +327,7 @@ function thirdPartyConfig(
 
 export const notaryParameterConfig = thirdPartyConfig(
   "NOTARY",
-  "Setup Notaris",
+  "Master Notaris",
   "notaris",
   "Tambah Notaris",
   BookOpenCheck,
@@ -335,7 +335,7 @@ export const notaryParameterConfig = thirdPartyConfig(
 
 export const insuranceParameterConfig = thirdPartyConfig(
   "INSURANCE",
-  "Setup Perusahaan Asuransi",
+  "Master Perusahaan Asuransi",
   "perusahaan asuransi",
   "Tambah Asuransi",
   FileCheck2,
@@ -343,7 +343,7 @@ export const insuranceParameterConfig = thirdPartyConfig(
 
 export const kjppParameterConfig = thirdPartyConfig(
   "KJPP",
-  "Setup KJPP",
+  "Master KJPP",
   "KJPP",
   "Tambah KJPP",
   ListChecks,

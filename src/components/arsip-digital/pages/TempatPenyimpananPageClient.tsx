@@ -203,7 +203,7 @@ export default function TempatPenyimpananPageClient() {
   return (
     <DashboardPageShell>
       <FeatureHeader
-        title="Ruang Arsip Digital"
+        title="Tempat Penyimpanan"
         subtitle="Laporan visual penyimpanan dokumen fisik dan digital."
         icon={<Warehouse />}
         actions={
@@ -335,7 +335,7 @@ export default function TempatPenyimpananPageClient() {
         </div>
       ) : null}
 
-      {selectedKantor ? (
+      {selectedKantor && !selectedLemari ? (
         <LemariGridModal
           kantor={selectedKantor}
           lemariList={lemariList}
@@ -350,7 +350,7 @@ export default function TempatPenyimpananPageClient() {
         />
       ) : null}
 
-      {selectedKantor && selectedLemari ? (
+      {selectedKantor && selectedLemari && !selectedRak ? (
         <RakGridModal
           lemari={selectedLemari}
           kantor={selectedKantor}

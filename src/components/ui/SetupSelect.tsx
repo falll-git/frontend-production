@@ -12,7 +12,11 @@ export default function SetupSelect({
   ...props
 }: SetupSelectProps) {
   return (
-    <select className={joinClasses("app-select", className)} {...props}>
+    <select
+      className={joinClasses("app-select", className)}
+      data-ui-control="select"
+      {...props}
+    >
       {children}
     </select>
   );

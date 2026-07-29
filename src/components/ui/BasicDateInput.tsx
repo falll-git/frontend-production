@@ -4,6 +4,7 @@ import * as React from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { formatDate, parseDateString, todayIsoDate, toIsoDate } from "@/lib/utils/date";
+import { getAnchoredPopupPosition } from "@/lib/ui/anchored-popup";
 
 type BasicDateInputProps = Omit<
   React.InputHTMLAttributes<HTMLInputElement>,
@@ -14,7 +15,7 @@ type BasicDateInputProps = Omit<
 };
 
 const DATE_INPUT_BUTTON_CLASS =
-  "flex h-11 w-full items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-4 text-left text-sm text-gray-700 outline-none transition hover:border-gray-300 focus:border-[#1773B0] focus:ring-3 focus:ring-[#1773B0]/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400";
+  "flex h-11 w-full min-w-0 max-w-full items-center justify-between gap-3 overflow-hidden rounded-lg border border-gray-200 bg-white px-4 text-left text-sm text-gray-700 outline-none transition hover:border-gray-300 focus:border-[#1773B0] focus:ring-3 focus:ring-[#1773B0]/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400";
 
 const MONTH_FORMATTER = new Intl.DateTimeFormat("id-ID", {
   month: "long",
@@ -70,21 +71,14 @@ function getPopupPosition(trigger: HTMLButtonElement | null) {
   if (!trigger) return {};
 
   const rect = trigger.getBoundingClientRect();
-  const width = Math.min(320, Math.max(260, window.innerWidth - 32));
-  const estimatedHeight = 368;
-  const left = Math.min(
-    Math.max(16, rect.left),
-    Math.max(16, window.innerWidth - width - 16),
-  );
-  const opensAbove =
-    rect.bottom + 8 + estimatedHeight > window.innerHeight &&
-    rect.top > estimatedHeight;
-
-  return {
-    left,
-    top: opensAbove ? rect.top - estimatedHeight - 8 : rect.bottom + 8,
-    width,
-  } satisfies React.CSSProperties;
+  return getAnchoredPopupPosition(rect, {
+    estimatedHeight: 420,
+    minimumUsableHeight: 280,
+    minimumWidth: 260,
+    preferredWidth: 320,
+    viewportHeight: window.innerHeight,
+    viewportWidth: window.innerWidth,
+  }) satisfies React.CSSProperties;
 }
 
 const BasicDateInput = React.forwardRef<HTMLInputElement, BasicDateInputProps>(
@@ -106,6 +100,7 @@ const BasicDateInput = React.forwardRef<HTMLInputElement, BasicDateInputProps>(
   ) {
     const triggerRef = React.useRef<HTMLButtonElement | null>(null);
     const popupRef = React.useRef<HTMLDivElement | null>(null);
+    const popupId = React.useId();
     const [open, setOpen] = React.useState(false);
     const [popupStyle, setPopupStyle] = React.useState<React.CSSProperties>({});
     const normalizedValue = normalizeDateInputValue(value);
@@ -190,7 +185,7 @@ const BasicDateInput = React.forwardRef<HTMLInputElement, BasicDateInputProps>(
     };
 
     return (
-      <div className="relative">
+      <div className="relative w-full min-w-0 max-w-full" data-ui-control="date">
         <button
           id={id}
           ref={triggerRef}
@@ -199,6 +194,7 @@ const BasicDateInput = React.forwardRef<HTMLInputElement, BasicDateInputProps>(
           aria-label={props["aria-label"] ?? placeholder}
           aria-expanded={open}
           aria-haspopup="dialog"
+          aria-controls={popupId}
           data-required={required ? "true" : undefined}
           className={[DATE_INPUT_BUTTON_CLASS, className]
             .filter(Boolean)
@@ -207,11 +203,15 @@ const BasicDateInput = React.forwardRef<HTMLInputElement, BasicDateInputProps>(
           onClick={() => setOpen((prev) => !prev)}
           onFocus={onFocus as React.FocusEventHandler<HTMLButtonElement>}
         >
-          <span className={displayValue ? "text-gray-800" : "text-gray-400"}>
+          <span
+            className={`min-w-0 flex-1 truncate ${
+              displayValue ? "text-gray-800" : "text-gray-600"
+            }`}
+          >
             {displayValue || placeholder}
           </span>
           <CalendarDays
-            className="h-4 w-4 shrink-0 text-gray-400"
+            className="h-4 w-4 shrink-0 text-gray-600"
             aria-hidden="true"
           />
         </button>
@@ -226,10 +226,11 @@ const BasicDateInput = React.forwardRef<HTMLInputElement, BasicDateInputProps>(
 
         {open ? (
           <div
+            id={popupId}
             ref={popupRef}
             role="dialog"
             aria-label="Pilih tanggal"
-            className="fixed z-[10000] rounded-lg border border-gray-200 bg-white p-4 shadow-xl"
+            className="fixed z-[10000] overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-white p-4 shadow-xl"
             style={popupStyle}
           >
             <div className="mb-4 flex items-center justify-between gap-3">

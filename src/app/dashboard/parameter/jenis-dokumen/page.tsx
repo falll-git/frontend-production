@@ -270,7 +270,7 @@ function SetupJenisDokumenPageContent() {
   return (
     <DashboardPageShell spacing="md">
       <FeatureHeader
-        title="Setup Jenis Dokumen"
+        title="Master Jenis Dokumen"
         subtitle="Kelola master jenis dokumen."
         icon={<Shield />}
         className={SETUP_PAGE_WIDTH_XL_CLASS}

@@ -506,30 +506,13 @@ export default function InputSuratMasukPage() {
                     return (
                       <div
                         key={division.id}
-                        role="checkbox"
-                        aria-checked={isChecked}
-                        aria-disabled={isDisabled}
-                        tabIndex={isDisabled ? -1 : 0}
-                        onClick={() => {
-                          if (!isDisabled) handleToggleDivision(division.id);
-                        }}
-                        onKeyDown={(event) => {
-                          if (isDisabled) return;
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            handleToggleDivision(division.id);
-                          }
-                        }}
-                        className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 transition-colors ${
+                        className={`flex items-start gap-3 rounded-lg border px-3 py-3 transition-colors ${
                           isChecked
                             ? "border-blue-200 bg-blue-50"
                             : "border-gray-200 bg-white hover:border-gray-300"
                         }`}
                       >
-                        <div
-                          className="mt-0.5"
-                          onClick={(event) => event.stopPropagation()}
-                        >
+                        <div className="mt-0.5">
                           <UiverseCheckbox
                             checked={isChecked}
                             disabled={isDisabled}
@@ -554,7 +537,7 @@ export default function InputSuratMasukPage() {
                 </div>
               </div>
               {formData.divisionIds.length === 0 && (
-                <div className="flex items-center gap-2 mt-2 text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">
+                <div className="mt-2 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   <AlertCircle className="h-4 w-4 text-slate-900" />
                   Pilih minimal satu divisi tujuan disposisi.
                 </div>

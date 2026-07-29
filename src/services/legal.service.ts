@@ -17,6 +17,7 @@ import type {
   DebtorFileMeta,
   DebtorParameterSummary,
   DebtorRecord,
+  DebtorUserSummary,
 } from "@/types/debitur.types";
 import type {
   LegalClaim,
@@ -93,6 +94,22 @@ function mapFile(record: unknown): DebtorFileMeta | null {
     url: nullableString(file, "url", "file_url", "fileUrl"),
     original_url: nullableString(file, "original_url", "originalUrl"),
     watermarked_url: nullableString(file, "watermarked_url", "watermarkedUrl"),
+  };
+}
+
+function mapCollateralUpdater(record: unknown): DebtorUserSummary | null {
+  const item = asRecord(record);
+  const id = item ? readString(item, "id") : null;
+  const name = item ? readString(item, "name") : null;
+  if (!item || !id || !name) return null;
+  const division = asRecord(item.division);
+  return {
+    id,
+    name,
+    username: nullableString(item, "username"),
+    email: nullableString(item, "email"),
+    division_id: nullableString(item, "division_id", "divisionId"),
+    division_name: division ? nullableString(division, "name") : null,
   };
 }
 
@@ -210,6 +227,14 @@ function mapCollateral(record: unknown): DebtorCollateral | null {
   const id = readString(item, "id");
   const collateralNumber = readString(item, "collateral_number", "collateralNumber");
   if (!id || !collateralNumber) return null;
+  const hasExpiryDate =
+    readBoolean(item, "has_expiry_date", "hasExpiryDate") === true;
+  const expiryStatus = readString(item, "expiry_status", "expiryStatus");
+  const expiryStatusLabel = readString(
+    item,
+    "expiry_status_label",
+    "expiryStatusLabel",
+  );
 
   return {
     id,
@@ -267,6 +292,54 @@ function mapCollateral(record: unknown): DebtorCollateral | null {
       "last_import_period_month",
       "lastImportPeriodMonth",
     ),
+    latest_appraisal_date: normalizeDate(item.latest_appraisal_date),
+    latest_appraisal_source:
+      readString(item, "latest_appraisal_source", "latestAppraisalSource") ===
+      "REPORTER"
+        ? "REPORTER"
+        : null,
+    next_appraisal_due_date: normalizeDate(item.next_appraisal_due_date),
+    appraisal_warning_start_date: normalizeDate(
+      item.appraisal_warning_start_date,
+    ),
+    appraisal_status:
+      (readString(item, "appraisal_status", "appraisalStatus") as
+        | DebtorCollateral["appraisal_status"]
+        | undefined) ?? "NOT_AVAILABLE",
+    appraisal_status_label:
+      readString(
+        item,
+        "appraisal_status_label",
+        "appraisalStatusLabel",
+      ) ?? "Tanggal penilaian belum tersedia",
+    appraisal_days_remaining: readNumber(
+      item,
+      "appraisal_days_remaining",
+      "appraisalDaysRemaining",
+    ),
+    has_expiry_date: hasExpiryDate,
+    expiry_date: hasExpiryDate ? normalizeDate(item.expiry_date) : null,
+    expiry_note: nullableString(item, "expiry_note", "expiryNote"),
+    expiry_warning_start_date: hasExpiryDate
+      ? normalizeDate(item.expiry_warning_start_date)
+      : null,
+    expiry_status: hasExpiryDate
+      ? ((expiryStatus as DebtorCollateral["expiry_status"] | undefined) ??
+        "NOT_SET")
+      : "NOT_APPLICABLE",
+    expiry_status_label: hasExpiryDate
+      ? (expiryStatusLabel ?? "Tanggal berakhir belum diisi")
+      : "Tidak Berlaku",
+    expiry_days_remaining: hasExpiryDate
+      ? readNumber(item, "expiry_days_remaining", "expiryDaysRemaining")
+      : null,
+    expiry_updated_by: nullableString(
+      item,
+      "expiry_updated_by",
+      "expiryUpdatedBy",
+    ),
+    expiry_updated_at: normalizeDate(item.expiry_updated_at),
+    expiry_updater: mapCollateralUpdater(item.expiry_updater),
     debtor: mapDebtor(item.debtor),
     contract: mapContract(item.contract),
     created_at: nullableString(item, "created_at", "createdAt"),

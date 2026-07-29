@@ -90,7 +90,7 @@ export default function InputDokumenPage() {
       setIsOwnershipLoading(true);
       try {
         const [userRows, divisionRows] = await Promise.all([
-          userService.getAll(),
+          userService.getAssignableAll(),
           divisionService.getAll(),
         ]);
 
@@ -340,7 +340,7 @@ export default function InputDokumenPage() {
   return (
     <DashboardPageShell spacing="md">
       <FeatureHeader
-        title="Input Dokumen Digital"
+        title="Input Dokumen"
         subtitle="Masukkan dokumen baru beserta lokasi fisik dan hak aksesnya."
         icon={<UploadCloud />}
       />

@@ -72,9 +72,9 @@ export default function ForgotPasswordPage() {
           {!isSuccess ? (
             <>
               <header className="mb-6 text-center">
-                <h2 className="text-xl font-semibold text-slate-800">
+                <h1 className="text-xl font-semibold text-slate-800">
                   Lupa Password?
-                </h2>
+                </h1>
                 <p className="mt-2 text-sm text-slate-600">
                   Masukkan email Anda dan kami akan mengirimkan link reset
                   password.
@@ -90,10 +90,13 @@ export default function ForgotPasswordPage() {
                     Email
                   </label>
                   <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-[#157ec3]" />
+                    <Mail className="absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-[#0d5a8f]" />
                     <input
                       id="email"
+                      name="email"
                       type="email"
+                      autoComplete="email"
+                      required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="Masukkan email Anda"
@@ -121,7 +124,7 @@ export default function ForgotPasswordPage() {
               <div className="mt-5 text-center">
                 <Link
                   href="/"
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-[#157ec3] transition-colors hover:text-[#0d5a8f]"
+                  className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#0d5a8f] transition-colors hover:text-[#083f66]"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   Kembali ke Halaman Login
@@ -140,13 +143,13 @@ export default function ForgotPasswordPage() {
               >
                 <Check className="h-8 w-8 text-white" />
               </div>
-              <h2 className="mb-2 text-xl font-bold text-slate-800">
+              <h1 className="mb-2 text-xl font-bold text-slate-800">
                 Cek Email Anda
-              </h2>
+              </h1>
               <p className="text-sm text-slate-600">
                 Link reset password telah dikirim ke email berikut:
               </p>
-              <p className="mb-5 mt-1 text-sm font-semibold text-[#157ec3]">
+              <p className="mb-5 mt-1 text-sm font-semibold text-[#0d5a8f]">
                 {submittedEmail}
               </p>
 
@@ -164,7 +167,7 @@ export default function ForgotPasswordPage() {
 
                 <Link
                   href="/"
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-[#157ec3] transition-colors hover:text-[#0d5a8f]"
+                  className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#0d5a8f] transition-colors hover:text-[#083f66]"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   Kembali ke Halaman Login
@@ -174,7 +177,7 @@ export default function ForgotPasswordPage() {
           )}
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-[#157ec3]">
+            <p className="text-sm text-[#0d5a8f]">
               &copy; 2026 RuwangArsip &middot; v1.0.0
             </p>
           </div>

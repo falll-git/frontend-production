@@ -377,7 +377,7 @@ function StorageTrendChart({ data }: { data: StorageUsageDashboardData }) {
     latestDelta > 0
       ? "text-[#1773B0]"
       : latestDelta < 0
-        ? "text-emerald-600"
+        ? "text-emerald-700"
         : "text-gray-500";
 
   return (
@@ -544,7 +544,7 @@ export default function StorageOverviewWidget({
               label={data.usage.overage_gb > 0 ? remainingLabel : "Sisa kuota"}
               value={remainingValue}
               valueClassName={
-                data.usage.overage_gb > 0 ? "text-red-600" : "text-emerald-600"
+                data.usage.overage_gb > 0 ? "text-red-700" : "text-emerald-700"
               }
             />
             <MetricRow
@@ -574,7 +574,7 @@ export default function StorageOverviewWidget({
               latestDelta > 0
                 ? "text-[#1773B0]"
                 : latestDelta < 0
-                  ? "text-emerald-600"
+                  ? "text-emerald-700"
                   : "text-gray-500"
             }`}
           >

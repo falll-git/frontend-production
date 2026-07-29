@@ -442,30 +442,13 @@ export default function InputMemorandumPage() {
                     return (
                       <div
                         key={division.id}
-                        role="checkbox"
-                        aria-checked={isChecked}
-                        aria-disabled={isDisabled}
-                        tabIndex={isDisabled ? -1 : 0}
-                        onClick={() => {
-                          if (!isDisabled) handleToggleDivision(division.id);
-                        }}
-                        onKeyDown={(event) => {
-                          if (isDisabled) return;
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            handleToggleDivision(division.id);
-                          }
-                        }}
-                        className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-3 transition-colors ${
+                        className={`flex items-start gap-3 rounded-lg border px-3 py-3 transition-colors ${
                           isChecked
                             ? "border-blue-200 bg-blue-50"
                             : "border-gray-200 bg-white hover:border-gray-300"
                         }`}
                       >
-                        <div
-                          className="mt-0.5"
-                          onClick={(event) => event.stopPropagation()}
-                        >
+                        <div className="mt-0.5">
                           <UiverseCheckbox
                             checked={isChecked}
                             disabled={isDisabled}

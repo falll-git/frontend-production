@@ -1,5 +1,5 @@
 export const SETUP_PAGE_SEARCH_CARD_CLASS =
-  "rounded-lg border border-gray-200 bg-white p-4";
+  "setup-filter-card min-w-0 rounded-lg border border-gray-200 bg-white p-4";
 
 export const SETUP_PAGE_PANEL_CLASS =
   "rounded-lg border border-gray-200 bg-white p-5 shadow-sm";
@@ -17,7 +17,7 @@ export const SETUP_PAGE_SEGMENTED_BUTTON_BASE_CLASS =
   "whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors";
 
 export const SETUP_PAGE_SEGMENTED_BUTTON_ACTIVE_CLASS =
-  "bg-[#157ec3] text-white shadow-sm";
+  "bg-[#0d5a8f] text-white shadow-sm";
 
 export const SETUP_PAGE_SEGMENTED_BUTTON_INACTIVE_CLASS =
   "text-gray-600 hover:bg-gray-50 hover:text-gray-900";
@@ -59,13 +59,13 @@ export const SETUP_PARAMETER_PAGE_WIDTH_XL_CLASS =
 export const SETUP_PAGE_SEARCH_LABEL_CLASS =
   "mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-gray-500";
 
-export const SETUP_PAGE_SEARCH_WRAPPER_CLASS = "relative";
+export const SETUP_PAGE_SEARCH_WRAPPER_CLASS = "relative min-w-0 max-w-full";
 
 export const SETUP_PAGE_SEARCH_ICON_CLASS =
-  "pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400";
+  "pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500";
 
 export const SETUP_PAGE_SEARCH_INPUT_CLASS =
-  "h-11 w-full rounded-lg border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 outline-none transition placeholder:text-gray-400 focus:border-[#1773B0] focus:ring-3 focus:ring-[#1773B0]/10";
+  "h-11 w-full min-w-0 max-w-full rounded-lg border border-gray-200 bg-white pl-11 pr-4 text-sm text-gray-700 outline-none transition placeholder:text-gray-500 focus:border-[#1773B0] focus:ring-3 focus:ring-[#1773B0]/10";
 
 export const SETUP_PAGE_TABLE_CARD_CLASS =
   "w-full min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm";
