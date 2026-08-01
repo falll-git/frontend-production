@@ -28,6 +28,7 @@ import FileUploadField from "@/components/ui/FileUploadField";
 import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
 import { SetupSkeletonBlock } from "@/components/ui/SetupSkeleton";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
+import { buildWatermarkPreviewUrl } from "@/lib/watermark-preview-url";
 import { watermarkService } from "@/services/watermark.service";
 import {
   SETUP_PAGE_WIDTH_XL_CLASS,
@@ -186,7 +187,10 @@ export default function SetupWatermarkDokumenPage() {
 
   const canUpdate = hasCapability(PAGE_URL, "update");
   const options = settings?.options ?? EMPTY_OPTIONS;
-  const previewImageUrl = selectedImagePreviewUrl ?? settings?.image_url ?? null;
+  const storedImagePreviewUrl = settings?.image_path
+    ? buildWatermarkPreviewUrl()
+    : null;
+  const previewImageUrl = selectedImagePreviewUrl ?? storedImagePreviewUrl;
   const previewContext = useMemo(() => {
     const now = new Date();
     return {
@@ -306,7 +310,7 @@ export default function SetupWatermarkDokumenPage() {
       return;
     }
 
-    if (isImageWatermark(form.watermark_type) && !settings?.image_url) {
+    if (isImageWatermark(form.watermark_type) && !settings?.image_path) {
       showToast("Pilih gambar watermark dulu.", "warning");
       return;
     }
@@ -472,7 +476,7 @@ export default function SetupWatermarkDokumenPage() {
       return;
     }
 
-    if (settings?.image_url) {
+    if (settings?.image_path) {
       void handleDeleteImage();
     }
   }
@@ -488,11 +492,11 @@ export default function SetupWatermarkDokumenPage() {
       ? "Menghapus gambar..."
       : selectedImage
         ? formatBytes(selectedImage.size)
-        : settings?.image_url
+        : settings?.image_path
           ? formatBytes(settings.image_size_bytes ?? null)
           : "PNG atau JPG maksimal 2 MB";
   const imageUploadTitle =
-    selectedImage || settings?.image_url
+    selectedImage || settings?.image_path
       ? "Ganti gambar watermark"
       : "Pilih gambar watermark";
   const imageUploadDescription = isUploading

@@ -1,5 +1,4 @@
 import api from "@/lib/axios";
-import { normalizeWatermarkImageUrl } from "@/lib/watermark-image-url";
 import {
   extractRecord,
   readBoolean,
@@ -83,7 +82,7 @@ function mapSettings(record: UnknownRecord | null): WatermarkSettings {
     font_family: readString(record, "font_family") ?? "Arial",
     font_size: readNumber(record, "font_size") ?? 42,
     image_path: readString(record, "image_path") ?? null,
-    image_url: normalizeWatermarkImageUrl(readString(record, "image_url")),
+    image_url: readString(record, "image_url") ?? null,
     image_original_name: readString(record, "image_original_name") ?? null,
     image_mime_type: readString(record, "image_mime_type") ?? null,
     image_size_bytes: readNumber(record, "image_size_bytes"),
