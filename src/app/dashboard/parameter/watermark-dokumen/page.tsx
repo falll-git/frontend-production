@@ -28,7 +28,6 @@ import FileUploadField from "@/components/ui/FileUploadField";
 import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
 import { SetupSkeletonBlock } from "@/components/ui/SetupSkeleton";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
-import { buildWatermarkPreviewUrl } from "@/lib/watermark-preview-url";
 import { watermarkService } from "@/services/watermark.service";
 import {
   SETUP_PAGE_WIDTH_XL_CLASS,
@@ -184,12 +183,12 @@ export default function SetupWatermarkDokumenPage() {
   const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState<
     string | null
   >(null);
+  const [storedImagePreviewUrl, setStoredImagePreviewUrl] = useState<
+    string | null
+  >(null);
 
   const canUpdate = hasCapability(PAGE_URL, "update");
   const options = settings?.options ?? EMPTY_OPTIONS;
-  const storedImagePreviewUrl = settings?.image_path
-    ? buildWatermarkPreviewUrl()
-    : null;
   const previewImageUrl = selectedImagePreviewUrl ?? storedImagePreviewUrl;
   const previewContext = useMemo(() => {
     const now = new Date();
@@ -252,6 +251,34 @@ export default function SetupWatermarkDokumenPage() {
       URL.revokeObjectURL(nextUrl);
     };
   }, [selectedImage]);
+
+  useEffect(() => {
+    let disposed = false;
+    let objectUrl: string | null = null;
+
+    setStoredImagePreviewUrl(null);
+    if (!settings?.image_path) {
+      return undefined;
+    }
+
+    watermarkService
+      .getImagePreviewBlob()
+      .then((blob) => {
+        if (disposed || !blob.type.toLowerCase().startsWith("image/")) {
+          return;
+        }
+        objectUrl = URL.createObjectURL(blob);
+        setStoredImagePreviewUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!disposed) setStoredImagePreviewUrl(null);
+      });
+
+    return () => {
+      disposed = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [settings?.image_path]);
 
   function updateForm<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({

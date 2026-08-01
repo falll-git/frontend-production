@@ -140,6 +140,16 @@ export const watermarkService = {
     return mapOptions(extractRecord(res.data));
   },
 
+  getImagePreviewBlob: async (): Promise<Blob> => {
+    const res = await api.get("/watermark-settings/image-preview", {
+      responseType: "blob",
+    });
+    if (!(res.data instanceof Blob)) {
+      throw new Error("Respons preview watermark tidak valid.");
+    }
+    return res.data;
+  },
+
   updateSettings: async (
     payload: WatermarkSettingsPayload,
   ): Promise<WatermarkSettings> => {
