@@ -419,6 +419,28 @@ function countAvailableFiles(records: Array<{ fileUrl?: string }>) {
   return records.filter((record) => isValidFileUrl(record.fileUrl)).length;
 }
 
+function formatArchiveSummary(fileCount: number, storageCount: number) {
+  return `${fileCount} Dokumen / ${storageCount} Lokasi`;
+}
+
+function formatTenggatSummary(stats: {
+  memilikiTenggat: number;
+  melewatiTenggat: number;
+}) {
+  return `${stats.memilikiTenggat} Aktif / ${stats.melewatiTenggat} Lewat`;
+}
+
+function formatDivisionSummary(originCount: number, targetCount: number) {
+  return `${originCount} Asal / ${targetCount} Tujuan`;
+}
+
+function formatOutgoingStatusSummary(stats: {
+  aktif: number;
+  nonaktif: number;
+}) {
+  return `${stats.aktif} Aktif / ${stats.nonaktif} Nonaktif`;
+}
+
 function countActiveDispositionHolders(
   records: Array<{
     active_dispositions_count?: number;
@@ -2603,6 +2625,19 @@ export default function LaporanPersuratanClient() {
     [suratMasukRecords],
   );
 
+  const suratMasukFileCount = useMemo(
+    () => countAvailableFiles(suratMasukRecords),
+    [suratMasukRecords],
+  );
+
+  const suratMasukStorageCount = useMemo(
+    () =>
+      countUniqueMeaningfulValues(
+        suratMasukRecords.map((record) => record.physicalStorageLabel),
+      ),
+    [suratMasukRecords],
+  );
+
   const suratKeluarFileCount = useMemo(
     () => countAvailableFiles(suratKeluarRecords),
     [suratKeluarRecords],
@@ -2616,8 +2651,60 @@ export default function LaporanPersuratanClient() {
     [suratKeluarRecords],
   );
 
+  const suratKeluarStatusStats = useMemo(
+    () => {
+      let aktif = 0;
+      let nonaktif = 0;
+
+      suratKeluarRecords.forEach((record) => {
+        const normalizedLabel = record.statusLabel.trim().toLowerCase();
+
+        if (record.statusCode === 1 || normalizedLabel === "aktif") {
+          aktif += 1;
+          return;
+        }
+
+        if (record.statusCode === 0 || normalizedLabel === "nonaktif") {
+          nonaktif += 1;
+        }
+      });
+
+      return { aktif, nonaktif };
+    },
+    [suratKeluarRecords],
+  );
+
   const memorandumActiveDispositionCount = useMemo(
     () => countActiveDispositionHolders(memorandumRecords),
+    [memorandumRecords],
+  );
+
+  const memorandumFileCount = useMemo(
+    () => countAvailableFiles(memorandumRecords),
+    [memorandumRecords],
+  );
+
+  const memorandumStorageCount = useMemo(
+    () =>
+      countUniqueMeaningfulValues(
+        memorandumRecords.map((record) => record.physicalStorageLabel),
+      ),
+    [memorandumRecords],
+  );
+
+  const memorandumOriginDivisionCount = useMemo(
+    () =>
+      countUniqueMeaningfulValues(
+        memorandumRecords.map((record) => record.divisiAsal),
+      ),
+    [memorandumRecords],
+  );
+
+  const memorandumTargetDivisionCount = useMemo(
+    () =>
+      countUniqueMeaningfulValues(
+        memorandumRecords.flatMap((record) => record.divisiTujuanAwal),
+      ),
     [memorandumRecords],
   );
 
@@ -2645,19 +2732,22 @@ export default function LaporanPersuratanClient() {
             ),
           },
           {
+            icon: FileText,
+            label: "Arsip",
+            value: formatArchiveSummary(
+              suratMasukFileCount,
+              suratMasukStorageCount,
+            ),
+          },
+          {
             icon: Users,
             label: "Disposisi Aktif",
             value: `${suratMasukActiveDispositionCount} User`,
           },
           {
-            icon: CalendarDays,
-            label: "Tenggat Aktif",
-            value: `${tenggatStats.suratMasuk.memilikiTenggat}`,
-          },
-          {
             icon: AlertTriangle,
-            label: "Lewat Tenggat",
-            value: `${tenggatStats.suratMasuk.melewatiTenggat}`,
+            label: "Tenggat",
+            value: formatTenggatSummary(tenggatStats.suratMasuk),
           },
         ],
       },
@@ -2692,13 +2782,16 @@ export default function LaporanPersuratanClient() {
           },
           {
             icon: FileText,
-            label: "File Tersedia",
-            value: `${suratKeluarFileCount} Dokumen`,
+            label: "Arsip",
+            value: formatArchiveSummary(
+              suratKeluarFileCount,
+              suratKeluarStorageCount,
+            ),
           },
           {
-            icon: Building2,
-            label: "Lokasi Penyimpanan",
-            value: `${suratKeluarStorageCount} Lokasi`,
+            icon: CheckCheck,
+            label: "Status Surat",
+            value: formatOutgoingStatusSummary(suratKeluarStatusStats),
           },
         ],
       },
@@ -2717,28 +2810,18 @@ export default function LaporanPersuratanClient() {
           },
           {
             icon: Building2,
-            label: "Divisi Asal",
-            value: summarize(
-              [
-                ...new Set(
-                  memorandumRecords.map((record) => record.divisiAsal),
-                ),
-              ],
-              3,
+            label: "Divisi Terkait",
+            value: formatDivisionSummary(
+              memorandumOriginDivisionCount,
+              memorandumTargetDivisionCount,
             ),
           },
           {
-            icon: Users,
-            label: "Tujuan Awal",
-            value: summarize(
-              [
-                ...new Set(
-                  memorandumRecords.flatMap(
-                    (record) => record.divisiTujuanAwal,
-                  ),
-                ),
-              ],
-              3,
+            icon: FileText,
+            label: "Arsip",
+            value: formatArchiveSummary(
+              memorandumFileCount,
+              memorandumStorageCount,
             ),
           },
           {
@@ -2747,14 +2830,9 @@ export default function LaporanPersuratanClient() {
             value: `${memorandumActiveDispositionCount} User`,
           },
           {
-            icon: CalendarDays,
-            label: "Tenggat Aktif",
-            value: `${tenggatStats.memorandum.memilikiTenggat}`,
-          },
-          {
             icon: AlertTriangle,
-            label: "Lewat Tenggat",
-            value: `${tenggatStats.memorandum.melewatiTenggat}`,
+            label: "Tenggat",
+            value: formatTenggatSummary(tenggatStats.memorandum),
           },
         ],
       },
@@ -2762,11 +2840,18 @@ export default function LaporanPersuratanClient() {
     [
       memorandumRecords,
       memorandumActiveDispositionCount,
+      memorandumFileCount,
+      memorandumOriginDivisionCount,
+      memorandumStorageCount,
+      memorandumTargetDivisionCount,
       suratKeluarRecords,
       suratKeluarFileCount,
       suratKeluarStorageCount,
+      suratKeluarStatusStats,
       suratMasukActiveDispositionCount,
+      suratMasukFileCount,
       suratMasukRecords,
+      suratMasukStorageCount,
       tenggatStats,
     ],
   );
