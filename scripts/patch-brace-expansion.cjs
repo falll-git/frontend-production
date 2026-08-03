@@ -4,7 +4,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const EXPECTED_VERSION = "5.0.8";
+const EXPECTED_VERSION = "5.0.9";
 const MARKER = "RUWANG_ARSIP_COMMONJS_COMPAT";
 const SOURCE_MAP_LINE = "//# sourceMappingURL=index.js.map";
 const COMPATIBILITY_ADAPTER = `
@@ -76,7 +76,9 @@ function patchInstalledPackage(packageDirectory) {
 
   const sourceMapOccurrences = source.split(SOURCE_MAP_LINE).length - 1;
   if (sourceMapOccurrences !== 1 || !source.includes("exports.expand = expand")) {
-    throw new Error("Struktur brace-expansion 5.0.8 tidak sesuai baseline patch.");
+    throw new Error(
+      `Struktur brace-expansion ${EXPECTED_VERSION} tidak sesuai baseline patch.`,
+    );
   }
 
   fs.writeFileSync(
@@ -94,7 +96,9 @@ const installedPackages = findInstalledPackages(
   path.resolve("node_modules"),
 );
 if (installedPackages.length === 0) {
-  throw new Error("brace-expansion 5.0.8 tidak ditemukan setelah install.");
+  throw new Error(
+    `brace-expansion ${EXPECTED_VERSION} tidak ditemukan setelah install.`,
+  );
 }
 
 const results = installedPackages.map(patchInstalledPackage);
