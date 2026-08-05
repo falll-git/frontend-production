@@ -240,7 +240,7 @@ export type DebtorCollateral = SlikReferenceFields & {
   period_month: string | null;
   last_import_period_month: string | null;
   latest_appraisal_date: string | null;
-  latest_appraisal_source: "REPORTER" | null;
+  latest_appraisal_source: "REPORTER" | "EXPIRY_UPDATE" | null;
   next_appraisal_due_date: string | null;
   appraisal_warning_start_date: string | null;
   appraisal_status: "NOT_AVAILABLE" | "CURRENT" | "DUE_SOON" | "OVERDUE";

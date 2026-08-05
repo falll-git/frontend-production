@@ -47,6 +47,8 @@ import {
   CollateralExpiryModal,
   CollateralMonitoringBadge,
   CollateralMonitoringCell,
+  collateralReviewNote,
+  collateralReviewSourceLabel,
 } from "@/components/informasi-debitur/CollateralMonitoring";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import BasicDateInput from "@/components/ui/BasicDateInput";
@@ -2266,15 +2268,15 @@ function CollateralDetailModal({
           <section>
             <div className="mb-4 space-y-1">
               <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
-                Monitoring Taksasi dan Masa Berlaku
+                Monitoring Tinjauan dan Masa Berlaku
               </h3>
               <p className="text-sm leading-6 text-gray-500">
-                Jadwal penilaian ulang tahunan dan tanggal berakhir operasional agunan.
+                Update expired manual ikut menjadi acuan tinjauan agar status tidak rancu.
               </p>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <DetailItem
-                label="Tanggal Penilaian Pelapor"
+                label="Tinjauan Agunan"
                 value={
                   <div className="space-y-2">
                     <p className="font-semibold text-slate-900">
@@ -2285,13 +2287,13 @@ function CollateralDetailModal({
                       label={collateral.appraisal_status_label}
                     />
                     <p className="text-xs font-medium leading-5 text-slate-500">
-                      Dasar: tanggal penilaian pelapor + 1 tahun.
+                      Sumber: {collateralReviewSourceLabel(collateral.latest_appraisal_source)}.
                     </p>
                   </div>
                 }
               />
               <DetailItem
-                label="Kewajiban Penilaian Berikutnya"
+                label="Tinjauan Ulang Berikutnya"
                 value={formatDateOnly(collateral.next_appraisal_due_date)}
               />
               <DetailItem
@@ -3437,7 +3439,7 @@ function CollateralTable({
           <SetupDataTableHeaderCell>Pengikatan</SetupDataTableHeaderCell>
           <SetupDataTableHeaderCell>Nilai NJOP/HT</SetupDataTableHeaderCell>
           <SetupDataTableHeaderCell>Nilai Taksasi</SetupDataTableHeaderCell>
-          <SetupDataTableHeaderCell>Tanggal Penilaian Pelapor</SetupDataTableHeaderCell>
+          <SetupDataTableHeaderCell>Tinjauan Agunan</SetupDataTableHeaderCell>
           <SetupDataTableHeaderCell>Keterangan</SetupDataTableHeaderCell>
           <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
             Aksi
@@ -3507,10 +3509,10 @@ function CollateralTable({
               </SetupDataTableCell>
               <SetupDataTableCell>
                 <CollateralMonitoringCell
-                  date={item.reporter_appraisal_date}
+                  date={item.latest_appraisal_date}
                   status={item.appraisal_status}
                   label={item.appraisal_status_label}
-                  note={`Jadwal ulang: ${formatDateOnly(item.next_appraisal_due_date)}`}
+                  note={collateralReviewNote(item)}
                 />
               </SetupDataTableCell>
               <SetupDataTableCell>
@@ -8259,8 +8261,10 @@ export function DebtorReportClient() {
               nilai_njop_ht: formatCurrency(item.market_value),
               nilai_taksasi: formatCurrency(item.appraisal_value),
               tanggal_penilaian_pelapor: formatDateOnly(item.reporter_appraisal_date),
-              kewajiban_penilaian_berikutnya: formatDateOnly(item.next_appraisal_due_date),
-              status_penilaian: item.appraisal_status_label,
+              tanggal_tinjauan_agunan: formatDateOnly(item.latest_appraisal_date),
+              sumber_tinjauan_agunan: collateralReviewSourceLabel(item.latest_appraisal_source),
+              tinjauan_ulang_berikutnya: formatDateOnly(item.next_appraisal_due_date),
+              status_tinjauan_agunan: item.appraisal_status_label,
               keterangan_expired: item.expiry_note ?? "-",
               keterangan_agunan: item.description ?? "-",
               pengubah_expired: item.expiry_updater?.name ?? "-",
@@ -8780,7 +8784,7 @@ export function DebtorReportClient() {
                   <SetupDataTableHeaderCell>Pengikatan</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Nilai NJOP/HT</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Nilai Taksasi</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell>Tanggal Penilaian Pelapor</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Tinjauan Agunan</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Keterangan</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
                 </SetupDataTableRow>
@@ -8845,10 +8849,10 @@ export function DebtorReportClient() {
                       <SetupDataTableCell><SetupTableMoney>{formatCurrency(item.appraisal_value)}</SetupTableMoney></SetupDataTableCell>
                       <SetupDataTableCell>
                         <CollateralMonitoringCell
-                          date={item.reporter_appraisal_date}
+                          date={item.latest_appraisal_date}
                           status={item.appraisal_status}
                           label={item.appraisal_status_label}
-                          note={`Jadwal ulang: ${formatDateOnly(item.next_appraisal_due_date)}`}
+                          note={collateralReviewNote(item)}
                         />
                       </SetupDataTableCell>
                       <SetupDataTableCell>

@@ -36,6 +36,8 @@ import {
   CollateralExpiryModal,
   CollateralMonitoringBadge,
   CollateralMonitoringCell,
+  collateralReviewNote,
+  collateralReviewSourceLabel,
 } from "@/components/informasi-debitur/CollateralMonitoring";
 import ParameterizedConclusionPanel from "@/components/informasi-debitur/IdebParameterizedConclusionPanel";
 import FeatureHeader from "@/components/ui/FeatureHeader";
@@ -4897,14 +4899,14 @@ function AgunanDetailModal({
 
         <section className="border-t border-gray-100 pt-5">
           <h3 className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-600">
-            Monitoring Taksasi dan Masa Berlaku
+            Monitoring Tinjauan dan Masa Berlaku
           </h3>
           <p className="mt-1 text-sm text-gray-500">
-            Penilaian terakhir dari A01, jadwal taksasi ulang, dan masa berlaku yang diinput manual.
+            Update expired manual ikut menjadi acuan tinjauan agar status tidak rancu.
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <InfoItem
-              label="Tanggal Penilaian Pelapor"
+              label="Tinjauan Agunan"
               value={
                 <div className="space-y-2">
                   <p>{formatDateOnly(item.latest_appraisal_date)}</p>
@@ -4913,13 +4915,13 @@ function AgunanDetailModal({
                     label={item.appraisal_status_label}
                   />
                   <p className="text-xs font-medium leading-5 text-slate-500">
-                    Dasar: tanggal penilaian pelapor + 1 tahun.
+                    Sumber: {collateralReviewSourceLabel(item.latest_appraisal_source)}.
                   </p>
                 </div>
               }
             />
             <InfoItem
-              label="Kewajiban Penilaian Berikutnya"
+              label="Tinjauan Ulang Berikutnya"
               value={formatDateOnly(item.next_appraisal_due_date)}
             />
             <InfoItem
@@ -5050,7 +5052,7 @@ function AgunanTab({
                   <SetupDataTableHeaderCell>Pengikatan</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Nilai NJOP/HT</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Nilai Taksasi</SetupDataTableHeaderCell>
-                  <SetupDataTableHeaderCell>Tanggal Penilaian Pelapor</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Tinjauan Agunan</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell>Keterangan</SetupDataTableHeaderCell>
                   <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
                     Aksi
@@ -5141,10 +5143,10 @@ function AgunanTab({
                       </SetupDataTableCell>
                       <SetupDataTableCell>
                         <CollateralMonitoringCell
-                          date={item.reporter_appraisal_date}
+                          date={item.latest_appraisal_date}
                           status={item.appraisal_status}
                           label={item.appraisal_status_label}
-                          note={`Jadwal ulang: ${formatDateOnly(item.next_appraisal_due_date)}`}
+                          note={collateralReviewNote(item)}
                         />
                       </SetupDataTableCell>
                       <SetupDataTableCell>

@@ -293,11 +293,11 @@ function mapCollateral(record: unknown): DebtorCollateral | null {
       "lastImportPeriodMonth",
     ),
     latest_appraisal_date: normalizeDate(item.latest_appraisal_date),
-    latest_appraisal_source:
-      readString(item, "latest_appraisal_source", "latestAppraisalSource") ===
-      "REPORTER"
-        ? "REPORTER"
-        : null,
+    latest_appraisal_source: (["REPORTER", "EXPIRY_UPDATE"].includes(
+      readString(item, "latest_appraisal_source", "latestAppraisalSource") ?? "",
+    )
+      ? readString(item, "latest_appraisal_source", "latestAppraisalSource")
+      : null) as DebtorCollateral["latest_appraisal_source"],
     next_appraisal_due_date: normalizeDate(item.next_appraisal_due_date),
     appraisal_warning_start_date: normalizeDate(
       item.appraisal_warning_start_date,

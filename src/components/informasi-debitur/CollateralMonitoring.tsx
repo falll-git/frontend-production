@@ -21,6 +21,25 @@ type MonitoringStatus =
   | DebtorCollateral["appraisal_status"]
   | DebtorCollateral["expiry_status"];
 
+export function collateralReviewSourceLabel(
+  source: DebtorCollateral["latest_appraisal_source"],
+) {
+  if (source === "EXPIRY_UPDATE") return "Update expired";
+  if (source === "REPORTER") return "Penilaian pelapor";
+  return "Belum ada sumber";
+}
+
+export function collateralReviewNote(
+  item: Pick<
+    DebtorCollateral,
+    "latest_appraisal_source" | "next_appraisal_due_date"
+  >,
+) {
+  return `Sumber: ${collateralReviewSourceLabel(
+    item.latest_appraisal_source,
+  )}; tinjauan ulang: ${formatDateOnly(item.next_appraisal_due_date)}`;
+}
+
 function toDateOnly(value: string | Date | null | undefined) {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(value);
