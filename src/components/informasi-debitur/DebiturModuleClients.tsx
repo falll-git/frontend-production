@@ -2284,6 +2284,9 @@ function CollateralDetailModal({
                       status={collateral.appraisal_status}
                       label={collateral.appraisal_status_label}
                     />
+                    <p className="text-xs font-medium leading-5 text-slate-500">
+                      Dasar: tanggal penilaian pelapor + 1 tahun.
+                    </p>
                   </div>
                 }
               />
@@ -3507,6 +3510,7 @@ function CollateralTable({
                   date={item.reporter_appraisal_date}
                   status={item.appraisal_status}
                   label={item.appraisal_status_label}
+                  note={`Jadwal ulang: ${formatDateOnly(item.next_appraisal_due_date)}`}
                 />
               </SetupDataTableCell>
               <SetupDataTableCell>
@@ -8844,6 +8848,7 @@ export function DebtorReportClient() {
                           date={item.reporter_appraisal_date}
                           status={item.appraisal_status}
                           label={item.appraisal_status_label}
+                          note={`Jadwal ulang: ${formatDateOnly(item.next_appraisal_due_date)}`}
                         />
                       </SetupDataTableCell>
                       <SetupDataTableCell>

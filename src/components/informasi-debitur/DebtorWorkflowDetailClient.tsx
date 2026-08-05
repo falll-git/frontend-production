@@ -37,6 +37,7 @@ import {
   CollateralMonitoringBadge,
   CollateralMonitoringCell,
 } from "@/components/informasi-debitur/CollateralMonitoring";
+import ParameterizedConclusionPanel from "@/components/informasi-debitur/IdebParameterizedConclusionPanel";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import DashboardModal from "@/components/ui/DashboardModal";
 import SetupActionMenu, {
@@ -3175,11 +3176,11 @@ function IdebModalInfoItem({
       : value || "-";
 
   return (
-    <div className="border-b border-slate-100 py-3 last:border-b-0">
+    <div className="min-w-0 bg-white px-4 py-3.5 sm:px-5">
       <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
         {label}
       </p>
-      <div className="mt-1 text-sm font-semibold leading-6 text-slate-900">
+      <div className="mt-1.5 min-w-0 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-slate-900">
         {displayValue}
       </div>
     </div>
@@ -3458,7 +3459,7 @@ function IdebCreditReviewSummary({ item }: { item: DebtorWorkflowIdebUpload }) {
   return (
     <div className="space-y-5">
       <IdebModalSection title="Profil Pokok Debitur">
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 md:grid-cols-2">
           {profileFields.map((field) => (
             <IdebModalInfoItem
               key={field.label}
@@ -3470,7 +3471,7 @@ function IdebCreditReviewSummary({ item }: { item: DebtorWorkflowIdebUpload }) {
       </IdebModalSection>
 
       <IdebModalSection title="Resume Hasil IDEB">
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 md:grid-cols-2">
           <IdebModalInfoItem
             label="Tanggal Pengecekan IDEB"
             value={idebDate(item.summary_detail?.result_date ?? item.summary_detail?.processed_at)}
@@ -4094,6 +4095,11 @@ function IdebTab({ items }: { items: DebtorWorkflowIdebUpload[] }) {
         <div className="space-y-6">
           <IdebProfileSection item={latestIdeb} />
           <IdebResumeSection item={latestIdeb} />
+          <SectionCard title="Kesimpulan IDEB Terakhir">
+            <ParameterizedConclusionPanel
+              result={latestIdeb.report_summary?.parameterized_conclusion}
+            />
+          </SectionCard>
         </div>
       ) : null}
 
@@ -4305,9 +4311,9 @@ function IdebTab({ items }: { items: DebtorWorkflowIdebUpload[] }) {
             </IdebModalSection>
 
             <IdebModalSection title="Kesimpulan">
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-900">
-                {selectedIdeb.summary_detail?.conclusion ?? "-"}
-              </div>
+              <ParameterizedConclusionPanel
+                result={selectedIdeb.report_summary?.parameterized_conclusion}
+              />
             </IdebModalSection>
 
           </div>
@@ -4906,6 +4912,9 @@ function AgunanDetailModal({
                     status={item.appraisal_status}
                     label={item.appraisal_status_label}
                   />
+                  <p className="text-xs font-medium leading-5 text-slate-500">
+                    Dasar: tanggal penilaian pelapor + 1 tahun.
+                  </p>
                 </div>
               }
             />
@@ -5135,6 +5144,7 @@ function AgunanTab({
                           date={item.reporter_appraisal_date}
                           status={item.appraisal_status}
                           label={item.appraisal_status_label}
+                          note={`Jadwal ulang: ${formatDateOnly(item.next_appraisal_due_date)}`}
                         />
                       </SetupDataTableCell>
                       <SetupDataTableCell>

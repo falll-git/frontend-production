@@ -11,6 +11,7 @@ import {
 import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import DashboardModal from "@/components/ui/DashboardModal";
+import ParameterizedConclusionPanel from "@/components/informasi-debitur/IdebParameterizedConclusionPanel";
 import Pagination from "@/components/ui/Pagination";
 import SetupActionMenu, {
   type SetupActionMenuItem,
@@ -617,13 +618,26 @@ function filterFacilities(facilities: IdebRecord[], filter: IdebFacilityFilter) 
   return sortFacilitiesForAll(facilities);
 }
 
-function InfoItem({ label, value }: { label: string; value: string | number | null | undefined }) {
+function InfoItem({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode | null | undefined;
+}) {
+  const displayValue =
+    typeof value === "string" || typeof value === "number"
+      ? display(value)
+      : value || "-";
+
   return (
-    <div className="border-b border-slate-100 py-3 last:border-b-0">
+    <div className="min-w-0 bg-white px-4 py-3.5 sm:px-5">
       <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
         {label}
       </p>
-      <p className="mt-1 text-sm font-semibold leading-6 text-slate-900">{display(value)}</p>
+      <div className="mt-1.5 min-w-0 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-slate-900">
+        {displayValue}
+      </div>
     </div>
   );
 }
@@ -683,114 +697,6 @@ function conclusionIndicatorBadgeClass(
     RED: "border-red-300 bg-red-100 text-red-800",
     GRAY: "border-slate-300 bg-slate-100 text-slate-700",
   }[indicator ?? "GRAY"];
-}
-
-function ParameterizedConclusionPanel({
-  result,
-  sourceConclusion,
-}: {
-  result: DebtorIdebParameterizedConclusion | null | undefined;
-  sourceConclusion?: string | null;
-}) {
-  if (!result) {
-    return (
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-700">
-        Kesimpulan terparameter belum tersedia. Data sumber perlu diperiksa sebelum keputusan dibuat.
-      </div>
-    );
-  }
-
-  const tone = {
-    GREEN: {
-      panel: "border-emerald-200 bg-emerald-50",
-      badge: "border-emerald-300 bg-emerald-100 text-emerald-800",
-      title: "text-emerald-950",
-    },
-    YELLOW: {
-      panel: "border-amber-200 bg-amber-50",
-      badge: "border-amber-300 bg-amber-100 text-amber-900",
-      title: "text-amber-950",
-    },
-    RED: {
-      panel: "border-red-200 bg-red-50",
-      badge: "border-red-300 bg-red-100 text-red-800",
-      title: "text-red-950",
-    },
-    GRAY: {
-      panel: "border-slate-200 bg-slate-50",
-      badge: "border-slate-300 bg-slate-100 text-slate-700",
-      title: "text-slate-900",
-    },
-  }[result.indicator];
-  const normalizedSourceConclusion = sourceConclusion?.trim();
-
-  return (
-    <div className="space-y-3">
-      <div className={`rounded-xl border p-4 ${tone.panel}`}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className={`rounded-full border px-3 py-1 text-xs font-bold ${tone.badge}`}>
-            Indikator {result.indicator_label}
-          </span>
-          <span className="text-xs font-semibold text-slate-600">
-            {result.rule_number === null
-              ? "Belum ada aturan yang terpenuhi"
-              : `Aturan matrix ${result.rule_number}`}
-          </span>
-        </div>
-        <p className={`mt-4 text-base font-bold leading-7 ${tone.title}`}>
-          {result.conclusion}
-        </p>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <div className="rounded-lg border border-white/80 bg-white/70 p-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-              Kondisi yang Dinilai
-            </p>
-            <p className="mt-2 text-sm font-semibold leading-6 text-slate-800">
-              {result.condition}
-            </p>
-          </div>
-          <div className="rounded-lg border border-white/80 bg-white/70 p-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-              Bukti dari Data IDEB
-            </p>
-            <p className="mt-2 text-sm font-semibold leading-6 text-slate-800">
-              {result.evidence_text}
-            </p>
-          </div>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-600">
-          <span>Posisi data: {formatPeriod(result.reference_period)}</span>
-          {result.evidence.collectibility_levels.length > 0 ? (
-            <span>KOL terdeteksi: {result.evidence.collectibility_levels.join(", ")}</span>
-          ) : null}
-          {result.evidence.highest_days_past_due !== null ? (
-            <span>DPD tertinggi bukti: {formatNumber(result.evidence.highest_days_past_due)} hari</span>
-          ) : null}
-        </div>
-        {result.evidence.reporters.length > 0 ? (
-          <p className="mt-3 text-xs font-medium leading-5 text-slate-600">
-            Pelapor terkait: {result.evidence.reporters.join(", ")}
-          </p>
-        ) : null}
-        <p className="mt-3 border-t border-slate-300/60 pt-3 text-xs font-medium leading-5 text-slate-600">
-          Hasil matrix merupakan ringkasan otomatis. Verifikasi terhadap data IDEB sumber
-          tetap diperlukan sebelum keputusan pembiayaan dibuat.
-        </p>
-      </div>
-
-      {normalizedSourceConclusion && normalizedSourceConclusion !== result.conclusion ? (
-        <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-700">
-          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-            Catatan Kesimpulan dari File Sumber
-          </p>
-          <p className="mt-2">{normalizedSourceConclusion}</p>
-          <p className="mt-2 text-xs font-medium text-slate-500">
-            Catatan ini hanya informasi dan tidak menggantikan hasil matrix di atas.
-          </p>
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 export default function DebtorIdebReportClient() {
@@ -1217,7 +1123,7 @@ export default function DebtorIdebReportClient() {
             {detailTab === "SUMMARY" ? (
               <>
               <SectionCard title="Profil Pokok Debitur">
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 md:grid-cols-2">
                 <InfoItem
                   label="Nama Lengkap"
                   value={
@@ -1271,7 +1177,7 @@ export default function DebtorIdebReportClient() {
             </SectionCard>
 
             <SectionCard title="Resume Hasil IDEB">
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 md:grid-cols-2">
                 <InfoItem
                   label="Tanggal Pengecekan IDEB"
                   value={formatDate(
@@ -1684,7 +1590,6 @@ export default function DebtorIdebReportClient() {
               <SectionCard title="Kesimpulan">
                 <ParameterizedConclusionPanel
                   result={selected.report_summary?.parameterized_conclusion}
-                  sourceConclusion={selected.summary_detail?.conclusion}
                 />
               </SectionCard>
             ) : null}

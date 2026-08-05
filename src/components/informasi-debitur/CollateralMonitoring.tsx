@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { CalendarClock, Save } from "lucide-react";
 
 import DashboardModal from "@/components/ui/DashboardModal";
@@ -20,6 +20,95 @@ import type {
 type MonitoringStatus =
   | DebtorCollateral["appraisal_status"]
   | DebtorCollateral["expiry_status"];
+
+function toDateOnly(value: string | Date | null | undefined) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+}
+
+function addMonthsClamped(value: string | Date, months: number) {
+  const date = toDateOnly(value);
+  if (!date) return null;
+
+  const targetMonth = date.getUTCMonth() + months;
+  const targetYear = date.getUTCFullYear() + Math.floor(targetMonth / 12);
+  const normalizedMonth = ((targetMonth % 12) + 12) % 12;
+  const lastDay = new Date(
+    Date.UTC(targetYear, normalizedMonth + 1, 0),
+  ).getUTCDate();
+
+  return new Date(
+    Date.UTC(
+      targetYear,
+      normalizedMonth,
+      Math.min(date.getUTCDate(), lastDay),
+    ),
+  );
+}
+
+function formatPreviewDate(value: string | Date | null | undefined) {
+  const date = toDateOnly(value);
+  if (!date) return "-";
+
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+function statusByCalendarWindow({
+  dueDate,
+  warningStartDate,
+  now = new Date(),
+}: {
+  dueDate: string | Date | null;
+  warningStartDate: string | Date | null;
+  now?: Date;
+}) {
+  const due = toDateOnly(dueDate);
+  const warningStart = toDateOnly(warningStartDate);
+  const today = toDateOnly(now);
+
+  if (!due || !warningStart || !today) {
+    return { status: "NOT_SET" as const, label: "Tanggal Expired Belum Diisi" };
+  }
+  if (today.getTime() >= due.getTime()) {
+    return { status: "EXPIRED" as const, label: "Sudah Berakhir" };
+  }
+  if (today.getTime() >= warningStart.getTime()) {
+    return { status: "DUE_SOON" as const, label: "Segera Berakhir" };
+  }
+  return { status: "CURRENT" as const, label: "Aman" };
+}
+
+function buildExpiryPreview(hasExpiryDate: boolean, expiryDate: string) {
+  if (!hasExpiryDate) {
+    return {
+      status: "NOT_APPLICABLE" as const,
+      label: "Tidak Berlaku",
+      note: "Agunan tidak memiliki tanggal expired, sehingga tidak masuk warning expired.",
+    };
+  }
+
+  const warningStartDate = expiryDate ? addMonthsClamped(expiryDate, -3) : null;
+  const status = statusByCalendarWindow({
+    dueDate: expiryDate || null,
+    warningStartDate,
+  });
+
+  return {
+    ...status,
+    note: expiryDate
+      ? `Warning kuning dimulai ${formatPreviewDate(warningStartDate)}; merah mulai ${formatPreviewDate(expiryDate)}.`
+      : "Isi tanggal expired agar status expired dapat dihitung.",
+  };
+}
 
 function monitoringTone(status: MonitoringStatus): SetupStatusTone {
   if (status === "CURRENT") return "emerald";
@@ -51,12 +140,15 @@ export function CollateralMonitoringCell({
   date,
   status,
   label,
+  note,
 }: {
   date: string | null;
   status: MonitoringStatus;
   label: string;
+  note?: ReactNode;
 }) {
   const isNotApplicable = status === "NOT_APPLICABLE";
+  const resolvedNote = note ?? (isNotApplicable ? "Tidak dimonitor" : null);
 
   return (
     <div className="space-y-1.5">
@@ -69,6 +161,11 @@ export function CollateralMonitoringCell({
         status={status}
         label={isNotApplicable ? "Tidak Berlaku" : label}
       />
+      {resolvedNote ? (
+        <p className="max-w-[220px] whitespace-normal text-xs font-medium leading-5 text-slate-500">
+          {resolvedNote}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -88,6 +185,10 @@ export function CollateralExpiryModal({
   const [expiryDate, setExpiryDate] = useState("");
   const [expiryNote, setExpiryNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const expiryPreview = useMemo(
+    () => buildExpiryPreview(hasExpiryDate, expiryDate),
+    [expiryDate, hasExpiryDate],
+  );
 
   useEffect(() => {
     setHasExpiryDate(item?.has_expiry_date === true);
@@ -156,8 +257,8 @@ export function CollateralExpiryModal({
               </p>
             </div>
             <CollateralMonitoringBadge
-              status={item.expiry_status}
-              label={item.expiry_status_label}
+              status={expiryPreview.status}
+              label={expiryPreview.label}
             />
           </div>
 
@@ -221,9 +322,9 @@ export function CollateralExpiryModal({
           <div className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
             <CalendarClock className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
             <p className="leading-6">
-              Status kuning dimulai tepat <strong>3 bulan kalender</strong>{" "}
-              sebelum tanggal expired. Status merah dimulai tepat pada tanggal
-              expired dan tetap merah setelah tanggal tersebut.
+              {expiryPreview.note} Status ini hanya berlaku jika agunan diset
+              memiliki tanggal expired; jika tidak, tabel menampilkan status{" "}
+              <strong>Tidak Berlaku</strong>.
             </p>
           </div>
 
