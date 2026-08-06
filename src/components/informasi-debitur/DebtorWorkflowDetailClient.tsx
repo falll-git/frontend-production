@@ -4902,7 +4902,7 @@ function AgunanDetailModal({
             Monitoring Tinjauan dan Masa Berlaku
           </h3>
           <p className="mt-1 text-sm text-gray-500">
-            Update expired manual ikut menjadi acuan tinjauan agar status tidak rancu.
+            Tanggal expired yang diset pada agunan menjadi acuan tinjauan agar status tidak rancu.
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <InfoItem
@@ -6007,7 +6007,23 @@ export default function DebtorWorkflowDetailClient({ debtorId }: { debtorId: str
       if (!expiryCollateral) return;
 
       try {
-        await debiturService.updateCollateralExpiry(expiryCollateral.id, payload);
+        const updated = await debiturService.updateCollateralExpiry(
+          expiryCollateral.id,
+          payload,
+        );
+        setWorkflow((current) =>
+          current
+            ? {
+                ...current,
+                collaterals: current.collaterals.map((item) =>
+                  item.id === updated.id ? updated : item,
+                ),
+              }
+            : current,
+        );
+        setExpiryCollateral((current) =>
+          current?.id === updated.id ? updated : current,
+        );
         showToast("Monitoring expired agunan diperbarui", "success");
         await loadWorkflow();
       } catch (error) {

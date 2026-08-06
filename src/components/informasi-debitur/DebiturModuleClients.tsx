@@ -2271,7 +2271,7 @@ function CollateralDetailModal({
                 Monitoring Tinjauan dan Masa Berlaku
               </h3>
               <p className="text-sm leading-6 text-gray-500">
-                Update expired manual ikut menjadi acuan tinjauan agar status tidak rancu.
+                Tanggal expired yang diset pada agunan menjadi acuan tinjauan agar status tidak rancu.
               </p>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -2956,6 +2956,10 @@ function useCollateralTable(enabled: boolean) {
     page,
     setPage,
     isLoading,
+    patchItem: (updated: DebtorCollateral) =>
+      setItems((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      ),
     reload: load,
   };
 }
@@ -4088,7 +4092,11 @@ export function DebtorListClient() {
         expiryCollateral.id,
         payload,
       );
+      collateralTable.patchItem(updated);
       setSelectedCollateral((current) =>
+        current?.id === updated.id ? updated : current,
+      );
+      setExpiryCollateral((current) =>
         current?.id === updated.id ? updated : current,
       );
       showToast("Monitoring expired agunan diperbarui", "success");

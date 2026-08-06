@@ -24,6 +24,7 @@ type MonitoringStatus =
 export function collateralReviewSourceLabel(
   source: DebtorCollateral["latest_appraisal_source"],
 ) {
+  if (source === "EXPIRY_DATE") return "Tanggal expired";
   if (source === "EXPIRY_UPDATE") return "Update expired";
   if (source === "REPORTER") return "Penilaian pelapor";
   return "Belum ada sumber";
