@@ -18,6 +18,7 @@ type TenggatWaktuModalProps = {
   isOpen: boolean;
   onSave: (payload: TenggatWaktuPayload) => void;
   onSkip: () => void;
+  onCancel: () => void;
   disposisi?: string[];
   title?: string;
   subtitle?: string;
@@ -30,6 +31,7 @@ export default function TenggatWaktuModal({
   isOpen,
   onSave,
   onSkip,
+  onCancel,
   disposisi = [],
   title = "Tenggat Waktu",
   subtitle = "Tenggat bersifat opsional dan dapat dilewati.",
@@ -50,6 +52,11 @@ export default function TenggatWaktuModal({
     onSkip();
   };
 
+  const handleCancel = () => {
+    resetFields();
+    onCancel();
+  };
+
   const handleSave = () => {
     const trimmedNote = keteranganTenggat.trim();
 
@@ -65,7 +72,7 @@ export default function TenggatWaktuModal({
       isOpen={isOpen}
       title={title}
       description={subtitle}
-      onClose={handleSkip}
+      onClose={handleCancel}
       maxWidth="3xl"
       bodyClassName="max-h-[calc(90vh-164px)] overflow-y-auto p-6"
       footerClassName="flex flex-col gap-3 border-t border-gray-100 bg-gray-50 p-6 sm:flex-row sm:justify-end"

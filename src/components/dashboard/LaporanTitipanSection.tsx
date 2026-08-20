@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Banknote,
+  AlertTriangle,
   CheckCircle,
   ChevronRight,
   Clock,
@@ -19,11 +20,11 @@ import { useDocumentPreviewContext } from "@/components/ui/DocumentPreviewContex
 import DashboardModal from "@/components/ui/DashboardModal";
 import Pagination from "@/components/ui/Pagination";
 import SetupActionMenu from "@/components/ui/SetupActionMenu";
+import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import {
   SetupDataTable,
   SetupDataTableBody,
   SetupDataTableCell,
-  SetupDataTableEmptyRow,
   SetupDataTableHead,
   SetupDataTableHeaderCell,
   SetupDataTableRow,
@@ -64,6 +65,7 @@ type TitipanSummaryItem = {
   totalRefund: number;
   saldoAkhir: number;
   jumlahTitipan: number;
+  mismatchedRecords: number;
 };
 
 const EMPTY_META: PaginationMeta = {
@@ -177,6 +179,7 @@ function createEmptySummary(jenisTitipan: JenisTitipan): TitipanSummaryItem {
     totalRefund: 0,
     saldoAkhir: 0,
     jumlahTitipan: 0,
+    mismatchedRecords: 0,
   };
 }
 
@@ -198,6 +201,7 @@ function mapDepositSummary(rows: LegalDepositFundsReport[]): TitipanSummaryItem[
     summary.totalRefund += depositAmount(row, "refund");
     summary.saldoAkhir += depositAmount(row, "balance");
     summary.jumlahTitipan += row.total_records;
+    summary.mismatchedRecords += row.mismatched_records ?? 0;
   });
 
   return jenisOrder.map((jenisTitipan) => summaries.get(jenisTitipan)!);
@@ -373,7 +377,7 @@ export default function LaporanTitipanSection({
 
   return (
     <>
-      <section className="animate-fade-in">
+      <section>
         <div className="mb-4">
           <h2 className="flex items-center gap-2 text-xl font-bold text-gray-800">
             <Wallet className="h-6 w-6 text-gray-600" aria-hidden="true" />
@@ -382,30 +386,35 @@ export default function LaporanTitipanSection({
         </div>
 
         {errorMessage ? (
-          <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <div
+            className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+            role="alert"
+          >
             {errorMessage}
           </div>
         ) : null}
 
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {titipanSummary.map((item, index) => {
+          {titipanSummary.map((item) => {
             const meta = jenisMeta[item.jenisTitipan];
             const SummaryIcon = meta.icon;
             const hasBalance = item.saldoAkhir > 0;
+            const hasMismatch = item.mismatchedRecords > 0;
 
             return (
               <button
                 type="button"
                 key={item.jenisTitipan}
                 onClick={() => openDepositSummary(item.jenisTitipan)}
-                className="group rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition-colors hover:border-sky-200 hover:bg-sky-50/30"
-                style={{ animationDelay: `${index * 0.1}s` }}
+                className={`group rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition-[border-color,background-color,box-shadow,transform] duration-200 hover:border-sky-200 hover:bg-sky-50/20 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200 focus-visible:ring-offset-2 motion-safe:hover:-translate-y-0.5 motion-reduce:transition-none ${
+                  item.jenisTitipan === "LAINNYA" ? "lg:col-start-2" : ""
+                }`}
                 title={`Lihat ${meta.title}`}
               >
                 <div className="mb-6 flex items-start gap-4">
                   <div className="flex min-w-0 flex-1 items-center gap-4">
                     <div
-                      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-lg transition-transform group-hover:scale-110"
+                      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-lg motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:scale-105"
                       style={{
                         background: `linear-gradient(135deg, ${meta.accentColor} 0%, ${meta.accentEndColor} 100%)`,
                         boxShadow: `0 12px 24px ${meta.shadowColor}`,
@@ -462,9 +471,24 @@ export default function LaporanTitipanSection({
                   </div>
                 </div>
 
-                <div className="mt-6 flex items-center justify-between font-medium text-[#0d5a8f] transition-transform group-hover:translate-x-1">
+                {hasMismatch ? (
+                  <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+                    <AlertTriangle
+                      className="mt-0.5 h-4 w-4 shrink-0 text-amber-700"
+                      aria-hidden="true"
+                    />
+                    <span>
+                      {item.mismatchedRecords} data perlu rekonsiliasi ledger.
+                    </span>
+                  </div>
+                ) : null}
+
+                <div className="mt-6 flex items-center justify-between font-medium text-[#0d5a8f]">
                   <span className="text-sm">Lihat Detail</span>
-                  <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                  <ChevronRight
+                    className="h-5 w-5 motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:translate-x-1"
+                    aria-hidden="true"
+                  />
                 </div>
               </button>
             );
@@ -473,11 +497,11 @@ export default function LaporanTitipanSection({
       </section>
 
       <DashboardModal
-        isOpen={selectedJenisTitipan !== null && detailTarget === null}
+        isOpen={selectedJenisTitipan !== null}
         title={selectedMeta?.title ?? "Laporan Dana Titipan"}
         description="Rekap ledger titipan, pembayaran, refund, dan saldo akhir."
         maxWidth="5xl"
-        bodyClassName="max-h-[78vh] space-y-5 overflow-y-auto p-4 sm:p-5"
+        bodyClassName="space-y-5 p-4 sm:p-5"
         onClose={closeDepositSummary}
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -505,128 +529,165 @@ export default function LaporanTitipanSection({
           />
         </div>
 
+        {(selectedSummary?.mismatchedRecords ?? 0) > 0 ? (
+          <div
+            className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950"
+            role="alert"
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle
+                className="mt-0.5 h-5 w-5 shrink-0 text-amber-700"
+                aria-hidden="true"
+              />
+              <span>
+                {selectedSummary?.mismatchedRecords} dana titipan memiliki agregat
+                lama yang tidak cocok dengan riwayat. Ringkasan di atas memakai
+                nilai ledger transaksi; buka detail untuk melihat perbandingannya.
+              </span>
+            </div>
+          </div>
+        ) : null}
+
         {depositErrorMessage ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <div
+            className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+            role="alert"
+          >
             {depositErrorMessage}
           </div>
         ) : null}
 
-        <SetupTableCard variant="report">
-          <SetupDataTable
-            variant="report"
-            density="compact"
-            className="min-w-[1540px]"
+        {isDepositLoading ? (
+          <div
+            className="flex min-h-36 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-5 py-8 text-sm font-medium text-slate-600"
+            role="status"
+            aria-live="polite"
           >
-            <SetupDataTableHead>
-              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Debitur</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Jenis Titipan</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Pihak Ketiga</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Total Titipan</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Pembayaran</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Refund</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Saldo Akhir</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Status</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
-              </SetupDataTableRow>
-            </SetupDataTableHead>
-            <SetupDataTableBody>
-              {depositRecords.map((item, index) => (
-                <SetupDataTableRow
-                  key={item.id}
-                  className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer`}
-                  title="Double-click untuk melihat detail dana titipan"
-                  onDoubleClick={() => setDetailTarget(item)}
-                >
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                    {(depositMeta.page - 1) * depositMeta.limit + index + 1}
-                  </SetupDataTableCell>
-                  <SetupDataTableCell>
-                    <SetupTableCode>{item.contract?.no_kontrak ?? "-"}</SetupTableCode>
-                  </SetupDataTableCell>
-                  <SetupDataTableCell>
-                    <SetupTablePrimaryText>
-                      {item.contract?.debtor?.name ?? "-"}
-                    </SetupTablePrimaryText>
-                  </SetupDataTableCell>
-                  <SetupDataTableCell>{depositTypeName(item)}</SetupDataTableCell>
-                  <SetupDataTableCell>
-                    {parameterName(item.third_party)}
-                  </SetupDataTableCell>
-                  <SetupDataTableCell>
-                    <SetupTableMoney>
-                      {formatRupiah(item.total_deposit_amount ?? item.nominal)}
-                    </SetupTableMoney>
-                  </SetupDataTableCell>
-                  <SetupDataTableCell>
-                    <SetupTableMoney>
-                      {formatRupiah(item.total_payment_amount ?? item.paid_amount)}
-                    </SetupTableMoney>
-                  </SetupDataTableCell>
-                  <SetupDataTableCell>
-                    <SetupTableMoney>
-                      {formatRupiah(item.total_refund_amount ?? item.processed_amount)}
-                    </SetupTableMoney>
-                  </SetupDataTableCell>
-                  <SetupDataTableCell>
-                    <SetupTableMoney>
-                      {formatRupiah(item.balance_amount ?? item.remaining_amount)}
-                    </SetupTableMoney>
-                  </SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <SetupStatusBadge status={statusLabel(item.status)} />
-                  </SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <div
-                      className="flex items-center justify-center"
-                      onClick={(event) => event.stopPropagation()}
-                      onDoubleClick={(event) => event.stopPropagation()}
-                      onKeyDown={(event) => event.stopPropagation()}
-                    >
-                      <SetupActionMenu
-                        label={`Buka aksi dana titipan ${item.contract?.no_kontrak ?? ""}`}
-                        menuLabel={`Aksi dana titipan ${item.contract?.no_kontrak ?? ""}`}
-                        items={[
-                          {
-                            key: "detail",
-                            label: "Detail",
-                            icon: Eye,
-                            tone: "blue",
-                            onClick: () => setDetailTarget(item),
-                          },
-                        ]}
-                      />
-                    </div>
-                  </SetupDataTableCell>
+            Memuat detail dana titipan...
+          </div>
+        ) : depositRecords.length > 0 ? (
+          <SetupTableCard variant="report">
+            <SetupDataTable
+              variant="report"
+              density="compact"
+              className="min-w-[1540px]"
+            >
+              <SetupDataTableHead>
+                <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Debitur</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Jenis Titipan</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Pihak Ketiga</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Total Titipan</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Pembayaran</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Refund</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Saldo Akhir</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Status</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
                 </SetupDataTableRow>
-              ))}
-              {isDepositLoading ? (
-                <SetupDataTableEmptyRow colSpan={11}>
-                  Memuat detail dana titipan...
-                </SetupDataTableEmptyRow>
-              ) : null}
-              {!isDepositLoading && !depositErrorMessage && depositRecords.length === 0 ? (
-                <SetupDataTableEmptyRow
-                  colSpan={11}
-                  tone="legal"
-                  description="Data detail akan terisi dari record dana titipan pada modul Legal."
-                >
-                  Belum ada laporan untuk jenis titipan ini.
-                </SetupDataTableEmptyRow>
-              ) : null}
-            </SetupDataTableBody>
-          </SetupDataTable>
-          <Pagination
-            page={depositMeta.page}
-            lastPage={depositMeta.lastPage}
-            total={depositMeta.total}
-            limit={depositMeta.limit}
-            isLoading={isDepositLoading}
-            onPageChange={setDepositPage}
+              </SetupDataTableHead>
+              <SetupDataTableBody>
+                {depositRecords.map((item, index) => (
+                  <SetupDataTableRow
+                    key={item.id}
+                    className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer`}
+                    title="Double-click untuk melihat detail dana titipan"
+                    onDoubleClick={(event) => {
+                      event.currentTarget
+                        .querySelector<HTMLButtonElement>(
+                          '[data-setup-action-toggle="true"]',
+                        )
+                        ?.focus();
+                      setDetailTarget(item);
+                    }}
+                  >
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                      {(depositMeta.page - 1) * depositMeta.limit + index + 1}
+                    </SetupDataTableCell>
+                    <SetupDataTableCell>
+                      <SetupTableCode>{item.contract?.no_kontrak ?? "-"}</SetupTableCode>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell>
+                      <SetupTablePrimaryText>
+                        {item.contract?.debtor?.name ?? "-"}
+                      </SetupTablePrimaryText>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell>{depositTypeName(item)}</SetupDataTableCell>
+                    <SetupDataTableCell>
+                      {parameterName(item.third_party)}
+                    </SetupDataTableCell>
+                    <SetupDataTableCell>
+                      <SetupTableMoney>
+                        {formatRupiah(item.total_deposit_amount ?? item.nominal)}
+                      </SetupTableMoney>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell>
+                      <SetupTableMoney>
+                        {formatRupiah(item.total_payment_amount ?? item.paid_amount)}
+                      </SetupTableMoney>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell>
+                      <SetupTableMoney>
+                        {formatRupiah(item.total_refund_amount ?? item.processed_amount)}
+                      </SetupTableMoney>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell>
+                      <SetupTableMoney>
+                        {formatRupiah(item.balance_amount ?? item.remaining_amount)}
+                      </SetupTableMoney>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      <div className="flex flex-col items-center gap-1.5">
+                        <SetupStatusBadge status={statusLabel(item.status)} />
+                        {item.ledger?.reconciliation.status === "MISMATCH" ? (
+                          <SetupStatusBadge status="Perlu Rekonsiliasi" />
+                        ) : null}
+                      </div>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      <div
+                        className="flex items-center justify-center"
+                        onClick={(event) => event.stopPropagation()}
+                        onDoubleClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        <SetupActionMenu
+                          label={`Buka aksi dana titipan ${item.contract?.no_kontrak ?? ""}`}
+                          menuLabel={`Aksi dana titipan ${item.contract?.no_kontrak ?? ""}`}
+                          items={[
+                            {
+                              key: "detail",
+                              label: "Detail",
+                              icon: Eye,
+                              tone: "blue",
+                              onClick: () => setDetailTarget(item),
+                            },
+                          ]}
+                        />
+                      </div>
+                    </SetupDataTableCell>
+                  </SetupDataTableRow>
+                ))}
+              </SetupDataTableBody>
+            </SetupDataTable>
+            <Pagination
+              page={depositMeta.page}
+              lastPage={depositMeta.lastPage}
+              total={depositMeta.total}
+              limit={depositMeta.limit}
+              isLoading={false}
+              onPageChange={setDepositPage}
+            />
+          </SetupTableCard>
+        ) : !depositErrorMessage ? (
+          <SetupEmptyState
+            title="Belum ada laporan untuk jenis titipan ini"
+            description="Data detail akan terisi dari record dana titipan pada modul Legal."
+            tone="legal"
+            variant="panel"
           />
-        </SetupTableCard>
+        ) : null}
       </DashboardModal>
 
       <DashboardModal
@@ -635,7 +696,7 @@ export default function LaporanTitipanSection({
         description={detailTarget?.contract?.no_kontrak}
         onClose={() => setDetailTarget(null)}
         maxWidth="4xl"
-        bodyClassName="max-h-[70vh] space-y-5 overflow-y-auto p-6"
+        bodyClassName="space-y-6 p-4 sm:p-5"
         footer={
           <button
             type="button"

@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type Response } from "@playwright/test";
 
 import { login } from "./support/auth";
+import { assertViewportAccessibilityContract } from "./support/accessibility-contract";
 
 function findFirstEntityId(value: unknown, depth = 0): string | null {
   if (depth > 8 || value === null || value === undefined) return null;
@@ -42,13 +43,14 @@ function findFirstEntityId(value: unknown, depth = 0): string | null {
   return null;
 }
 
-async function assertAccessible(page: Page) {
+async function assertAccessible(page: Page, checkTouchTargets: boolean) {
   await expect(page.locator("main")).toBeVisible({ timeout: 15_000 });
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
 
   expect(results.violations).toEqual([]);
+  await assertViewportAccessibilityContract(page, checkTouchTargets);
 }
 
 async function captureEntityId(
@@ -70,7 +72,7 @@ test.beforeEach(async ({ page }) => {
   await login(page);
 });
 
-test("detail debitur dari data seed lulus accessibility otomatis", async ({ page }) => {
+test("detail debitur dari data seed lulus accessibility otomatis", async ({ page }, testInfo) => {
   const debtorId = await captureEntityId(
     page,
     "/dashboard/informasi-debitur",
@@ -84,10 +86,10 @@ test("detail debitur dari data seed lulus accessibility otomatis", async ({ page
     waitUntil: "domcontentloaded",
   });
   await expect(page).toHaveURL(new RegExp(`/dashboard/informasi-debitur/${debtorId}$`));
-  await assertAccessible(page);
+  await assertAccessible(page, testInfo.project.name.includes("mobile"));
 });
 
-test("detail kantor dari data seed lulus accessibility otomatis", async ({ page }) => {
+test("detail kantor dari data seed lulus accessibility otomatis", async ({ page }, testInfo) => {
   const officeId = await captureEntityId(
     page,
     "/dashboard/arsip-digital/ruang-arsip/tempat-penyimpanan",
@@ -104,5 +106,5 @@ test("detail kantor dari data seed lulus accessibility otomatis", async ({ page 
   await expect(page).toHaveURL(
     new RegExp(`/dashboard/arsip-digital/ruang-arsip/tempat-penyimpanan/${officeId}$`),
   );
-  await assertAccessible(page);
+  await assertAccessible(page, testInfo.project.name.includes("mobile"));
 });

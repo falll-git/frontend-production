@@ -98,7 +98,7 @@ export interface Dokumen {
   tempatPenyimpananId?: string;
   statusPinjam: DokumenAvailabilityLabel;
   statusPeminjaman?: DokumenAvailabilityLabel;
-  statusPinjamKey?: DokumenAvailabilityKey;
+  statusPinjamKey: DokumenAvailabilityKey;
   levelAkses: DataAccessLevel;
   restrict: boolean;
   fileUrl?: string;

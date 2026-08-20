@@ -22,6 +22,7 @@ type SetupTableSkeletonRowsProps = {
   rows?: number;
   columns?: number;
   className?: string;
+  loadingLabel?: string;
 };
 
 export function SetupTableSkeletonRows({
@@ -29,6 +30,7 @@ export function SetupTableSkeletonRows({
   rows = 5,
   columns = 5,
   className,
+  loadingLabel = "Memuat data...",
 }: SetupTableSkeletonRowsProps) {
   const safeRows = Math.max(1, rows);
   const safeColumns = Math.max(2, columns);
@@ -40,10 +42,18 @@ export function SetupTableSkeletonRows({
         <tr
           key={`setup-table-skeleton-${rowIndex}`}
           className="border-b border-slate-100 last:border-b-0"
-          aria-hidden="true"
+          aria-hidden={rowIndex === 0 ? undefined : "true"}
         >
           <td colSpan={colSpan} className={cn("px-3 py-3", className)}>
-            <div className="flex min-w-[560px] items-center gap-4">
+            {rowIndex === 0 ? (
+              <span className="sr-only" role="status" aria-live="polite">
+                {loadingLabel}
+              </span>
+            ) : null}
+            <div
+              className="flex min-w-[560px] items-center gap-4"
+              aria-hidden="true"
+            >
               {Array.from({ length: safeColumns }).map((__, columnIndex) => (
                 <SetupSkeletonBlock
                   key={`setup-table-skeleton-${rowIndex}-${columnIndex}`}

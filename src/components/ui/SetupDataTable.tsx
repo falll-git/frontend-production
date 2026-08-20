@@ -3,6 +3,7 @@ import {
   cloneElement,
   isValidElement,
   type ComponentPropsWithoutRef,
+  type MouseEvent as ReactMouseEvent,
   type ReactElement,
   type ReactNode,
 } from "react";
@@ -37,6 +38,26 @@ type SetupDataTableProps = ComponentPropsWithoutRef<"table"> & {
   variant?: SetupTableVariant;
   density?: SetupTableDensity;
 };
+
+const ACTION_HEADER_LABELS = new Set(["aksi", "opsi", "tindakan"]);
+const ROW_DOUBLE_CLICK_INTERACTIVE_SELECTOR = [
+  "a[href]",
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "label",
+  "summary",
+  '[role="button"]',
+  '[role="link"]',
+  '[role="menuitem"]',
+  '[contenteditable="true"]',
+  '[data-row-double-click-ignore="true"]',
+].join(",");
+
+function isActionHeaderLabel(label: string | undefined) {
+  return ACTION_HEADER_LABELS.has((label ?? "").trim().toLocaleLowerCase("id-ID"));
+}
 
 function getTextContent(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") {
@@ -97,6 +118,7 @@ function cloneCellWithMobileLabel(
 
   return cloneElement(child as ReactElement<SetupDataTableCellProps>, {
     mobileLabel: props.mobileLabel || label || undefined,
+    actionColumn: props.actionColumn || isActionHeaderLabel(label),
   });
 }
 
@@ -127,7 +149,8 @@ function cloneRowWithMobileLabels(
     (child) => {
       if (isValidElement(child) && child.type === SetupDataTableCell) {
         const label = labels[cellIndex];
-        cellIndex += 1;
+        const props = child.props as SetupDataTableCellProps;
+        cellIndex += Math.max(1, Number(props.colSpan ?? 1));
         return cloneCellWithMobileLabel(child, label);
       }
 
@@ -216,32 +239,61 @@ export function SetupDataTableBody({
 
 export function SetupDataTableRow({
   className,
+  onDoubleClick,
   ...props
 }: ComponentPropsWithoutRef<"tr">) {
-  return <tr className={cn("setup-responsive-table__row", className)} {...props} />;
+  const handleDoubleClick = onDoubleClick
+    ? (event: ReactMouseEvent<HTMLTableRowElement>) => {
+        const target = event.target;
+        if (
+          target instanceof Element &&
+          target.closest(ROW_DOUBLE_CLICK_INTERACTIVE_SELECTOR)
+        ) {
+          return;
+        }
+
+        onDoubleClick(event);
+      }
+    : undefined;
+
+  return (
+    <tr
+      className={cn("setup-responsive-table__row", className)}
+      onDoubleClick={handleDoubleClick}
+      {...props}
+    />
+  );
 }
 
 export function SetupDataTableHeaderCell({
   className,
+  children,
   ...props
 }: ComponentPropsWithoutRef<"th">) {
+  const actionColumn = isActionHeaderLabel(getTextContent(children));
+
   return (
     <th
       className={cn(SETUP_PAGE_MODERN_HEADER_CELL_CLASS, className)}
+      data-table-action={actionColumn ? "true" : undefined}
       {...props}
-    />
+    >
+      {children}
+    </th>
   );
 }
 
 type SetupDataTableCellProps = ComponentPropsWithoutRef<"td"> & {
   mobileLabel?: string;
   mobileHidden?: boolean;
+  actionColumn?: boolean;
 };
 
 export function SetupDataTableCell({
   className,
   mobileLabel,
   mobileHidden = false,
+  actionColumn = false,
   ...props
 }: SetupDataTableCellProps) {
   return (
@@ -253,6 +305,7 @@ export function SetupDataTableCell({
       )}
       data-mobile-label={mobileLabel || undefined}
       data-mobile-hidden={mobileHidden ? "true" : undefined}
+      data-table-action={actionColumn ? "true" : undefined}
       {...props}
     />
   );
@@ -277,6 +330,8 @@ type SetupTableCardProps = ComponentPropsWithoutRef<"div"> & {
   variant?: SetupTableVariant;
   scroll?: boolean;
   scrollClassName?: string;
+  scrollAriaLabel?: string;
+  scrollAriaLabelledBy?: string;
 };
 
 export function SetupTableScroll({
@@ -307,6 +362,8 @@ export function SetupTableCard({
   variant = "default",
   scroll = true,
   scrollClassName,
+  scrollAriaLabel,
+  scrollAriaLabelledBy,
   ...props
 }: SetupTableCardProps) {
   return (
@@ -321,7 +378,11 @@ export function SetupTableCard({
       {...props}
     >
       {scroll ? (
-        <SetupTableScroll className={scrollClassName}>
+        <SetupTableScroll
+          className={scrollClassName}
+          aria-label={scrollAriaLabel}
+          aria-labelledby={scrollAriaLabelledBy}
+        >
           {children}
         </SetupTableScroll>
       ) : (
@@ -465,6 +526,7 @@ export function SetupDataTableEmptyRow({
         rows={loadingRows}
         columns={loadingColumns ?? Math.min(Math.max(colSpan, 3), 7)}
         className={className}
+        loadingLabel={text || "Memuat data..."}
       />
     );
   }

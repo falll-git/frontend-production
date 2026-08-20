@@ -1,5 +1,6 @@
 .sidebar-menu-item {
   display: flex;
+  min-height: 44px;
   align-items: center;
   gap: 12px;
   padding: 12px 16px 12px 16px;
@@ -23,6 +24,7 @@
 
 .sidebar-submenu-item {
   display: flex;
+  min-height: 44px;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;

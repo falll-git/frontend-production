@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import api, {
   ApiRequestError,
   getAccessToken,
+  SessionRefreshRateLimitError,
+  SessionRefreshTransientError,
   setAccessToken,
 } from "@/lib/axios";
 import { AUTH_STORAGE_KEYS } from "@/lib/auth-storage";
@@ -265,11 +267,13 @@ describe("API request correlation", () => {
     expect(refreshPost).toHaveBeenCalledTimes(1);
   });
 
-  it("membersihkan sesi browser ketika refresh gagal tanpa melaporkan 401", async () => {
+  it("membersihkan sesi browser ketika refresh benar-benar ditolak 401", async () => {
     const reportFetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(null, { status: 202 }),
     );
-    vi.spyOn(axios, "post").mockRejectedValue(new Error("refresh down"));
+    vi.spyOn(axios, "post").mockRejectedValue({
+      response: { status: 401, data: { message: "Sesi login tidak valid." } },
+    });
     window.localStorage.setItem(AUTH_STORAGE_KEYS.persistedUser, "stored");
     window.sessionStorage.setItem(AUTH_STORAGE_KEYS.sessionUser, "stored");
     setAccessToken("expired-token");
@@ -290,6 +294,95 @@ describe("API request correlation", () => {
     expect(window.localStorage.getItem(AUTH_STORAGE_KEYS.persistedUser)).toBeNull();
     expect(window.sessionStorage.getItem(AUTH_STORAGE_KEYS.sessionUser)).toBeNull();
     expect(reportFetch).not.toHaveBeenCalled();
+  });
+
+  it("mempertahankan sesi ketika refresh mengalami gangguan server sementara", async () => {
+    const refreshPost = vi.spyOn(axios, "post").mockRejectedValue({
+      config: { headers: { "X-Request-Id": "transient-request-12345678" } },
+      response: {
+        status: 503,
+        data: { message: "Layanan autentikasi sedang mengalami gangguan." },
+        headers: {},
+      },
+    });
+    window.localStorage.setItem(AUTH_STORAGE_KEYS.persistedUser, "stored");
+    window.sessionStorage.setItem(AUTH_STORAGE_KEYS.sessionUser, "stored");
+    setAccessToken("temporarily-expired-token");
+
+    const result = api.get("/menus", {
+      adapter: async (config) =>
+        Promise.reject({
+          config,
+          response: { status: 401, data: {}, headers: {} },
+        }),
+    });
+
+    await expect(result).rejects.toBeInstanceOf(SessionRefreshTransientError);
+    await expect(result).rejects.toMatchObject({
+      statusCode: 503,
+      requestId: "transient-request-12345678",
+    });
+    expect(refreshPost).toHaveBeenCalledTimes(3);
+    expect(getAccessToken()).toBe("temporarily-expired-token");
+    expect(window.localStorage.getItem(AUTH_STORAGE_KEYS.persistedUser)).toBe(
+      "stored",
+    );
+    expect(window.sessionStorage.getItem(AUTH_STORAGE_KEYS.sessionUser)).toBe(
+      "stored",
+    );
+  });
+
+  it("mempertahankan sesi ketika refresh dibatasi dan hanya mencoba ulang terkendali", async () => {
+    const refreshPost = vi.spyOn(axios, "post").mockRejectedValue({
+      response: {
+        status: 429,
+        data: {
+          message: "Pembaruan sesi sedang dibatasi.",
+          retry_after_seconds: 0,
+          request_id: "rate-limit-request-12345678",
+        },
+        headers: { "retry-after": "0" },
+      },
+    });
+    window.localStorage.setItem(AUTH_STORAGE_KEYS.persistedUser, "stored");
+    window.sessionStorage.setItem(AUTH_STORAGE_KEYS.sessionUser, "stored");
+    setAccessToken("temporarily-expired-token");
+
+    const result = api.get("/menus", {
+      adapter: async (config) =>
+        Promise.reject({
+          config,
+          response: { status: 401, data: {}, headers: {} },
+        }),
+    });
+
+    await expect(result).rejects.toMatchObject({
+      name: "SessionRefreshRateLimitError",
+      statusCode: 429,
+      requestId: "rate-limit-request-12345678",
+    });
+    await expect(result).rejects.toBeInstanceOf(SessionRefreshRateLimitError);
+    expect(refreshPost).toHaveBeenCalledTimes(2);
+    expect(getAccessToken()).toBe("temporarily-expired-token");
+    expect(window.localStorage.getItem(AUTH_STORAGE_KEYS.persistedUser)).toBe(
+      "stored",
+    );
+    expect(window.sessionStorage.getItem(AUTH_STORAGE_KEYS.sessionUser)).toBe(
+      "stored",
+    );
+    expect(window.location.pathname).toBe("/");
+
+    const duringCooldown = api.get("/roles", {
+      adapter: async (config) =>
+        Promise.reject({
+          config,
+          response: { status: 401, data: {}, headers: {} },
+        }),
+    });
+    await expect(duringCooldown).rejects.toBeInstanceOf(
+      SessionRefreshRateLimitError,
+    );
+    expect(refreshPost).toHaveBeenCalledTimes(2);
   });
 
   it("tidak mencoba refresh untuk endpoint login", async () => {

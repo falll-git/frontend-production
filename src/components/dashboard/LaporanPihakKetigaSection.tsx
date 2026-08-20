@@ -5,8 +5,8 @@ import {
   Activity,
   AlertTriangle,
   Building2,
-  CheckCircle2,
   ChevronRight,
+  CheckCircle2,
   ClipboardList,
   Eye,
   Scale,
@@ -28,7 +28,6 @@ import {
   SetupDataTable,
   SetupDataTableBody,
   SetupDataTableCell,
-  SetupDataTableEmptyRow,
   SetupDataTableHead,
   SetupDataTableHeaderCell,
   SetupDataTableRow,
@@ -36,6 +35,7 @@ import {
   SetupTableCode,
   SetupTablePrimaryText,
 } from "@/components/ui/SetupDataTable";
+import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
 import {
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
@@ -502,7 +502,7 @@ export default function LaporanPihakKetigaSection({
 
   return (
     <>
-      <section className="animate-fade-in">
+      <section>
         <div className="mb-4">
           <h2 className="flex items-center gap-2 text-xl font-bold text-gray-800">
             <Users2 className="h-6 w-6 text-gray-600" aria-hidden="true" />
@@ -511,13 +511,16 @@ export default function LaporanPihakKetigaSection({
         </div>
 
         {errorMessage ? (
-          <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <div
+            className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+            role="alert"
+          >
             {errorMessage}
           </div>
         ) : null}
 
         <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {progressSummary.map((item, index) => {
+          {progressSummary.map((item) => {
             const meta = kategoriMeta[item.kategori];
             const CategoryIcon = meta.icon;
             const expiredTone = item.lewatExpired > 0 ? "text-red-700" : "text-gray-700";
@@ -527,14 +530,13 @@ export default function LaporanPihakKetigaSection({
                 type="button"
                 key={item.kategori}
                 onClick={() => openCategory(item.kategori)}
-                className="group rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition-colors hover:border-sky-200 hover:bg-sky-50/30"
-                style={{ animationDelay: `${index * 0.1}s` }}
+                className="group rounded-lg border border-gray-200 bg-white p-5 text-left shadow-sm transition-[border-color,background-color,box-shadow,transform] duration-200 hover:border-sky-200 hover:bg-sky-50/20 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200 focus-visible:ring-offset-2 motion-safe:hover:-translate-y-0.5 motion-reduce:transition-none"
                 title={`Lihat laporan ${meta.label}`}
               >
                 <div className="mb-6 flex items-start gap-4">
                   <div className="flex min-w-0 flex-1 items-center gap-4">
                     <div
-                      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-lg transition-transform group-hover:scale-110"
+                      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl shadow-lg motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:scale-105"
                       style={{
                         background: `linear-gradient(135deg, ${meta.accentColor} 0%, ${meta.accentEndColor} 100%)`,
                         boxShadow: `0 12px 24px ${meta.shadowColor}`,
@@ -591,9 +593,12 @@ export default function LaporanPihakKetigaSection({
                   </div>
                 </div>
 
-                <div className="mt-6 flex items-center justify-between font-medium text-[#0d5a8f] transition-transform group-hover:translate-x-1">
+                <div className="mt-6 flex items-center justify-between font-medium text-[#0d5a8f]">
                   <span className="text-sm">Lihat Detail</span>
-                  <ChevronRight className="h-5 w-5" aria-hidden="true" />
+                  <ChevronRight
+                    className="h-5 w-5 motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:translate-x-1"
+                    aria-hidden="true"
+                  />
                 </div>
               </button>
             );
@@ -602,11 +607,11 @@ export default function LaporanPihakKetigaSection({
       </section>
 
       <DashboardModal
-        isOpen={selectedKategori !== null && detailTarget === null}
+        isOpen={selectedKategori !== null}
         title={selectedMeta ? `Progress Pihak Ketiga - ${selectedMeta.label}` : "Progress Pihak Ketiga"}
         description="Ringkasan status progress pihak ketiga berdasarkan data legal."
         maxWidth="5xl"
-        bodyClassName="max-h-[78vh] space-y-5 overflow-y-auto p-4 sm:p-5"
+        bodyClassName="space-y-5 p-4 sm:p-5"
         onClose={closeSummaryModal}
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -652,7 +657,7 @@ export default function LaporanPihakKetigaSection({
                   role="tab"
                   aria-selected={isActive}
                   onClick={() => selectAsuransiView(option.value)}
-                  className={`min-h-10 flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-colors sm:flex-none ${
+                  className={`min-h-11 flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-colors sm:flex-none ${
                     isActive
                       ? "bg-white text-[#0d5a8f] shadow-sm"
                       : "text-slate-600 hover:text-slate-900"
@@ -666,103 +671,114 @@ export default function LaporanPihakKetigaSection({
         ) : null}
 
         {recordErrorMessage ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <div
+            className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+            role="alert"
+          >
             {recordErrorMessage}
           </div>
-        ) : null}
-
-        <SetupTableCard variant="report">
-          <SetupDataTable
-            variant="report"
-            density="compact"
-            className="min-w-[1280px]"
+        ) : isRecordLoading ? (
+          <div
+            className="flex min-h-36 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-5 py-8 text-sm font-medium text-slate-600"
+            role="status"
+            aria-live="polite"
           >
-            <SetupDataTableHead>
-              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Modul</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Debitur</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Pihak Ketiga</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Jenis</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Status</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Tanggal</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
-              </SetupDataTableRow>
-            </SetupDataTableHead>
-            <SetupDataTableBody>
-              {recordRows.map((row, index) => (
-                <SetupDataTableRow
-                  key={`${row.kind}-${row.item.id}`}
-                  className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer`}
-                  title={`Double-click untuk melihat detail ${row.module}`}
-                  onDoubleClick={() => setDetailTarget(row)}
-                >
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                    {(recordMeta.page - 1) * recordMeta.limit + index + 1}
-                  </SetupDataTableCell>
-                  <SetupDataTableCell>{row.module}</SetupDataTableCell>
-                  <SetupDataTableCell>
-                    <SetupTableCode>{row.contractNumber}</SetupTableCode>
-                  </SetupDataTableCell>
-                  <SetupDataTableCell>
-                    <SetupTablePrimaryText>{row.debtorName}</SetupTablePrimaryText>
-                  </SetupDataTableCell>
-                  <SetupDataTableCell>{row.thirdPartyName}</SetupDataTableCell>
-                  <SetupDataTableCell>{row.detailType}</SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <SetupStatusBadge status={statusLabel(row.status)} />
-                  </SetupDataTableCell>
-                  <SetupDataTableCell>{row.date}</SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <div
-                      className="flex items-center justify-center"
-                      onClick={(event) => event.stopPropagation()}
-                      onDoubleClick={(event) => event.stopPropagation()}
-                      onKeyDown={(event) => event.stopPropagation()}
-                    >
-                      <SetupActionMenu
-                        label={`Buka aksi ${row.module} ${row.contractNumber}`}
-                        menuLabel={`Aksi ${row.module} ${row.contractNumber}`}
-                        items={[
-                          {
-                            key: "detail",
-                            label: "Detail",
-                            icon: Eye,
-                            tone: "blue",
-                            onClick: () => setDetailTarget(row),
-                          },
-                        ]}
-                      />
-                    </div>
-                  </SetupDataTableCell>
+            Memuat detail progress pihak ketiga...
+          </div>
+        ) : recordRows.length > 0 ? (
+          <SetupTableCard variant="report">
+            <SetupDataTable
+              variant="report"
+              density="compact"
+              className="min-w-[1280px]"
+            >
+              <SetupDataTableHead>
+                <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Modul</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Kontrak</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Debitur</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Pihak Ketiga</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Jenis</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Status</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell>Tanggal</SetupDataTableHeaderCell>
+                  <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
                 </SetupDataTableRow>
-              ))}
-              {isRecordLoading ? (
-                <SetupDataTableEmptyRow colSpan={9}>
-                  Memuat detail progress pihak ketiga...
-                </SetupDataTableEmptyRow>
-              ) : null}
-              {!isRecordLoading && !recordErrorMessage && recordRows.length === 0 ? (
-                <SetupDataTableEmptyRow
-                  colSpan={9}
-                  tone="legal"
-                  description="Data detail akan terisi dari record pada modul Legal terkait."
-                >
-                  Belum ada progress untuk kategori ini.
-                </SetupDataTableEmptyRow>
-              ) : null}
-            </SetupDataTableBody>
-          </SetupDataTable>
-          <Pagination
-            page={recordMeta.page}
-            lastPage={recordMeta.lastPage}
-            total={recordMeta.total}
-            limit={recordMeta.limit}
-            isLoading={isRecordLoading}
-            onPageChange={setRecordPage}
+              </SetupDataTableHead>
+              <SetupDataTableBody>
+                {recordRows.map((row, index) => (
+                  <SetupDataTableRow
+                    key={`${row.kind}-${row.item.id}`}
+                    className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer`}
+                    title={`Double-click untuk melihat detail ${row.module}`}
+                    onDoubleClick={(event) => {
+                      event.currentTarget
+                        .querySelector<HTMLButtonElement>(
+                          '[data-setup-action-toggle="true"]',
+                        )
+                        ?.focus();
+                      setDetailTarget(row);
+                    }}
+                  >
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                      {(recordMeta.page - 1) * recordMeta.limit + index + 1}
+                    </SetupDataTableCell>
+                    <SetupDataTableCell>{row.module}</SetupDataTableCell>
+                    <SetupDataTableCell>
+                      <SetupTableCode>{row.contractNumber}</SetupTableCode>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell>
+                      <SetupTablePrimaryText>{row.debtorName}</SetupTablePrimaryText>
+                    </SetupDataTableCell>
+                    <SetupDataTableCell>{row.thirdPartyName}</SetupDataTableCell>
+                    <SetupDataTableCell>{row.detailType}</SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      <SetupStatusBadge status={statusLabel(row.status)} />
+                    </SetupDataTableCell>
+                    <SetupDataTableCell>{row.date}</SetupDataTableCell>
+                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                      <div
+                        className="flex items-center justify-center"
+                        onClick={(event) => event.stopPropagation()}
+                        onDoubleClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        <SetupActionMenu
+                          label={`Buka aksi ${row.module} ${row.contractNumber}`}
+                          menuLabel={`Aksi ${row.module} ${row.contractNumber}`}
+                          items={[
+                            {
+                              key: "detail",
+                              label: "Detail",
+                              icon: Eye,
+                              tone: "blue",
+                              onClick: () => setDetailTarget(row),
+                            },
+                          ]}
+                        />
+                      </div>
+                    </SetupDataTableCell>
+                  </SetupDataTableRow>
+                ))}
+              </SetupDataTableBody>
+            </SetupDataTable>
+            <Pagination
+              page={recordMeta.page}
+              lastPage={recordMeta.lastPage}
+              total={recordMeta.total}
+              limit={recordMeta.limit}
+              isLoading={false}
+              onPageChange={setRecordPage}
+            />
+          </SetupTableCard>
+        ) : (
+          <SetupEmptyState
+            title="Belum ada progress untuk kategori ini"
+            description="Data detail akan terisi dari record pada modul Legal terkait."
+            tone="legal"
+            variant="panel"
           />
-        </SetupTableCard>
+        )}
       </DashboardModal>
 
       <DashboardModal
@@ -777,7 +793,7 @@ export default function LaporanPihakKetigaSection({
         description={detailTarget?.contractNumber}
         onClose={() => setDetailTarget(null)}
         maxWidth="4xl"
-        bodyClassName="max-h-[70vh] space-y-5 overflow-y-auto p-6"
+        bodyClassName="space-y-6 p-4 sm:p-5"
         footer={
           <button
             type="button"

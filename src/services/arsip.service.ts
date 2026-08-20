@@ -21,6 +21,8 @@ import type {
   ArsipUserSummary,
   Disposisi,
   Dokumen,
+  DokumenAvailabilityKey,
+  DokumenAvailabilityLabel,
   Kantor,
   Lemari,
   Peminjaman,
@@ -167,18 +169,28 @@ export function mapStorageSummary(record: unknown): ArsipStorageSummary | null {
   };
 }
 
-function mapAvailabilityLabel(label: string | null): Dokumen["statusPinjam"] {
-  switch (label) {
-    case "Diajukan":
-      return "Diajukan";
-    case "Dalam Proses":
-      return "Dalam Proses";
-    case "Dipinjam":
-      return "Dipinjam";
-    case "Tersedia":
-    default:
-      return "Tersedia";
-  }
+const DOCUMENT_AVAILABILITY_LABELS: Record<
+  DokumenAvailabilityKey,
+  DokumenAvailabilityLabel
+> = {
+  AVAILABLE: "Tersedia",
+  REQUESTED: "Diajukan",
+  PROCESSING: "Dalam Proses",
+  BORROWED: "Dipinjam",
+};
+
+function mapDocumentAvailability(record: AnyRecord): {
+  key: DokumenAvailabilityKey;
+  label: DokumenAvailabilityLabel;
+} | null {
+  const key = readString(record, "availability_status_key");
+  if (!key || !(key in DOCUMENT_AVAILABILITY_LABELS)) return null;
+
+  const normalizedKey = key as DokumenAvailabilityKey;
+  return {
+    key: normalizedKey,
+    label: DOCUMENT_AVAILABILITY_LABELS[normalizedKey],
+  };
 }
 
 function mapLoanStatusLabel(label: string | null): Peminjaman["status"] {
@@ -263,10 +275,7 @@ export function mapDigitalDocument(record: AnyRecord): Dokumen | null {
   const id = readString(record, "id");
   const kode = readString(record, "document_number");
   const namaDokumen = readString(record, "document_name");
-  const statusPinjam = mapAvailabilityLabel(
-    readString(record, "availability_status_label"),
-  );
-  const statusPinjamKey = readString(record, "availability_status_key");
+  const availability = mapDocumentAvailability(record);
   const storage = mapStorageSummary(record.storage);
   const creator = mapUserSummary(record.creator);
   const owner = mapUserSummary(record.owner ?? record.owner_user);
@@ -291,7 +300,7 @@ export function mapDigitalDocument(record: AnyRecord): Dokumen | null {
     readString(documentType ?? {}, "code") ??
     "-";
 
-  if (!id || !kode || !namaDokumen || !statusPinjamKey) return null;
+  if (!id || !kode || !namaDokumen || !availability) return null;
 
   const fileName = readString(fileRecord ?? {}, "name") ?? undefined;
   const rawFileUrl = readString(fileRecord ?? {}, "url");
@@ -310,9 +319,9 @@ export function mapDigitalDocument(record: AnyRecord): Dokumen | null {
     userInput: creator?.username ?? creator?.name ?? "-",
     tempatPenyimpanan: storage?.locationLabel ?? "-",
     tempatPenyimpananId: storage?.id,
-    statusPinjam,
-    statusPeminjaman: statusPinjam,
-    statusPinjamKey: statusPinjamKey as Dokumen["statusPinjamKey"],
+    statusPinjam: availability.label,
+    statusPeminjaman: availability.label,
+    statusPinjamKey: availability.key,
     levelAkses:
       readString(record, "access_level", "level_access") === "RESTRICT"
         ? "RESTRICT"

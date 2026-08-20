@@ -35,6 +35,7 @@ import { DEFAULT_PAGINATION_META, OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagi
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import { peminjamanService } from "@/services/peminjaman.service";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
+import LoanDetailContent from "@/components/arsip-digital/peminjaman/LoanDetailContent";
 import {
   SETUP_PAGE_MODERN_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
@@ -638,123 +639,36 @@ export default function LaporanPeminjamanPage() {
             </button>
           }
         >
-          <div className="space-y-8">
-            <section className="space-y-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Informasi Peminjaman
-                </p>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  Ringkasan dokumen, peminjam, tanggal, dan status peminjaman.
-                </p>
-              </div>
-              <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Identitas Dokumen
-                    </p>
-                    <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
-                      {selectedItem.namaDokumen}
-                    </h3>
-                    <p className="text-base font-medium text-slate-500">
-                      {selectedItem.kode}
-                    </p>
-                  </div>
-                  <SetupStatusBadge
-                    status={getStatusLabel(
-                      selectedItem.statusKey,
-                      selectedItem.isTerlambat,
-                    )}
-                  />
-                </div>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <DetailInfoItem
-                    label="Peminjam"
-                    value={formatPersonName(selectedItem.peminjam)}
-                  />
-                  <DetailInfoItem
-                    label="Tanggal Pinjam"
-                    value={formatDateOnly(selectedItem.tanggalPinjam)}
-                  />
-                  <DetailInfoItem
-                    label="Est. Kembali"
-                    value={formatDateOnly(selectedItem.tanggalEstimasiPengembalian)}
-                  />
-                  <DetailInfoItem
-                    label="Tanggal Serah"
-                    value={formatDateOnly(selectedItem.tanggalPenyerahan)}
-                  />
-                  <DetailInfoItem
-                    label="Tanggal Kembali"
-                    value={formatDateOnly(selectedItem.tanggalPengembalian)}
-                  />
-                  <DetailInfoItem
-                    label="Penyetuju"
-                    value={formatPersonName(selectedItem.approvedBy)}
-                  />
-                </div>
-              </div>
-            </section>
-
-            <section className="space-y-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Catatan Peminjaman
-                </p>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  Alasan dan catatan proses yang tersimpan pada transaksi.
-                </p>
-              </div>
-              <div className="grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 md:grid-cols-2">
-                <DetailInfoItem label="Alasan Peminjaman" value={selectedItem.alasan || "-"} />
-                <DetailInfoItem
-                  label="Catatan Persetujuan"
-                  value={selectedItem.alasanApprove || "-"}
-                />
-                <DetailInfoItem
-                  label="Catatan Penolakan"
-                  value={selectedItem.alasanTolak || "-"}
-                />
-                <DetailInfoItem
-                  label="Catatan Penyerahan"
-                  value={selectedItem.catatanPenyerahan || "-"}
-                />
-                <DetailInfoItem
-                  label="Catatan Pengembalian"
-                  value={selectedItem.catatanPengembalian || "-"}
-                  className="md:col-span-2"
-                />
-              </div>
-            </section>
-          </div>
+          <LoanDetailContent
+            documentName={selectedItem.namaDokumen}
+            documentCode={selectedItem.kode}
+            status={
+              <SetupStatusBadge
+                status={getStatusLabel(
+                  selectedItem.statusKey,
+                  selectedItem.isTerlambat,
+                )}
+              />
+            }
+            informationDescription="Ringkasan peminjam, tanggal, penyetuju, dan status peminjaman."
+            informationRows={[
+              { label: "Peminjam", value: formatPersonName(selectedItem.peminjam) },
+              { label: "Tanggal Pinjam", value: formatDateOnly(selectedItem.tanggalPinjam) },
+              { label: "Est. Kembali", value: formatDateOnly(selectedItem.tanggalEstimasiPengembalian) },
+              { label: "Tanggal Serah", value: formatDateOnly(selectedItem.tanggalPenyerahan) },
+              { label: "Tanggal Kembali", value: formatDateOnly(selectedItem.tanggalPengembalian) },
+              { label: "Penyetuju", value: formatPersonName(selectedItem.approvedBy) },
+            ]}
+            noteRows={[
+              { label: "Alasan Peminjaman", value: selectedItem.alasan },
+              { label: "Catatan Persetujuan", value: selectedItem.alasanApprove },
+              { label: "Catatan Penolakan", value: selectedItem.alasanTolak },
+              { label: "Catatan Penyerahan", value: selectedItem.catatanPenyerahan },
+              { label: "Catatan Pengembalian", value: selectedItem.catatanPengembalian },
+            ]}
+          />
         </DashboardModal>
       ) : null}
     </DashboardPageShell>
-  );
-}
-
-type DetailInfoItemProps = {
-  label: string;
-  value: string;
-  className?: string;
-};
-
-function DetailInfoItem({
-  label,
-  value,
-  className = "",
-}: DetailInfoItemProps) {
-  return (
-    <div
-      className={`rounded-xl border border-gray-200 bg-slate-50 px-4 py-3 ${className}`.trim()}
-    >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-        {label}
-      </p>
-      <p className="mt-2 break-words text-sm font-semibold leading-6 text-slate-900">
-        {value}
-      </p>
-    </div>
   );
 }

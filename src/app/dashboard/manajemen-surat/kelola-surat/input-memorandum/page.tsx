@@ -594,6 +594,7 @@ export default function InputMemorandumPage() {
         title="Tenggat Tindak Lanjut Memorandum"
         subtitle="Atur batas waktu disposisi awal jika memorandum perlu tindak lanjut."
         disposisi={selectedTargetDivisionNames}
+        onCancel={() => setIsDeadlineModalOpen(false)}
         onSkip={() => void submitMemorandum()}
         onSave={(deadline) => void submitMemorandum(deadline)}
       />

@@ -25,16 +25,9 @@ export interface PhysicalStorageSummary {
 }
 
 export type DispositionWorkflowStatus =
-  | "NEW"
-  | "IN_PROGRESS"
-  | "COMPLETED"
-  | "FORWARDED";
+  "NEW" | "IN_PROGRESS" | "COMPLETED" | "FORWARDED";
 
-export type SuratMasukStatus =
-  | "BARU"
-  | "DIDISPOSISI"
-  | "SELESAI"
-  | "TERLAMBAT";
+export type SuratMasukStatus = "BARU" | "DIDISPOSISI" | "SELESAI" | "TERLAMBAT";
 
 export interface DispositionHolderSummary {
   id: string;
@@ -73,11 +66,7 @@ export interface SuratDisposisi extends DispositionWorkflowMeta {
   is_disposisi_ulang: boolean;
 }
 
-export type SifatSurat =
-  | "Biasa"
-  | "Terbatas"
-  | "Rahasia"
-  | "Sangat Rahasia";
+export type SifatSurat = "Biasa" | "Terbatas" | "Rahasia" | "Sangat Rahasia";
 
 export interface SuratMasuk {
   id: string | number;
@@ -95,6 +84,7 @@ export interface SuratMasuk {
   statusKey?: string;
   statusLabel?: string;
   disposisi_history: SuratDisposisi[];
+  initial_recipient_names: string[];
   current_holders: DispositionHolderSummary[];
   current_holder_names: string[];
   active_dispositions_count: number;
@@ -182,6 +172,7 @@ export interface Memorandum {
   createdBy?: string;
   creatorDivisionId?: string;
   disposisi_history: MemorandumDisposisi[];
+  initial_recipient_names: string[];
   current_holders: DispositionHolderSummary[];
   current_holder_names: string[];
   active_dispositions_count: number;
@@ -272,10 +263,7 @@ export interface CorrespondenceSummaryBucket {
 export type CorrespondenceReportScope = "my" | "division" | "all";
 
 export type CorrespondenceMyReportFilter =
-  | "all"
-  | "active"
-  | "completed"
-  | "forwarded";
+  "all" | "active" | "completed" | "forwarded";
 
 export interface CorrespondenceReportFilters {
   scope: CorrespondenceReportScope;

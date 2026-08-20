@@ -11,3 +11,13 @@
 .app-card:hover {
   border-color: #cbd5e1;
 }
+
+.app-card.app-card--report-accent {
+  border-top: 3px solid #157ec3;
+  box-shadow: 0 4px 16px rgba(15, 77, 116, 0.08);
+}
+
+.app-card.app-card--report-accent:hover {
+  border-color: #e2e8f0;
+  border-top-color: #157ec3;
+}

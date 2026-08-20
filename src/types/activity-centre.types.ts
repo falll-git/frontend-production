@@ -51,21 +51,13 @@ export type ActivityCentreDetailContext = {
   title: string;
   fields: ActivityCentreDetailField[];
   changed_fields: string[];
-  empty_message: string | null;
   target_path: string | null;
   target_label: string | null;
 };
 
 export type ActivityCentreDetail = ActivityCentreLog & {
-  source: string;
-  source_label: string;
-  entity_type: string;
-  entity_label: string;
-  entity_id: string | null;
-  object_label: string | null;
   title: string | null;
   summary: string | null;
-  response_status: number | null;
   result_label: string;
   result_tone: "emerald" | "red" | "slate";
   context: ActivityCentreDetailContext;
@@ -84,8 +76,6 @@ export type ActivityCentreSummary = {
 export type ActivityCentreOptions = {
   modules: ActivityCentreOption[];
   actions: ActivityCentreOption[];
-  sources: ActivityCentreOption[];
-  entity_types: ActivityCentreOption[];
   actors: ActivityCentreActorOption[];
 };
 
@@ -96,8 +86,6 @@ export type ActivityCentreQuery = {
   module?: string;
   action?: string;
   actor_id?: string;
-  source?: string;
-  entity_type?: string;
   date_from?: string;
   date_to?: string;
   sort?: "newest" | "oldest";

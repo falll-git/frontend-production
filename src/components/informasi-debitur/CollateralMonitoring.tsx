@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { CalendarClock, Save } from "lucide-react";
 
 import DashboardModal from "@/components/ui/DashboardModal";
+import BasicDateInput from "@/components/ui/BasicDateInput";
 import SetupFormSection from "@/components/ui/SetupFormSection";
 import SetupStatusBadge, {
   type SetupStatusTone,
 } from "@/components/ui/SetupStatusBadge";
 import SetupSelect from "@/components/ui/SetupSelect";
-import SetupTextInput from "@/components/ui/SetupTextInput";
 import SetupTextarea from "@/components/ui/SetupTextarea";
 import { formatDateOnly, formatDateTime } from "@/lib/utils/date";
 import type {
@@ -18,8 +18,7 @@ import type {
 } from "@/types/debitur.types";
 
 type MonitoringStatus =
-  | DebtorCollateral["appraisal_status"]
-  | DebtorCollateral["expiry_status"];
+  DebtorCollateral["appraisal_status"] | DebtorCollateral["expiry_status"];
 
 export function collateralReviewSourceLabel(
   source: DebtorCollateral["latest_appraisal_source"],
@@ -63,11 +62,7 @@ function addMonthsClamped(value: string | Date, months: number) {
   ).getUTCDate();
 
   return new Date(
-    Date.UTC(
-      targetYear,
-      normalizedMonth,
-      Math.min(date.getUTCDate(), lastDay),
-    ),
+    Date.UTC(targetYear, normalizedMonth, Math.min(date.getUTCDate(), lastDay)),
   );
 }
 
@@ -148,7 +143,9 @@ export function CollateralMonitoringBadge({
     <SetupStatusBadge
       status={label}
       tone={monitoringTone(status)}
-      showIcon
+      showIcon={
+        status === "DUE_SOON" || status === "OVERDUE" || status === "EXPIRED"
+      }
       wrap
       className="max-w-full"
       textClassName="break-words text-center"
@@ -270,10 +267,14 @@ export function CollateralExpiryModal({
                 Agunan
               </p>
               <p className="mt-1 break-words text-base font-bold text-slate-900">
-                {item.collateral_type_display ?? item.collateral_type ?? "Agunan"}
+                {item.collateral_type_display ??
+                  item.collateral_type ??
+                  "Agunan"}
               </p>
               <p className="mt-1 text-sm text-slate-600">
-                {item.proof_number || item.owner_name || "Bukti kepemilikan belum tersedia"}
+                {item.proof_number ||
+                  item.owner_name ||
+                  "Bukti kepemilikan belum tersedia"}
               </p>
             </div>
             <CollateralMonitoringBadge
@@ -312,11 +313,10 @@ export function CollateralExpiryModal({
               >
                 Tanggal Expired{hasExpiryDate ? " *" : ""}
               </label>
-              <SetupTextInput
+              <BasicDateInput
                 id="collateral-expiry-date"
-                type="date"
                 value={expiryDate}
-                onChange={(event) => setExpiryDate(event.target.value)}
+                onChange={setExpiryDate}
                 disabled={!hasExpiryDate}
                 required={hasExpiryDate}
               />
@@ -340,7 +340,10 @@ export function CollateralExpiryModal({
           </SetupFormSection>
 
           <div className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
-            <CalendarClock className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+            <CalendarClock
+              className="mt-0.5 size-5 shrink-0"
+              aria-hidden="true"
+            />
             <p className="leading-6">
               {expiryPreview.note} Status ini hanya berlaku jika agunan diset
               memiliki tanggal expired; jika tidak, tabel menampilkan status{" "}
@@ -351,7 +354,9 @@ export function CollateralExpiryModal({
           {item.expiry_updated_at ? (
             <p className="text-xs leading-5 text-slate-500">
               Perubahan terakhir oleh{" "}
-              <strong>{item.expiry_updater?.name ?? "Pengguna tidak tersedia"}</strong>{" "}
+              <strong>
+                {item.expiry_updater?.name ?? "Pengguna tidak tersedia"}
+              </strong>{" "}
               pada {formatDateTime(item.expiry_updated_at)}.
             </p>
           ) : null}

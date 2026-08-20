@@ -1,6 +1,10 @@
 import api from "@/lib/axios";
 import { SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import {
+  mapDepositLedgerSnapshot,
+  mapDepositTransactionSource,
+} from "@/services/deposit-ledger.mapper";
+import {
   extractList,
   extractPaginationMeta,
   extractRecord,
@@ -431,6 +435,7 @@ function mapDepositTransaction(record: unknown): LegalDepositTransaction | null 
     transaction_date: nullableString(item, "transaction_date", "transactionDate"),
     action: readString(item, "action") ?? "-",
     raw_action: nullableString(item, "raw_action", "rawAction"),
+    source: mapDepositTransactionSource(item.source),
     amount: numberValue(item, "amount"),
     notes: nullableString(item, "notes"),
     file: mapFile(item.file),
@@ -463,6 +468,7 @@ function mapDeposit(record: unknown): LegalDeposit | null {
     total_payment_amount: numberValue(item, "total_payment_amount", numberValue(item, "paid_amount")),
     total_refund_amount: numberValue(item, "total_refund_amount", numberValue(item, "processed_amount")),
     balance_amount: numberValue(item, "balance_amount", numberValue(item, "remaining_amount")),
+    ledger: mapDepositLedgerSnapshot(item.ledger),
     status: readString(item, "status") ?? "PENDING",
     notes: nullableString(item, "notes"),
     deposit_type: mapParameter(item.deposit_type),
@@ -743,6 +749,12 @@ export const legalService = {
       total_payment_amount: numberValue(item, "total_payment_amount", numberValue(item, "paid_amount")),
       total_refund_amount: numberValue(item, "total_refund_amount", numberValue(item, "processed_amount")),
       balance_amount: numberValue(item, "balance_amount", numberValue(item, "remaining_amount")),
+      transaction_count: numberValue(item, "transaction_count"),
+      mismatched_records: numberValue(item, "mismatched_records"),
+      reconciliation_status:
+        readString(item, "reconciliation_status") === "MISMATCH"
+          ? "MISMATCH"
+          : "MATCHED",
     }));
   },
   getActivityLogsPage: async (query: LegalListQuery = {}) => {

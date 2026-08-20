@@ -36,7 +36,10 @@ import {
 } from "react";
 
 import ProtectedLink from "@/components/rbac/ProtectedLink";
+import ActivityDetailContent from "@/components/activity-centre/ActivityDetailContent";
 import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
+import BasicDateInput from "@/components/ui/BasicDateInput";
+import BasicMonthInput from "@/components/ui/BasicMonthInput";
 import DashboardModal from "@/components/ui/DashboardModal";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import Pagination from "@/components/ui/Pagination";
@@ -104,8 +107,6 @@ const EMPTY_SUMMARY: ActivityCentreSummary = {
 const EMPTY_OPTIONS: ActivityCentreOptions = {
   modules: [],
   actions: [],
-  sources: [],
-  entity_types: [],
   actors: [],
 };
 
@@ -119,67 +120,73 @@ const MODULE_META: Record<
   AUTH: { icon: KeyRound, tone: "slate", iconClass: "text-slate-700" },
   ARSIP_DIGITAL: { icon: Archive, tone: "blue", iconClass: "text-blue-700" },
   PERSURATAN: { icon: Mail, tone: "violet", iconClass: "text-violet-700" },
-  INFORMASI_DEBITUR: { icon: Users, tone: "emerald", iconClass: "text-emerald-700" },
-  MANAJEMEN_LEGAL: { icon: ShieldCheck, tone: "amber", iconClass: "text-amber-700" },
+  INFORMASI_DEBITUR: {
+    icon: Users,
+    tone: "emerald",
+    iconClass: "text-emerald-700",
+  },
+  MANAJEMEN_LEGAL: {
+    icon: ShieldCheck,
+    tone: "amber",
+    iconClass: "text-amber-700",
+  },
   PARAMETER: { icon: FolderCog, tone: "sky", iconClass: "text-sky-700" },
   USER_DAN_AKSES: { icon: UserCog, tone: "slate", iconClass: "text-slate-700" },
   NOTIFIKASI: { icon: Bell, tone: "violet", iconClass: "text-violet-700" },
   SISTEM: { icon: Activity, tone: "gray", iconClass: "text-gray-700" },
 };
 
-const ACTION_META: Record<
-  string,
-  { icon: LucideIcon; tone: SetupStatusTone }
-> = {
-  LOGIN: { icon: LogIn, tone: "emerald" },
-  LOGOUT: { icon: LogOut, tone: "slate" },
-  CHANGE_PASSWORD: { icon: KeyRound, tone: "violet" },
-  CREATE: { icon: Plus, tone: "emerald" },
-  CREATED: { icon: Plus, tone: "emerald" },
-  UPDATE: { icon: Pencil, tone: "blue" },
-  UPDATED: { icon: Pencil, tone: "blue" },
-  DELETE: { icon: Trash2, tone: "red" },
-  DELETED: { icon: Trash2, tone: "red" },
-  APPROVE: { icon: CheckCircle2, tone: "emerald" },
-  REJECT: { icon: XCircle, tone: "red" },
-  REVOKE: { icon: XCircle, tone: "red" },
-  HANDOVER: { icon: FileText, tone: "blue" },
-  RETURN: { icon: RotateCcw, tone: "violet" },
-  COMPLETE: { icon: CheckCircle2, tone: "emerald" },
-  REDISPOSE: { icon: RefreshCw, tone: "violet" },
-  IMPORT: { icon: Upload, tone: "blue" },
-  UPLOAD: { icon: Upload, tone: "blue" },
-  RETRY: { icon: RefreshCw, tone: "amber" },
-  RESTORE: { icon: RotateCcw, tone: "emerald" },
-  ACTIVATE: { icon: CheckCircle2, tone: "emerald" },
-  DEACTIVATE: { icon: XCircle, tone: "red" },
-  EXPORT: { icon: Download, tone: "emerald" },
-  VIEW_FILE: { icon: Eye, tone: "sky" },
-  ACCESS_REQUESTED: { icon: FileClock, tone: "amber" },
-  ACCESS_APPROVED: { icon: CheckCircle2, tone: "emerald" },
-  ACCESS_REJECTED: { icon: XCircle, tone: "red" },
-  ACCESS_REVOKED: { icon: XCircle, tone: "red" },
-  LOAN_REQUESTED: { icon: FileClock, tone: "amber" },
-  LOAN_APPROVED: { icon: CheckCircle2, tone: "emerald" },
-  LOAN_REJECTED: { icon: XCircle, tone: "red" },
-  LOAN_HANDED_OVER: { icon: FileText, tone: "blue" },
-  LOAN_RETURNED: { icon: RotateCcw, tone: "violet" },
-  STORAGE_MOVED: { icon: Archive, tone: "blue" },
-  BULK_UPDATE_COLLATERAL_EXPIRY: { icon: Upload, tone: "blue" },
-  UPDATE_COLLATERAL_EXPIRY: { icon: Pencil, tone: "blue" },
-  UPLOAD_DOCUMENT: { icon: Upload, tone: "blue" },
-  UPLOAD_WARNING_LETTER: { icon: Upload, tone: "blue" },
-  UPDATE_WARNING_LETTER: { icon: Pencil, tone: "blue" },
-  DELETE_WARNING_LETTER: { icon: Trash2, tone: "red" },
-  RESOLVE_IDEB: { icon: CheckCircle2, tone: "emerald" },
-  UPLOAD_IDEB: { icon: Upload, tone: "blue" },
-  IMPORT_QUEUED: { icon: FileClock, tone: "amber" },
-  IMPORT_PROCESSING: { icon: RefreshCw, tone: "blue" },
-  IMPORT_COMPLETED: { icon: CheckCircle2, tone: "emerald" },
-  IMPORT_COMPLETED_WITH_ERRORS: { icon: FileClock, tone: "amber" },
-  IMPORT_FAILED: { icon: XCircle, tone: "red" },
-  IMPORT_RETRY: { icon: RefreshCw, tone: "amber" },
-};
+const ACTION_META: Record<string, { icon: LucideIcon; tone: SetupStatusTone }> =
+  {
+    LOGIN: { icon: LogIn, tone: "emerald" },
+    LOGOUT: { icon: LogOut, tone: "slate" },
+    CHANGE_PASSWORD: { icon: KeyRound, tone: "violet" },
+    CREATE: { icon: Plus, tone: "emerald" },
+    CREATED: { icon: Plus, tone: "emerald" },
+    UPDATE: { icon: Pencil, tone: "blue" },
+    UPDATED: { icon: Pencil, tone: "blue" },
+    DELETE: { icon: Trash2, tone: "red" },
+    DELETED: { icon: Trash2, tone: "red" },
+    APPROVE: { icon: CheckCircle2, tone: "emerald" },
+    REJECT: { icon: XCircle, tone: "red" },
+    REVOKE: { icon: XCircle, tone: "red" },
+    HANDOVER: { icon: FileText, tone: "blue" },
+    RETURN: { icon: RotateCcw, tone: "violet" },
+    COMPLETE: { icon: CheckCircle2, tone: "emerald" },
+    REDISPOSE: { icon: RefreshCw, tone: "violet" },
+    IMPORT: { icon: Upload, tone: "blue" },
+    UPLOAD: { icon: Upload, tone: "blue" },
+    RETRY: { icon: RefreshCw, tone: "amber" },
+    RESTORE: { icon: RotateCcw, tone: "emerald" },
+    ACTIVATE: { icon: CheckCircle2, tone: "emerald" },
+    DEACTIVATE: { icon: XCircle, tone: "red" },
+    EXPORT: { icon: Download, tone: "emerald" },
+    VIEW_FILE: { icon: Eye, tone: "sky" },
+    ACCESS_REQUESTED: { icon: FileClock, tone: "amber" },
+    ACCESS_APPROVED: { icon: CheckCircle2, tone: "emerald" },
+    ACCESS_REJECTED: { icon: XCircle, tone: "red" },
+    ACCESS_REVOKED: { icon: XCircle, tone: "red" },
+    LOAN_REQUESTED: { icon: FileClock, tone: "amber" },
+    LOAN_APPROVED: { icon: CheckCircle2, tone: "emerald" },
+    LOAN_REJECTED: { icon: XCircle, tone: "red" },
+    LOAN_HANDED_OVER: { icon: FileText, tone: "blue" },
+    LOAN_RETURNED: { icon: RotateCcw, tone: "violet" },
+    STORAGE_MOVED: { icon: Archive, tone: "blue" },
+    BULK_UPDATE_COLLATERAL_EXPIRY: { icon: Upload, tone: "blue" },
+    UPDATE_COLLATERAL_EXPIRY: { icon: Pencil, tone: "blue" },
+    UPLOAD_DOCUMENT: { icon: Upload, tone: "blue" },
+    UPLOAD_WARNING_LETTER: { icon: Upload, tone: "blue" },
+    UPDATE_WARNING_LETTER: { icon: Pencil, tone: "blue" },
+    DELETE_WARNING_LETTER: { icon: Trash2, tone: "red" },
+    RESOLVE_IDEB: { icon: CheckCircle2, tone: "emerald" },
+    UPLOAD_IDEB: { icon: Upload, tone: "blue" },
+    IMPORT_QUEUED: { icon: FileClock, tone: "amber" },
+    IMPORT_PROCESSING: { icon: RefreshCw, tone: "blue" },
+    IMPORT_COMPLETED: { icon: CheckCircle2, tone: "emerald" },
+    IMPORT_COMPLETED_WITH_ERRORS: { icon: FileClock, tone: "amber" },
+    IMPORT_FAILED: { icon: XCircle, tone: "red" },
+    IMPORT_RETRY: { icon: RefreshCw, tone: "amber" },
+  };
 
 function pad(value: number) {
   return String(value).padStart(2, "0");
@@ -193,7 +200,12 @@ function localMonthValue(date = new Date()) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
 }
 
-function buildPeriodRange(mode: PeriodMode, day: string, month: string, year: string) {
+function buildPeriodRange(
+  mode: PeriodMode,
+  day: string,
+  month: string,
+  year: string,
+) {
   let start: Date;
   let end: Date;
 
@@ -220,28 +232,10 @@ function buildPeriodRange(mode: PeriodMode, day: string, month: string, year: st
   return { date_from: start.toISOString(), date_to: end.toISOString() };
 }
 
-function humanize(value: string | null | undefined) {
-  if (!value) return "-";
-  return value
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function sourceLabel(value: string) {
-  const labels: Record<string, string> = {
-    API: "Aplikasi",
-    MANUAL: "Input Manual",
-    IMPORT: "Import",
-    SLIK_IMPORT: "Import SLIK",
-    IDEB_IMPORT: "Import IDEB",
-    SYSTEM: "Sistem",
-  };
-  return labels[value] ?? humanize(value);
-}
-
 function actionMeta(action: string) {
-  return ACTION_META[action] ?? { icon: Activity, tone: "gray" as SetupStatusTone };
+  return (
+    ACTION_META[action] ?? { icon: Activity, tone: "gray" as SetupStatusTone }
+  );
 }
 
 function moduleMeta(module: string) {
@@ -279,7 +273,11 @@ function MetricCell({
   return (
     <div className="flex min-w-0 items-center gap-3 bg-white px-4 py-3">
       <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white">
-        <Icon className={`size-5 ${iconClass}`} aria-hidden="true" strokeWidth={1.7} />
+        <Icon
+          className={`size-5 ${iconClass}`}
+          aria-hidden="true"
+          strokeWidth={1.7}
+        />
       </div>
       <div className="min-w-0">
         <p className="truncate text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
@@ -289,31 +287,6 @@ function MetricCell({
           {new Intl.NumberFormat("id-ID").format(value)}
         </p>
       </div>
-    </div>
-  );
-}
-
-function DetailField({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
-  return (
-    <div className="grid min-w-0 grid-cols-[112px_minmax(0,1fr)] gap-3 border-b border-gray-100 py-3 last:border-b-0 sm:grid-cols-[132px_minmax(0,1fr)]">
-      <dt className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
-        {label}
-      </dt>
-      <dd
-        className={`break-words text-sm font-semibold leading-5 text-gray-900 ${
-          mono ? "font-mono text-xs" : ""
-        }`}
-      >
-        {value}
-      </dd>
     </div>
   );
 }
@@ -332,7 +305,6 @@ function ActivityDetailModal({
   onClose: () => void;
 }) {
   const item = detail ?? selected;
-  const itemAction = item ? actionMeta(item.action) : actionMeta("ACTIVITY");
   const ModuleIcon = item ? moduleMeta(item.module).icon : Activity;
   const actorName =
     item?.actor?.name || item?.actor?.username || "Aktivitas Sistem";
@@ -341,11 +313,9 @@ function ActivityDetailModal({
     <DashboardModal
       isOpen={selected !== null}
       title={
-        item
-          ? `Detail Aktivitas - ${item.action_label}`
-          : "Detail Aktivitas"
+        item ? `Detail Aktivitas - ${item.action_label}` : "Detail Aktivitas"
       }
-      description="Detail ditampilkan sesuai konteks aman yang benar-benar tercatat pada aktivitas."
+      description="Informasi aktivitas yang tercatat di aplikasi."
       onClose={onClose}
       maxWidth="4xl"
       bodyClassName="space-y-5 p-4 sm:p-5"
@@ -391,125 +361,11 @@ function ActivityDetailModal({
           {errorMessage}
         </div>
       ) : detail ? (
-        <>
-          <section className="flex min-w-0 flex-col gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white">
-                <ModuleIcon
-                  className="size-5 text-slate-600"
-                  aria-hidden="true"
-                />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-gray-900">
-                  {detail.title || `${detail.action_label} ${detail.module_label}`}
-                </p>
-                <p className="mt-1 text-xs text-gray-500">
-                  {formatDateTime(detail.created_at)}
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <SetupStatusBadge
-                status={detail.action_label}
-                label={detail.action_label}
-                tone={itemAction.tone}
-                icon={itemAction.icon}
-              />
-              <SetupStatusBadge
-                status={detail.result_label}
-                label={detail.result_label}
-                tone={detail.result_tone}
-              />
-            </div>
-          </section>
-
-          <section>
-            <h3 className="text-sm font-bold text-gray-900">
-              Informasi Aktivitas
-            </h3>
-            <dl className="mt-2 grid gap-x-6 rounded-lg border border-gray-200 bg-white px-4 sm:grid-cols-2 lg:grid-cols-3">
-              <DetailField label="Pelaku" value={actorName} />
-              <DetailField
-                label="Username"
-                value={detail.actor?.username ? `@${detail.actor.username}` : "-"}
-              />
-              <DetailField
-                label="Peran"
-                value={detail.actor?.role?.name || "-"}
-              />
-              <DetailField
-                label="Divisi"
-                value={detail.actor?.division?.name || "-"}
-              />
-              <DetailField label="Modul" value={detail.module_label} />
-              <DetailField label="Sumber" value={detail.source_label} />
-              <DetailField label="Jenis Data" value={detail.entity_label} />
-              <DetailField
-                label="Status Respons"
-                value={
-                  detail.response_status
-                    ? `${detail.result_label} (${detail.response_status})`
-                    : detail.result_label
-                }
-              />
-              <DetailField label="ID Aktivitas" value={detail.id} mono />
-            </dl>
-          </section>
-
-          {detail.summary &&
-          detail.summary !== detail.title ? (
-            <section className="rounded-lg border border-sky-100 bg-sky-50 px-4 py-3">
-              <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-sky-700">
-                Ringkasan
-              </h3>
-              <p className="mt-1.5 text-sm leading-6 text-slate-700">
-                {detail.summary}
-              </p>
-            </section>
-          ) : null}
-
-          <section>
-            <h3 className="text-sm font-bold text-gray-900">
-              {detail.context.title}
-            </h3>
-            {detail.context.fields.length > 0 ? (
-              <dl className="mt-2 grid gap-x-6 rounded-lg border border-gray-200 bg-white px-4 sm:grid-cols-2">
-                {detail.context.fields.map((field, index) => (
-                  <DetailField
-                    key={`${field.key}-${field.label}-${index}`}
-                    label={field.label}
-                    value={field.value}
-                  />
-                ))}
-              </dl>
-            ) : null}
-
-            {detail.context.changed_fields.length > 0 ? (
-              <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-blue-700">
-                  Field yang Berubah
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {detail.context.changed_fields.map((field) => (
-                    <span
-                      key={field}
-                      className="rounded-full border border-blue-200 bg-white px-2.5 py-1 text-xs font-semibold text-blue-700"
-                    >
-                      {field}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {detail.context.empty_message ? (
-              <p className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-                {detail.context.empty_message}
-              </p>
-            ) : null}
-          </section>
-        </>
+        <ActivityDetailContent
+          actorName={actorName}
+          detail={detail}
+          moduleIcon={ModuleIcon}
+        />
       ) : null}
     </DashboardModal>
   );
@@ -528,7 +384,6 @@ export default function ActivityCentreClient() {
   const [module, setModule] = useState("");
   const [action, setAction] = useState("");
   const [actorId, setActorId] = useState("");
-  const [source, setSource] = useState("");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [periodMode, setPeriodMode] = useState<PeriodMode>("day");
   const [day, setDay] = useState(localDayValue(now));
@@ -555,11 +410,10 @@ export default function ActivityCentreClient() {
       module: module || undefined,
       action: action || undefined,
       actor_id: actorId || undefined,
-      source: source || undefined,
       sort,
       ...periodRange,
     }),
-    [action, actorId, deferredSearch, module, periodRange, sort, source],
+    [action, actorId, deferredSearch, module, periodRange, sort],
   );
 
   useEffect(() => {
@@ -571,7 +425,12 @@ export default function ActivityCentreClient() {
       })
       .catch((error) => {
         if (!cancelled) {
-          showToast(error instanceof Error ? error.message : "Gagal memuat pilihan filter aktivitas.", "error");
+          showToast(
+            error instanceof Error
+              ? error.message
+              : "Gagal memuat pilihan filter aktivitas.",
+            "error",
+          );
         }
       });
     return () => {
@@ -601,7 +460,12 @@ export default function ActivityCentreClient() {
           setItems([]);
           setMeta(EMPTY_META);
           setSummary(EMPTY_SUMMARY);
-          showToast(error instanceof Error ? error.message : "Gagal memuat Pusat Log Aktivitas.", "error");
+          showToast(
+            error instanceof Error
+              ? error.message
+              : "Gagal memuat Pusat Log Aktivitas.",
+            "error",
+          );
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -613,10 +477,13 @@ export default function ActivityCentreClient() {
     };
   }, [baseQuery, page, showToast]);
 
-  const setFilter = useCallback((setter: (value: string) => void, value: string) => {
-    setPage(1);
-    setter(value);
-  }, []);
+  const setFilter = useCallback(
+    (setter: (value: string) => void, value: string) => {
+      setPage(1);
+      setter(value);
+    },
+    [],
+  );
 
   const handleExport = useCallback(async () => {
     try {
@@ -625,7 +492,10 @@ export default function ActivityCentreClient() {
       downloadBlob(result.blob, result.fileName);
       showToast("Log aktivitas berhasil diexport.", "success");
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Gagal export log aktivitas.", "error");
+      showToast(
+        error instanceof Error ? error.message : "Gagal export log aktivitas.",
+        "error",
+      );
     } finally {
       setIsExporting(false);
     }
@@ -676,7 +546,6 @@ export default function ActivityCentreClient() {
     setModule("");
     setAction("");
     setActorId("");
-    setSource("");
     setSort("newest");
     setPeriodMode("day");
     setDay(localDayValue(current));
@@ -695,18 +564,25 @@ export default function ActivityCentreClient() {
         subtitle="Ringkasan aktivitas lintas modul berdasarkan tanggal, user, dan aksi. Buka detail untuk melihat konteks aman sesuai fungsi."
         icon={<Activity className="size-7" aria-hidden="true" />}
         actions={
-          <SetupExcelButton loading={isExporting} onClick={() => void handleExport()} />
+          <SetupExcelButton
+            loading={isExporting}
+            onClick={() => void handleExport()}
+          />
         }
       />
 
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
         <div className="grid lg:grid-cols-[minmax(250px,0.8fr)_minmax(0,2.2fr)]">
           <div className="border-b border-gray-100 p-5 lg:border-b-0 lg:border-r">
-            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">Ringkasan Periode</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500">
+              Ringkasan Periode
+            </p>
             <p className="mt-3 text-3xl font-bold tabular-nums text-gray-900">
               {new Intl.NumberFormat("id-ID").format(summary.total)}
             </p>
-            <p className="mt-1 text-sm text-gray-500">Aktivitas sesuai filter aktif</p>
+            <p className="mt-1 text-sm text-gray-500">
+              Aktivitas sesuai filter aktif
+            </p>
           </div>
           {topModules.length > 0 ? (
             <div className="grid gap-px bg-gray-100 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
@@ -736,11 +612,13 @@ export default function ActivityCentreClient() {
           <div>
             <p className={FIELD_LABEL_CLASS}>Cakupan Waktu</p>
             <div className={`${SETUP_PAGE_SEGMENTED_GROUP_CLASS} w-fit`}>
-              {([
-                ["day", "Hari"],
-                ["month", "Bulan"],
-                ["year", "Tahun"],
-              ] as Array<[PeriodMode, string]>).map(([value, label]) => (
+              {(
+                [
+                  ["day", "Hari"],
+                  ["month", "Bulan"],
+                  ["year", "Tahun"],
+                ] as Array<[PeriodMode, string]>
+              ).map(([value, label]) => (
                 <button
                   key={value}
                   type="button"
@@ -760,22 +638,23 @@ export default function ActivityCentreClient() {
             </div>
           </div>
           <div className="w-full xl:max-w-xs">
-            <label className={FIELD_LABEL_CLASS} htmlFor="activity-period-value">
+            <label
+              className={FIELD_LABEL_CLASS}
+              htmlFor="activity-period-value"
+            >
               Periode
             </label>
             {periodMode === "day" ? (
-              <SetupTextInput
+              <BasicDateInput
                 id="activity-period-value"
-                type="date"
                 value={day}
-                onChange={(event) => setFilter(setDay, event.target.value)}
+                onChange={(value) => setFilter(setDay, value)}
               />
             ) : periodMode === "month" ? (
-              <SetupTextInput
+              <BasicMonthInput
                 id="activity-period-value"
-                type="month"
                 value={month}
-                onChange={(event) => setFilter(setMonth, event.target.value)}
+                onChange={(value) => setFilter(setMonth, value)}
               />
             ) : (
               <SetupTextInput
@@ -802,51 +681,81 @@ export default function ActivityCentreClient() {
             }}
           />
           <div>
-            <label className={FIELD_LABEL_CLASS} htmlFor="activity-module">Modul</label>
-            <SetupSelect id="activity-module" value={module} onChange={(event) => setFilter(setModule, event.target.value)}>
+            <label className={FIELD_LABEL_CLASS} htmlFor="activity-module">
+              Modul
+            </label>
+            <SetupSelect
+              id="activity-module"
+              value={module}
+              onChange={(event) => setFilter(setModule, event.target.value)}
+            >
               <option value="">Semua Modul</option>
-              {options.modules.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </SetupSelect>
-          </div>
-          <div>
-            <label className={FIELD_LABEL_CLASS} htmlFor="activity-action">Aktivitas</label>
-            <SetupSelect id="activity-action" value={action} onChange={(event) => setFilter(setAction, event.target.value)}>
-              <option value="">Semua Aktivitas</option>
-              {options.actions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </SetupSelect>
-          </div>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[repeat(3,minmax(180px,1fr))_auto] xl:items-end">
-          <div>
-            <label className={FIELD_LABEL_CLASS} htmlFor="activity-actor">User</label>
-            <SetupSelect id="activity-actor" value={actorId} onChange={(event) => setFilter(setActorId, event.target.value)}>
-              <option value="">Semua User</option>
-              {options.actors.map((option) => (
+              {options.modules.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}{option.username ? ` (@${option.username})` : ""}
+                  {option.label}
                 </option>
               ))}
             </SetupSelect>
           </div>
           <div>
-            <label className={FIELD_LABEL_CLASS} htmlFor="activity-source">Sumber</label>
-            <SetupSelect id="activity-source" value={source} onChange={(event) => setFilter(setSource, event.target.value)}>
-              <option value="">Semua Sumber</option>
-              {options.sources.map((option) => <option key={option.value} value={option.value}>{sourceLabel(option.value)}</option>)}
+            <label className={FIELD_LABEL_CLASS} htmlFor="activity-action">
+              Aktivitas
+            </label>
+            <SetupSelect
+              id="activity-action"
+              value={action}
+              onChange={(event) => setFilter(setAction, event.target.value)}
+            >
+              <option value="">Semua Aktivitas</option>
+              {options.actions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </SetupSelect>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[repeat(2,minmax(180px,1fr))_auto] xl:items-end">
+          <div>
+            <label className={FIELD_LABEL_CLASS} htmlFor="activity-actor">
+              User
+            </label>
+            <SetupSelect
+              id="activity-actor"
+              value={actorId}
+              onChange={(event) => setFilter(setActorId, event.target.value)}
+            >
+              <option value="">Semua User</option>
+              {options.actors.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                  {option.username ? ` (@${option.username})` : ""}
+                </option>
+              ))}
             </SetupSelect>
           </div>
           <div>
-            <label className={FIELD_LABEL_CLASS} htmlFor="activity-sort">Urutan</label>
-            <SetupSelect id="activity-sort" value={sort} onChange={(event) => {
-              setPage(1);
-              setSort(event.target.value as "newest" | "oldest");
-            }}>
+            <label className={FIELD_LABEL_CLASS} htmlFor="activity-sort">
+              Urutan
+            </label>
+            <SetupSelect
+              id="activity-sort"
+              value={sort}
+              onChange={(event) => {
+                setPage(1);
+                setSort(event.target.value as "newest" | "oldest");
+              }}
+            >
               <option value="newest">Terbaru ke Terlama</option>
               <option value="oldest">Terlama ke Terbaru</option>
             </SetupSelect>
           </div>
-          <button type="button" className="uiverse-modal-button uiverse-modal-button--neutral" onClick={resetFilters}>
+          <button
+            type="button"
+            className="uiverse-modal-button uiverse-modal-button--neutral"
+            onClick={resetFilters}
+          >
             <RefreshCw className="size-4" aria-hidden="true" />
             Reset
           </button>
@@ -854,15 +763,35 @@ export default function ActivityCentreClient() {
       </section>
 
       <SetupTableCard variant="report">
-        <SetupDataTable variant="report" density="compact" className="min-w-[940px]">
+        <SetupDataTable
+          variant="report"
+          density="compact"
+          className="min-w-[940px]"
+        >
           <SetupDataTableHead>
-            <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Tanggal &amp; Waktu</SetupDataTableHeaderCell>
+            <SetupDataTableRow
+              className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}
+            >
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}
+              >
+                No
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>
+                Tanggal &amp; Waktu
+              </SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>User</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Modul</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aktivitas</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}
+              >
+                Aktivitas
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}
+              >
+                Aksi
+              </SetupDataTableHeaderCell>
             </SetupDataTableRow>
           </SetupDataTableHead>
           <SetupDataTableBody>
@@ -876,23 +805,40 @@ export default function ActivityCentreClient() {
                   className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300`}
                   onDoubleClick={() => void openDetail(item)}
                 >
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}
+                  >
                     {(meta.page - 1) * meta.limit + index + 1}
                   </SetupDataTableCell>
-                  <SetupDataTableCell className="whitespace-nowrap">{formatDateTime(item.created_at)}</SetupDataTableCell>
+                  <SetupDataTableCell className="whitespace-nowrap">
+                    {formatDateTime(item.created_at)}
+                  </SetupDataTableCell>
                   <SetupDataTableCell>
-                    <SetupTablePrimaryText>{item.actor?.name || item.actor?.username || "Sistem"}</SetupTablePrimaryText>
+                    <SetupTablePrimaryText>
+                      {item.actor?.name || item.actor?.username || "Sistem"}
+                    </SetupTablePrimaryText>
                     <SetupTableSecondaryText>
-                      {[item.actor?.username ? `@${item.actor.username}` : null, item.actor?.role?.name].filter(Boolean).join(" · ") || "Aktivitas otomatis"}
+                      {[
+                        item.actor?.username ? `@${item.actor.username}` : null,
+                        item.actor?.role?.name,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "Aktivitas otomatis"}
                     </SetupTableSecondaryText>
                   </SetupDataTableCell>
                   <SetupDataTableCell>
                     <span className="inline-flex items-center gap-2 font-semibold text-gray-800">
-                      <ModuleIcon className="size-4 text-gray-500" aria-hidden="true" strokeWidth={1.7} />
+                      <ModuleIcon
+                        className="size-4 text-gray-500"
+                        aria-hidden="true"
+                        strokeWidth={1.7}
+                      />
                       {item.module_label}
                     </span>
                   </SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                  >
                     <SetupStatusBadge
                       status={item.action_label}
                       label={item.action_label}
@@ -900,7 +846,9 @@ export default function ActivityCentreClient() {
                       icon={itemAction.icon}
                     />
                   </SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                  >
                     <div
                       className="flex items-center justify-center"
                       onClick={(event) => event.stopPropagation()}
@@ -929,11 +877,17 @@ export default function ActivityCentreClient() {
               <SetupDataTableEmptyRow
                 colSpan={6}
                 state={isLoading ? "loading" : "empty"}
-                description={isLoading ? "Data aktivitas sedang dimuat." : "Ubah periode atau filter untuk melihat aktivitas lain."}
+                description={
+                  isLoading
+                    ? "Data aktivitas sedang dimuat."
+                    : "Ubah periode atau filter untuk melihat aktivitas lain."
+                }
                 icon={FileClock}
-                isFiltered={Boolean(search || module || action || actorId || source)}
+                isFiltered={Boolean(search || module || action || actorId)}
               >
-                {isLoading ? "Memuat log aktivitas..." : "Belum ada log aktivitas pada periode ini."}
+                {isLoading
+                  ? "Memuat log aktivitas..."
+                  : "Belum ada log aktivitas pada periode ini."}
               </SetupDataTableEmptyRow>
             ) : null}
           </SetupDataTableBody>

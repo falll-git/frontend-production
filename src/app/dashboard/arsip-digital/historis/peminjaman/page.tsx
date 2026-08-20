@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 
 import DashboardModal from "@/components/ui/DashboardModal";
+import LoanDetailContent from "@/components/arsip-digital/peminjaman/LoanDetailContent";
+import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import Pagination from "@/components/ui/Pagination";
 import SetupActionMenu from "@/components/ui/SetupActionMenu";
@@ -545,118 +547,29 @@ export default function HistorisPeminjamanPage() {
             </button>
           }
         >
-          <div className="space-y-8">
-            <section className="space-y-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Informasi Peminjaman
-                </p>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  Ringkasan peminjaman dokumen yang sudah dikembalikan.
-                </p>
-              </div>
-              <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Identitas Dokumen
-                    </p>
-                    <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
-                      {selectedItem.namaDokumen}
-                    </h3>
-                    <p className="text-base font-medium text-slate-500">
-                      {selectedItem.kode}
-                    </p>
-                  </div>
-                  <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                    Dikembalikan
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <DetailInfoItem
-                    label="Peminjam"
-                    value={formatPersonName(selectedItem.peminjam)}
-                  />
-                  <DetailInfoItem
-                    label="Tanggal Pinjam"
-                    value={formatDateOnly(selectedItem.tanggalPinjam)}
-                  />
-                  <DetailInfoItem
-                    label="Tanggal Serah"
-                    value={formatDateOnly(selectedItem.tanggalPenyerahan)}
-                  />
-                  <DetailInfoItem
-                    label="Est. Kembali"
-                    value={formatDateOnly(
-                      selectedItem.tanggalEstimasiPengembalian,
-                    )}
-                  />
-                  <DetailInfoItem
-                    label="Tanggal Kembali"
-                    value={formatDateOnly(selectedItem.tanggalPengembalian)}
-                  />
-                  <DetailInfoItem label="Durasi" value={selectedItem.durasi} />
-                  <DetailInfoItem
-                    label="Penyetuju"
-                    value={formatPersonName(selectedItem.approvedBy)}
-                  />
-                </div>
-              </div>
-            </section>
-
-            <section className="space-y-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Catatan Peminjaman
-                </p>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  Alasan dan catatan proses yang tersimpan pada riwayat.
-                </p>
-              </div>
-              <div className="grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 md:grid-cols-2">
-                <DetailInfoItem
-                  label="Alasan Peminjaman"
-                  value={selectedItem.alasan || "-"}
-                />
-                <DetailInfoItem
-                  label="Catatan Penyerahan"
-                  value={selectedItem.catatanPenyerahan || "-"}
-                />
-                <DetailInfoItem
-                  label="Catatan Pengembalian"
-                  value={selectedItem.catatanPengembalian || "-"}
-                  className="md:col-span-2"
-                />
-              </div>
-            </section>
-          </div>
+          <LoanDetailContent
+            documentName={selectedItem.namaDokumen}
+            documentCode={selectedItem.kode}
+            status={<SetupStatusBadge status="Dikembalikan" />}
+            informationDescription="Ringkasan peminjaman dokumen yang sudah dikembalikan."
+            informationRows={[
+              { label: "Peminjam", value: formatPersonName(selectedItem.peminjam) },
+              { label: "Tanggal Pinjam", value: formatDateOnly(selectedItem.tanggalPinjam) },
+              { label: "Tanggal Serah", value: formatDateOnly(selectedItem.tanggalPenyerahan) },
+              { label: "Est. Kembali", value: formatDateOnly(selectedItem.tanggalEstimasiPengembalian) },
+              { label: "Tanggal Kembali", value: formatDateOnly(selectedItem.tanggalPengembalian) },
+              { label: "Durasi", value: selectedItem.durasi },
+              { label: "Penyetuju", value: formatPersonName(selectedItem.approvedBy) },
+            ]}
+            noteDescription="Alasan dan catatan proses yang tersimpan pada riwayat."
+            noteRows={[
+              { label: "Alasan Peminjaman", value: selectedItem.alasan },
+              { label: "Catatan Penyerahan", value: selectedItem.catatanPenyerahan },
+              { label: "Catatan Pengembalian", value: selectedItem.catatanPengembalian },
+            ]}
+          />
         </DashboardModal>
       ) : null}
     </DashboardPageShell>
-  );
-}
-
-type DetailInfoItemProps = {
-  label: string;
-  value: string;
-  className?: string;
-};
-
-function DetailInfoItem({
-  label,
-  value,
-  className = "",
-}: DetailInfoItemProps) {
-  return (
-    <div
-      className={`rounded-xl border border-gray-200 bg-slate-50 px-4 py-3 ${className}`.trim()}
-    >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-        {label}
-      </p>
-      <p className="mt-2 break-words text-sm font-semibold leading-6 text-slate-900">
-        {value || "-"}
-      </p>
-    </div>
   );
 }

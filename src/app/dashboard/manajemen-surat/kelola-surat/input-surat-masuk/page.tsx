@@ -588,6 +588,7 @@ export default function InputSuratMasukPage() {
         title="Tenggat Tindak Lanjut Surat Masuk"
         subtitle="Atur batas waktu disposisi awal jika surat masuk perlu ditindaklanjuti."
         disposisi={selectedDivisionNames}
+        onCancel={() => setIsDeadlineModalOpen(false)}
         onSkip={() => void submitSuratMasuk()}
         onSave={(deadline) => void submitSuratMasuk(deadline)}
       />

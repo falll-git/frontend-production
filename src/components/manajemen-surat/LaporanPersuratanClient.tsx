@@ -23,6 +23,7 @@ import {
   type DragEvent,
   type ReactNode,
 } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   Building2,
@@ -42,11 +43,14 @@ import {
 } from "lucide-react";
 
 import DashboardModal from "@/components/ui/DashboardModal";
+import SetupModalDetailLayout from "@/components/ui/SetupModalDetailLayout";
+import IncomingMailEditSectionLayout from "@/components/manajemen-surat/IncomingMailEditSectionLayout";
 import {
   getDispositionActionLabel,
   getDispositionActionMode,
 } from "@/components/manajemen-surat/DispositionModalParts";
 import MemorandumDisposisiModal from "@/components/manajemen-surat/MemorandumDisposisiModal";
+import PersuratanDispositionPanel from "@/components/manajemen-surat/PersuratanDispositionPanel";
 import PhysicalStorageSelect from "@/components/manajemen-surat/PhysicalStorageSelect";
 import SuratMasukDisposisiModal from "@/components/manajemen-surat/SuratMasukDisposisiModal";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -73,6 +77,12 @@ import { useDocumentPreviewContext } from "@/components/ui/DocumentPreviewContex
 import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { useClientPagination } from "@/hooks/useClientPagination";
 import { OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import {
+  formatActiveAssigneeLabel,
+  getMyReportFilterForWorkflowStatus,
+  loadPersuratanDeepLinkRecord,
+  parsePersuratanDeepLink,
+} from "@/lib/persuratan-workflow";
 import {
   SETUP_PAGE_MODERN_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
@@ -354,16 +364,22 @@ function isWorkflowRecordCompleted(
     "statusLabel" in record ? record.statusLabel : undefined,
     "statusDisposisi" in record ? record.statusDisposisi : undefined,
   ]
-    .map((value) => String(value ?? "").trim().toUpperCase())
+    .map((value) =>
+      String(value ?? "")
+        .trim()
+        .toUpperCase(),
+    )
     .filter(Boolean);
 
-  return statusValues.some((value) =>
-    ["COMPLETED", "SELESAI"].includes(value),
-  );
+  return statusValues.some((value) => ["COMPLETED", "SELESAI"].includes(value));
 }
 
-function hasActiveWorkflowDeadline(record: SuratMasukRecord | MemorandumRecord) {
-  return !isWorkflowRecordCompleted(record) && record.active_dispositions_count > 0;
+function hasActiveWorkflowDeadline(
+  record: SuratMasukRecord | MemorandumRecord,
+) {
+  return (
+    !isWorkflowRecordCompleted(record) && record.active_dispositions_count > 0
+  );
 }
 
 function getTenggatStatus(value: string | undefined, today: Date) {
@@ -513,6 +529,9 @@ function normalizeSuratMasukRecord(
     disposisiKepada: record.disposisiKepada.map((name) =>
       resolveUserDisplayName(name, userNameById),
     ),
+    initial_recipient_names: record.initial_recipient_names.map((name) =>
+      resolveUserDisplayName(name, userNameById),
+    ),
     current_holders: record.current_holders.map((item) => ({
       ...item,
       name: resolveUserDisplayName(item.name, userNameById, item.id),
@@ -563,6 +582,9 @@ function normalizeMemorandumRecord(
             resolveUserDisplayName(name, userNameById),
           )
         : record.penerima,
+    initial_recipient_names: record.initial_recipient_names.map((name) =>
+      resolveUserDisplayName(name, userNameById),
+    ),
     current_holders: record.current_holders.map((item) => ({
       ...item,
       name: resolveUserDisplayName(item.name, userNameById, item.id),
@@ -636,7 +658,9 @@ function getDispositionStatusBadgeStatus(
   return "Baru";
 }
 
-function getOutgoingStatusBadgeStatus(statusLabel: string): SetupStatusBadgeStatus {
+function getOutgoingStatusBadgeStatus(
+  statusLabel: string,
+): SetupStatusBadgeStatus {
   return statusLabel.trim().toLowerCase() === "aktif" ? "Aktif" : "Nonaktif";
 }
 
@@ -684,12 +708,13 @@ function PersuratanInfoItem({
 }) {
   return (
     <div
-      className={`grid gap-1 border-b border-slate-100 py-3 last:border-b-0 sm:grid-cols-[145px_minmax(0,1fr)] sm:gap-4 ${className}`.trim()}
+      data-ui="modal-definition-cell"
+      className={`min-w-0 bg-white px-4 py-3.5 sm:px-5 ${className}`.trim()}
     >
       <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
         {label}
       </p>
-      <div className="min-w-0 break-words text-sm font-semibold leading-6 text-slate-900">
+      <div className="mt-1.5 min-w-0 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-slate-900">
         {children ?? value ?? "-"}
       </div>
     </div>
@@ -739,10 +764,7 @@ function WorkflowTimelineSection({
         ) : (
           <ol className="divide-y divide-slate-100">
             {dispositions.map((item) => (
-              <li
-                key={item.id}
-                className="py-4"
-              >
+              <li key={item.id} className="py-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -753,7 +775,9 @@ function WorkflowTimelineSection({
                       <span className="break-words text-sm font-semibold text-slate-900">
                         {item.timeline_label}
                       </span>
-                      {item.is_current ? <SetupStatusBadge status="Aktif" /> : null}
+                      {item.is_current ? (
+                        <SetupStatusBadge status="Aktif" />
+                      ) : null}
                     </div>
 
                     <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
@@ -815,8 +839,7 @@ const activeSectionConfig: Record<ReportKind, ActiveSectionConfig> = {
   },
 };
 
-const REPORT_TABLE_CLASS =
-  `${SETUP_PAGE_MODERN_TABLE_CLASS} [table-layout:fixed] [&_thead_th]:whitespace-nowrap`;
+const REPORT_TABLE_CLASS = `${SETUP_PAGE_MODERN_TABLE_CLASS} [table-layout:fixed] [&_thead_th]:whitespace-nowrap`;
 const REPORT_SURAT_MASUK_TABLE_CLASS = `${REPORT_TABLE_CLASS} min-w-[2032px]`;
 const REPORT_SURAT_KELUAR_TABLE_CLASS = `${REPORT_TABLE_CLASS} min-w-[1200px]`;
 const REPORT_MEMORANDUM_TABLE_CLASS = `${REPORT_TABLE_CLASS} min-w-[1974px]`;
@@ -830,6 +853,8 @@ const REPORT_STATUS_CELL_CLASS = SETUP_PAGE_MODERN_CENTER_CELL_CLASS;
 const REPORT_ACTION_HEADER_CELL_CLASS =
   SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS;
 const REPORT_ACTION_CELL_CLASS = SETUP_PAGE_MODERN_CENTER_CELL_CLASS;
+const REPORT_DISPOSITION_HEADER_CELL_CLASS = `${REPORT_ACTION_HEADER_CELL_CLASS} correspondence-disposition-column`;
+const REPORT_DISPOSITION_CELL_CLASS = `${REPORT_ACTION_CELL_CLASS} correspondence-disposition-column`;
 const TABLE_TEXT_CLASS = "text-sm text-gray-700";
 const TABLE_TEXT_MUTED_CLASS = "text-sm text-gray-600";
 const TABLE_TEXT_STRONG_CLASS = "text-sm text-gray-900";
@@ -839,7 +864,7 @@ const TABLE_MULTILINE_TEXT_CLASS =
 const TABLE_MULTILINE_STRONG_CLASS =
   "block max-w-full break-normal text-sm font-medium leading-5 text-gray-800 line-clamp-2";
 const TABLE_ACTION_BUTTON_CLASS =
-  "uiverse-modal-button uiverse-modal-button--primary min-h-9 w-[136px] justify-center whitespace-nowrap px-3 py-2 text-sm";
+  "uiverse-modal-button uiverse-modal-button--primary min-h-11 w-[136px] justify-center whitespace-nowrap px-3 py-2 text-sm";
 const REPORT_SURAT_MASUK_COLUMN_WIDTHS = [
   "56px",
   "190px",
@@ -889,11 +914,7 @@ function ReportColGroup({ widths }: { widths: readonly string[] }) {
   );
 }
 
-function ReportLoadingTable({
-  widths,
-}: {
-  widths: readonly string[];
-}) {
+function ReportLoadingTable({ widths }: { widths: readonly string[] }) {
   const columnCount = widths.length;
 
   return (
@@ -1033,7 +1054,7 @@ function DispositionTableButton({
 }
 
 function DocumentSection({
-  title = "File dan Preview",
+  title = "Lampiran",
   description = "File persuratan yang tersimpan dan dapat dipreview sesuai izin akses.",
   fileName,
   hasFile,
@@ -1048,9 +1069,9 @@ function DocumentSection({
   onPreview: () => void;
 }) {
   return (
-    <div className="space-y-4 rounded-2xl border border-gray-200 bg-slate-50 p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+    <div className="space-y-4 rounded-lg border border-gray-200 bg-slate-50 p-5">
       <div className="flex items-start gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-sky-600">
           <FileText className="h-5 w-5" aria-hidden="true" />
         </div>
         <div>
@@ -1107,36 +1128,37 @@ function WorkflowActionPanel({
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-        {canUpdateStatus && currentDisposition.can_start ? (
-          <button
-            type="button"
-            onClick={onStart}
-            disabled={isBusy}
-            className="uiverse-modal-button uiverse-modal-button--neutral h-10 gap-2 border-amber-200 bg-amber-50 px-4 text-gray-900 hover:bg-amber-100"
-          >
-            <PlayCircle className="h-4 w-4" aria-hidden="true" />
-            Mulai Proses
-          </button>
-        ) : null}
+          {canUpdateStatus && currentDisposition.can_start ? (
+            <button
+              type="button"
+              onClick={onStart}
+              disabled={isBusy}
+              className="uiverse-modal-button uiverse-modal-button--neutral h-11 gap-2 border-amber-200 bg-amber-50 px-4 text-gray-900 hover:bg-amber-100"
+            >
+              <PlayCircle className="h-4 w-4" aria-hidden="true" />
+              Mulai Proses
+            </button>
+          ) : null}
 
-        {canUpdateStatus && currentDisposition.can_complete ? (
-          <button
-            type="button"
-            onClick={onComplete}
-            disabled={isBusy}
-            className="uiverse-modal-button uiverse-modal-button--neutral h-10 gap-2 border-emerald-200 bg-emerald-50 px-4 text-gray-900 hover:bg-emerald-100"
-          >
-            <CheckCheck className="h-4 w-4" aria-hidden="true" />
-            Tandai Selesai
-          </button>
-        ) : null}
+          {canUpdateStatus && currentDisposition.can_complete ? (
+            <button
+              type="button"
+              onClick={onComplete}
+              disabled={isBusy}
+              className="uiverse-modal-button uiverse-modal-button--neutral h-11 gap-2 border-emerald-200 bg-emerald-50 px-4 text-gray-900 hover:bg-emerald-100"
+            >
+              <CheckCheck className="h-4 w-4" aria-hidden="true" />
+              Tandai Selesai
+            </button>
+          ) : null}
 
-        {!canUpdateStatus ||
-        (!currentDisposition.can_start && !currentDisposition.can_complete) ? (
-          <span className="inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-500">
-            Tidak ada aksi lanjutan.
-          </span>
-        ) : null}
+          {!canUpdateStatus ||
+          (!currentDisposition.can_start &&
+            !currentDisposition.can_complete) ? (
+            <span className="inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-500">
+              Tidak ada aksi lanjutan.
+            </span>
+          ) : null}
         </div>
       </div>
     </div>
@@ -1420,7 +1442,11 @@ function EditCorrespondenceModal({
     <DashboardModal
       isOpen
       title={title}
-      description="Perubahan mengikuti izin update pada role-menu."
+      description={
+        target.kind === "surat-masuk"
+          ? "Perbarui informasi surat, pengarsipan, dan lampiran. Tujuan disposisi tetap mengikuti data awal."
+          : "Perubahan mengikuti izin update pada role-menu."
+      }
       maxWidth="3xl"
       onClose={onClose}
       bodyClassName="p-5 sm:p-6"
@@ -1445,7 +1471,231 @@ function EditCorrespondenceModal({
         </>
       }
     >
-        <form id={formId} onSubmit={handleSubmit}>
+      <form id={formId} onSubmit={handleSubmit}>
+        {target.kind === "surat-masuk" ? (
+          <IncomingMailEditSectionLayout
+            identity={
+              <>
+                <div className="min-w-0">
+                  <label
+                    htmlFor={`${formId}-letter-priority`}
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    Sifat Surat <span className="text-red-500">*</span>
+                  </label>
+                  <SetupSelect
+                    id={`${formId}-letter-priority`}
+                    name="letterPriorityId"
+                    value={form.letterPriorityId}
+                    onChange={handleChange}
+                    disabled={isOptionsLoading || isSubmitting}
+                    required
+                  >
+                    <option value="">
+                      {isOptionsLoading
+                        ? "Memuat sifat surat..."
+                        : "Pilih sifat"}
+                    </option>
+                    {letterPriorities.map((priority) => (
+                      <option key={priority.id} value={priority.id}>
+                        {priority.name}
+                      </option>
+                    ))}
+                  </SetupSelect>
+                </div>
+
+                <div className="min-w-0">
+                  <label
+                    htmlFor={`${formId}-document-number`}
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    Nama / Nomor Surat <span className="text-red-500">*</span>
+                  </label>
+                  <SetupTextInput
+                    id={`${formId}-document-number`}
+                    name="documentNumber"
+                    value={form.documentNumber}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                    required
+                  />
+                </div>
+
+                <div className="min-w-0 md:col-span-2">
+                  <label
+                    htmlFor={`${formId}-regarding`}
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    Perihal Surat <span className="text-red-500">*</span>
+                  </label>
+                  <SetupTextarea
+                    id={`${formId}-regarding`}
+                    name="regarding"
+                    value={form.regarding}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                    rows={3}
+                    className="resize-none"
+                    placeholder="Ringkasan perihal atau isi surat..."
+                    required
+                  />
+                </div>
+              </>
+            }
+            sender={
+              <>
+                <div className="min-w-0">
+                  <label
+                    htmlFor={`${formId}-sender-name`}
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    Nama Pengirim <span className="text-red-500">*</span>
+                  </label>
+                  <SetupTextInput
+                    id={`${formId}-sender-name`}
+                    name="personName"
+                    value={form.personName}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                    required
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <label
+                    htmlFor={`${formId}-sender-address`}
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    Alamat Pengirim <span className="text-red-500">*</span>
+                  </label>
+                  <SetupTextarea
+                    id={`${formId}-sender-address`}
+                    name="address"
+                    value={form.address}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                    rows={3}
+                    className="resize-none"
+                    required
+                  />
+                </div>
+              </>
+            }
+            receipt={
+              <div className="min-w-0 md:max-w-sm">
+                <label
+                  htmlFor={`${formId}-received-date`}
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
+                  Tanggal Penerimaan <span className="text-red-500">*</span>
+                </label>
+                <BasicDateInput
+                  id={`${formId}-received-date`}
+                  name="documentDate"
+                  value={form.documentDate}
+                  onChange={(nextValue) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      documentDate: nextValue,
+                    }))
+                  }
+                  disabled={isSubmitting}
+                  required
+                />
+              </div>
+            }
+            filing={
+              <div className="min-w-0 md:max-w-xl">
+                <PhysicalStorageSelect
+                  id={`${formId}-storage`}
+                  name="storageId"
+                  value={form.storageId}
+                  storages={storageOptions}
+                  isLoading={isOptionsLoading}
+                  disabled={isSubmitting}
+                  onChange={handleChange}
+                />
+              </div>
+            }
+            disposition={
+              <div className="min-w-0">
+                <p className="mb-2 text-sm font-medium text-gray-700">
+                  Divisi Tujuan Disposisi
+                </p>
+                <div
+                  className="break-words rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm leading-6 text-gray-700"
+                  aria-label="Divisi tujuan disposisi"
+                >
+                  {target.record.targetDivisionNames?.join(", ") ||
+                    target.record.disposisiKepada.join(", ") ||
+                    "-"}
+                </div>
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  Divisi tujuan disposisi tidak dapat diubah setelah surat masuk
+                  dibuat.
+                </p>
+              </div>
+            }
+            attachments={
+              <>
+                <div className="min-w-0">
+                  <label
+                    htmlFor={`${formId}-description`}
+                    className="mb-2 block text-sm font-medium text-gray-700"
+                  >
+                    Keterangan Surat <span className="text-red-500">*</span>
+                  </label>
+                  <SetupTextarea
+                    id={`${formId}-description`}
+                    name="description"
+                    value={form.description}
+                    onChange={handleChange}
+                    disabled={isSubmitting}
+                    rows={3}
+                    className="resize-none"
+                    required
+                  />
+                </div>
+
+                <div className="min-w-0">
+                  <FileUploadField
+                    id="edit-surat-masuk-file-input"
+                    file={file}
+                    fileName={file ? undefined : target.record.fileName}
+                    fileMeta={
+                      file
+                        ? null
+                        : target.record.fileName
+                          ? "File tersimpan saat ini. Pilih file baru jika ingin mengganti."
+                          : "Belum ada file tersimpan."
+                    }
+                    inputRef={fileInputRef}
+                    disabled={isSubmitting}
+                    isDragActive={dragOver}
+                    required={false}
+                    title={
+                      file
+                        ? "Ganti file"
+                        : target.record.fileName
+                          ? "Pilih file pengganti"
+                          : "Pilih file"
+                    }
+                    helperText="Kosongkan jika file lama tetap digunakan."
+                    onChange={handleFileChange}
+                    onClear={clearSelectedFile}
+                    onDrop={handleDrop}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      if (isSubmitting) return;
+                      setDragOver(true);
+                    }}
+                    onDragLeave={() => setDragOver(false)}
+                  />
+                </div>
+              </>
+            }
+          />
+        ) : (
           <div className="grid gap-5 md:grid-cols-2">
             {target.kind !== "memorandum" ? (
               <div>
@@ -1521,10 +1771,7 @@ function EditCorrespondenceModal({
               <>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">
-                    {target.kind === "surat-masuk"
-                      ? "Nama Pengirim"
-                      : "Nama Penerima"}{" "}
-                    <span className="text-red-500">*</span>
+                    Nama Penerima <span className="text-red-500">*</span>
                   </label>
                   <SetupTextInput
                     name="personName"
@@ -1536,10 +1783,7 @@ function EditCorrespondenceModal({
                 </div>
                 <div>
                   <label className="mb-2 block text-sm font-medium text-gray-700">
-                    {target.kind === "surat-masuk"
-                      ? "Alamat Pengirim"
-                      : "Alamat Penerima"}{" "}
-                    <span className="text-red-500">*</span>
+                    Alamat Penerima <span className="text-red-500">*</span>
                   </label>
                   <SetupTextarea
                     name="address"
@@ -1558,9 +1802,7 @@ function EditCorrespondenceModal({
               <label className="mb-2 block text-sm font-medium text-gray-700">
                 {target.kind === "surat-keluar"
                   ? "Tanggal Pengiriman"
-                  : target.kind === "memorandum"
-                    ? "Tanggal Memo"
-                    : "Tanggal Penerimaan"}{" "}
+                  : "Tanggal Memo"}{" "}
                 <span className="text-red-500">*</span>
               </label>
               <BasicDateInput
@@ -1580,22 +1822,6 @@ function EditCorrespondenceModal({
               disabled={isSubmitting}
               onChange={handleChange}
             />
-
-            {target.kind === "surat-masuk" ? (
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Divisi Tujuan Disposisi
-                </label>
-                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                  {target.record.targetDivisionNames?.join(", ") ||
-                    target.record.disposisiKepada.join(", ") ||
-                    "-"}
-                </div>
-                <p className="mt-2 text-xs text-slate-500">
-                  Divisi tujuan disposisi tidak dapat diubah setelah surat masuk dibuat.
-                </p>
-              </div>
-            ) : null}
 
             {target.kind === "surat-keluar" ? (
               <div>
@@ -1648,29 +1874,13 @@ function EditCorrespondenceModal({
                   {target.record.pembuatMemo || "-"}
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  Pembuat memo mengikuti akun pembuat awal dan tidak diubah dari form update.
+                  Pembuat memo mengikuti akun pembuat awal dan tidak diubah dari
+                  form update.
                 </p>
               </div>
             ) : null}
 
-            {target.kind === "surat-masuk" ? (
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-medium text-gray-700">
-                  Perihal Surat{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <SetupTextarea
-                  name="regarding"
-                  value={form.regarding}
-                  onChange={handleChange}
-                  disabled={isSubmitting}
-                  rows={3}
-                  className="resize-none"
-                  placeholder="Ringkasan perihal atau isi surat..."
-                  required
-                />
-              </div>
-            ) : target.kind === "memorandum" ? (
+            {target.kind === "memorandum" ? (
               <div className="md:col-span-2">
                 <label className="mb-2 block text-sm font-medium text-gray-700">
                   Perihal Memo <span className="text-red-500">*</span>
@@ -1697,18 +1907,16 @@ function EditCorrespondenceModal({
                     "-"}
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  Divisi tujuan awal tidak dapat diubah setelah memorandum dibuat.
+                  Divisi tujuan awal tidak dapat diubah setelah memorandum
+                  dibuat.
                 </p>
               </div>
             ) : null}
 
-            {target.kind !== "surat-keluar" ? (
+            {target.kind === "memorandum" ? (
               <div className="md:col-span-2">
                 <label className="mb-2 block text-sm font-medium text-gray-700">
-                  {target.kind === "memorandum"
-                    ? "Keterangan Memo"
-                    : "Keterangan Surat"}{" "}
-                  <span className="text-red-500">*</span>
+                  Keterangan Memo <span className="text-red-500">*</span>
                 </label>
                 <SetupTextarea
                   name="description"
@@ -1758,8 +1966,8 @@ function EditCorrespondenceModal({
               />
             </div>
           </div>
-
-        </form>
+        )}
+      </form>
     </DashboardModal>
   );
 }
@@ -1877,7 +2085,9 @@ function ReportSectionShell({
                   <span className={SETUP_PAGE_SEARCH_LABEL_CLASS}>
                     Filter Saya
                   </span>
-                  <div className={`${SETUP_PAGE_SEGMENTED_GROUP_CLASS} flex-wrap`}>
+                  <div
+                    className={`${SETUP_PAGE_SEGMENTED_GROUP_CLASS} flex-wrap`}
+                  >
                     {MY_REPORT_FILTER_OPTIONS.map((option) => {
                       const isActive = myReportFilter === option.value;
 
@@ -1903,35 +2113,35 @@ function ReportSectionShell({
           ) : null}
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
-          <div>
-            <SetupSearchInput
-              label="Cari Data"
-              value={searchValue}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder={searchPlaceholder}
-            />
-          </div>
+            <div>
+              <SetupSearchInput
+                label="Cari Data"
+                value={searchValue}
+                onChange={(event) => onSearchChange(event.target.value)}
+                placeholder={searchPlaceholder}
+              />
+            </div>
 
-          <div>
-            <label className={SETUP_PAGE_SEARCH_LABEL_CLASS}>
-              Urutkan
-            </label>
-            <SetupSelect
-              value={sortValue}
-              onChange={(event) => onSortChange(event.target.value as SortValue)}
-              aria-label={`Urutkan ${title}`}
-            >
-              <option value="terbaru">Terbaru</option>
-              <option value="terlama">Terlama</option>
-              {supportsTenggatSort ? (
-                <>
-                  <option value="tenggat-terdekat">Tenggat Terdekat</option>
-                  <option value="tenggat-terlama">Tenggat Terlama</option>
-                </>
-              ) : null}
-            </SetupSelect>
+            <div>
+              <label className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Urutkan</label>
+              <SetupSelect
+                value={sortValue}
+                onChange={(event) =>
+                  onSortChange(event.target.value as SortValue)
+                }
+                aria-label={`Urutkan ${title}`}
+              >
+                <option value="terbaru">Terbaru</option>
+                <option value="terlama">Terlama</option>
+                {supportsTenggatSort ? (
+                  <>
+                    <option value="tenggat-terdekat">Tenggat Terdekat</option>
+                    <option value="tenggat-terlama">Tenggat Terlama</option>
+                  </>
+                ) : null}
+              </SetupSelect>
+            </div>
           </div>
-        </div>
         </div>
       </div>
 
@@ -1941,6 +2151,9 @@ function ReportSectionShell({
 }
 
 export default function LaporanPersuratanClient() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { openPreview } = useDocumentPreviewContext();
   const { user } = useAuth();
   const { showToast } = useAppToast();
@@ -1959,6 +2172,8 @@ export default function LaporanPersuratanClient() {
   const [selectedDetail, setSelectedDetail] = useState<DetailState | null>(
     null,
   );
+  const processedDeepLinkRef = useRef<string | null>(null);
+  const isMountedRef = useRef(true);
   const [editTarget, setEditTarget] = useState<DetailState | null>(null);
   const [isUpdatingCorrespondence, setIsUpdatingCorrespondence] =
     useState(false);
@@ -2048,25 +2263,21 @@ export default function LaporanPersuratanClient() {
     PERSURATAN_DATA_SCOPE_MENU_URLS.some((menuUrl) =>
       hasFeature(menuUrl, feature),
     );
-  const canManageAllPersuratan =
-    hasPersuratanScopeFeature("manage_all");
+  const canManageAllPersuratan = hasPersuratanScopeFeature("manage_all");
 
   const isCurrentUserId = (value: string | undefined | null) =>
     Boolean(user?.id && value && String(value) === String(user.id));
   const canManageSuratMasukRecord = (record: SuratMasukRecord) =>
     Boolean(
-      user?.id &&
-        (canManageAllPersuratan || isCurrentUserId(record.createdBy)),
+      user?.id && (canManageAllPersuratan || isCurrentUserId(record.createdBy)),
     );
   const canManageSuratKeluarRecord = (record: SuratKeluarRecord) =>
     Boolean(
-      user?.id &&
-        (canManageAllPersuratan || isCurrentUserId(record.createdBy)),
+      user?.id && (canManageAllPersuratan || isCurrentUserId(record.createdBy)),
     );
   const canManageMemorandumRecord = (record: MemorandumRecord) =>
     Boolean(
-      user?.id &&
-        (canManageAllPersuratan || isCurrentUserId(record.createdBy)),
+      user?.id && (canManageAllPersuratan || isCurrentUserId(record.createdBy)),
     );
 
   const requireDeleteSuratMasukAction = () =>
@@ -2101,10 +2312,12 @@ export default function LaporanPersuratanClient() {
 
   const requireRedisposeSuratMasukAction = () =>
     ensureCapability(SURAT_MASUK_MENU_URL, "update", {
-      message: "Anda tidak memiliki akses untuk mengubah disposisi surat masuk.",
+      message:
+        "Anda tidak memiliki akses untuk mengubah disposisi surat masuk.",
     }) &&
     ensureFeature(SURAT_MASUK_MENU_URL, "redispose", {
-      message: "Anda tidak memiliki akses untuk meneruskan disposisi surat masuk.",
+      message:
+        "Anda tidak memiliki akses untuk meneruskan disposisi surat masuk.",
     });
 
   const requireRedisposeMemorandumAction = () =>
@@ -2112,7 +2325,8 @@ export default function LaporanPersuratanClient() {
       message: "Anda tidak memiliki akses untuk mengubah disposisi memorandum.",
     }) &&
     ensureFeature(MEMORANDUM_MENU_URL, "redispose", {
-      message: "Anda tidak memiliki akses untuk meneruskan disposisi memorandum.",
+      message:
+        "Anda tidak memiliki akses untuk meneruskan disposisi memorandum.",
     });
 
   const activeDisposisiSurat = useMemo(
@@ -2174,8 +2388,7 @@ export default function LaporanPersuratanClient() {
       const [report, outgoingReport] = await Promise.all([
         correspondenceService.getReport({
           scope: reportScope,
-          myFilter:
-            reportScope === "my" ? myReportFilter : undefined,
+          myFilter: reportScope === "my" ? myReportFilter : undefined,
         }),
         correspondenceService.getReport({
           kind: "surat-keluar",
@@ -2226,9 +2439,7 @@ export default function LaporanPersuratanClient() {
       };
     } catch (error) {
       showToast(
-        error instanceof Error
-          ? error.message
-          : "Gagal memuat data persuratan",
+        error instanceof Error ? error.message : "Gagal memuat data persuratan",
         "error",
       );
       setAvailableReportScopes(["my"]);
@@ -2250,6 +2461,89 @@ export default function LaporanPersuratanClient() {
   useEffect(() => {
     void refreshReportData();
   }, [refreshReportData]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const deepLinkKindParam = searchParams.get("kind");
+  const deepLinkIdParam = searchParams.get("id");
+
+  const handleCloseDetail = useCallback(() => {
+    setSelectedDetail(null);
+
+    if (!parsePersuratanDeepLink(deepLinkKindParam, deepLinkIdParam)) return;
+
+    const nextSearchParams = new URLSearchParams(searchParams.toString());
+    nextSearchParams.delete("kind");
+    nextSearchParams.delete("id");
+    processedDeepLinkRef.current = null;
+    const nextQuery = nextSearchParams.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
+      scroll: false,
+    });
+  }, [deepLinkIdParam, deepLinkKindParam, pathname, router, searchParams]);
+
+  useEffect(() => {
+    const deepLink = parsePersuratanDeepLink(
+      deepLinkKindParam,
+      deepLinkIdParam,
+    );
+    if (!deepLink) return;
+
+    const requestKey = `${deepLink.kind}:${deepLink.id}`;
+    if (processedDeepLinkRef.current === requestKey) return;
+    processedDeepLinkRef.current = requestKey;
+    setActiveKind(deepLink.kind);
+
+    void (async () => {
+      try {
+        const userNameById = new Map<string, string>();
+        let detail: DetailState | null = null;
+
+        const resolved = await loadPersuratanDeepLinkRecord(deepLink, {
+          suratMasuk: suratMasukService.getById,
+          suratKeluar: suratKeluarService.getById,
+          memorandum: memorandumService.getById,
+        });
+
+        if (resolved?.kind === "surat-masuk") {
+          detail = {
+            kind: resolved.kind,
+            record: normalizeSuratMasukRecord(resolved.record, userNameById),
+          };
+        } else if (resolved?.kind === "memorandum") {
+          detail = {
+            kind: resolved.kind,
+            record: normalizeMemorandumRecord(resolved.record, userNameById),
+          };
+        } else if (resolved) {
+          detail = resolved;
+        }
+
+        if (!detail) {
+          throw new Error("Data persuratan tidak ditemukan.");
+        }
+        if (!isMountedRef.current) return;
+
+        if (reportScope === "my" && detail.kind !== "surat-keluar") {
+          setMyReportFilter(
+            getMyReportFilterForWorkflowStatus(detail.record.statusKey),
+          );
+        }
+        setSelectedDetail(detail);
+      } catch {
+        if (!isMountedRef.current) return;
+        showToast(
+          "Data persuratan tidak tersedia atau Anda tidak memiliki akses.",
+          "error",
+        );
+      }
+    })();
+  }, [deepLinkIdParam, deepLinkKindParam, reportScope, showToast]);
 
   useEffect(() => {
     if (!availableReportScopes.includes(reportScope)) {
@@ -2381,6 +2675,19 @@ export default function LaporanPersuratanClient() {
 
   const handleOpenMemorandumDisposisi = (memorandumId: string | number) => {
     if (!requireRedisposeMemorandumAction()) return;
+    const targetRecord =
+      memorandumRecords.find((record) => record.id === memorandumId) ?? null;
+    const currentDisposition = getCurrentDispositionForUser(
+      targetRecord?.disposisi_history ?? [],
+      user?.id,
+    );
+    if (!targetRecord || !currentDisposition?.can_redispose) {
+      showToast(
+        "Disposisi hanya dapat diteruskan setelah statusnya Dalam Proses.",
+        "error",
+      );
+      return;
+    }
     setActiveMemorandumDisposisiId(memorandumId);
     setMemorandumDisposisiUsers([]);
     setSelectedMemorandumDisposisiUserIds([]);
@@ -2444,6 +2751,17 @@ export default function LaporanPersuratanClient() {
   const handleSubmitMemorandumDisposisi = async () => {
     if (!activeDisposisiMemorandum) return;
     if (!requireRedisposeMemorandumAction()) return;
+    const currentDisposition = getCurrentDispositionForUser(
+      activeDisposisiMemorandum.disposisi_history,
+      user?.id,
+    );
+    if (!currentDisposition?.can_redispose) {
+      showToast(
+        "Disposisi hanya dapat diteruskan setelah statusnya Dalam Proses.",
+        "error",
+      );
+      return;
+    }
 
     const actionMode = activeMemorandumDispositionMode;
     const actionLabel = getDispositionActionLabel(actionMode);
@@ -2458,7 +2776,9 @@ export default function LaporanPersuratanClient() {
         memorandumDisposisiUsers.some((recipient) => recipient.id === userId),
     );
 
-    if (selectedReceiverIds.length !== selectedMemorandumDisposisiUserIds.length) {
+    if (
+      selectedReceiverIds.length !== selectedMemorandumDisposisiUserIds.length
+    ) {
       showToast("Tujuan disposisi tidak ditemukan!", "error");
       return;
     }
@@ -2519,10 +2839,7 @@ export default function LaporanPersuratanClient() {
       const nextRecord =
         nextState.incoming.find((item) => item.id === record.id) ??
         (updated
-          ? normalizeSuratMasukRecord(
-              updated,
-              dispositionUserNameLookup,
-            )
+          ? normalizeSuratMasukRecord(updated, dispositionUserNameLookup)
           : null);
 
       if (nextRecord) {
@@ -2570,10 +2887,7 @@ export default function LaporanPersuratanClient() {
       const nextRecord =
         nextState.memorandums.find((item) => item.id === record.id) ??
         (updated
-          ? normalizeMemorandumRecord(
-              updated,
-              dispositionUserNameLookup,
-            )
+          ? normalizeMemorandumRecord(updated, dispositionUserNameLookup)
           : null);
 
       if (nextRecord) {
@@ -2651,28 +2965,25 @@ export default function LaporanPersuratanClient() {
     [suratKeluarRecords],
   );
 
-  const suratKeluarStatusStats = useMemo(
-    () => {
-      let aktif = 0;
-      let nonaktif = 0;
+  const suratKeluarStatusStats = useMemo(() => {
+    let aktif = 0;
+    let nonaktif = 0;
 
-      suratKeluarRecords.forEach((record) => {
-        const normalizedLabel = record.statusLabel.trim().toLowerCase();
+    suratKeluarRecords.forEach((record) => {
+      const normalizedLabel = record.statusLabel.trim().toLowerCase();
 
-        if (record.statusCode === 1 || normalizedLabel === "aktif") {
-          aktif += 1;
-          return;
-        }
+      if (record.statusCode === 1 || normalizedLabel === "aktif") {
+        aktif += 1;
+        return;
+      }
 
-        if (record.statusCode === 0 || normalizedLabel === "nonaktif") {
-          nonaktif += 1;
-        }
-      });
+      if (record.statusCode === 0 || normalizedLabel === "nonaktif") {
+        nonaktif += 1;
+      }
+    });
 
-      return { aktif, nonaktif };
-    },
-    [suratKeluarRecords],
-  );
+    return { aktif, nonaktif };
+  }, [suratKeluarRecords]);
 
   const memorandumActiveDispositionCount = useMemo(
     () => countActiveDispositionHolders(memorandumRecords),
@@ -2897,6 +3208,7 @@ export default function LaporanPersuratanClient() {
           record.sifat,
           formatSuratMasukStatus(record.status),
           record.targetDivisionNames?.join(" ") ?? "",
+          record.initial_recipient_names.join(" "),
           record.disposisiKepada.join(" "),
         ]
           .join(" ")
@@ -2951,6 +3263,7 @@ export default function LaporanPersuratanClient() {
           record.keterangan,
           record.keteranganTenggat ?? "",
           record.penerima.join(" "),
+          record.current_holder_names.join(" "),
         ]
           .join(" ")
           .toLowerCase()
@@ -3036,7 +3349,12 @@ export default function LaporanPersuratanClient() {
             { header: "Tanggal Penerimaan", key: "tanggalTerima", width: 20 },
             { header: "Sifat", key: "sifat", width: 16 },
             { header: "Tempat Penyimpanan", key: "penyimpanan", width: 32 },
-            { header: "Penerima Disposisi", key: "disposisiKepada", width: 32 },
+            { header: "Penerima Awal", key: "penerimaAwal", width: 32 },
+            {
+              header: "Penanggung Jawab Aktif",
+              key: "penanggungJawabAktif",
+              width: 34,
+            },
             { header: "Status Surat", key: "statusSurat", width: 18 },
             { header: "Tenggat Waktu", key: "tenggatWaktu", width: 18 },
             { header: "Status Tenggat", key: "statusTenggat", width: 18 },
@@ -3053,10 +3371,11 @@ export default function LaporanPersuratanClient() {
             tanggalTerima: formatDisplayDate(record.tanggalTerima),
             sifat: record.sifat,
             penyimpanan: record.physicalStorageLabel ?? "-",
-            disposisiKepada:
-              record.disposisiKepada.length > 0
-                ? record.disposisiKepada.join(", ")
-                : "-",
+            penerimaAwal: formatJoinedNames(record.initial_recipient_names),
+            penanggungJawabAktif: formatActiveAssigneeLabel({
+              names: record.current_holder_names,
+              status: record.statusKey,
+            }),
             statusSurat:
               record.statusLabel ?? formatSuratMasukStatus(record.status),
             tenggatWaktu: formatDetailTenggatValue(record.tenggatWaktu),
@@ -3112,7 +3431,12 @@ export default function LaporanPersuratanClient() {
             { header: "Divisi Asal", key: "divisiAsal", width: 24 },
             { header: "Tujuan Awal", key: "tujuanAwal", width: 32 },
             { header: "Pembuat", key: "pembuat", width: 24 },
-            { header: "Penerima", key: "penerima", width: 32 },
+            { header: "Penerima Awal", key: "penerimaAwal", width: 32 },
+            {
+              header: "Penanggung Jawab Aktif",
+              key: "penanggungJawabAktif",
+              width: 34,
+            },
             { header: "Tanggal", key: "tanggal", width: 18 },
             { header: "Tempat Penyimpanan", key: "penyimpanan", width: 32 },
             { header: "Status Workflow", key: "status", width: 20 },
@@ -3129,7 +3453,11 @@ export default function LaporanPersuratanClient() {
             divisiAsal: record.divisiAsal,
             tujuanAwal: formatJoinedNames(record.divisiTujuanAwal),
             pembuat: record.pembuatMemo,
-            penerima: formatJoinedNames(record.penerima),
+            penerimaAwal: formatJoinedNames(record.initial_recipient_names),
+            penanggungJawabAktif: formatActiveAssigneeLabel({
+              names: record.current_holder_names,
+              status: record.statusKey,
+            }),
             tanggal: formatDisplayDate(record.tanggal),
             penyimpanan: record.physicalStorageLabel ?? "-",
             status: record.statusLabel ?? "Baru",
@@ -3160,7 +3488,9 @@ export default function LaporanPersuratanClient() {
             storageRowsPromise,
           ]);
           setDivisions(
-            [...rows].sort((left, right) => left.name.localeCompare(right.name)),
+            [...rows].sort((left, right) =>
+              left.name.localeCompare(right.name),
+            ),
           );
           setStorageOptions(
             storageRows
@@ -3278,6 +3608,17 @@ export default function LaporanPersuratanClient() {
     if (!requireRedisposeSuratMasukAction()) return;
     const targetRecord =
       suratMasukRecords.find((record) => record.id === suratId) ?? null;
+    const currentDisposition = getCurrentDispositionForUser(
+      targetRecord?.disposisi_history ?? [],
+      user?.id,
+    );
+    if (!targetRecord || !currentDisposition?.can_redispose) {
+      showToast(
+        "Disposisi hanya dapat diteruskan setelah statusnya Dalam Proses.",
+        "error",
+      );
+      return;
+    }
     setActiveDisposisiSuratId(suratId);
     setSuratDisposisiUsers([]);
     setSelectedDisposisiUserIds([]);
@@ -3329,7 +3670,10 @@ export default function LaporanPersuratanClient() {
       let nextDetail: DetailState | null = null;
 
       if (payload.kind === "surat-masuk") {
-        const updated = await suratMasukService.update(payload.id, payload.data);
+        const updated = await suratMasukService.update(
+          payload.id,
+          payload.data,
+        );
         const nextState = await refreshReportData();
         const nextRecord =
           nextState.incoming.find((item) => String(item.id) === payload.id) ??
@@ -3356,7 +3700,10 @@ export default function LaporanPersuratanClient() {
       }
 
       if (payload.kind === "memorandum") {
-        const updated = await memorandumService.update(payload.id, payload.data);
+        const updated = await memorandumService.update(
+          payload.id,
+          payload.data,
+        );
         const nextState = await refreshReportData();
         const nextRecord =
           nextState.memorandums.find(
@@ -3448,6 +3795,17 @@ export default function LaporanPersuratanClient() {
   const handleSubmitDisposisi = async () => {
     if (!activeDisposisiSurat) return;
     if (!requireRedisposeSuratMasukAction()) return;
+    const currentDisposition = getCurrentDispositionForUser(
+      activeDisposisiSurat.disposisi_history,
+      user?.id,
+    );
+    if (!currentDisposition?.can_redispose) {
+      showToast(
+        "Disposisi hanya dapat diteruskan setelah statusnya Dalam Proses.",
+        "error",
+      );
+      return;
+    }
 
     const actionMode = activeSuratDispositionMode;
     const actionLabel = getDispositionActionLabel(actionMode);
@@ -3477,7 +3835,9 @@ export default function LaporanPersuratanClient() {
       await suratMasukService.redispose(String(activeDisposisiSurat.id), {
         receiver_ids: selectedReceiverIds,
         note: disposisiCatatan.trim() || undefined,
-        due_date: disposisiDueDate ? toApiDateTime(disposisiDueDate) : undefined,
+        due_date: disposisiDueDate
+          ? toApiDateTime(disposisiDueDate)
+          : undefined,
       });
 
       const nextState = await refreshReportData();
@@ -3528,7 +3888,7 @@ export default function LaporanPersuratanClient() {
         cards={summaryCards}
         activeKey={activeKind}
         onSelect={handleSelectCard}
-        gridClassName="grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3"
+        gridClassName="grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
       />
 
       <div ref={reportRef}>
@@ -3561,213 +3921,276 @@ export default function LaporanPersuratanClient() {
                 <ReportLoadingTable widths={REPORT_SURAT_MASUK_COLUMN_WIDTHS} />
               ) : filteredSuratMasuk.length > 0 ? (
                 <>
-                <SetupDataTable variant="report" density="compact" className={REPORT_SURAT_MASUK_TABLE_CLASS}>
-                  <ReportColGroup widths={REPORT_SURAT_MASUK_COLUMN_WIDTHS} />
-                  <SetupDataTableHead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
-                    <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-                      <SetupDataTableHeaderCell className={REPORT_NUMBER_HEADER_CELL_CLASS}>
-                        No
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Nama Pengirim
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Nama / Nomor Surat
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Perihal
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Tgl Penerimaan
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Sifat
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Pemegang Aktif
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
-                        Status Surat
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
-                        Tenggat Waktu
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
-                        Status Tenggat
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_ACTION_HEADER_CELL_CLASS}>
-                        Disposisi
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_ACTION_HEADER_CELL_CLASS}>
-                        Aksi
-                      </SetupDataTableHeaderCell>
-                    </SetupDataTableRow>
-                  </SetupDataTableHead>
-                  <SetupDataTableBody className="divide-y divide-gray-100">
-                    {paginatedSuratMasuk.map((record, index) => (
+                  <SetupDataTable
+                    variant="report"
+                    density="compact"
+                    className={REPORT_SURAT_MASUK_TABLE_CLASS}
+                  >
+                    <ReportColGroup widths={REPORT_SURAT_MASUK_COLUMN_WIDTHS} />
+                    <SetupDataTableHead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
                       <SetupDataTableRow
-                        key={record.id}
-                        className={`${SETUP_PAGE_TABLE_ROW_CLASS} cursor-pointer bg-white`}
-                        onDoubleClick={() =>
-                          setSelectedDetail({ kind: "surat-masuk", record })
-                        }
+                        className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}
                       >
-                        <SetupDataTableCell
-                          className={REPORT_NUMBER_CELL_CLASS}
-                          mobileHidden
+                        <SetupDataTableHeaderCell
+                          className={REPORT_NUMBER_HEADER_CELL_CLASS}
                         >
-                          {(suratMasukPaginationMeta.page - 1) *
-                            suratMasukPaginationMeta.limit +
-                            index +
-                            1}
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <span className={TABLE_TEXT_STRONG_CLASS}>{record.pengirim}</span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <span className={TABLE_TEXT_STRONG_CLASS}>{record.namaSurat}</span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <span className={TABLE_MULTILINE_TEXT_CLASS} title={record.perihal}>
-                            {record.perihal}
-                          </span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell
-                          className={REPORT_TABLE_CELL_CLASS}
-                          mobileHidden
+                          No
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
                         >
-                          <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
-                            {formatDisplayDate(record.tanggalTerima)}
-                          </span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell
-                          className={REPORT_TABLE_CELL_CLASS}
-                          mobileHidden
+                          Nama Pengirim
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
                         >
-                          <span className={TABLE_TEXT_CLASS}>{record.sifat}</span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell
-                          className={REPORT_TABLE_CELL_CLASS}
-                          mobileHidden
+                          Nama / Nomor Surat
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
                         >
-                          {record.current_holder_names.length > 0 ? (
+                          Perihal
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
+                        >
+                          Tgl Penerimaan
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
+                        >
+                          Sifat
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
+                        >
+                          Penanggung Jawab Aktif
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_STATUS_HEADER_CELL_CLASS}
+                        >
+                          Status Surat
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_STATUS_HEADER_CELL_CLASS}
+                        >
+                          Tenggat Waktu
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_STATUS_HEADER_CELL_CLASS}
+                        >
+                          Status Tenggat
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_DISPOSITION_HEADER_CELL_CLASS}
+                        >
+                          Disposisi
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_ACTION_HEADER_CELL_CLASS}
+                        >
+                          Aksi
+                        </SetupDataTableHeaderCell>
+                      </SetupDataTableRow>
+                    </SetupDataTableHead>
+                    <SetupDataTableBody className="divide-y divide-gray-100">
+                      {paginatedSuratMasuk.map((record, index) => (
+                        <SetupDataTableRow
+                          key={record.id}
+                          className={`${SETUP_PAGE_TABLE_ROW_CLASS} cursor-pointer bg-white`}
+                          onDoubleClick={() =>
+                            setSelectedDetail({ kind: "surat-masuk", record })
+                          }
+                        >
+                          <SetupDataTableCell
+                            className={REPORT_NUMBER_CELL_CLASS}
+                            mobileHidden
+                          >
+                            {(suratMasukPaginationMeta.page - 1) *
+                              suratMasukPaginationMeta.limit +
+                              index +
+                              1}
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                          >
+                            <span className={TABLE_TEXT_STRONG_CLASS}>
+                              {record.pengirim}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                          >
+                            <span className={TABLE_TEXT_STRONG_CLASS}>
+                              {record.namaSurat}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                          >
                             <span
                               className={TABLE_MULTILINE_TEXT_CLASS}
-                              title={record.current_holder_names.join(", ")}
+                              title={record.perihal}
                             >
-                              {record.current_holder_names.join(", ")}
+                              {record.perihal}
                             </span>
-                          ) : (
-                            <span className={TABLE_EMPTY_TEXT_CLASS}>-</span>
-                          )}
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
-                          <SuratMasukStatusBadge status={record.status} />
-                        </SetupDataTableCell>
-                        <SetupDataTableCell
-                          className={REPORT_TABLE_CELL_CLASS}
-                          mobileHidden
-                        >
-                          <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
-                            {formatDetailTenggatValue(record.tenggatWaktu)}
-                          </span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
-                          {(() => {
-                            const tenggatStatusLabel =
-                              formatWorkflowTenggatStatus(record, today);
-
-                            if (tenggatStatusLabel === "-") {
-                              return (
-                                <span className={TABLE_EMPTY_TEXT_CLASS}>-</span>
-                              );
-                            }
-
-                            return (
-                              <SetupStatusBadge
-                                status={getWorkflowTenggatBadgeStatus(
-                                  tenggatStatusLabel,
-                                )}
-                                label={tenggatStatusLabel}
-                              />
-                            );
-                          })()}
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_ACTION_CELL_CLASS}>
-                          {(() => {
-                            const currentDisposition =
-                              getCurrentDispositionForUser(
-                                record.disposisi_history,
-                                user?.id,
-                              );
-
-                            if (
-                              !currentDisposition ||
-                              !currentDisposition.can_redispose ||
-                              !canRedisposeSuratMasuk
-                            ) {
-                              return (
-                                <span className={TABLE_EMPTY_TEXT_CLASS}>-</span>
-                              );
-                            }
-
-                            return (
-                              <DispositionTableButton
-                                label={getDispositionActionLabel(
-                                  getDispositionActionMode(currentDisposition),
-                                )}
-                                itemName={record.namaSurat}
-                                disabled={isDisposisiSubmitting}
-                                onClick={() =>
-                                  handleOpenDisposisiSidebar(record.id)
-                                }
-                              />
-                            );
-                          })()}
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_ACTION_CELL_CLASS}>
-                          <div
-                            className="flex items-center justify-center"
-                            onDoubleClick={(event) => event.stopPropagation()}
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                            mobileHidden
                           >
-                            <CorrespondenceActionMenu
-                              itemName={record.namaSurat}
-                              canEdit={
-                                canUpdateSuratMasuk &&
-                                canManageSuratMasukRecord(record)
+                            <span
+                              className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}
+                            >
+                              {formatDisplayDate(record.tanggalTerima)}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                            mobileHidden
+                          >
+                            <span className={TABLE_TEXT_CLASS}>
+                              {record.sifat}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                            mobileHidden
+                          >
+                            {record.current_holder_names.length > 0 ? (
+                              <span
+                                className={TABLE_MULTILINE_TEXT_CLASS}
+                                title={record.current_holder_names.join(", ")}
+                              >
+                                {record.current_holder_names.join(", ")}
+                              </span>
+                            ) : (
+                              <span className={TABLE_EMPTY_TEXT_CLASS}>-</span>
+                            )}
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_STATUS_CELL_CLASS}
+                          >
+                            <SuratMasukStatusBadge status={record.status} />
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                            mobileHidden
+                          >
+                            <span
+                              className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}
+                            >
+                              {formatDetailTenggatValue(record.tenggatWaktu)}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_STATUS_CELL_CLASS}
+                          >
+                            {(() => {
+                              const tenggatStatusLabel =
+                                formatWorkflowTenggatStatus(record, today);
+
+                              if (tenggatStatusLabel === "-") {
+                                return (
+                                  <span className={TABLE_EMPTY_TEXT_CLASS}>
+                                    -
+                                  </span>
+                                );
                               }
-                              canDelete={
-                                canDeleteSuratMasuk &&
-                                canManageSuratMasukRecord(record)
+
+                              return (
+                                <SetupStatusBadge
+                                  status={getWorkflowTenggatBadgeStatus(
+                                    tenggatStatusLabel,
+                                  )}
+                                  label={tenggatStatusLabel}
+                                />
+                              );
+                            })()}
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_DISPOSITION_CELL_CLASS}
+                          >
+                            {(() => {
+                              const currentDisposition =
+                                getCurrentDispositionForUser(
+                                  record.disposisi_history,
+                                  user?.id,
+                                );
+
+                              if (
+                                !currentDisposition ||
+                                !currentDisposition.can_redispose ||
+                                !canRedisposeSuratMasuk
+                              ) {
+                                return (
+                                  <span className={TABLE_EMPTY_TEXT_CLASS}>
+                                    -
+                                  </span>
+                                );
                               }
-                              onDetail={() =>
-                                setSelectedDetail({
-                                  kind: "surat-masuk",
-                                  record,
-                                })
-                              }
-                              onEdit={() =>
-                                handleOpenEdit({
-                                  kind: "surat-masuk",
-                                  record,
-                                })
-                              }
-                              onDelete={() => handleDeleteSuratMasuk(record)}
-                            />
-                          </div>
-                        </SetupDataTableCell>
-                      </SetupDataTableRow>
-                    ))}
-                  </SetupDataTableBody>
-                </SetupDataTable>
-                <Pagination
-                  page={suratMasukPaginationMeta.page}
-                  lastPage={suratMasukPaginationMeta.lastPage}
-                  total={suratMasukPaginationMeta.total}
-                  limit={suratMasukPaginationMeta.limit}
-                  isLoading={isLoadingSuratMasuk}
-                  onPageChange={setSuratMasukPage}
-                />
+
+                              return (
+                                <DispositionTableButton
+                                  label={getDispositionActionLabel(
+                                    getDispositionActionMode(
+                                      currentDisposition,
+                                    ),
+                                  )}
+                                  itemName={record.namaSurat}
+                                  disabled={isDisposisiSubmitting}
+                                  onClick={() =>
+                                    handleOpenDisposisiSidebar(record.id)
+                                  }
+                                />
+                              );
+                            })()}
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_ACTION_CELL_CLASS}
+                          >
+                            <div
+                              className="flex items-center justify-center"
+                              onDoubleClick={(event) => event.stopPropagation()}
+                            >
+                              <CorrespondenceActionMenu
+                                itemName={record.namaSurat}
+                                canEdit={
+                                  canUpdateSuratMasuk &&
+                                  canManageSuratMasukRecord(record)
+                                }
+                                canDelete={
+                                  canDeleteSuratMasuk &&
+                                  canManageSuratMasukRecord(record)
+                                }
+                                onDetail={() =>
+                                  setSelectedDetail({
+                                    kind: "surat-masuk",
+                                    record,
+                                  })
+                                }
+                                onEdit={() =>
+                                  handleOpenEdit({
+                                    kind: "surat-masuk",
+                                    record,
+                                  })
+                                }
+                                onDelete={() => handleDeleteSuratMasuk(record)}
+                              />
+                            </div>
+                          </SetupDataTableCell>
+                        </SetupDataTableRow>
+                      ))}
+                    </SetupDataTableBody>
+                  </SetupDataTable>
+                  <Pagination
+                    page={suratMasukPaginationMeta.page}
+                    lastPage={suratMasukPaginationMeta.lastPage}
+                    total={suratMasukPaginationMeta.total}
+                    limit={suratMasukPaginationMeta.limit}
+                    isLoading={isLoadingSuratMasuk}
+                    onPageChange={setSuratMasukPage}
+                  />
                 </>
               ) : (
                 <EmptyState />
@@ -3776,132 +4199,178 @@ export default function LaporanPersuratanClient() {
 
             {activeKind === "surat-keluar" ? (
               isLoadingSuratKeluar ? (
-                <ReportLoadingTable widths={REPORT_SURAT_KELUAR_COLUMN_WIDTHS} />
+                <ReportLoadingTable
+                  widths={REPORT_SURAT_KELUAR_COLUMN_WIDTHS}
+                />
               ) : filteredSuratKeluar.length > 0 ? (
                 <>
-                <SetupDataTable variant="report" density="compact" className={REPORT_SURAT_KELUAR_TABLE_CLASS}>
-                  <ReportColGroup widths={REPORT_SURAT_KELUAR_COLUMN_WIDTHS} />
-                  <SetupDataTableHead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
-                    <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-                      <SetupDataTableHeaderCell className={REPORT_NUMBER_HEADER_CELL_CLASS}>
-                        No
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Nama Penerima
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Nama / Nomor Surat
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Tgl Pengiriman
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Sifat
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Media
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
-                        Status
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_ACTION_HEADER_CELL_CLASS}>
-                        Aksi
-                      </SetupDataTableHeaderCell>
-                    </SetupDataTableRow>
-                  </SetupDataTableHead>
-                  <SetupDataTableBody className="divide-y divide-gray-100">
-                    {paginatedSuratKeluar.map((record, index) => (
+                  <SetupDataTable
+                    variant="report"
+                    density="compact"
+                    className={REPORT_SURAT_KELUAR_TABLE_CLASS}
+                  >
+                    <ReportColGroup
+                      widths={REPORT_SURAT_KELUAR_COLUMN_WIDTHS}
+                    />
+                    <SetupDataTableHead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
                       <SetupDataTableRow
-                        key={record.id}
-                        className={`${SETUP_PAGE_TABLE_ROW_CLASS} cursor-pointer bg-white`}
-                        onDoubleClick={() =>
-                          setSelectedDetail({ kind: "surat-keluar", record })
-                        }
+                        className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}
                       >
-                        <SetupDataTableCell
-                          className={REPORT_NUMBER_CELL_CLASS}
-                          mobileHidden
+                        <SetupDataTableHeaderCell
+                          className={REPORT_NUMBER_HEADER_CELL_CLASS}
                         >
-                          {(suratKeluarPaginationMeta.page - 1) *
-                            suratKeluarPaginationMeta.limit +
-                            index +
-                            1}
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <span className={TABLE_TEXT_STRONG_CLASS}>{record.penerima}</span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <span className={TABLE_TEXT_STRONG_CLASS}>{record.namaSurat}</span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell
-                          className={REPORT_TABLE_CELL_CLASS}
-                          mobileHidden
+                          No
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
                         >
-                          <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
-                            {formatDisplayDate(record.tanggalKirim)}
-                          </span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell
-                          className={REPORT_TABLE_CELL_CLASS}
-                          mobileHidden
+                          Nama Penerima
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
                         >
-                          <span className={TABLE_TEXT_CLASS}>{record.sifat}</span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell
-                          className={REPORT_TABLE_CELL_CLASS}
-                          mobileHidden
+                          Nama / Nomor Surat
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
                         >
-                          <span className={TABLE_TEXT_CLASS}>{record.media}</span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
-                          <SetupStatusBadge
-                            status={getOutgoingStatusBadgeStatus(record.statusLabel)}
-                            label={record.statusLabel}
-                          />
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_ACTION_CELL_CLASS}>
-                          <div
-                            className="flex items-center justify-center"
-                            onDoubleClick={(event) => event.stopPropagation()}
-                          >
-                            <CorrespondenceActionMenu
-                              itemName={record.namaSurat}
-                              canEdit={
-                                canUpdateSuratKeluar &&
-                                canManageSuratKeluarRecord(record)
-                              }
-                              canDelete={
-                                canDeleteSuratKeluar &&
-                                canManageSuratKeluarRecord(record)
-                              }
-                              onDetail={() =>
-                                setSelectedDetail({
-                                  kind: "surat-keluar",
-                                  record,
-                                })
-                              }
-                              onEdit={() =>
-                                handleOpenEdit({
-                                  kind: "surat-keluar",
-                                  record,
-                                })
-                              }
-                              onDelete={() => handleDeleteSuratKeluar(record)}
-                            />
-                          </div>
-                        </SetupDataTableCell>
+                          Tgl Pengiriman
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
+                        >
+                          Sifat
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
+                        >
+                          Media
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_STATUS_HEADER_CELL_CLASS}
+                        >
+                          Status
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_ACTION_HEADER_CELL_CLASS}
+                        >
+                          Aksi
+                        </SetupDataTableHeaderCell>
                       </SetupDataTableRow>
-                    ))}
-                  </SetupDataTableBody>
-                </SetupDataTable>
-                <Pagination
-                  page={suratKeluarPaginationMeta.page}
-                  lastPage={suratKeluarPaginationMeta.lastPage}
-                  total={suratKeluarPaginationMeta.total}
-                  limit={suratKeluarPaginationMeta.limit}
-                  isLoading={isLoadingSuratKeluar}
-                  onPageChange={setSuratKeluarPage}
-                />
+                    </SetupDataTableHead>
+                    <SetupDataTableBody className="divide-y divide-gray-100">
+                      {paginatedSuratKeluar.map((record, index) => (
+                        <SetupDataTableRow
+                          key={record.id}
+                          className={`${SETUP_PAGE_TABLE_ROW_CLASS} cursor-pointer bg-white`}
+                          onDoubleClick={() =>
+                            setSelectedDetail({ kind: "surat-keluar", record })
+                          }
+                        >
+                          <SetupDataTableCell
+                            className={REPORT_NUMBER_CELL_CLASS}
+                            mobileHidden
+                          >
+                            {(suratKeluarPaginationMeta.page - 1) *
+                              suratKeluarPaginationMeta.limit +
+                              index +
+                              1}
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                          >
+                            <span className={TABLE_TEXT_STRONG_CLASS}>
+                              {record.penerima}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                          >
+                            <span className={TABLE_TEXT_STRONG_CLASS}>
+                              {record.namaSurat}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                            mobileHidden
+                          >
+                            <span
+                              className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}
+                            >
+                              {formatDisplayDate(record.tanggalKirim)}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                            mobileHidden
+                          >
+                            <span className={TABLE_TEXT_CLASS}>
+                              {record.sifat}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                            mobileHidden
+                          >
+                            <span className={TABLE_TEXT_CLASS}>
+                              {record.media}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_STATUS_CELL_CLASS}
+                          >
+                            <SetupStatusBadge
+                              status={getOutgoingStatusBadgeStatus(
+                                record.statusLabel,
+                              )}
+                              label={record.statusLabel}
+                            />
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_ACTION_CELL_CLASS}
+                          >
+                            <div
+                              className="flex items-center justify-center"
+                              onDoubleClick={(event) => event.stopPropagation()}
+                            >
+                              <CorrespondenceActionMenu
+                                itemName={record.namaSurat}
+                                canEdit={
+                                  canUpdateSuratKeluar &&
+                                  canManageSuratKeluarRecord(record)
+                                }
+                                canDelete={
+                                  canDeleteSuratKeluar &&
+                                  canManageSuratKeluarRecord(record)
+                                }
+                                onDetail={() =>
+                                  setSelectedDetail({
+                                    kind: "surat-keluar",
+                                    record,
+                                  })
+                                }
+                                onEdit={() =>
+                                  handleOpenEdit({
+                                    kind: "surat-keluar",
+                                    record,
+                                  })
+                                }
+                                onDelete={() => handleDeleteSuratKeluar(record)}
+                              />
+                            </div>
+                          </SetupDataTableCell>
+                        </SetupDataTableRow>
+                      ))}
+                    </SetupDataTableBody>
+                  </SetupDataTable>
+                  <Pagination
+                    page={suratKeluarPaginationMeta.page}
+                    lastPage={suratKeluarPaginationMeta.lastPage}
+                    total={suratKeluarPaginationMeta.total}
+                    limit={suratKeluarPaginationMeta.limit}
+                    isLoading={isLoadingSuratKeluar}
+                    onPageChange={setSuratKeluarPage}
+                  />
                 </>
               ) : (
                 <EmptyState />
@@ -3913,227 +4382,286 @@ export default function LaporanPersuratanClient() {
                 <ReportLoadingTable widths={REPORT_MEMORANDUM_COLUMN_WIDTHS} />
               ) : filteredMemorandum.length > 0 ? (
                 <>
-                <SetupDataTable variant="report" density="compact" className={REPORT_MEMORANDUM_TABLE_CLASS}>
-                  <ReportColGroup widths={REPORT_MEMORANDUM_COLUMN_WIDTHS} />
-                  <SetupDataTableHead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
-                    <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-                      <SetupDataTableHeaderCell className={REPORT_NUMBER_HEADER_CELL_CLASS}>
-                        No
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        No Memo
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Perihal
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Divisi Asal
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Tujuan Awal
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Pemegang Aktif
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_TABLE_HEADER_CELL_CLASS}>
-                        Tanggal
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
-                        Status Workflow
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
-                        Tenggat Waktu
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_STATUS_HEADER_CELL_CLASS}>
-                        Status Tenggat
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_ACTION_HEADER_CELL_CLASS}>
-                        Disposisi
-                      </SetupDataTableHeaderCell>
-                      <SetupDataTableHeaderCell className={REPORT_ACTION_HEADER_CELL_CLASS}>
-                        Aksi
-                      </SetupDataTableHeaderCell>
-                    </SetupDataTableRow>
-                  </SetupDataTableHead>
-                  <SetupDataTableBody className="divide-y divide-gray-100">
-                    {paginatedMemorandum.map((record, index) => (
+                  <SetupDataTable
+                    variant="report"
+                    density="compact"
+                    className={REPORT_MEMORANDUM_TABLE_CLASS}
+                  >
+                    <ReportColGroup widths={REPORT_MEMORANDUM_COLUMN_WIDTHS} />
+                    <SetupDataTableHead className={SETUP_PAGE_TABLE_HEAD_CLASS}>
                       <SetupDataTableRow
-                        key={record.id}
-                        className={`${SETUP_PAGE_TABLE_ROW_CLASS} cursor-pointer bg-white`}
-                        onDoubleClick={() =>
-                          setSelectedDetail({ kind: "memorandum", record })
-                        }
+                        className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}
                       >
-                        <SetupDataTableCell
-                          className={REPORT_NUMBER_CELL_CLASS}
-                          mobileHidden
+                        <SetupDataTableHeaderCell
+                          className={REPORT_NUMBER_HEADER_CELL_CLASS}
                         >
-                          {(memorandumPaginationMeta.page - 1) *
-                            memorandumPaginationMeta.limit +
-                            index +
-                            1}
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <span className={`${TABLE_TEXT_STRONG_CLASS} tabular-nums`}>
-                            {record.noMemo}
-                          </span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_TABLE_CELL_CLASS}>
-                          <span className={TABLE_MULTILINE_TEXT_CLASS} title={record.perihal}>
-                            {record.perihal}
-                          </span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell
-                          className={REPORT_TABLE_CELL_CLASS}
-                          mobileHidden
+                          No
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
                         >
-                          <span className={TABLE_TEXT_CLASS}>{record.divisiAsal}</span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell
-                          className={REPORT_TABLE_CELL_CLASS}
-                          mobileHidden
+                          No Memo
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
                         >
-                          <span className={TABLE_TEXT_CLASS}>
-                            {formatJoinedNames(record.divisiTujuanAwal)}
-                          </span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell
-                          className={REPORT_TABLE_CELL_CLASS}
-                          mobileHidden
+                          Perihal
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
                         >
-                          <p
-                            className={TABLE_MULTILINE_STRONG_CLASS}
-                            title={
-                              record.current_holder_names.length > 0
-                                ? record.current_holder_names.join(", ")
-                                : formatJoinedNames(record.penerima)
-                            }
-                          >
-                            {record.current_holder_names.length > 0
-                              ? record.current_holder_names.join(", ")
-                              : formatJoinedNames(record.penerima)}
-                          </p>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell
-                          className={REPORT_TABLE_CELL_CLASS}
-                          mobileHidden
+                          Divisi Asal
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
                         >
-                          <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
-                            {formatDisplayDate(record.tanggal)}
-                          </span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
-                          <SetupStatusBadge
-                            status={getDispositionStatusBadgeStatus(
-                              record.statusKey ?? "NEW",
-                            )}
-                            label={record.statusLabel ?? "Baru"}
-                          />
-                        </SetupDataTableCell>
-                        <SetupDataTableCell
-                          className={REPORT_TABLE_CELL_CLASS}
-                          mobileHidden
+                          Tujuan Awal
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
                         >
-                          <span className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}>
-                            {formatDetailTenggatValue(record.tenggatWaktu)}
-                          </span>
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_STATUS_CELL_CLASS}>
-                          {(() => {
-                            const tenggatStatusLabel =
-                              formatWorkflowTenggatStatus(record, today);
-
-                            if (tenggatStatusLabel === "-") {
-                              return (
-                                <span className={TABLE_EMPTY_TEXT_CLASS}>-</span>
-                              );
-                            }
-
-                            return (
-                              <SetupStatusBadge
-                                status={getWorkflowTenggatBadgeStatus(
-                                  tenggatStatusLabel,
-                                )}
-                                label={tenggatStatusLabel}
-                              />
-                            );
-                          })()}
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_ACTION_CELL_CLASS}>
-                          {(() => {
-                            const currentDisposition =
-                              getCurrentDispositionForUser(
-                                record.disposisi_history,
-                                user?.id,
-                              );
-
-                            if (
-                              !currentDisposition ||
-                              !currentDisposition.can_redispose ||
-                              !canRedisposeMemorandum
-                            ) {
-                              return (
-                                <span className={TABLE_EMPTY_TEXT_CLASS}>-</span>
-                              );
-                            }
-
-                            return (
-                              <DispositionTableButton
-                                label={getDispositionActionLabel(
-                                  getDispositionActionMode(currentDisposition),
-                                )}
-                                itemName={record.noMemo}
-                                disabled={isMemorandumDisposisiSubmitting}
-                                onClick={() =>
-                                  handleOpenMemorandumDisposisi(record.id)
-                                }
-                              />
-                            );
-                          })()}
-                        </SetupDataTableCell>
-                        <SetupDataTableCell className={REPORT_ACTION_CELL_CLASS}>
-                          <div
-                            className="flex items-center justify-center"
-                            onDoubleClick={(event) => event.stopPropagation()}
-                          >
-                            <CorrespondenceActionMenu
-                              itemName={record.noMemo}
-                              canEdit={
-                                canUpdateMemorandum &&
-                                canManageMemorandumRecord(record)
-                              }
-                              canDelete={
-                                canDeleteMemorandum &&
-                                canManageMemorandumRecord(record)
-                              }
-                              onDetail={() =>
-                                setSelectedDetail({
-                                  kind: "memorandum",
-                                  record,
-                                })
-                              }
-                              onEdit={() =>
-                                handleOpenEdit({
-                                  kind: "memorandum",
-                                  record,
-                                })
-                              }
-                              onDelete={() => handleDeleteMemorandum(record)}
-                            />
-                          </div>
-                        </SetupDataTableCell>
+                          Penanggung Jawab Aktif
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_TABLE_HEADER_CELL_CLASS}
+                        >
+                          Tanggal
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_STATUS_HEADER_CELL_CLASS}
+                        >
+                          Status Workflow
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_STATUS_HEADER_CELL_CLASS}
+                        >
+                          Tenggat Waktu
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_STATUS_HEADER_CELL_CLASS}
+                        >
+                          Status Tenggat
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_DISPOSITION_HEADER_CELL_CLASS}
+                        >
+                          Disposisi
+                        </SetupDataTableHeaderCell>
+                        <SetupDataTableHeaderCell
+                          className={REPORT_ACTION_HEADER_CELL_CLASS}
+                        >
+                          Aksi
+                        </SetupDataTableHeaderCell>
                       </SetupDataTableRow>
-                    ))}
-                  </SetupDataTableBody>
-                </SetupDataTable>
-                <Pagination
-                  page={memorandumPaginationMeta.page}
-                  lastPage={memorandumPaginationMeta.lastPage}
-                  total={memorandumPaginationMeta.total}
-                  limit={memorandumPaginationMeta.limit}
-                  isLoading={isLoadingMemorandum}
-                  onPageChange={setMemorandumPage}
-                />
+                    </SetupDataTableHead>
+                    <SetupDataTableBody className="divide-y divide-gray-100">
+                      {paginatedMemorandum.map((record, index) => (
+                        <SetupDataTableRow
+                          key={record.id}
+                          className={`${SETUP_PAGE_TABLE_ROW_CLASS} cursor-pointer bg-white`}
+                          onDoubleClick={() =>
+                            setSelectedDetail({ kind: "memorandum", record })
+                          }
+                        >
+                          <SetupDataTableCell
+                            className={REPORT_NUMBER_CELL_CLASS}
+                            mobileHidden
+                          >
+                            {(memorandumPaginationMeta.page - 1) *
+                              memorandumPaginationMeta.limit +
+                              index +
+                              1}
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                          >
+                            <span
+                              className={`${TABLE_TEXT_STRONG_CLASS} tabular-nums`}
+                            >
+                              {record.noMemo}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                          >
+                            <span
+                              className={TABLE_MULTILINE_TEXT_CLASS}
+                              title={record.perihal}
+                            >
+                              {record.perihal}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                            mobileHidden
+                          >
+                            <span className={TABLE_TEXT_CLASS}>
+                              {record.divisiAsal}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                            mobileHidden
+                          >
+                            <span className={TABLE_TEXT_CLASS}>
+                              {formatJoinedNames(record.divisiTujuanAwal)}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                            mobileHidden
+                          >
+                            <p
+                              className={TABLE_MULTILINE_STRONG_CLASS}
+                              title={formatActiveAssigneeLabel({
+                                names: record.current_holder_names,
+                                status: record.statusKey,
+                              })}
+                            >
+                              {formatActiveAssigneeLabel({
+                                names: record.current_holder_names,
+                                status: record.statusKey,
+                              })}
+                            </p>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                            mobileHidden
+                          >
+                            <span
+                              className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}
+                            >
+                              {formatDisplayDate(record.tanggal)}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_STATUS_CELL_CLASS}
+                          >
+                            <SetupStatusBadge
+                              status={getDispositionStatusBadgeStatus(
+                                record.statusKey ?? "NEW",
+                              )}
+                              label={record.statusLabel ?? "Baru"}
+                            />
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_TABLE_CELL_CLASS}
+                            mobileHidden
+                          >
+                            <span
+                              className={`${TABLE_TEXT_MUTED_CLASS} whitespace-nowrap`}
+                            >
+                              {formatDetailTenggatValue(record.tenggatWaktu)}
+                            </span>
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_STATUS_CELL_CLASS}
+                          >
+                            {(() => {
+                              const tenggatStatusLabel =
+                                formatWorkflowTenggatStatus(record, today);
+
+                              if (tenggatStatusLabel === "-") {
+                                return (
+                                  <span className={TABLE_EMPTY_TEXT_CLASS}>
+                                    -
+                                  </span>
+                                );
+                              }
+
+                              return (
+                                <SetupStatusBadge
+                                  status={getWorkflowTenggatBadgeStatus(
+                                    tenggatStatusLabel,
+                                  )}
+                                  label={tenggatStatusLabel}
+                                />
+                              );
+                            })()}
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_DISPOSITION_CELL_CLASS}
+                          >
+                            {(() => {
+                              const currentDisposition =
+                                getCurrentDispositionForUser(
+                                  record.disposisi_history,
+                                  user?.id,
+                                );
+
+                              if (
+                                !currentDisposition ||
+                                !currentDisposition.can_redispose ||
+                                !canRedisposeMemorandum
+                              ) {
+                                return (
+                                  <span className={TABLE_EMPTY_TEXT_CLASS}>
+                                    -
+                                  </span>
+                                );
+                              }
+
+                              return (
+                                <DispositionTableButton
+                                  label={getDispositionActionLabel(
+                                    getDispositionActionMode(
+                                      currentDisposition,
+                                    ),
+                                  )}
+                                  itemName={record.noMemo}
+                                  disabled={isMemorandumDisposisiSubmitting}
+                                  onClick={() =>
+                                    handleOpenMemorandumDisposisi(record.id)
+                                  }
+                                />
+                              );
+                            })()}
+                          </SetupDataTableCell>
+                          <SetupDataTableCell
+                            className={REPORT_ACTION_CELL_CLASS}
+                          >
+                            <div
+                              className="flex items-center justify-center"
+                              onDoubleClick={(event) => event.stopPropagation()}
+                            >
+                              <CorrespondenceActionMenu
+                                itemName={record.noMemo}
+                                canEdit={
+                                  canUpdateMemorandum &&
+                                  canManageMemorandumRecord(record)
+                                }
+                                canDelete={
+                                  canDeleteMemorandum &&
+                                  canManageMemorandumRecord(record)
+                                }
+                                onDetail={() =>
+                                  setSelectedDetail({
+                                    kind: "memorandum",
+                                    record,
+                                  })
+                                }
+                                onEdit={() =>
+                                  handleOpenEdit({
+                                    kind: "memorandum",
+                                    record,
+                                  })
+                                }
+                                onDelete={() => handleDeleteMemorandum(record)}
+                              />
+                            </div>
+                          </SetupDataTableCell>
+                        </SetupDataTableRow>
+                      ))}
+                    </SetupDataTableBody>
+                  </SetupDataTable>
+                  <Pagination
+                    page={memorandumPaginationMeta.page}
+                    lastPage={memorandumPaginationMeta.lastPage}
+                    total={memorandumPaginationMeta.total}
+                    limit={memorandumPaginationMeta.limit}
+                    isLoading={isLoadingMemorandum}
+                    onPageChange={setMemorandumPage}
+                  />
                 </>
               ) : (
                 <EmptyState />
@@ -4144,7 +4672,7 @@ export default function LaporanPersuratanClient() {
       </div>
       <DashboardModal
         isOpen={selectedDetail !== null}
-        onClose={() => setSelectedDetail(null)}
+        onClose={handleCloseDetail}
         title={
           selectedDetail?.kind === "surat-masuk"
             ? "Detail Surat Masuk"
@@ -4162,115 +4690,208 @@ export default function LaporanPersuratanClient() {
                 : undefined
         }
         maxWidth="5xl"
-        bodyClassName="max-h-[calc(90vh-164px)] overflow-y-auto p-6"
+        bodyClassName="space-y-6 p-4 sm:p-5"
         footerClassName="flex justify-end border-t border-gray-100 bg-gray-50 p-6"
         footer={
           <button
             type="button"
-            onClick={() => setSelectedDetail(null)}
+            onClick={handleCloseDetail}
             className="uiverse-modal-button uiverse-modal-button--neutral"
           >
             Tutup
           </button>
         }
       >
-        {selectedDetail?.kind === "surat-masuk" ? (
-          (() => {
-            const currentUserDisposition = getCurrentDispositionForUser(
-              selectedDetail.record.disposisi_history,
-              user?.id,
-            );
-            const statusLabel =
-              selectedDetail.record.statusLabel ??
-              formatSuratMasukStatus(selectedDetail.record.status);
-            const tenggatStatusLabel = formatWorkflowTenggatStatus(
-              selectedDetail.record,
-              today,
-            );
+        {selectedDetail?.kind === "surat-masuk"
+          ? (() => {
+              const currentUserDisposition = getCurrentDispositionForUser(
+                selectedDetail.record.disposisi_history,
+                user?.id,
+              );
+              const statusLabel =
+                selectedDetail.record.statusLabel ??
+                formatSuratMasukStatus(selectedDetail.record.status);
+              const tenggatStatusLabel = formatWorkflowTenggatStatus(
+                selectedDetail.record,
+                today,
+              );
 
-            return (
-              <div className="space-y-8">
-                <section className="space-y-4">
-                  <PersuratanSectionTitle
-                    title="Informasi Surat Masuk"
-                    description="Ringkasan identitas surat, tujuan awal, lokasi arsip, dan file yang tersimpan."
-                  />
-                  <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.9fr)]">
-                    <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                      <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
-                        <div className="space-y-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Identitas Surat
-                          </p>
-                          <div className="space-y-1">
-                            <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
-                              {selectedDetail.record.pengirim}
-                            </h3>
-                            <p className="text-base font-medium text-slate-500">
-                              {selectedDetail.record.namaSurat}
-                            </p>
+              return (
+                <SetupModalDetailLayout
+                  information={
+                    <section className="space-y-4">
+                      <PersuratanSectionTitle
+                        title="Informasi Surat Masuk"
+                        description="Ringkasan identitas surat, tujuan awal, status, dan lokasi arsip."
+                      />
+                      <div className="grid items-start gap-6">
+                        <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-5">
+                          <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
+                            <div className="space-y-2">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Identitas Surat
+                              </p>
+                              <div className="space-y-1">
+                                <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
+                                  {selectedDetail.record.pengirim}
+                                </h3>
+                                <p className="text-base font-medium text-slate-500">
+                                  {selectedDetail.record.namaSurat}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <SuratMasukStatusBadge
+                                status={selectedDetail.record.status}
+                              />
+                              {tenggatStatusLabel === "-" ? (
+                                <SetupStatusBadge
+                                  status="Baru"
+                                  label="Tanpa Tenggat"
+                                  tone="slate"
+                                />
+                              ) : (
+                                <SetupStatusBadge
+                                  status={getWorkflowTenggatBadgeStatus(
+                                    tenggatStatusLabel,
+                                  )}
+                                  label={tenggatStatusLabel}
+                                />
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 md:grid-cols-2 [&>*:last-child:nth-child(odd)]:md:col-span-2">
+                            <PersuratanInfoItem
+                              label="Tanggal Terima"
+                              value={formatDisplayDate(
+                                selectedDetail.record.tanggalTerima,
+                              )}
+                            />
+                            <PersuratanInfoItem
+                              label="Sifat"
+                              value={selectedDetail.record.sifat}
+                            />
+                            <PersuratanInfoItem
+                              label="Status Surat"
+                              value={statusLabel}
+                            />
+                          </div>
+
+                          <div className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 md:grid-cols-2 [&>*:last-child:nth-child(odd)]:md:col-span-2">
+                            <PersuratanInfoItem
+                              label="Alamat Pengirim"
+                              value={selectedDetail.record.alamatPengirim}
+                            />
+                            <PersuratanInfoItem
+                              label="Divisi Tujuan Awal"
+                              value={formatJoinedNames(
+                                selectedDetail.record.targetDivisionNames ?? [],
+                              )}
+                            />
+                            <PersuratanInfoItem
+                              label="Penerima Awal"
+                              value={formatJoinedNames(
+                                selectedDetail.record.initial_recipient_names,
+                              )}
+                            />
+                            <PersuratanInfoItem
+                              label="Perihal"
+                              className="md:col-span-2"
+                              value={selectedDetail.record.perihal}
+                            />
+                            <PersuratanInfoItem
+                              label="Penyimpanan Fisik"
+                              className="md:col-span-2"
+                              value={
+                                selectedDetail.record.physicalStorageLabel ??
+                                "-"
+                              }
+                            />
                           </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <SuratMasukStatusBadge status={selectedDetail.record.status} />
-                          {tenggatStatusLabel === "-" ? (
-                            <SetupStatusBadge
-                              status="Baru"
-                              label="Tanpa Tenggat"
-                              tone="slate"
-                            />
-                          ) : (
-                            <SetupStatusBadge
-                              status={getWorkflowTenggatBadgeStatus(
-                                tenggatStatusLabel,
-                              )}
-                              label={tenggatStatusLabel}
-                            />
-                          )}
-                        </div>
                       </div>
+                    </section>
+                  }
+                  details={
+                    <div className="space-y-8">
+                      <section className="space-y-4">
+                        <PersuratanSectionTitle
+                          title="Alur Disposisi"
+                          description="Status pemegang surat, tenggat aktif, dan tindakan yang bisa dilakukan user saat ini."
+                        />
+                        <PersuratanDispositionPanel
+                          summary={[
+                            {
+                              label: "Penanggung Jawab Aktif",
+                              value: formatActiveAssigneeLabel({
+                                names:
+                                  selectedDetail.record.current_holder_names,
+                                status: selectedDetail.record.statusKey,
+                              }),
+                            },
+                            {
+                              label: "Penanggung Jawab Terakhir",
+                              value:
+                                selectedDetail.record.last_holder_name ??
+                                "Belum ada",
+                            },
+                            {
+                              label: "Disposisi Aktif",
+                              value: `${selectedDetail.record.active_dispositions_count} disposisi`,
+                            },
+                            {
+                              label: "Tenggat Waktu",
+                              value: formatDetailTenggatValue(
+                                selectedDetail.record.tenggatWaktu,
+                              ),
+                            },
+                          ]}
+                          action={
+                            currentUserDisposition ? (
+                              <WorkflowActionPanel
+                                currentDisposition={currentUserDisposition}
+                                onStart={() =>
+                                  handleUpdateSuratDispositionStatus(
+                                    selectedDetail.record,
+                                    currentUserDisposition.id,
+                                    "IN_PROGRESS",
+                                  )
+                                }
+                                onComplete={() =>
+                                  handleUpdateSuratDispositionStatus(
+                                    selectedDetail.record,
+                                    currentUserDisposition.id,
+                                    "COMPLETED",
+                                  )
+                                }
+                                isBusy={isUpdatingDispositionStatus}
+                                canUpdateStatus={canUpdateSuratMasuk}
+                              />
+                            ) : null
+                          }
+                          notes={[
+                            {
+                              label: "Keterangan Surat",
+                              value: selectedDetail.record.keterangan ?? "-",
+                            },
+                            {
+                              label: "Catatan Disposisi",
+                              value:
+                                selectedDetail.record.keteranganTenggat ?? "-",
+                            },
+                          ]}
+                        />
+                      </section>
 
-                      <div className="grid gap-4 md:grid-cols-3">
-                        <PersuratanInfoItem
-                          label="Tanggal Terima"
-                          value={formatDisplayDate(
-                            selectedDetail.record.tanggalTerima,
-                          )}
-                        />
-                        <PersuratanInfoItem
-                          label="Sifat"
-                          value={selectedDetail.record.sifat}
-                        />
-                        <PersuratanInfoItem
-                          label="Status Surat"
-                          value={statusLabel}
-                        />
-                      </div>
-
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <PersuratanInfoItem
-                          label="Alamat Pengirim"
-                          value={selectedDetail.record.alamatPengirim}
-                        />
-                        <PersuratanInfoItem
-                          label="Divisi Tujuan Awal"
-                          value={formatJoinedNames(
-                            selectedDetail.record.targetDivisionNames ?? [],
-                          )}
-                        />
-                        <PersuratanInfoItem
-                          label="Perihal"
-                          className="md:col-span-2"
-                          value={selectedDetail.record.perihal}
-                        />
-                        <PersuratanInfoItem
-                          label="Penyimpanan Fisik"
-                          className="md:col-span-2"
-                          value={selectedDetail.record.physicalStorageLabel ?? "-"}
-                        />
-                      </div>
+                      <WorkflowTimelineSection
+                        title="Riwayat Penerima dan Disposisi"
+                        description="Jejak penerima awal, penerusan, dan perubahan status surat ini tetap tersimpan untuk audit."
+                        dispositions={selectedDetail.record.disposisi_history}
+                      />
                     </div>
-
+                  }
+                  attachments={
                     <DocumentSection
                       fileName={selectedDetail.record.fileName}
                       hasFile={isValidFileUrl(selectedDetail.record.fileUrl)}
@@ -4282,259 +4903,292 @@ export default function LaporanPersuratanClient() {
                         )
                       }
                     />
-                  </div>
-                </section>
-
-                <section className="space-y-4">
-                  <PersuratanSectionTitle
-                    title="Alur Disposisi"
-                    description="Status pemegang surat, tenggat aktif, dan tindakan yang bisa dilakukan user saat ini."
-                  />
-                  <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                      <PersuratanInfoItem label="Pemegang Saat Ini">
-                        {selectedDetail.record.current_holder_names.length > 0
-                          ? selectedDetail.record.current_holder_names.join(", ")
-                          : "Tidak ada"}
-                      </PersuratanInfoItem>
-                      <PersuratanInfoItem
-                        label="Holder Terakhir"
-                        value={selectedDetail.record.last_holder_name ?? "Belum ada"}
-                      />
-                      <PersuratanInfoItem
-                        label="Disposisi Aktif"
-                        value={`${selectedDetail.record.active_dispositions_count} disposisi`}
-                      />
-                      <PersuratanInfoItem
-                        label="Tenggat Waktu"
-                        value={formatDetailTenggatValue(
-                          selectedDetail.record.tenggatWaktu,
-                        )}
-                      />
-                    </div>
-
-                    <WorkflowActionPanel
-                      currentDisposition={currentUserDisposition}
-                      onStart={() =>
-                        currentUserDisposition
-                          ? handleUpdateSuratDispositionStatus(
-                              selectedDetail.record,
-                              currentUserDisposition.id,
-                              "IN_PROGRESS",
-                            )
-                          : undefined
-                      }
-                      onComplete={() =>
-                        currentUserDisposition
-                          ? handleUpdateSuratDispositionStatus(
-                              selectedDetail.record,
-                              currentUserDisposition.id,
-                              "COMPLETED",
-                            )
-                          : undefined
-                      }
-                      isBusy={isUpdatingDispositionStatus}
-                      canUpdateStatus={canUpdateSuratMasuk}
-                    />
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <PersuratanInfoItem
-                        label="Keterangan Surat"
-                        value={selectedDetail.record.keterangan ?? "-"}
-                      />
-                      <PersuratanInfoItem
-                        label="Catatan Disposisi"
-                        value={selectedDetail.record.keteranganTenggat ?? "-"}
-                      />
-                    </div>
-                  </div>
-                </section>
-
-                <WorkflowTimelineSection
-                  title={`Timeline ${getDispositionActionLabel(
-                    getDispositionActionMode(currentUserDisposition),
-                  )}`}
-                  description="Urutan disposisi dan perubahan status yang tercatat untuk surat ini."
-                  dispositions={selectedDetail.record.disposisi_history}
-                />
-              </div>
-            );
-          })()
-        ) : null}
-
-        {selectedDetail?.kind === "surat-keluar" ? (
-          <div className="space-y-8">
-            <section className="space-y-4">
-              <PersuratanSectionTitle
-                title="Informasi Surat Keluar"
-                description="Ringkasan pengiriman surat keluar, status arsip, lokasi penyimpanan, dan file dokumen."
-              />
-              <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.9fr)]">
-                <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                  <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
-                    <div className="space-y-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Identitas Pengiriman
-                      </p>
-                      <div className="space-y-1">
-                        <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
-                          {selectedDetail.record.penerima}
-                        </h3>
-                        <p className="text-base font-medium text-slate-500">
-                          {selectedDetail.record.namaSurat}
-                        </p>
-                      </div>
-                    </div>
-                    <SetupStatusBadge
-                      status={getOutgoingStatusBadgeStatus(
-                        selectedDetail.record.statusLabel,
-                      )}
-                      label={selectedDetail.record.statusLabel}
-                    />
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <PersuratanInfoItem
-                      label="Tanggal Kirim"
-                      value={formatDisplayDate(selectedDetail.record.tanggalKirim)}
-                    />
-                    <PersuratanInfoItem
-                      label="Media"
-                      value={selectedDetail.record.media}
-                    />
-                    <PersuratanInfoItem
-                      label="Sifat"
-                      value={selectedDetail.record.sifat}
-                    />
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <PersuratanInfoItem
-                      label="Alamat Penerima"
-                      className="md:col-span-2"
-                      value={selectedDetail.record.alamatPenerima}
-                    />
-                    <PersuratanInfoItem
-                      label="Penyimpanan Fisik"
-                      className="md:col-span-2"
-                      value={selectedDetail.record.physicalStorageLabel ?? "-"}
-                    />
-                  </div>
-                </div>
-
-                <DocumentSection
-                  description="Surat keluar tidak memiliki alur disposisi; file dipakai untuk preview dan cetak."
-                  fileName={selectedDetail.record.fileName}
-                  hasFile={isValidFileUrl(selectedDetail.record.fileUrl)}
-                  watermark={selectedDetail.record.watermark}
-                  onPreview={() =>
-                    handlePreviewDocument(
-                      selectedDetail.record.fileUrl,
-                      selectedDetail.record.fileName,
-                    )
                   }
                 />
-              </div>
-            </section>
-          </div>
-        ) : null}
+              );
+            })()
+          : null}
 
-        {selectedDetail?.kind === "memorandum" ? (
-          (() => {
-            const currentUserDisposition = getCurrentDispositionForUser(
-              selectedDetail.record.disposisi_history,
-              user?.id,
-            );
-            const tenggatStatusLabel = formatWorkflowTenggatStatus(
-              selectedDetail.record,
-              today,
-            );
-
-            return (
-              <div className="space-y-8">
-                <section className="space-y-4">
-                  <PersuratanSectionTitle
-                    title="Informasi Memorandum"
-                    description="Ringkasan memo internal, tujuan awal, lokasi arsip, dan file yang tersimpan."
-                  />
-                  <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.9fr)]">
-                    <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                      <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
-                        <div className="space-y-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                            Identitas Memo
+        {selectedDetail?.kind === "surat-keluar" ? (
+          <SetupModalDetailLayout
+            information={
+              <section className="space-y-4">
+                <PersuratanSectionTitle
+                  title="Informasi Surat Keluar"
+                  description="Ringkasan pengiriman surat keluar, status arsip, dan informasi utama penerima."
+                />
+                <div className="grid items-start gap-6">
+                  <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-5">
+                    <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
+                      <div className="space-y-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          Identitas Pengiriman
+                        </p>
+                        <div className="space-y-1">
+                          <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
+                            {selectedDetail.record.penerima}
+                          </h3>
+                          <p className="text-base font-medium text-slate-500">
+                            {selectedDetail.record.namaSurat}
                           </p>
-                          <div className="space-y-1">
-                            <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
-                              {selectedDetail.record.noMemo}
-                            </h3>
-                            <p className="text-base font-medium text-slate-500">
-                              {selectedDetail.record.perihal}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <SetupStatusBadge
-                            status={getDispositionStatusBadgeStatus(
-                              selectedDetail.record.statusKey ?? "NEW",
-                            )}
-                            label={selectedDetail.record.statusLabel ?? "Baru"}
-                          />
-                          {tenggatStatusLabel === "-" ? (
-                            <SetupStatusBadge
-                              status="Baru"
-                              label="Tanpa Tenggat"
-                              tone="slate"
-                            />
-                          ) : (
-                            <SetupStatusBadge
-                              status={getWorkflowTenggatBadgeStatus(
-                                tenggatStatusLabel,
-                              )}
-                              label={tenggatStatusLabel}
-                            />
-                          )}
                         </div>
                       </div>
-
-                      <div className="grid gap-4 md:grid-cols-3">
-                        <PersuratanInfoItem
-                          label="Tanggal Memo"
-                          value={formatDisplayDate(selectedDetail.record.tanggal)}
-                        />
-                        <PersuratanInfoItem
-                          label="Divisi Asal"
-                          value={selectedDetail.record.divisiAsal}
-                        />
-                        <PersuratanInfoItem
-                          label="Pembuat"
-                          value={selectedDetail.record.pembuatMemo}
-                        />
-                      </div>
-
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <PersuratanInfoItem
-                          label="Tujuan Awal"
-                          value={formatJoinedNames(
-                            selectedDetail.record.divisiTujuanAwal,
-                          )}
-                        />
-                        <PersuratanInfoItem
-                          label="Penerima Aktif"
-                          value={
-                            selectedDetail.record.current_holder_names.length > 0
-                              ? selectedDetail.record.current_holder_names.join(", ")
-                              : formatJoinedNames(selectedDetail.record.penerima)
-                          }
-                        />
-                        <PersuratanInfoItem
-                          label="Penyimpanan Fisik"
-                          className="md:col-span-2"
-                          value={selectedDetail.record.physicalStorageLabel ?? "-"}
-                        />
-                      </div>
+                      <SetupStatusBadge
+                        status={getOutgoingStatusBadgeStatus(
+                          selectedDetail.record.statusLabel,
+                        )}
+                        label={selectedDetail.record.statusLabel}
+                      />
                     </div>
 
+                    <div className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 md:grid-cols-2 [&>*:last-child:nth-child(odd)]:md:col-span-2">
+                      <PersuratanInfoItem
+                        label="Tanggal Kirim"
+                        value={formatDisplayDate(
+                          selectedDetail.record.tanggalKirim,
+                        )}
+                      />
+                      <PersuratanInfoItem
+                        label="Media"
+                        value={selectedDetail.record.media}
+                      />
+                      <PersuratanInfoItem
+                        label="Sifat"
+                        value={selectedDetail.record.sifat}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </section>
+            }
+            details={
+              <section className="space-y-4">
+                <PersuratanSectionTitle
+                  title="Detail Pengiriman"
+                  description="Alamat penerima dan lokasi arsip setelah surat dikirim. Surat keluar tidak memakai alur disposisi internal."
+                />
+                <div className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 md:grid-cols-2 [&>*:last-child:nth-child(odd)]:md:col-span-2">
+                  <PersuratanInfoItem
+                    label="Alamat Penerima"
+                    className="md:col-span-2"
+                    value={selectedDetail.record.alamatPenerima}
+                  />
+                  <PersuratanInfoItem
+                    label="Penyimpanan Fisik"
+                    className="md:col-span-2"
+                    value={selectedDetail.record.physicalStorageLabel ?? "-"}
+                  />
+                </div>
+              </section>
+            }
+            attachments={
+              <DocumentSection
+                description="File surat keluar yang tersedia untuk preview dan cetak."
+                fileName={selectedDetail.record.fileName}
+                hasFile={isValidFileUrl(selectedDetail.record.fileUrl)}
+                watermark={selectedDetail.record.watermark}
+                onPreview={() =>
+                  handlePreviewDocument(
+                    selectedDetail.record.fileUrl,
+                    selectedDetail.record.fileName,
+                  )
+                }
+              />
+            }
+          />
+        ) : null}
+
+        {selectedDetail?.kind === "memorandum"
+          ? (() => {
+              const currentUserDisposition = getCurrentDispositionForUser(
+                selectedDetail.record.disposisi_history,
+                user?.id,
+              );
+              const tenggatStatusLabel = formatWorkflowTenggatStatus(
+                selectedDetail.record,
+                today,
+              );
+
+              return (
+                <SetupModalDetailLayout
+                  information={
+                    <section className="space-y-4">
+                      <PersuratanSectionTitle
+                        title="Informasi Memorandum"
+                        description="Ringkasan memo internal, tujuan awal, status, dan lokasi arsip."
+                      />
+                      <div className="grid items-start gap-6">
+                        <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-5">
+                          <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
+                            <div className="space-y-2">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                                Identitas Memo
+                              </p>
+                              <div className="space-y-1">
+                                <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
+                                  {selectedDetail.record.noMemo}
+                                </h3>
+                                <p className="text-base font-medium text-slate-500">
+                                  {selectedDetail.record.perihal}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <SetupStatusBadge
+                                status={getDispositionStatusBadgeStatus(
+                                  selectedDetail.record.statusKey ?? "NEW",
+                                )}
+                                label={
+                                  selectedDetail.record.statusLabel ?? "Baru"
+                                }
+                              />
+                              {tenggatStatusLabel === "-" ? (
+                                <SetupStatusBadge
+                                  status="Baru"
+                                  label="Tanpa Tenggat"
+                                  tone="slate"
+                                />
+                              ) : (
+                                <SetupStatusBadge
+                                  status={getWorkflowTenggatBadgeStatus(
+                                    tenggatStatusLabel,
+                                  )}
+                                  label={tenggatStatusLabel}
+                                />
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 md:grid-cols-2 [&>*:last-child:nth-child(odd)]:md:col-span-2">
+                            <PersuratanInfoItem
+                              label="Tanggal Memo"
+                              value={formatDisplayDate(
+                                selectedDetail.record.tanggal,
+                              )}
+                            />
+                            <PersuratanInfoItem
+                              label="Divisi Asal"
+                              value={selectedDetail.record.divisiAsal}
+                            />
+                            <PersuratanInfoItem
+                              label="Pembuat"
+                              value={selectedDetail.record.pembuatMemo}
+                            />
+                          </div>
+
+                          <div className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 md:grid-cols-2 [&>*:last-child:nth-child(odd)]:md:col-span-2">
+                            <PersuratanInfoItem
+                              label="Tujuan Awal"
+                              value={formatJoinedNames(
+                                selectedDetail.record.divisiTujuanAwal,
+                              )}
+                            />
+                            <PersuratanInfoItem
+                              label="Penerima Awal"
+                              value={formatJoinedNames(
+                                selectedDetail.record.initial_recipient_names,
+                              )}
+                            />
+                            <PersuratanInfoItem
+                              label="Penanggung Jawab Aktif"
+                              value={formatActiveAssigneeLabel({
+                                names:
+                                  selectedDetail.record.current_holder_names,
+                                status: selectedDetail.record.statusKey,
+                              })}
+                            />
+                            <PersuratanInfoItem
+                              label="Penyimpanan Fisik"
+                              className="md:col-span-2"
+                              value={
+                                selectedDetail.record.physicalStorageLabel ??
+                                "-"
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+                  }
+                  details={
+                    <div className="space-y-8">
+                      <section className="space-y-4">
+                        <PersuratanSectionTitle
+                          title="Alur Disposisi"
+                          description="Status penerima memo, tenggat aktif, dan tindakan yang bisa dilakukan user saat ini."
+                        />
+                        <PersuratanDispositionPanel
+                          summary={[
+                            {
+                              label: "Penanggung Jawab Aktif",
+                              value: formatActiveAssigneeLabel({
+                                names:
+                                  selectedDetail.record.current_holder_names,
+                                status: selectedDetail.record.statusKey,
+                              }),
+                            },
+                            {
+                              label: "Penanggung Jawab Terakhir",
+                              value:
+                                selectedDetail.record.last_holder_name ??
+                                "Belum ada",
+                            },
+                            {
+                              label: "Disposisi Aktif",
+                              value: `${selectedDetail.record.active_dispositions_count} disposisi`,
+                            },
+                            {
+                              label: "Tenggat Waktu",
+                              value: formatDetailTenggatValue(
+                                selectedDetail.record.tenggatWaktu,
+                              ),
+                            },
+                          ]}
+                          action={
+                            currentUserDisposition ? (
+                              <WorkflowActionPanel
+                                currentDisposition={currentUserDisposition}
+                                onStart={() =>
+                                  handleUpdateMemorandumDispositionStatus(
+                                    selectedDetail.record,
+                                    currentUserDisposition.id,
+                                    "IN_PROGRESS",
+                                  )
+                                }
+                                onComplete={() =>
+                                  handleUpdateMemorandumDispositionStatus(
+                                    selectedDetail.record,
+                                    currentUserDisposition.id,
+                                    "COMPLETED",
+                                  )
+                                }
+                                isBusy={isUpdatingDispositionStatus}
+                                canUpdateStatus={canUpdateMemorandum}
+                              />
+                            ) : null
+                          }
+                          notes={[
+                            {
+                              label: "Keterangan Memo",
+                              value: selectedDetail.record.keterangan,
+                            },
+                            {
+                              label: "Catatan Disposisi",
+                              value:
+                                selectedDetail.record.keteranganTenggat ?? "-",
+                            },
+                          ]}
+                        />
+                      </section>
+
+                      <WorkflowTimelineSection
+                        title="Riwayat Penerima dan Disposisi"
+                        description="Jejak penerima awal, penerusan, dan perubahan status memorandum tetap tersimpan untuk audit."
+                        dispositions={selectedDetail.record.disposisi_history}
+                      />
+                    </div>
+                  }
+                  attachments={
                     <DocumentSection
                       fileName={selectedDetail.record.fileName}
                       hasFile={isValidFileUrl(selectedDetail.record.fileUrl)}
@@ -4546,85 +5200,11 @@ export default function LaporanPersuratanClient() {
                         )
                       }
                     />
-                  </div>
-                </section>
-
-                <section className="space-y-4">
-                  <PersuratanSectionTitle
-                    title="Alur Disposisi"
-                    description="Status penerima memo, tenggat aktif, dan tindakan yang bisa dilakukan user saat ini."
-                  />
-                  <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                      <PersuratanInfoItem label="Pemegang Saat Ini">
-                        {selectedDetail.record.current_holder_names.length > 0
-                          ? selectedDetail.record.current_holder_names.join(", ")
-                          : "Tidak ada"}
-                      </PersuratanInfoItem>
-                      <PersuratanInfoItem
-                        label="Holder Terakhir"
-                        value={selectedDetail.record.last_holder_name ?? "Belum ada"}
-                      />
-                      <PersuratanInfoItem
-                        label="Disposisi Aktif"
-                        value={`${selectedDetail.record.active_dispositions_count} disposisi`}
-                      />
-                      <PersuratanInfoItem
-                        label="Tenggat Waktu"
-                        value={formatDetailTenggatValue(
-                          selectedDetail.record.tenggatWaktu,
-                        )}
-                      />
-                    </div>
-
-                    <WorkflowActionPanel
-                      currentDisposition={currentUserDisposition}
-                      onStart={() =>
-                        currentUserDisposition
-                          ? handleUpdateMemorandumDispositionStatus(
-                              selectedDetail.record,
-                              currentUserDisposition.id,
-                              "IN_PROGRESS",
-                            )
-                          : undefined
-                      }
-                      onComplete={() =>
-                        currentUserDisposition
-                          ? handleUpdateMemorandumDispositionStatus(
-                              selectedDetail.record,
-                              currentUserDisposition.id,
-                              "COMPLETED",
-                            )
-                          : undefined
-                      }
-                      isBusy={isUpdatingDispositionStatus}
-                      canUpdateStatus={canUpdateMemorandum}
-                    />
-
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <PersuratanInfoItem
-                        label="Keterangan Memo"
-                        value={selectedDetail.record.keterangan}
-                      />
-                      <PersuratanInfoItem
-                        label="Catatan Disposisi"
-                        value={selectedDetail.record.keteranganTenggat ?? "-"}
-                      />
-                    </div>
-                  </div>
-                </section>
-
-                <WorkflowTimelineSection
-                  title={`Timeline ${getDispositionActionLabel(
-                    getDispositionActionMode(currentUserDisposition),
-                  )}`}
-                  description="Urutan disposisi dan perubahan status yang tercatat untuk memorandum ini."
-                  dispositions={selectedDetail.record.disposisi_history}
+                  }
                 />
-              </div>
-            );
-          })()
-        ) : null}
+              );
+            })()
+          : null}
       </DashboardModal>
 
       <SuratMasukDisposisiModal

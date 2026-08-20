@@ -15,6 +15,7 @@ import {
 import { useEffect, useState } from "react";
 
 import StorageSummaryCard from "@/components/arsip/StorageSummaryCard";
+import { resolveStorageGridModalLayout } from "@/components/arsip/storage-grid-modal-layout";
 import DashboardModal from "@/components/ui/DashboardModal";
 import Pagination from "@/components/ui/Pagination";
 import SetupExcelButton from "@/components/ui/SetupExcelButton";
@@ -111,6 +112,7 @@ export default function LemariGridModal({
   const hasNoFilteredData =
     !isLoading && paginationMeta.total === 0 && debouncedSearch.length > 0;
   const kantorStorageKey = kantor.kodeKantor ?? kantor.id;
+  const modalLayout = resolveStorageGridModalLayout(paginationMeta.total);
 
   const handleExport = async () => {
     setExportLoading(true);
@@ -133,7 +135,7 @@ export default function LemariGridModal({
       title={kantor.namaKantor}
       description={`${paginationMeta.total} lemari`}
       onClose={onClose}
-      maxWidth="5xl"
+      maxWidth={modalLayout.maxWidth}
       headerActions={
         <SetupExcelButton onClick={handleExport} loading={exportLoading} />
       }
@@ -162,7 +164,10 @@ export default function LemariGridModal({
           </div>
 
           {errorMessage ? (
-            <div className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">
+            <div
+              className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center"
+              role="alert"
+            >
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-slate-900">
                 <SearchX className="h-7 w-7" aria-hidden="true" />
               </div>
@@ -190,14 +195,18 @@ export default function LemariGridModal({
               />
             </div>
           ) : isLoading && lemariPage.length === 0 ? (
-            <div className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">
+            <div
+              className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center"
+              role="status"
+              aria-live="polite"
+            >
               <p className="text-base font-medium text-gray-700">
                 Memuat daftar lemari...
               </p>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div className={modalLayout.gridClassName}>
                 {lemariPage.map((lemari, idx) => {
                   const hasKapasitas = typeof lemari.kapasitas === "number";
                   const status = lemari.status;

@@ -14,7 +14,7 @@ export const SETUP_PAGE_SEGMENTED_GROUP_CLASS =
   "inline-flex max-w-full overflow-x-auto rounded-lg border border-gray-200 bg-white p-1 shadow-sm";
 
 export const SETUP_PAGE_SEGMENTED_BUTTON_BASE_CLASS =
-  "whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors";
+  "inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors";
 
 export const SETUP_PAGE_SEGMENTED_BUTTON_ACTIVE_CLASS =
   "bg-[#0d5a8f] text-white shadow-sm";

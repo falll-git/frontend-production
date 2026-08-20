@@ -398,7 +398,7 @@ export default function DashboardOverviewClient() {
   return (
     <>
       <div
-        className="welcome-banner rounded-2xl p-4 text-white animate-fade-in sm:p-5"
+        className="welcome-banner animate-dashboard-priority-in rounded-2xl p-4 text-white sm:p-5"
         style={{
           background: "linear-gradient(135deg, #157ec3 0%, #0d5a8f 100%)",
         }}
@@ -433,11 +433,11 @@ export default function DashboardOverviewClient() {
       ) : null}
 
       {isWidgetLoading ? (
-        <div className="mt-6 animate-fade-in">
+        <div className="mt-6">
           <DashboardSkeletonModules count={4} />
         </div>
       ) : moduleReportCards.length > 0 ? (
-        <section className="mt-6 animate-fade-in" aria-labelledby="dashboard-modules-title">
+        <section className="mt-6" aria-labelledby="dashboard-modules-title">
           <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-800">
             <Grid2x2 className="h-6 w-6 text-gray-600" aria-hidden="true" />
             <span id="dashboard-modules-title">Akses Cepat Modul</span>
@@ -459,7 +459,7 @@ export default function DashboardOverviewClient() {
       ) : null}
 
       {!isWidgetLoading && dashboardReportSections.length > 0 ? (
-        <div className="mt-8 space-y-8 animate-fade-in">
+        <div className="mt-8 space-y-8">
           {dashboardReportSections.map((widget) => {
             const Section =
               widget.component_key &&
@@ -471,7 +471,7 @@ export default function DashboardOverviewClient() {
       ) : null}
 
       {!isWidgetLoading && secondaryReportCards.length > 0 ? (
-        <section className="mt-8 animate-fade-in" aria-labelledby="dashboard-other-reports-title">
+        <section className="mt-8" aria-labelledby="dashboard-other-reports-title">
           <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-gray-800">
             <BarChart3 className="h-6 w-6 text-gray-600" aria-hidden="true" />
             <span id="dashboard-other-reports-title">Laporan Lainnya</span>
@@ -499,7 +499,7 @@ export default function DashboardOverviewClient() {
       {!isWidgetLoading && storageUsageWidget ? (
         <div
           id="penggunaan-storage"
-          className="mt-10 scroll-mt-24 border-t border-slate-200 pt-8 animate-fade-in"
+          className="mt-10 scroll-mt-24 border-t border-slate-200 pt-8"
         >
           <p className="mb-5 text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
             Administrasi Sistem

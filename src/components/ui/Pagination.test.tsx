@@ -21,6 +21,12 @@ describe("Pagination", () => {
 
     expect(screen.getByText("Total 46 data")).toBeInTheDocument();
     expect(screen.getByText("Halaman 2 dari 5")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Halaman sebelumnya" }),
+    ).toHaveClass("size-11");
+    expect(screen.getByRole("spinbutton", { name: "Halaman" })).toHaveClass(
+      "h-11",
+    );
 
     await user.click(screen.getByRole("button", { name: "Halaman berikutnya" }));
     expect(onPageChange).toHaveBeenLastCalledWith(3);

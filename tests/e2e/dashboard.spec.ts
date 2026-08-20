@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 import { login } from "./support/auth";
+import {
+  assertModalPresentation,
+  closeModalWithEscapeAndRestoreFocus,
+} from "./support/modal-contract";
 
 test.beforeEach(async ({ page }) => {
   await login(page);
@@ -45,32 +49,40 @@ test("modal aktivitas marketing memakai struktur detail yang konsisten", async (
     .locator('[title="Double-click untuk melihat detail aktivitas"]')
     .first();
   await expect(activityRow).toBeVisible();
+  const activityAction = activityRow.locator(
+    '[data-setup-action-toggle="true"]',
+  );
+  await expect(activityAction).toBeVisible();
   await activityRow.dblclick();
 
   const detailDialog = page.getByRole("dialog", {
     name: /^Detail (Action Plan|Hasil Kunjungan|Langkah Penanganan)$/,
   });
-  await expect(detailDialog).toBeVisible();
+  await assertModalPresentation(page, detailDialog);
   await expect(page.getByRole("dialog")).toHaveCount(1);
   await expect(
     detailDialog.getByRole("heading", {
-      name: "Aktivitas dan Nasabah",
+      name: "Informasi Utama",
       exact: true,
     }),
   ).toBeVisible();
   await expect(
     detailDialog.getByRole("heading", {
-      name: "Jadwal Aktivitas",
+      name: "Detail Aktivitas",
       exact: true,
     }),
   ).toBeVisible();
   await expect(
-    detailDialog.getByRole("heading", {
-      name: "Catatan dan File",
-      exact: true,
+    detailDialog.locator("h3").filter({
+      hasText: /^(?:Detail Action Plan|Detail Hasil Kunjungan|Detail Langkah Penanganan)$/,
     }),
   ).toBeVisible();
   await expect(
     detailDialog.getByRole("button", { name: "Tutup", exact: true }),
   ).toBeVisible();
+  await closeModalWithEscapeAndRestoreFocus({
+    page,
+    dialog: detailDialog,
+    trigger: activityAction,
+  });
 });

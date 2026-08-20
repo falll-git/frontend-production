@@ -273,7 +273,7 @@ export default function LaporanNPFSection({
               };
 
   return (
-    <section className="animate-fade-in">
+    <section>
       {showTitle ? (
         <div className="mb-4">
           <h2 className="flex items-center gap-2 text-xl font-bold text-gray-800">
@@ -284,7 +284,7 @@ export default function LaporanNPFSection({
       ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card>
+        <Card className="app-card--report-accent">
           <CardHeader>
             <CardTitle>Distribusi Kolektibilitas</CardTitle>
           </CardHeader>
@@ -313,7 +313,11 @@ export default function LaporanNPFSection({
                 />
               </>
             ) : (
-              <div className="flex min-h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 px-6 py-10 text-center">
+              <div
+                className="flex flex-col items-center justify-center border-y border-dashed border-gray-200 px-6 py-8 text-center"
+                role={errorMessage ? "alert" : "status"}
+                aria-live={errorMessage ? undefined : "polite"}
+              >
                 <p className="text-sm font-semibold text-gray-700">
                   {isLoading
                     ? "Memuat distribusi kolektibilitas..."
@@ -330,7 +334,7 @@ export default function LaporanNPFSection({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="app-card--report-accent">
           <CardHeader>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-center gap-4">

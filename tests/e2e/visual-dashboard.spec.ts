@@ -10,32 +10,17 @@ test.beforeEach(async ({ page }) => {
       "0",
     );
   });
+  // Install every route override before authentication. The login flow may
+  // hydrate /users/me immediately, so registering this fixture afterwards is
+  // a race and can leave the real display name in the visual baseline.
+  await installDashboardVisualFixtures(page);
   await login(page);
 });
 
 test("visual dashboard utama", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await installDashboardVisualFixtures(page);
-
-  const dashboardDataPaths = [
-    "/api/v1/legal/reports/third-party-documents",
-    "/api/v1/legal/reports/third-party-deposit-funds",
-    "/api/v1/debtor-reports/npf",
-    "/api/v1/debtor-reports/marketing-activity",
-    "/api/v1/storage-usage/summary",
-  ];
-  const dashboardDataReady = Promise.all(
-    dashboardDataPaths.map((pathname) =>
-      page.waitForResponse(
-        (response) =>
-          new URL(response.url()).pathname === pathname && response.ok(),
-        { timeout: 30_000 },
-      ),
-    ),
-  );
 
   await page.goto("/dashboard");
-  await dashboardDataReady;
   await expect(
     page.getByRole("heading", { name: "Assalamualaikum, Admin Visual!" }),
   ).toBeVisible();

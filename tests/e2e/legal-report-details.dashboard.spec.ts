@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 import { login } from "./support/auth";
+import {
+  assertModalPresentation,
+  closeModalWithEscapeAndRestoreFocus,
+} from "./support/modal-contract";
 
 test.beforeEach(async ({ page }) => {
   await login(page);
@@ -24,6 +28,7 @@ test("modal progress pihak ketiga membuka detail record melalui aksi dan double-
     exact: true,
   });
   await expect(summaryHeading).toBeVisible();
+  await assertModalPresentation(page, summaryDialog);
 
   const detailRow = summaryDialog.getByTitle(
     "Double-click untuk melihat detail Notaris",
@@ -41,16 +46,24 @@ test("modal progress pihak ketiga membuka detail record melalui aksi dan double-
     name: "Detail Progress Notaris",
     exact: true,
   });
-  await expect(detailDialog).toBeVisible();
+  await assertModalPresentation(page, detailDialog);
   await expect(page.getByRole("dialog")).toHaveCount(1);
   await expect(
-    detailDialog.getByText("Kontrak dan Pihak Ketiga"),
+    detailDialog.getByRole("heading", { name: "Informasi Utama" }),
   ).toBeVisible();
-  await detailDialog.getByRole("button", { name: "Tutup", exact: true }).click();
+  await expect(
+    detailDialog.locator("h3").filter({ hasText: "Detail Progress" }),
+  ).toBeVisible();
+  await closeModalWithEscapeAndRestoreFocus({
+    page,
+    dialog: detailDialog,
+    trigger: actionButton,
+  });
 
   await expect(summaryHeading).toBeVisible();
   await detailRow.first().dblclick();
-  await expect(detailDialog).toBeVisible();
+  await assertModalPresentation(page, detailDialog);
+  await detailDialog.getByRole("button", { name: "Tutup", exact: true }).click();
 });
 
 test("modal dana titipan membuka detail ledger melalui aksi dan double-click", async ({
@@ -67,6 +80,7 @@ test("modal dana titipan membuka detail ledger melalui aksi dan double-click", a
     exact: true,
   });
   await expect(summaryHeading).toBeVisible();
+  await assertModalPresentation(page, summaryDialog);
 
   const detailRow = summaryDialog.getByTitle(
     "Double-click untuk melihat detail dana titipan",
@@ -83,14 +97,26 @@ test("modal dana titipan membuka detail ledger melalui aksi dan double-click", a
     name: "Detail Dana Titipan",
     exact: true,
   });
-  await expect(detailDialog).toBeVisible();
+  await assertModalPresentation(page, detailDialog);
   await expect(page.getByRole("dialog")).toHaveCount(1);
-  await expect(detailDialog.getByText("Relasi Titipan")).toBeVisible();
-  await expect(detailDialog.getByText("Riwayat Transaksi")).toBeVisible();
+  await expect(
+    detailDialog.getByRole("heading", { name: "Informasi Utama" }),
+  ).toBeVisible();
+  await expect(
+    detailDialog.locator("h3").filter({ hasText: "Detail Dana Titipan" }),
+  ).toBeVisible();
+  await expect(
+    detailDialog.getByRole("heading", { name: "Riwayat Transaksi" }),
+  ).toBeVisible();
   await detailDialog.getByRole("button", { name: "Tutup", exact: true }).click();
 
   await expect(summaryHeading).toBeVisible();
   await actionButton.click();
   await page.getByRole("menuitem", { name: "Detail", exact: true }).click();
-  await expect(detailDialog).toBeVisible();
+  await assertModalPresentation(page, detailDialog);
+  await closeModalWithEscapeAndRestoreFocus({
+    page,
+    dialog: detailDialog,
+    trigger: actionButton,
+  });
 });

@@ -99,7 +99,7 @@ const PERMISSION_TABLE_CLASS =
 const FEATURE_BADGE_CLASS =
   "inline-flex max-w-[104px] items-center justify-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700";
 const FEATURE_BUTTON_CLASS =
-  "inline-flex size-7 items-center justify-center rounded-lg border border-[rgba(21,126,195,0.36)] bg-white text-slate-900 shadow-sm transition hover:border-[rgba(21,126,195,0.66)] hover:bg-[rgba(21,126,195,0.06)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400";
+  "inline-flex size-11 items-center justify-center rounded-lg border border-[rgba(21,126,195,0.36)] bg-white text-slate-900 shadow-sm transition hover:border-[rgba(21,126,195,0.66)] hover:bg-[rgba(21,126,195,0.06)] disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400";
 const RBAC_REFRESH_EVENT = "ruang-arsip:rbac-refresh";
 const RBAC_REFRESH_STORAGE_KEY = "ruang-arsip.rbac-refresh-at";
 const REPORT_ALL_FEATURE = "report_all";

@@ -1,6 +1,10 @@
 import type { PaginationMeta } from "@/types/api.types";
 import type { DebtorCollateral, DebtorContract, DebtorFileMeta } from "@/types/debitur.types";
 import type { ParameterMasterRecord } from "@/services/parameter-master.service";
+import type {
+  DepositLedgerSnapshot,
+  DepositTransactionSource,
+} from "@/types/deposit-ledger.types";
 
 export type LegalPageResult<T> = {
   items: T[];
@@ -95,6 +99,7 @@ export type LegalDeposit = {
   total_payment_amount?: number;
   total_refund_amount?: number;
   balance_amount?: number;
+  ledger: DepositLedgerSnapshot | null;
   status: string;
   notes: string | null;
   deposit_type: ParameterMasterRecord | null;
@@ -111,6 +116,7 @@ export type LegalDepositTransaction = {
   transaction_date: string | null;
   action: string;
   raw_action?: string | null;
+  source: DepositTransactionSource;
   amount: number;
   notes: string | null;
   file: DebtorFileMeta | null;
@@ -145,6 +151,9 @@ export type LegalDepositFundsReport = {
   total_payment_amount?: number;
   total_refund_amount?: number;
   balance_amount?: number;
+  transaction_count?: number;
+  mismatched_records?: number;
+  reconciliation_status?: "MATCHED" | "MISMATCH";
 };
 
 export type LegalActivityActor = {

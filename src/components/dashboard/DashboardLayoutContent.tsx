@@ -361,7 +361,7 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
             )}
             <button
               onClick={() => setMobileMenuOpen(false)}
-              className="lg:hidden p-2 rounded-lg hover:bg-white/10 transition-colors"
+              className="inline-flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-white/10 lg:hidden"
               aria-label="Tutup menu"
             >
               <X className="w-5 h-5 text-white" />
@@ -458,7 +458,7 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
                 updateSidebarOpen(true);
                 setMobileMenuOpen(true);
               }}
-              className="lg:hidden p-2 rounded-xl hover:bg-gray-100 transition-colors"
+              className="inline-flex size-11 items-center justify-center rounded-xl transition-colors hover:bg-gray-100 lg:hidden"
               aria-label="Buka menu"
             >
               <Menu className="w-6 h-6 text-gray-700" />
@@ -488,7 +488,7 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
                   ) : (
                     <Link
                       href="/dashboard"
-                      className="transition-colors hover:text-[#157ec3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#157ec3]/30"
+                      className="inline-flex min-h-6 items-center rounded transition-colors hover:text-[#157ec3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#157ec3]/30"
                     >
                       Dashboard
                     </Link>

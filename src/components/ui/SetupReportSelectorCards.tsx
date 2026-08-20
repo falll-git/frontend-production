@@ -103,7 +103,11 @@ export default function SetupReportSelectorCards<TKey extends string>({
                   );
                 })
               ) : (
-                <div className="px-4 py-3 text-sm text-gray-500">
+                <div
+                  className="px-4 py-3 text-sm text-gray-500"
+                  role="status"
+                  aria-live="polite"
+                >
                   Memuat ringkasan...
                 </div>
               )}

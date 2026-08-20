@@ -1,8 +1,13 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 
+import DepositLedgerTraceability, {
+  depositTransactionSourceLabel,
+} from "@/components/legal/DepositLedgerTraceability";
+import Pagination from "@/components/ui/Pagination";
 import SetupFilePreviewGroup from "@/components/ui/SetupFilePreviewGroup";
+import SetupModalDetailLayout from "@/components/ui/SetupModalDetailLayout";
 import SetupRecordDetailSection from "@/components/ui/SetupRecordDetailSection";
 import {
   SetupDataTable,
@@ -25,11 +30,15 @@ import {
   SETUP_PAGE_MODERN_TABLE_ROW_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { formatDateOnly } from "@/lib/utils/date";
+import { SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import { legalService } from "@/services/legal.service";
 import type { ParameterMasterRecord } from "@/services/parameter-master.service";
+import type { PaginationMeta } from "@/types/api.types";
 import type { DebtorCollateral, DebtorFileMeta } from "@/types/debitur.types";
 import type {
   LegalClaim,
   LegalDeposit,
+  LegalDepositTransaction,
   LegalProgressRecord,
 } from "@/types/legal.types";
 
@@ -153,15 +162,18 @@ function resolvePreviewFiles(
   });
 }
 
-function LegalAmountItem({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-      <div className="text-xs font-semibold uppercase tracking-wider text-gray-700">
-        {label}
-      </div>
-      <div className="mt-2 text-lg font-bold text-gray-800">{value}</div>
-    </div>
+function resolveDepositFiles(item: LegalDeposit) {
+  const files = item.transactions.flatMap((transaction) =>
+    resolvePreviewFiles(transaction.files, transaction.file),
   );
+  const seen = new Set<string>();
+
+  return files.filter((file) => {
+    const key = [file.url ?? "", file.name ?? ""].join("::");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export function LegalProgressDetailContent({
@@ -183,9 +195,11 @@ export function LegalProgressDetailContent({
   const dateLabel = isNotary || isKjpp ? "Tanggal Terima" : "Tanggal Mulai";
 
   return (
-    <>
+    <SetupModalDetailLayout
+      information={
       <SetupRecordDetailSection
-        title="Kontrak dan Pihak Ketiga"
+        title="Informasi Utama"
+        description="Relasi kontrak, debitur, agunan, dan pihak ketiga pada progress ini."
         rows={[
           { label: "Nomor Kontrak", value: item.contract?.no_kontrak ?? "-" },
           { label: "Debitur", value: item.contract?.debtor?.name ?? "-" },
@@ -203,8 +217,11 @@ export function LegalProgressDetailContent({
           },
         ]}
       />
+      }
+      details={
       <SetupRecordDetailSection
         title="Detail Progress"
+        description="Data operasional progress sesuai jenis layanan legal yang dipilih."
         rows={[
           {
             label: typeLabel,
@@ -279,8 +296,11 @@ export function LegalProgressDetailContent({
           { label: "Catatan", value: item.notes || "-" },
         ]}
       />
+      }
+      attachments={
       <SetupRecordDetailSection
-        title="Dokumen"
+        title="Lampiran"
+        description="File pendukung yang tersimpan pada progress legal ini."
         rows={[
           {
             label: "Jumlah File",
@@ -299,7 +319,8 @@ export function LegalProgressDetailContent({
           },
         ]}
       />
-    </>
+      }
+    />
   );
 }
 
@@ -311,9 +332,11 @@ export function LegalClaimDetailContent({
   onOpenFile: LegalFileOpenHandler;
 }) {
   return (
-    <>
+    <SetupModalDetailLayout
+      information={
       <SetupRecordDetailSection
-        title="Kontrak dan Klaim"
+        title="Informasi Utama"
+        description="Relasi kontrak, agunan, polis, dan status klaim asuransi."
         rows={[
           { label: "Nomor Kontrak", value: item.contract?.no_kontrak ?? "-" },
           { label: "Debitur", value: item.contract?.debtor?.name ?? "-" },
@@ -335,8 +358,12 @@ export function LegalClaimDetailContent({
           },
         ]}
       />
+      }
+      details={
+        <div className="space-y-6">
       <SetupRecordDetailSection
-        title="Nilai dan Realisasi"
+        title="Detail Klaim"
+        description="Nilai pengajuan, persetujuan, pencairan, dan catatan penyelesaian klaim."
         rows={[
           { label: "Jenis Klaim", value: item.claim_type || "-" },
           { label: "Nominal Klaim", value: formatCurrency(item.claim_amount) },
@@ -347,13 +374,17 @@ export function LegalClaimDetailContent({
           },
           { label: "Nominal Cair", value: formatCurrency(item.disbursed_amount) },
           { label: "Tanggal Cair", value: formatDateOnly(item.disbursed_at) },
-        ]}
-      />
-      <SetupRecordDetailSection
-        title="Catatan dan File"
-        rows={[
           { label: "Alasan Ditolak", value: item.rejection_reason || "-" },
           { label: "Catatan", value: item.notes || "-" },
+        ]}
+      />
+        </div>
+      }
+      attachments={
+      <SetupRecordDetailSection
+        title="Lampiran"
+        description="File pendukung yang tersimpan pada klaim asuransi ini."
+        rows={[
           {
             label: "Jumlah File",
             value: String(resolvePreviewFiles(item.files, item.file).length),
@@ -371,7 +402,8 @@ export function LegalClaimDetailContent({
           },
         ]}
       />
-    </>
+      }
+    />
   );
 }
 
@@ -382,10 +414,89 @@ export function LegalDepositDetailContent({
   item: LegalDeposit;
   onOpenFile: LegalFileOpenHandler;
 }) {
+  const [transactionPage, setTransactionPage] = useState(1);
+  const [transactions, setTransactions] = useState<LegalDepositTransaction[]>(
+    item.transactions,
+  );
+  const initialTransactionTotal =
+    item.ledger?.transaction_count ?? item.transactions.length;
+  const isTransactionHistoryComplete =
+    !item.ledger || item.ledger.history_complete;
+  const [transactionMeta, setTransactionMeta] = useState<PaginationMeta>({
+    page: 1,
+    limit: SETUP_TABLE_PAGE_SIZE,
+    total: initialTransactionTotal,
+    lastPage: Math.max(
+      1,
+      Math.ceil(initialTransactionTotal / SETUP_TABLE_PAGE_SIZE),
+    ),
+  });
+  const [isTransactionLoading, setIsTransactionLoading] = useState(false);
+  const [transactionError, setTransactionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTransactionPage(1);
+    setTransactions(item.transactions);
+  }, [item.id, item.transactions]);
+
+  useEffect(() => {
+    if (isTransactionHistoryComplete) {
+      setTransactionMeta({
+        page: 1,
+        limit: SETUP_TABLE_PAGE_SIZE,
+        total: item.ledger?.transaction_count ?? item.transactions.length,
+        lastPage: 1,
+      });
+      setTransactionError(null);
+      return undefined;
+    }
+
+    let ignore = false;
+
+    async function loadTransactions() {
+      try {
+        setIsTransactionLoading(true);
+        setTransactionError(null);
+        const result = await legalService.getDepositTransactionsPage({
+          deposit_id: item.id,
+          page: transactionPage,
+          limit: SETUP_TABLE_PAGE_SIZE,
+        });
+        if (ignore) return;
+        setTransactions(result.items);
+        setTransactionMeta(result.meta);
+      } catch (error) {
+        if (ignore) return;
+        setTransactionError(
+          error instanceof Error
+            ? error.message
+            : "Riwayat transaksi tidak dapat dimuat.",
+        );
+      } finally {
+        if (!ignore) setIsTransactionLoading(false);
+      }
+    }
+
+    void loadTransactions();
+    return () => {
+      ignore = true;
+    };
+  }, [
+    isTransactionHistoryComplete,
+    item.id,
+    item.ledger?.transaction_count,
+    item.transactions.length,
+    transactionPage,
+  ]);
+
+  const attachmentFiles = resolveDepositFiles({ ...item, transactions });
+
   return (
-    <>
+    <SetupModalDetailLayout
+      information={
       <SetupRecordDetailSection
-        title="Relasi Titipan"
+        title="Informasi Utama"
+        description="Relasi kontrak, jenis titipan, pihak ketiga, dan status ledger."
         rows={[
           { label: "Nomor Kontrak", value: item.contract?.no_kontrak ?? "-" },
           { label: "Debitur", value: item.contract?.debtor?.name ?? "-" },
@@ -403,36 +514,57 @@ export function LegalDepositDetailContent({
             label: "Status",
             value: <SetupStatusBadge status={statusLabel(item.status)} />,
           },
-          { label: "Catatan", value: item.notes || "-" },
         ]}
       />
-      <div className="grid gap-3 md:grid-cols-4">
-        <LegalAmountItem
-          label="Total Titipan"
-          value={formatCurrency(item.total_deposit_amount ?? item.nominal)}
-        />
-        <LegalAmountItem
-          label="Pembayaran"
-          value={formatCurrency(item.total_payment_amount ?? item.paid_amount)}
-        />
-        <LegalAmountItem
-          label="Refund"
-          value={formatCurrency(item.total_refund_amount ?? item.processed_amount)}
-        />
-        <LegalAmountItem
-          label="Saldo Akhir"
-          value={formatCurrency(item.balance_amount ?? item.remaining_amount)}
-        />
-      </div>
+      }
+      details={
+        <div className="space-y-6">
+          <SetupRecordDetailSection
+            title="Detail Dana Titipan"
+            description="Ringkasan nilai ledger dan catatan dana titipan."
+            rows={[
+              {
+                label: "Total Titipan",
+                value: formatCurrency(item.total_deposit_amount ?? item.nominal),
+              },
+              {
+                label: "Pembayaran",
+                value: formatCurrency(item.total_payment_amount ?? item.paid_amount),
+              },
+              {
+                label: "Refund",
+                value: formatCurrency(item.total_refund_amount ?? item.processed_amount),
+              },
+              {
+                label: "Saldo Akhir",
+                value: formatCurrency(item.balance_amount ?? item.remaining_amount),
+              },
+              { label: "Catatan", value: item.notes || "-" },
+            ]}
+          />
+          <DepositLedgerTraceability item={item} />
       <section className="space-y-3">
-        <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-gray-500">
-          Riwayat Transaksi
-        </h3>
+        <div className="space-y-1">
+          <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-gray-500">
+            Riwayat Transaksi
+          </h3>
+          <p className="text-sm leading-6 text-gray-500">
+            Pergerakan titipan, pembayaran, dan refund yang membentuk saldo akhir.
+          </p>
+        </div>
+        {transactionError ? (
+          <div
+            className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            role="alert"
+          >
+            {transactionError} Data awal tetap ditampilkan jika tersedia.
+          </div>
+        ) : null}
         <SetupTableCard variant="nested">
           <SetupDataTable
             variant="nested"
             density="compact"
-            className="min-w-[760px]"
+            className="min-w-[900px]"
           >
             <SetupDataTableHead>
               <SetupDataTableRow
@@ -444,7 +576,8 @@ export function LegalDepositDetailContent({
                   No
                 </SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell>Tanggal</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell>Jenis</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell>Jenis Transaksi</SetupDataTableHeaderCell>
+                <SetupDataTableHeaderCell>Sumber</SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell>Nominal</SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell>Catatan</SetupDataTableHeaderCell>
                 <SetupDataTableHeaderCell
@@ -455,7 +588,7 @@ export function LegalDepositDetailContent({
               </SetupDataTableRow>
             </SetupDataTableHead>
             <SetupDataTableBody>
-              {item.transactions.map((transaction, index) => (
+              {transactions.map((transaction, index) => (
                 <SetupDataTableRow
                   key={transaction.id}
                   className={SETUP_PAGE_MODERN_TABLE_ROW_CLASS}
@@ -463,13 +596,16 @@ export function LegalDepositDetailContent({
                   <SetupDataTableCell
                     className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}
                   >
-                    {index + 1}
+                    {(transactionMeta.page - 1) * transactionMeta.limit + index + 1}
                   </SetupDataTableCell>
                   <SetupDataTableCell>
                     {formatDateOnly(transaction.transaction_date)}
                   </SetupDataTableCell>
                   <SetupDataTableCell>
                     {depositActionLabel(transaction.action)}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell>
+                    {depositTransactionSourceLabel(transaction.source)}
                   </SetupDataTableCell>
                   <SetupDataTableCell>
                     <SetupTableMoney>
@@ -491,15 +627,53 @@ export function LegalDepositDetailContent({
                   </SetupDataTableCell>
                 </SetupDataTableRow>
               ))}
-              {item.transactions.length === 0 ? (
-                <SetupDataTableEmptyRow colSpan={6}>
-                  Belum ada transaksi pada dana titipan ini.
+              {isTransactionLoading ? (
+                <SetupDataTableEmptyRow colSpan={7}>
+                  Memuat riwayat transaksi...
+                </SetupDataTableEmptyRow>
+              ) : null}
+              {!isTransactionLoading && transactions.length === 0 ? (
+                <SetupDataTableEmptyRow colSpan={7}>
+                  Belum ada transaksi pada ledger dana titipan ini.
                 </SetupDataTableEmptyRow>
               ) : null}
             </SetupDataTableBody>
           </SetupDataTable>
+          <Pagination
+            page={transactionMeta.page}
+            lastPage={transactionMeta.lastPage}
+            total={transactionMeta.total}
+            limit={transactionMeta.limit}
+            isLoading={isTransactionLoading}
+            onPageChange={setTransactionPage}
+          />
         </SetupTableCard>
       </section>
-    </>
+        </div>
+      }
+      attachments={
+        <SetupRecordDetailSection
+          title="Lampiran"
+          description="File pendukung pada halaman riwayat transaksi yang sedang ditampilkan."
+          rows={[
+            {
+              label: "Jumlah File Halaman Ini",
+              value: String(attachmentFiles.length),
+            },
+            {
+              label: "Aksi File",
+              value: (
+                <SetupFilePreviewGroup
+                  files={attachmentFiles}
+                  label="Lihat File"
+                  onOpen={onOpenFile}
+                  align="start"
+                />
+              ),
+            },
+          ]}
+        />
+      }
+    />
   );
 }

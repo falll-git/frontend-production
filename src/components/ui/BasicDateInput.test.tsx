@@ -20,7 +20,9 @@ describe("BasicDateInput", () => {
     const user = userEvent.setup();
     setViewport(360, 800);
 
-    render(<BasicDateInput value="" onChange={vi.fn()} />);
+    const { container } = render(
+      <BasicDateInput value="" onChange={vi.fn()} />,
+    );
 
     const trigger = screen.getByRole("button", { name: "Pilih tanggal" });
     vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue({
@@ -39,14 +41,85 @@ describe("BasicDateInput", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Pilih tanggal" });
     expect(dialog).toHaveStyle({
-      left: "28px",
+      left: "12px",
       maxHeight: "377px",
       top: "411px",
-      width: "320px",
+      width: "336px",
     });
+    expect(container.contains(dialog)).toBe(false);
+    expect(
+      screen.getByRole("button", { name: "Bulan sebelumnya" }),
+    ).toHaveClass("h-11", "w-11");
+    expect(
+      screen.getByRole("button", { name: "Bulan berikutnya" }),
+    ).toHaveClass("h-11", "w-11");
+    expect(
+      screen.getByRole("button", { name: "1 Agustus 2026" }),
+    ).toHaveClass("min-h-11");
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
       document.documentElement.clientWidth,
     );
+    expect(document.activeElement).toHaveAttribute("data-calendar-date");
+  });
+
+  it("mendukung navigasi panah di kalender", async () => {
+    const user = userEvent.setup();
+    render(<BasicDateInput value="2026-08-10" onChange={vi.fn()} />);
+
+    await user.click(screen.getByRole("button", { name: "Pilih tanggal" }));
+    const selected = screen.getByRole("button", { name: "10 Agustus 2026" });
+    expect(selected).toHaveFocus();
+
+    await user.keyboard("{ArrowRight}");
+    expect(
+      screen.getByRole("button", { name: "11 Agustus 2026" }),
+    ).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
+    expect(
+      screen.getByRole("button", { name: "18 Agustus 2026" }),
+    ).toHaveFocus();
+  });
+
+  it("memberi ruang 44px untuk setiap hari pada viewport tablet", async () => {
+    const user = userEvent.setup();
+    setViewport(768, 900);
+
+    const { container } = render(
+      <BasicDateInput value="2026-08-10" onChange={vi.fn()} />,
+    );
+    const trigger = screen.getByRole("button", { name: "Pilih tanggal" });
+    vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue({
+      bottom: 144,
+      height: 44,
+      left: 32,
+      right: 432,
+      top: 100,
+      width: 400,
+      x: 32,
+      y: 100,
+      toJSON: () => ({}),
+    });
+
+    await user.click(trigger);
+
+    const dialog = screen.getByRole("dialog", { name: "Pilih tanggal" });
+    expect(dialog).toHaveStyle({ width: "366px" });
+    expect(container.contains(dialog)).toBe(false);
+    expect(
+      screen.getByRole("button", { name: "10 Agustus 2026" }),
+    ).toHaveClass("min-h-11", "w-full");
+  });
+
+  it("mengembalikan fokus ke pemicu setelah kalender ditutup dengan Escape", async () => {
+    const user = userEvent.setup();
+    render(<BasicDateInput value="2026-08-10" onChange={vi.fn()} />);
+
+    const trigger = screen.getByRole("button", { name: "Pilih tanggal" });
+    await user.click(trigger);
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Pilih tanggal" })).toBeNull();
+    expect(trigger).toHaveFocus();
   });
 
   it("truncates a long placeholder without changing the control width", () => {
@@ -61,5 +134,23 @@ describe("BasicDateInput", () => {
     expect(
       screen.getByText("Pilih tanggal operasional yang sangat panjang"),
     ).toHaveClass("min-w-0", "truncate");
+  });
+
+  it("menutup kalender dan meneruskan fokus saat Tab", async () => {
+    const user = userEvent.setup();
+    render(
+      <div>
+        <BasicDateInput value="2026-08-10" onChange={vi.fn()} />
+        <button type="button">Kontrol berikutnya</button>
+      </div>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Pilih tanggal" }));
+    await user.keyboard("{Tab}");
+
+    expect(screen.queryByRole("dialog", { name: "Pilih tanggal" })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Kontrol berikutnya" }),
+    ).toHaveFocus();
   });
 });

@@ -26,6 +26,7 @@ import SetupPrimaryButton from "@/components/ui/SetupPrimaryButton";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
 import SetupTextarea from "@/components/ui/SetupTextarea";
+import LoanRequestResponsiveGrid from "@/components/arsip-digital/peminjaman/LoanRequestResponsiveGrid";
 import { useArsipDigitalMasterData } from "@/components/arsip-digital/ArsipDigitalMasterDataProvider";
 import { useArsipDigitalWorkflow } from "@/components/arsip-digital/ArsipDigitalWorkflowProvider";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
@@ -90,7 +91,7 @@ export default function RequestPeminjamanPage() {
         namaDokumen: item.namaDokumen,
         detail: item.detail,
         status: item.statusPinjam,
-        statusKey: item.statusPinjamKey ?? "AVAILABLE",
+        statusKey: item.statusPinjamKey,
         lokasi: tempat
           ? `${tempat.namaKantor} - ${tempat.kodeLemari} (${tempat.rak})`
           : item.tempatPenyimpanan ?? "-",
@@ -444,8 +445,8 @@ export default function RequestPeminjamanPage() {
                   Ringkasan dokumen fisik yang akan diajukan untuk peminjaman.
                 </p>
               </div>
-              <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.8fr)]">
-                <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+              <LoanRequestResponsiveGrid>
+                <div className="min-w-0 space-y-4 rounded-lg border border-gray-200 bg-white p-5">
                   <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
                     <div className="space-y-1">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -476,7 +477,7 @@ export default function RequestPeminjamanPage() {
                             <p className="truncate text-sm font-semibold text-gray-900">
                               {doc.namaDokumen}
                             </p>
-                            <span className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
+                            <span className="max-w-full break-all rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
                               {doc.kode}
                             </span>
                           </div>
@@ -492,13 +493,13 @@ export default function RequestPeminjamanPage() {
                   </div>
                 </div>
 
-                <aside className="rounded-2xl border border-gray-200 bg-slate-50 p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <aside className="min-w-0 rounded-lg border border-gray-200 bg-slate-50 p-5">
                   <div className="flex items-start gap-3">
-                    <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm">
+                    <div className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-sky-600">
                       <Send className="h-5 w-5" aria-hidden="true" />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-slate-950">
+                    <div className="min-w-0">
+                      <h3 className="break-words text-lg font-semibold text-slate-950">
                         Pengajuan Peminjaman
                       </h3>
                       <p className="mt-1 text-sm leading-6 text-slate-500">
@@ -507,7 +508,7 @@ export default function RequestPeminjamanPage() {
                     </div>
                   </div>
                 </aside>
-              </div>
+              </LoanRequestResponsiveGrid>
             </section>
 
             <section className="space-y-4">

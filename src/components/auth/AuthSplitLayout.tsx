@@ -98,18 +98,19 @@ function DefaultAuthBrandPanel() {
         <TextAnimate
           as="h2"
           animation="slideLeft"
-          by="character"
-          className="text-center text-3xl font-extrabold leading-tight text-[#157ec3]"
+          by="word"
+          stagger={0.018}
+          className="text-center text-3xl font-extrabold leading-tight text-[#0d6da9]"
         >
           Selamat Datang di Ruwang Arsip!
         </TextAnimate>
         <TextAnimate
           as="p"
           animation="slideLeft"
-          by="character"
-          delay={1.05}
+          by="word"
+          delay={0.08}
           stagger={0.012}
-          className="mx-auto mt-3 max-w-[32rem] text-center text-[0.9375rem] font-extrabold leading-6 text-[#157ec3]"
+          className="mx-auto mt-3 max-w-[32rem] text-center text-[0.9375rem] font-extrabold leading-6 text-[#0d6da9]"
         >
           Sistem internal yang menghubungkan arsip, persuratan, dokumen legal,
           dan informasi pembiayaan dalam satu platform.

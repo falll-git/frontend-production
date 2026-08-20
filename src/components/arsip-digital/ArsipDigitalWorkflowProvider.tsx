@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -44,6 +45,10 @@ type SubmitPeminjamanParams = {
   alasan: string;
 };
 
+type WorkflowRefreshOptions = {
+  force?: boolean;
+};
+
 type ArsipDigitalWorkflowValue = {
   dokumen: Dokumen[];
   disposisi: Disposisi[];
@@ -72,7 +77,7 @@ type ArsipDigitalWorkflowValue = {
     returnedAt: string;
     returnNote: string;
   }) => Promise<boolean>;
-  refreshWorkflowData: () => Promise<void>;
+  refreshWorkflowData: (options?: WorkflowRefreshOptions) => Promise<void>;
   resetWorkflowData: () => Promise<void>;
 };
 
@@ -107,6 +112,13 @@ const LOAN_READ_PATHS = [
 
 const STORAGE_HISTORY_PATH = "/dashboard/arsip-digital/historis/penyimpanan";
 
+const WORKFLOW_RESOURCE_LABELS = {
+  dokumen: "dokumen",
+  disposisi: "disposisi",
+  peminjaman: "peminjaman",
+  aktivitasPenyimpanan: "historis penyimpanan",
+} as const;
+
 function isArsipDigitalPath(pathname: string) {
   return (
     pathname === ARSIP_DIGITAL_ROOT_PATH ||
@@ -127,6 +139,9 @@ export function ArsipDigitalWorkflowProvider({
     AktivitasPenyimpanan[]
   >([]);
   const [isLoading, setIsLoading] = useState(false);
+  const refreshGenerationRef = useRef(0);
+  const inFlightRefreshRef = useRef<Promise<void> | null>(null);
+  const activeScopeKeyRef = useRef<string | null>(null);
 
   const roleId = user?.role_id ?? null;
   const canReadDigitalDocuments = DIGITAL_DOCUMENT_READ_PATHS.some((path) =>
@@ -153,9 +168,27 @@ export function ArsipDigitalWorkflowProvider({
     status === "authenticated" &&
     isArsipDigitalPath(pathname) &&
     hasReadableWorkflowEndpoint;
+  const activeScopeKey =
+    status === "authenticated" && user?.id
+      ? [
+          user.id,
+          roleId ?? "no-role",
+          canReadDigitalDocuments ? "documents" : "no-documents",
+          canReadAccessRequests ? "access" : "no-access",
+          canReadLoans ? "loans" : "no-loans",
+          canReadStorageHistories ? "storage" : "no-storage",
+        ].join(":")
+      : null;
 
-  const refreshWorkflowData = useCallback(async (): Promise<void> => {
+  const refreshWorkflowData = useCallback(async ({
+    force = false,
+  }: WorkflowRefreshOptions = {}): Promise<void> => {
+    if (!force && inFlightRefreshRef.current) {
+      return inFlightRefreshRef.current;
+    }
+
     if (!hasReadableWorkflowEndpoint) {
+      refreshGenerationRef.current += 1;
       setDokumen([]);
       setDisposisi([]);
       setPeminjaman([]);
@@ -164,11 +197,13 @@ export function ArsipDigitalWorkflowProvider({
       return;
     }
 
+    const generation = refreshGenerationRef.current + 1;
+    refreshGenerationRef.current = generation;
     setIsLoading(true);
 
-    try {
-      const [dokumenRows, disposisiRows, peminjamanRows, aktivitasRows] =
-        await Promise.all([
+    const refreshPromise = (async () => {
+      const [dokumenResult, disposisiResult, peminjamanResult, aktivitasResult] =
+        await Promise.allSettled([
           canReadDigitalDocuments
             ? arsipService.getAll()
             : Promise.resolve<Dokumen[]>([]),
@@ -183,23 +218,49 @@ export function ArsipDigitalWorkflowProvider({
             : Promise.resolve<AktivitasPenyimpanan[]>([]),
         ]);
 
-      setDokumen(dokumenRows);
-      setDisposisi(disposisiRows);
-      setPeminjaman(peminjamanRows);
-      setAktivitasPenyimpanan(aktivitasRows);
-    } catch (error) {
-      setDokumen([]);
-      setDisposisi([]);
-      setPeminjaman([]);
-      setAktivitasPenyimpanan([]);
-      showToast(
-        error instanceof Error
-          ? error.message
-          : "Gagal memuat data arsip digital",
-        "error",
-      );
+      if (refreshGenerationRef.current !== generation) return;
+
+      const failedResources: string[] = [];
+      if (dokumenResult.status === "fulfilled") {
+        setDokumen(dokumenResult.value);
+      } else {
+        failedResources.push(WORKFLOW_RESOURCE_LABELS.dokumen);
+      }
+      if (disposisiResult.status === "fulfilled") {
+        setDisposisi(disposisiResult.value);
+      } else {
+        failedResources.push(WORKFLOW_RESOURCE_LABELS.disposisi);
+      }
+      if (peminjamanResult.status === "fulfilled") {
+        setPeminjaman(peminjamanResult.value);
+      } else {
+        failedResources.push(WORKFLOW_RESOURCE_LABELS.peminjaman);
+      }
+      if (aktivitasResult.status === "fulfilled") {
+        setAktivitasPenyimpanan(aktivitasResult.value);
+      } else {
+        failedResources.push(WORKFLOW_RESOURCE_LABELS.aktivitasPenyimpanan);
+      }
+
+      if (failedResources.length > 0) {
+        showToast(
+          `Sebagian data arsip digital gagal dimuat: ${failedResources.join(", ")}. Data lain yang berhasil dimuat tetap ditampilkan.`,
+          "error",
+        );
+      }
+    })();
+
+    inFlightRefreshRef.current = refreshPromise;
+
+    try {
+      await refreshPromise;
     } finally {
-      setIsLoading(false);
+      if (refreshGenerationRef.current === generation) {
+        setIsLoading(false);
+      }
+      if (inFlightRefreshRef.current === refreshPromise) {
+        inFlightRefreshRef.current = null;
+      }
     }
   }, [
     canReadAccessRequests,
@@ -209,6 +270,19 @@ export function ArsipDigitalWorkflowProvider({
     hasReadableWorkflowEndpoint,
     showToast,
   ]);
+
+  useEffect(() => {
+    if (activeScopeKeyRef.current === activeScopeKey) return;
+
+    activeScopeKeyRef.current = activeScopeKey;
+    refreshGenerationRef.current += 1;
+    inFlightRefreshRef.current = null;
+    setDokumen([]);
+    setDisposisi([]);
+    setPeminjaman([]);
+    setAktivitasPenyimpanan([]);
+    setIsLoading(false);
+  }, [activeScopeKey]);
 
   useEffect(() => {
     if (!shouldAutoLoad) {
@@ -222,12 +296,12 @@ export function ArsipDigitalWorkflowProvider({
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [refreshWorkflowData, shouldAutoLoad]);
+  }, [activeScopeKey, refreshWorkflowData, shouldAutoLoad]);
 
   const createDokumen = useCallback(
     async (params: CreateDokumenPayload): Promise<Dokumen> => {
       const created = await arsipService.create(params);
-      await refreshWorkflowData();
+      await refreshWorkflowData({ force: true });
       return created;
     },
     [refreshWorkflowData],
@@ -244,7 +318,7 @@ export function ArsipDigitalWorkflowProvider({
         request_reason: alasanPengajuan,
         expires_at: tanggalExpired,
       });
-      await refreshWorkflowData();
+      await refreshWorkflowData({ force: true });
       return created.length;
     },
     [refreshWorkflowData],
@@ -269,7 +343,7 @@ export function ArsipDigitalWorkflowProvider({
         });
       }
 
-      await refreshWorkflowData();
+      await refreshWorkflowData({ force: true });
       return true;
     },
     [refreshWorkflowData],
@@ -289,7 +363,7 @@ export function ArsipDigitalWorkflowProvider({
         request_reason: alasan,
       });
 
-      await refreshWorkflowData();
+      await refreshWorkflowData({ force: true });
       return created.length;
     },
     [refreshWorkflowData],
@@ -306,7 +380,7 @@ export function ArsipDigitalWorkflowProvider({
       await peminjamanService.approve(id, {
         approval_note: approvalNote,
       });
-      await refreshWorkflowData();
+      await refreshWorkflowData({ force: true });
       return true;
     },
     [refreshWorkflowData],
@@ -323,7 +397,7 @@ export function ArsipDigitalWorkflowProvider({
       await peminjamanService.reject(id, {
         rejection_note: rejectionNote,
       });
-      await refreshWorkflowData();
+      await refreshWorkflowData({ force: true });
       return true;
     },
     [refreshWorkflowData],
@@ -343,7 +417,7 @@ export function ArsipDigitalWorkflowProvider({
         handover_at: handoverAt,
         handover_note: handoverNote,
       });
-      await refreshWorkflowData();
+      await refreshWorkflowData({ force: true });
       return true;
     },
     [refreshWorkflowData],
@@ -363,7 +437,7 @@ export function ArsipDigitalWorkflowProvider({
         returned_at: returnedAt,
         return_note: returnNote,
       });
-      await refreshWorkflowData();
+      await refreshWorkflowData({ force: true });
       return true;
     },
     [refreshWorkflowData],

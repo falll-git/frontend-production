@@ -23,14 +23,14 @@ export default function BreakdownList({
     <div>
       <p className="mb-3 text-sm font-semibold text-slate-900">{title}</p>
       {visibleItems.length > 0 ? (
-        <div className="space-y-2">
+        <div className="divide-y divide-slate-200 border-y border-slate-200">
           {visibleItems.map((item) => {
             const meta = mapMeta ? mapMeta(item) : item.code;
 
             return (
               <div
                 key={`${item.id ?? item.code ?? item.name}-${item.total}`}
-                className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm"
+                className="flex items-center justify-between gap-3 px-1 py-3"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-slate-800">
@@ -42,7 +42,7 @@ export default function BreakdownList({
                     </p>
                   ) : null}
                 </div>
-                <span className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-bold text-slate-900">
+                <span className="shrink-0 text-sm font-bold tabular-nums text-slate-900">
                   {formatNumber(item.total)}
                 </span>
               </div>

@@ -10,10 +10,11 @@ const CONTROL_SELECTOR = [
   '[data-ui-control="select"]',
   '[data-ui-control="date"].app-input',
   '[data-ui-control="date"] > button',
+  '[data-ui-control="month"] > button',
   '[data-ui-control="search"] input',
   '[data-ui-control="searchable-select"] > button',
   '.setup-filter-card input:not([type="hidden"])',
-  '.setup-filter-card select',
+  ".setup-filter-card select",
 ].join(",");
 
 type LayoutFailure = {
@@ -129,12 +130,18 @@ test("kontrol sorting, filter, dan tanggal tetap rapi pada seluruh route statis"
 
         const tightPairs: string[] = [];
         for (let index = 0; index < controls.length; index += 1) {
-          for (let nextIndex = index + 1; nextIndex < controls.length; nextIndex += 1) {
+          for (
+            let nextIndex = index + 1;
+            nextIndex < controls.length;
+            nextIndex += 1
+          ) {
             const first = controls[index];
             const second = controls[nextIndex];
             const verticalOverlap =
-              Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top);
-            if (verticalOverlap < Math.min(first.height, second.height) * 0.5) continue;
+              Math.min(first.bottom, second.bottom) -
+              Math.max(first.top, second.top);
+            if (verticalOverlap < Math.min(first.height, second.height) * 0.5)
+              continue;
 
             const horizontalGap =
               first.right <= second.left
@@ -143,22 +150,43 @@ test("kontrol sorting, filter, dan tanggal tetap rapi pada seluruh route statis"
                   ? first.left - second.right
                   : -1;
             if (horizontalGap >= 0 && horizontalGap < 8) {
-              tightPairs.push(`${first.label} <> ${second.label}: ${horizontalGap.toFixed(1)}px`);
+              tightPairs.push(
+                `${first.label} <> ${second.label}: ${horizontalGap.toFixed(1)}px`,
+              );
             }
           }
         }
+
+        const overflowingLabels = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            ".setup-filter-card label, .setup-filter-card [data-filter-label]",
+          ),
+        )
+          .filter((label) => {
+            const style = getComputedStyle(label);
+            const rect = label.getBoundingClientRect();
+            return (
+              style.display !== "none" &&
+              style.visibility !== "hidden" &&
+              rect.width > 0 &&
+              rect.height > 0
+            );
+          })
+          .filter((label) => label.scrollWidth > label.clientWidth + 1)
+          .map((label) => label.textContent?.trim() || label.id || "label");
 
         return {
           controls,
           documentClientWidth: viewportWidth,
           documentScrollWidth: document.documentElement.scrollWidth,
+          overflowingLabels,
           tightPairs,
         };
       }, CONTROL_SELECTOR);
 
       const invalidControls = layout.controls.filter(
         (control) =>
-          control.height < 40 ||
+          control.height < 44 ||
           control.left < -1 ||
           control.right > layout.documentClientWidth + 1 ||
           control.width <= 0,
@@ -182,15 +210,22 @@ test("kontrol sorting, filter, dan tanggal tetap rapi pada seluruh route statis"
           details: `Jarak antarkontrol kurang dari 8px: ${layout.tightPairs.join(", ")}`,
         });
       }
+      if (layout.overflowingLabels.length > 0) {
+        failures.push({
+          route,
+          details: `Label filter terpotong: ${layout.overflowingLabels.join(", ")}`,
+        });
+      }
 
       const popupTriggers = page.locator(
-        '[data-ui-control="date"] > button[aria-haspopup="dialog"], [data-ui-control="searchable-select"] > button[aria-haspopup="listbox"]',
+        '[data-ui-control="date"] > button[aria-haspopup="dialog"], [data-ui-control="month"] > button[aria-haspopup="dialog"], [data-ui-control="searchable-select"] > button[aria-haspopup="listbox"]',
       );
       const popupTriggerCount = await popupTriggers.count();
 
       for (let index = 0; index < popupTriggerCount; index += 1) {
         const trigger = popupTriggers.nth(index);
-        if (!(await trigger.isVisible()) || !(await trigger.isEnabled())) continue;
+        if (!(await trigger.isVisible()) || !(await trigger.isEnabled()))
+          continue;
 
         await trigger.scrollIntoViewIfNeeded();
         await trigger.click();
@@ -223,13 +258,44 @@ test("kontrol sorting, filter, dan tanggal tetap rapi pada seluruh route statis"
           });
         }
 
+        const temporalControl = await trigger.evaluate(
+          (element) =>
+            element.parentElement?.getAttribute("data-ui-control") === "date" ||
+            element.parentElement?.getAttribute("data-ui-control") === "month",
+        );
+        if (temporalControl) {
+          const undersizedButtons = await popup
+            .getByRole("button")
+            .evaluateAll((buttons) =>
+              buttons
+                .filter((button) => {
+                  const rect = button.getBoundingClientRect();
+                  return rect.width < 44 || rect.height < 44;
+                })
+                .map((button) => ({
+                  height: button.getBoundingClientRect().height,
+                  label:
+                    button.getAttribute("aria-label") ||
+                    button.textContent?.trim(),
+                  width: button.getBoundingClientRect().width,
+                })),
+            );
+          if (undersizedButtons.length > 0) {
+            failures.push({
+              route,
+              details: `Target sentuh kalender kurang dari 44px: ${JSON.stringify(undersizedButtons)}`,
+            });
+          }
+        }
+
         await page.keyboard.press("Escape");
         await expect(popup).toBeHidden();
       }
     } catch (error) {
       failures.push({
         route,
-        details: error instanceof Error ? error.message : "Route gagal diperiksa",
+        details:
+          error instanceof Error ? error.message : "Route gagal diperiksa",
       });
     }
 
@@ -248,7 +314,9 @@ test("kontrol sorting, filter, dan tanggal tetap rapi pada seluruh route statis"
 
   expect(
     failures,
-    failures.map((failure) => `${failure.route}: ${failure.details}`).join("\n"),
+    failures
+      .map((failure) => `${failure.route}: ${failure.details}`)
+      .join("\n"),
   ).toEqual([]);
 });
 
@@ -291,7 +359,8 @@ test("kontrol sorting dan filter pada detail debitur dinamis tetap di dalam view
         const rect = element.getBoundingClientRect();
         return {
           height: rect.height,
-          label: element.getAttribute("aria-label") || element.id || element.tagName,
+          label:
+            element.getAttribute("aria-label") || element.id || element.tagName,
           left: rect.left,
           right: rect.right,
         };
@@ -363,13 +432,128 @@ test("kontrol sorting dan filter pada detail debitur dinamis tetap di dalam view
   expect(
     layout.controls.filter(
       (control) =>
-        control.height < 40 ||
+        control.height < 44 ||
         control.left < -1 ||
-      control.right > layout.clientWidth + 1,
+        control.right > layout.clientWidth + 1,
     ),
   ).toEqual([]);
   expect(debtorDetailLayout.controlsFound).toBe(true);
   expect(debtorDetailLayout.gutter).toBeGreaterThanOrEqual(12);
   expect(debtorDetailLayout.incompleteRows).toEqual([]);
   expect(debtorDetailLayout.primaryDetailsAlignItems).toBe("flex-start");
+});
+
+test("tabel dan menu Aksi tetap terbaca pada desktop, tablet, dan mobile", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await login(page);
+
+  for (const route of [
+    "/dashboard/users",
+    "/dashboard/informasi-debitur/laporan-ideb",
+  ]) {
+    await page.goto(route, { waitUntil: "domcontentloaded" });
+    await expect(page.locator("main")).toBeVisible({ timeout: 15_000 });
+
+    const table = page.locator(".setup-responsive-table").first();
+    await expect(table).toBeVisible({ timeout: 15_000 });
+    const actionHeader = table.locator('th[data-table-action="true"]');
+    const actionCells = table.locator('td[data-table-action="true"]');
+    const actionTrigger = table
+      .locator('[data-setup-action-toggle="true"]')
+      .first();
+
+    await expect(actionHeader).toHaveText(/Aksi/i);
+    await expect(actionCells.first()).toBeVisible({ timeout: 15_000 });
+    await expect(actionTrigger).toBeVisible();
+    expect(await actionCells.count()).toBeGreaterThan(0);
+    const actionTriggerBox = await actionTrigger.boundingBox();
+    expect(actionTriggerBox?.width ?? 0).toBeGreaterThanOrEqual(44);
+    expect(actionTriggerBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+
+    const layout = await table.evaluate((element) => {
+      const scroll = element.closest(
+        ".setup-table-scroll",
+      ) as HTMLElement | null;
+      const header = element.querySelector<HTMLElement>(
+        'th[data-table-action="true"]',
+      );
+      const cell = element.querySelector<HTMLElement>(
+        'td[data-table-action="true"]',
+      );
+
+      return {
+        actionCellPosition: cell ? getComputedStyle(cell).position : null,
+        actionCellWidth: cell?.getBoundingClientRect().width ?? 0,
+        actionHeaderPosition: header ? getComputedStyle(header).position : null,
+        documentClientWidth: document.documentElement.clientWidth,
+        documentScrollWidth: document.documentElement.scrollWidth,
+        headDisplay: getComputedStyle(element.querySelector("thead")!).display,
+        scrollClientWidth: scroll?.clientWidth ?? 0,
+        scrollOverflowX: scroll ? getComputedStyle(scroll).overflowX : null,
+        scrollWidth: scroll?.scrollWidth ?? 0,
+        tableDisplay: getComputedStyle(element).display,
+        viewportWidth: window.innerWidth,
+      };
+    });
+
+    expect(layout.documentScrollWidth).toBeLessThanOrEqual(
+      layout.documentClientWidth + 1,
+    );
+    expect(layout.scrollOverflowX).toBe("auto");
+
+    if (layout.viewportWidth >= 1024) {
+      expect(layout.tableDisplay).toBe("table");
+      expect(layout.headDisplay).toBe("table-header-group");
+      expect(layout.actionHeaderPosition).toBe("sticky");
+      expect(layout.actionCellPosition).toBe("sticky");
+    } else {
+      expect(layout.tableDisplay).toBe("block");
+      expect(layout.headDisplay).toBe("none");
+      expect(layout.actionCellPosition).toBe("static");
+      expect(layout.actionCellWidth).toBeLessThanOrEqual(
+        layout.scrollClientWidth + 1,
+      );
+      expect(layout.scrollWidth).toBeLessThanOrEqual(
+        layout.scrollClientWidth + 1,
+      );
+    }
+
+    const dialogCountBeforeAction = await page.getByRole("dialog").count();
+    await actionTrigger.dblclick();
+    await expect(page.getByRole("dialog")).toHaveCount(dialogCountBeforeAction);
+
+    await actionTrigger.click();
+    const actionMenu = page.locator('[data-setup-action-menu="true"]');
+    await expect(actionMenu).toBeVisible();
+    const actionItems = actionMenu.getByRole("menuitem");
+    expect(await actionItems.count()).toBeGreaterThan(0);
+    const actionItemBoxes = await actionItems.evaluateAll((items) =>
+      items.map((item) => {
+        const rect = item.getBoundingClientRect();
+        return { height: rect.height, width: rect.width };
+      }),
+    );
+    expect(
+      actionItemBoxes.filter((box) => box.height < 44 || box.width < 44),
+    ).toEqual([]);
+    const menuLayout = await actionMenu.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        bottom: rect.bottom,
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        viewportHeight: window.innerHeight,
+        viewportWidth: window.innerWidth,
+      };
+    });
+    expect(menuLayout.left).toBeGreaterThanOrEqual(0);
+    expect(menuLayout.top).toBeGreaterThanOrEqual(0);
+    expect(menuLayout.right).toBeLessThanOrEqual(menuLayout.viewportWidth);
+    expect(menuLayout.bottom).toBeLessThanOrEqual(menuLayout.viewportHeight);
+    await page.keyboard.press("Escape");
+    await expect(actionMenu).toBeHidden();
+  }
 });

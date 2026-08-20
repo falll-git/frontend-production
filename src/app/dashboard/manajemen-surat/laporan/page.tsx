@@ -1,4 +1,5 @@
 import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
+import { Suspense } from "react";
 
 import { Mail } from "lucide-react";
 
@@ -18,7 +19,9 @@ export default function LaporanPersuratanPage() {
         icon={<Mail />}
       />
 
-      <LaporanPersuratanClient />
+      <Suspense fallback={null}>
+        <LaporanPersuratanClient />
+      </Suspense>
     </DashboardPageShell>
   );
 }

@@ -19,16 +19,11 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type ReactNode,
 } from "react";
 import {
   Eye,
-  FileBadge2,
   FileText,
-  MapPinned,
   Pencil,
-  ShieldCheck,
-  UserRound,
   Save,
   Trash2,
 } from "lucide-react";
@@ -54,6 +49,8 @@ import SetupActionMenu, {
 } from "@/components/ui/SetupActionMenu";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
+import SetupModalDetailLayout from "@/components/ui/SetupModalDetailLayout";
+import SetupRecordDetailSection from "@/components/ui/SetupRecordDetailSection";
 import {
   SETUP_PAGE_MODERN_CELL_CLASS,
   SETUP_PAGE_MODERN_CENTER_CELL_CLASS,
@@ -205,52 +202,6 @@ const getDocumentOwnerDivisionId = (doc: DokumenRow) =>
   doc.owner?.division_id ??
   "";
 
-type DetailInfoItemProps = {
-  label: string;
-  value?: ReactNode;
-  helper?: ReactNode;
-  className?: string;
-  align?: "start" | "center";
-};
-
-function DetailInfoItem({
-  label,
-  value = EMPTY_LABEL,
-  helper,
-  className = "",
-  align = "start",
-}: DetailInfoItemProps) {
-  return (
-    <div
-      className={`space-y-1 rounded-xl border border-gray-200 bg-white px-4 py-3 ${align === "center" ? "text-center" : ""} ${className}`.trim()}
-    >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-        {label}
-      </p>
-      <div className="text-sm font-semibold text-slate-900">{value}</div>
-      {helper ? <div className="text-xs text-slate-500">{helper}</div> : null}
-    </div>
-  );
-}
-
-function DetailKeyValueRow({
-  label,
-  children,
-  className = "",
-}: {
-  label: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`grid gap-2 border-b border-slate-100 py-3 last:border-b-0 md:grid-cols-[168px_minmax(0,1fr)] ${className}`.trim()}
-    >
-      <div className="text-sm font-medium text-slate-500">{label}</div>
-      <div className="text-sm text-slate-900">{children}</div>
-    </div>
-  );
-}
 export default function ListDokumenPage() {
   const { showToast } = useAppToast();
   const { openPreview } = useDocumentPreviewContext();
@@ -572,7 +523,7 @@ export default function ListDokumenPage() {
       showToast("Dokumen berhasil dihapus.", "success");
       setShowDetail(false);
       setShowDelete(false);
-      refreshWorkflowData();
+      void refreshWorkflowData({ force: true });
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : "Dokumen gagal dihapus.",
@@ -618,7 +569,7 @@ export default function ListDokumenPage() {
       setShowDetail(false);
       setEditFile(null);
       setEditDragOver(false);
-      refreshWorkflowData();
+      void refreshWorkflowData({ force: true });
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : "Dokumen gagal diperbarui.",
@@ -893,8 +844,7 @@ export default function ListDokumenPage() {
           description={selectedDoc.kode}
           onClose={() => setShowDetail(false)}
           maxWidth="5xl"
-          bodyClassName="max-h-[calc(90vh-164px)] overflow-y-auto p-6"
-          footerClassName="flex justify-end border-t border-gray-100 bg-gray-50 p-6"
+          bodyClassName="space-y-6 p-4 sm:p-5"
           footer={
             <button
               type="button"
@@ -905,250 +855,143 @@ export default function ListDokumenPage() {
             </button>
           }
         >
-          <div className="space-y-8">
-            <section className="space-y-4">
-              <InputDokumenSectionTitle
-                title="Informasi Dokumen"
-                description="Ringkasan identitas dokumen, file arsip, dan status watermark yang terpasang."
-              />
-              <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.9fr)]">
-                <div className="space-y-4 self-start rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                  <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
-                    <div className="space-y-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Identitas Dokumen
-                      </p>
-                      <div className="space-y-1">
-                        <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
-                          {selectedDoc.namaDokumen}
-                        </h3>
-                        <p className="text-base font-medium text-slate-500">
-                          {selectedDoc.kode}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <SetupStatusBadge status={selectedDoc.statusPinjam} />
+          <SetupModalDetailLayout
+            information={
+              <SetupRecordDetailSection
+                title="Informasi Utama"
+                description="Identitas, klasifikasi, status peminjaman, dan akses dokumen."
+                rows={[
+                  { label: "Nama Dokumen", value: selectedDoc.namaDokumen },
+                  { label: "Kode Dokumen", value: selectedDoc.kode },
+                  {
+                    label: "Status Peminjaman",
+                    value: <SetupStatusBadge status={selectedDoc.statusPinjam} />,
+                  },
+                  {
+                    label: "Akses",
+                    value: (
                       <SetupStatusBadge
                         status={selectedDoc.restrict ? "Restrict" : "Non-restrict"}
                         tone={selectedDoc.restrict ? "blue" : "slate"}
                       />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <DetailInfoItem
-                      label="Tanggal Input"
-                      value={formatDocumentDate(selectedDoc.tglInput)}
-                    />
-                    <DetailInfoItem
-                      label="User Input"
-                      value={formatPersonName(selectedDoc.userInput)}
-                    />
-                    <DetailInfoItem
-                      label="Jenis Dokumen"
-                      value={selectedDoc.jenisDokumen}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      Keterangan
-                    </p>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-700">
-                      {selectedDoc.detail || EMPTY_LABEL}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 self-start rounded-2xl border border-gray-200 bg-slate-50 p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm">
-                      <FileBadge2 className="size-5" strokeWidth={1.9} />
-                    </div>
-                    <div>
-                      <h4 className="text-lg font-semibold text-slate-950">
-                        File Dokumen
-                      </h4>
-                      <p className="text-sm text-slate-500">
-                        Dokumen arsip tetap single file pada modul ini.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-white p-4">
-                    {(() => {
-                      const isWatermarkActive = Boolean(
-                        selectedDoc.watermark?.applied ||
-                          selectedDoc.watermark?.status_key === "APPLIED" ||
-                          selectedDoc.watermark?.file_url,
-                      );
-
-                      return (
-                        <>
-                    <DetailKeyValueRow label="Nama File">
-                      <span className="font-medium text-slate-900">
-                        {selectedDoc.fileName || selectedDoc.namaDokumen || EMPTY_LABEL}
-                      </span>
-                    </DetailKeyValueRow>
-                    <DetailKeyValueRow label="Status Watermark">
-                      <SetupStatusBadge
-                        status={isWatermarkActive ? "Aktif" : "Nonaktif"}
-                        label={isWatermarkActive ? "Aktif" : "Nonaktif"}
-                        tone={isWatermarkActive ? "emerald" : "red"}
-                      />
-                    </DetailKeyValueRow>
-                        </>
-                      );
-                    })()}
-                  </div>
-
-                  <div className="flex items-center justify-end pt-1">
-                    <SetupViewButton
-                      onClick={() =>
-                        selectedDoc.fileUrl
-                          ? openPreview(
-                              selectedDoc.fileUrl,
-                              selectedDoc.fileName || selectedDoc.namaDokumen,
-                            )
-                          : undefined
-                      }
-                      disabled={!selectedDoc.fileUrl}
-                      label="Preview"
-                      title={
-                        selectedDoc.fileUrl
-                          ? "Preview dokumen"
-                          : "File dokumen belum tersedia"
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="space-y-4">
-              <InputDokumenSectionTitle
-                title="Kepemilikan dan Akses"
-                description="Informasi pemilik dokumen, pembuat arsip, dan user yang diberi akses langsung."
+                    ),
+                  },
+                  {
+                    label: "Tanggal Input",
+                    value: formatDocumentDate(selectedDoc.tglInput),
+                  },
+                  {
+                    label: "User Input",
+                    value: formatPersonName(selectedDoc.userInput),
+                  },
+                  { label: "Jenis Dokumen", value: selectedDoc.jenisDokumen },
+                  { label: "Keterangan", value: selectedDoc.detail || EMPTY_LABEL },
+                ]}
               />
-              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                  <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex items-center gap-2 text-slate-900">
-                      <UserRound className="size-4 text-sky-600" strokeWidth={1.9} />
-                      <p className="text-sm font-semibold">PIC / Pemilik Dokumen</p>
-                    </div>
-                    <p className="text-lg font-semibold text-slate-950">
-                      {getUserDisplayName(getDocumentOwner(selectedDoc))}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      {getUserMeta(getDocumentOwner(selectedDoc)) ||
-                        "Informasi kontak tidak tersedia."}
-                    </p>
-                  </div>
-                  <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex items-center gap-2 text-slate-900">
-                      <ShieldCheck className="size-4 text-emerald-600" strokeWidth={1.9} />
-                      <p className="text-sm font-semibold">Dibuat Oleh</p>
-                    </div>
-                    <p className="text-lg font-semibold text-slate-950">
-                      {getUserDisplayName(selectedDoc.creator)}
-                    </p>
-                    <p className="text-sm text-slate-500">
-                      {getUserMeta(selectedDoc.creator) ||
-                        "Informasi kontak tidak tersedia."}
-                    </p>
-                  </div>
-                </div>
+            }
+            details={
+              <div className="space-y-6">
 
-                <div className="mt-5 grid gap-4 md:grid-cols-2">
-                  <DetailInfoItem
-                    label="Divisi Pemilik"
-                    value={getDocumentOwnerDivision(selectedDoc)}
-                  />
-                  <DetailInfoItem
-                    label="User Terkait"
-                    value={
-                      selectedDoc.relatedUsers.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {selectedDoc.relatedUsers.map((item) => {
-                            const meta = getRelatedUserMeta(item);
-
-                            return (
-                              <span
-                                key={item.id}
-                                className="inline-flex max-w-full items-center gap-2 rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700"
-                              >
-                                <span className="truncate">
-                                  {getUserDisplayName(item)}
-                                </span>
-                                {meta ? (
-                                  <span className="truncate text-sky-600/80">
-                                    {meta}
-                                  </span>
-                                ) : null}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <span className="text-sm font-medium text-slate-500">
-                          Tidak ada user terkait.
+                <SetupRecordDetailSection
+                  title="Detail Kepemilikan dan Akses"
+                  description="PIC, pembuat, divisi, dan pengguna yang berelasi dengan dokumen."
+                  rows={[
+                    {
+                      label: "PIC / Pemilik",
+                      value: (
+                        <span>
+                          {getUserDisplayName(getDocumentOwner(selectedDoc))}
+                          {getUserMeta(getDocumentOwner(selectedDoc)) ? (
+                            <span className="mt-1 block text-xs font-normal text-gray-500">
+                              {getUserMeta(getDocumentOwner(selectedDoc))}
+                            </span>
+                          ) : null}
                         </span>
-                      )
-                    }
-                    className="md:col-span-2"
-                  />
-                </div>
-              </div>
-            </section>
+                      ),
+                    },
+                    {
+                      label: "Dibuat Oleh",
+                      value: (
+                        <span>
+                          {getUserDisplayName(selectedDoc.creator)}
+                          {getUserMeta(selectedDoc.creator) ? (
+                            <span className="mt-1 block text-xs font-normal text-gray-500">
+                              {getUserMeta(selectedDoc.creator)}
+                            </span>
+                          ) : null}
+                        </span>
+                      ),
+                    },
+                    {
+                      label: "Divisi Pemilik",
+                      value: getDocumentOwnerDivision(selectedDoc),
+                    },
+                    {
+                      label: "User Terkait",
+                      value:
+                        selectedDoc.relatedUsers.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {selectedDoc.relatedUsers.map((item) => {
+                              const meta = getRelatedUserMeta(item);
+                              return (
+                                <span
+                                  key={item.id}
+                                  className="inline-flex max-w-full items-center gap-2 rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700"
+                                >
+                                  <span className="truncate">{getUserDisplayName(item)}</span>
+                                  {meta ? (
+                                    <span className="truncate text-sky-600/80">{meta}</span>
+                                  ) : null}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <span className="font-medium text-gray-500">
+                            Tidak ada user terkait.
+                          </span>
+                        ),
+                    },
+                  ]}
+                />
 
-            <section className="space-y-4">
-              <InputDokumenSectionTitle
-                title="Lokasi Penyimpanan"
-                description="Lokasi fisik tempat dokumen ini disimpan dan ditelusuri."
-              />
-              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex items-center gap-2 text-slate-900">
-                    <MapPinned className="size-4 text-sky-600" strokeWidth={1.9} />
-                    <p className="text-sm font-semibold">Jalur Lokasi Dokumen</p>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-medium text-slate-700">
-                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
-                      {selectedDoc.officeName || EMPTY_LABEL}
-                    </span>
-                    <span className="text-slate-400">{">"}</span>
-                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
-                      {selectedDoc.cabinetCode || EMPTY_LABEL}
-                    </span>
-                    <span className="text-slate-400">{">"}</span>
-                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1">
-                      {selectedDoc.rackName || EMPTY_LABEL}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-5 grid gap-4 md:grid-cols-4">
-                  <DetailInfoItem
-                    label="Kode Kantor"
-                    value={selectedDoc.officeCode || EMPTY_LABEL}
-                  />
-                  <DetailInfoItem
-                    label="Kantor"
-                    value={selectedDoc.officeName || EMPTY_LABEL}
-                  />
-                  <DetailInfoItem
-                    label="Lemari"
-                    value={selectedDoc.cabinetCode || EMPTY_LABEL}
-                  />
-                  <DetailInfoItem
-                    label="Rak"
-                    value={selectedDoc.rackName || EMPTY_LABEL}
-                  />
-                </div>
-              </div>
-            </section>
+                <SetupRecordDetailSection
+                  title="Detail Lokasi Penyimpanan"
+                  description="Jalur penyimpanan fisik dokumen di kantor, lemari, dan rak."
+                  rows={[
+                    {
+                      label: "Jalur Lokasi",
+                      value:
+                        [
+                          selectedDoc.officeName,
+                          selectedDoc.cabinetCode,
+                          selectedDoc.rackName,
+                        ]
+                          .filter((value) => value && value !== EMPTY_LABEL)
+                          .join(" > ") || EMPTY_LABEL,
+                    },
+                    {
+                      label: "Kode Kantor",
+                      value: selectedDoc.officeCode || EMPTY_LABEL,
+                    },
+                    {
+                      label: "Kantor",
+                      value: selectedDoc.officeName || EMPTY_LABEL,
+                    },
+                    {
+                      label: "Lemari",
+                      value: selectedDoc.cabinetCode || EMPTY_LABEL,
+                    },
+                    {
+                      label: "Rak",
+                      value: selectedDoc.rackName || EMPTY_LABEL,
+                    },
+                    {
+                      label: "Lokasi",
+                      value: selectedDoc.locationLabel || EMPTY_LABEL,
+                    },
+                  ]}
+                />
 
             {historisPeminjaman.length > 0 ? (
               <section className="space-y-4">
@@ -1196,7 +1039,60 @@ export default function ListDokumenPage() {
                 </SetupTableCard>
               </section>
             ) : null}
-          </div>
+              </div>
+            }
+            attachments={
+              <SetupRecordDetailSection
+                title="Lampiran"
+                description="File digital dan status watermark yang terkait dengan dokumen."
+                rows={[
+                  {
+                    label: "Nama File",
+                    value:
+                      selectedDoc.fileName ||
+                      selectedDoc.namaDokumen ||
+                      EMPTY_LABEL,
+                  },
+                  {
+                    label: "Status Watermark",
+                    value: (
+                      <SetupStatusBadge
+                        status={
+                          selectedDoc.watermark?.applied ||
+                          selectedDoc.watermark?.status_key === "APPLIED" ||
+                          selectedDoc.watermark?.file_url
+                            ? "Aktif"
+                            : "Nonaktif"
+                        }
+                      />
+                    ),
+                  },
+                  {
+                    label: "Aksi",
+                    value: (
+                      <SetupViewButton
+                        onClick={() =>
+                          selectedDoc.fileUrl
+                            ? openPreview(
+                                selectedDoc.fileUrl,
+                                selectedDoc.fileName || selectedDoc.namaDokumen,
+                              )
+                            : undefined
+                        }
+                        disabled={!selectedDoc.fileUrl}
+                        label="Preview"
+                        title={
+                          selectedDoc.fileUrl
+                            ? "Preview dokumen"
+                            : "File dokumen belum tersedia"
+                        }
+                      />
+                    ),
+                  },
+                ]}
+              />
+            }
+          />
         </DashboardModal>
       ) : null}
 

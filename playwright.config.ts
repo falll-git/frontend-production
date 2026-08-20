@@ -149,6 +149,7 @@ const webServers = [
     stderr: "pipe" as const,
     env: {
       ...process.env,
+      E2E_ALLOW_INSECURE_LOOPBACK: "true",
       NODE_ENV: "production",
       PORT: String(resolveUrlPort(frontendTarget)),
     },
@@ -229,11 +230,30 @@ export default defineConfig({
     },
     {
       name: "authenticated-tablet",
-      testMatch: /filter-controls\.spec\.ts/,
+      testMatch:
+        /(?:dashboard|filter-controls|accessibility|route-accessibility|dynamic-route-accessibility)\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         userAgent: `${devices["Desktop Chrome"].userAgent} ${e2eUserAgentMarker}`,
         viewport: { width: 768, height: 1024 },
+      },
+    },
+    {
+      name: "cross-browser-firefox",
+      testMatch: /cross-browser-smoke\.spec\.ts/,
+      use: {
+        ...devices["Desktop Firefox"],
+        userAgent: `${devices["Desktop Firefox"].userAgent} ${e2eUserAgentMarker}`,
+        viewport: { width: 1440, height: 900 },
+      },
+    },
+    {
+      name: "cross-browser-webkit",
+      testMatch: /cross-browser-smoke\.spec\.ts/,
+      use: {
+        ...devices["Desktop Safari"],
+        userAgent: `${devices["Desktop Safari"].userAgent} ${e2eUserAgentMarker}`,
+        viewport: { width: 1440, height: 900 },
       },
     },
   ],

@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 import { login } from "./support/auth";
+import { assertViewportAccessibilityContract } from "./support/accessibility-contract";
 import { trackApiRateLimit } from "./support/rate-limit";
 import { discoverStaticDashboardRoutes } from "./support/routes";
 
@@ -47,6 +48,11 @@ test("seluruh route dashboard statis lulus accessibility otomatis", async ({
           })),
         });
       }
+
+      await assertViewportAccessibilityContract(
+        page,
+        testInfo.project.name.includes("mobile"),
+      );
     } catch (error) {
       failures.push({
         route,

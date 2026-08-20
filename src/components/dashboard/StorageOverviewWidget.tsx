@@ -525,7 +525,7 @@ export default function StorageOverviewWidget({
         <SetupStatusBadge status={data.usage.status_label} tone={statusTone} />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="grid items-start gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
         <div className="flex flex-col rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
           <div className="flex justify-center">
             <StorageProgressCircle

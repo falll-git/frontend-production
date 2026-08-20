@@ -12,7 +12,7 @@ type SetupPrimaryButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const SIZE_CLASS_MAP: Record<SetupPrimaryButtonSize, string> = {
   default: "h-11 px-4",
-  sm: "min-h-[36px] px-3 text-sm",
+  sm: "min-h-11 px-3 text-sm",
 };
 
 export default function SetupPrimaryButton({

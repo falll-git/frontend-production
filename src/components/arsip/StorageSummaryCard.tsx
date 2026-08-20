@@ -73,7 +73,7 @@ export default function StorageSummaryCard({
                 <button
                   type="button"
                   onClick={row.onClick}
-                  className="flex w-full items-center justify-between gap-4 px-4 py-3 text-sm transition-colors hover:bg-gray-100"
+                  className="flex min-h-11 w-full items-center justify-between gap-4 px-4 py-3 text-sm transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#157ec3]"
                 >
                   {content}
                 </button>
@@ -90,7 +90,7 @@ export default function StorageSummaryCard({
       <button
         type="button"
         onClick={onAction}
-        className="mt-6 flex w-full items-center justify-between rounded-lg px-3 py-2 font-semibold text-gray-900 transition-colors hover:bg-[rgba(21,126,195,0.06)]"
+        className="mt-6 flex min-h-11 w-full items-center justify-between rounded-lg px-3 py-2 font-semibold text-gray-900 transition-colors hover:bg-[rgba(21,126,195,0.06)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#157ec3] focus-visible:ring-offset-2"
       >
         <span className="text-sm">{actionLabel}</span>
         <ChevronRight className="h-5 w-5" aria-hidden="true" />

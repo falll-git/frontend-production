@@ -93,9 +93,12 @@ export default function DashboardModal({
         aria-label={ariaLabel ?? title}
         tabIndex={-1}
       >
-        <header className="dashboard-modal__header flex shrink-0 items-start justify-between gap-4 border-b border-gray-100 p-4 sm:p-5">
-          <div className="min-w-0">
-            <h2 className="break-words text-lg font-bold text-gray-900 sm:text-xl">{title}</h2>
+        <header
+          data-modal-detail-part="header"
+          className="dashboard-modal__header flex shrink-0 items-start justify-between gap-4 border-b border-gray-100 p-4 sm:p-5"
+        >
+          <div className="min-w-0 max-w-full">
+            <h2 className="max-w-full whitespace-normal break-words text-lg font-bold text-gray-900 sm:text-xl">{title}</h2>
             {description ? (
               <p className="mt-1 text-sm leading-6 text-gray-500">
                 {description}
@@ -113,7 +116,7 @@ export default function DashboardModal({
           </div>
         </header>
 
-        <div className={`dashboard-modal__body min-h-0 flex-1 overflow-y-auto ${bodyClassName}`}>
+        <div className={`dashboard-modal__body min-h-0 min-w-0 max-w-full flex-1 overflow-y-auto ${bodyClassName}`}>
           {children}
         </div>
 

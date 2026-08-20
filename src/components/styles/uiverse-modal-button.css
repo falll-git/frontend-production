@@ -10,7 +10,7 @@
   justify-content: center;
   gap: 8px;
   overflow: hidden;
-  min-height: 42px;
+  min-height: 44px;
   padding: 9px 16px;
   text-align: center;
   font-size: 14px;
@@ -100,7 +100,7 @@
 }
 
 .watermark-type-button {
-  min-height: 42px;
+  min-height: 44px;
   padding: 9px 16px;
 }
 
@@ -114,9 +114,9 @@
 }
 
 .uiverse-modal-button--icon {
-  width: 40px;
-  height: 40px;
-  min-height: 40px;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
   padding: 0;
   gap: 0;
 }

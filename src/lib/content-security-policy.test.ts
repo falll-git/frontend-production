@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildContentSecurityPolicy } from "./content-security-policy";
+import {
+  buildContentSecurityPolicy,
+  shouldUseDevelopmentCsp,
+} from "./content-security-policy";
 
 describe("buildContentSecurityPolicy", () => {
   it("uses a nonce and strict-dynamic without unsafe-inline for scripts", () => {
@@ -26,5 +29,41 @@ describe("buildContentSecurityPolicy", () => {
     expect(production).not.toContain("'unsafe-eval'");
     expect(development).toContain("'unsafe-eval'");
     expect(development).not.toContain("upgrade-insecure-requests");
+  });
+});
+
+describe("shouldUseDevelopmentCsp", () => {
+  it("mengizinkan HTTP hanya untuk test loopback yang diminta eksplisit", () => {
+    expect(
+      shouldUseDevelopmentCsp({
+        allowInsecureLoopback: "true",
+        hostname: "127.0.0.1",
+        nodeEnvironment: "production",
+      }),
+    ).toBe(true);
+    expect(
+      shouldUseDevelopmentCsp({
+        allowInsecureLoopback: "true",
+        hostname: "localhost",
+        nodeEnvironment: "production",
+      }),
+    ).toBe(true);
+  });
+
+  it("tidak dapat menurunkan CSP production pada host non-loopback", () => {
+    expect(
+      shouldUseDevelopmentCsp({
+        allowInsecureLoopback: "true",
+        hostname: "demo.ruwangarsip.com",
+        nodeEnvironment: "production",
+      }),
+    ).toBe(false);
+    expect(
+      shouldUseDevelopmentCsp({
+        allowInsecureLoopback: "false",
+        hostname: "localhost",
+        nodeEnvironment: "production",
+      }),
+    ).toBe(false);
   });
 });

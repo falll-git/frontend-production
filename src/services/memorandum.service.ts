@@ -1,8 +1,5 @@
 import api from "@/lib/axios";
-import {
-  deriveDocumentFileName,
-  toPreviewableFileUrl,
-} from "@/lib/utils/file";
+import { deriveDocumentFileName, toPreviewableFileUrl } from "@/lib/utils/file";
 import {
   extractPaginationMeta,
   extractList,
@@ -12,7 +9,10 @@ import {
   readString,
   toMultipartFormData,
 } from "@/services/api.utils";
-import { MAX_TABLE_PAGE_SIZE, OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import {
+  MAX_TABLE_PAGE_SIZE,
+  OPERATIONAL_TABLE_PAGE_SIZE,
+} from "@/lib/pagination";
 import { mapWatermarkFileMeta } from "@/services/watermark.service";
 import {
   readPhysicalStorage,
@@ -78,16 +78,9 @@ function readTargetManagerIds(
   return [...new Set(managerIds)];
 }
 
-function readReceivers(record: UnknownRecord): string[] {
-  const currentHolderNames = Array.isArray(record.current_holder_names)
-    ? record.current_holder_names.filter(
-        (item): item is string => typeof item === "string" && item.trim().length > 0,
-      )
-    : null;
-
-  if (currentHolderNames && currentHolderNames.length > 0) {
-    return currentHolderNames;
-  }
+function readInitialRecipients(record: UnknownRecord): string[] {
+  const explicitNames = readStringArray(record.initial_recipient_names);
+  if (explicitNames.length > 0) return [...new Set(explicitNames)];
 
   const source = Array.isArray(record.dispositions)
     ? record.dispositions
@@ -102,6 +95,10 @@ function readReceivers(record: UnknownRecord): string[] {
       source
         .map((item) => asRecord(item))
         .filter((item): item is UnknownRecord => item !== null)
+        .filter(
+          (item) =>
+            !readString(item, "parent_disposition_id", "parentDispositionId"),
+        )
         .map((item) => {
           const receiverRecord = asRecord(item.receiver);
           return (
@@ -163,109 +160,105 @@ function readDispositionHistory(record: UnknownRecord): MemorandumDisposisi[] {
   if (!source) return [];
 
   return source.reduce<MemorandumDisposisi[]>((items, item, index) => {
-      const normalized = asRecord(item);
-      if (!normalized) return items;
+    const normalized = asRecord(item);
+    if (!normalized) return items;
 
-      const senderRecord = asRecord(normalized.sender);
-      const receiverRecord = asRecord(normalized.receiver);
-      const senderId = readString(normalized, "sender_id", "senderId") ?? "";
-      const receiverId =
-        readString(normalized, "receiver_id", "receiverId") ?? "";
-      const statusKey = (
+    const senderRecord = asRecord(normalized.sender);
+    const receiverRecord = asRecord(normalized.receiver);
+    const senderId = readString(normalized, "sender_id", "senderId") ?? "";
+    const receiverId =
+      readString(normalized, "receiver_id", "receiverId") ?? "";
+    const statusKey = (
+      readString(normalized, "status_key", "statusKey", "status") ?? ""
+    ).toUpperCase();
+
+    items.push({
+      id: readString(normalized, "id") ?? `memo-disp-${index + 1}`,
+      memorandum_id:
         readString(
           normalized,
-          "status_key",
-          "statusKey",
-          "status",
-        ) ?? ""
-      ).toUpperCase();
-
-      items.push({
-        id: readString(normalized, "id") ?? `memo-disp-${index + 1}`,
-        memorandum_id:
-          readString(
-            normalized,
-            "memorandums_id",
-            "memorandum_id",
-            "memorandumId",
-          ) ?? "",
-        dari_user_id: senderId,
-        dari_user_nama:
-          readString(normalized, "sender_name", "senderName") ??
-          (senderRecord
-            ? readString(senderRecord, "name", "username")
-            : null) ??
-          senderId ??
-          "-",
-        ke_user_id: receiverId,
-        ke_user_nama:
-          readString(normalized, "receiver_name", "receiverName") ??
-          (receiverRecord
-            ? readString(receiverRecord, "name", "username")
-            : null) ??
-          receiverId ??
-          "-",
-        catatan: readNullableString(normalized, "note", "catatan") ?? null,
-        created_at:
-          readString(
-            normalized,
-            "disposed_at",
-            "created_at",
-            "createdAt",
-            "start_date",
-            "startDate",
-          ) ?? "",
-        disposed_at:
-          readNullableString(normalized, "disposed_at", "created_at", "createdAt") ??
-          null,
-        start_date:
-          readNullableString(normalized, "start_date", "startDate") ?? null,
-        due_date:
-          readNullableString(normalized, "due_date", "dueDate") ?? null,
-        completed_at:
-          readNullableString(normalized, "completed_at", "completedAt") ?? null,
-        parent_disposition_id:
+          "memorandums_id",
+          "memorandum_id",
+          "memorandumId",
+        ) ?? "",
+      dari_user_id: senderId,
+      dari_user_nama:
+        readString(normalized, "sender_name", "senderName") ??
+        (senderRecord ? readString(senderRecord, "name", "username") : null) ??
+        senderId ??
+        "-",
+      ke_user_id: receiverId,
+      ke_user_nama:
+        readString(normalized, "receiver_name", "receiverName") ??
+        (receiverRecord
+          ? readString(receiverRecord, "name", "username")
+          : null) ??
+        receiverId ??
+        "-",
+      catatan: readNullableString(normalized, "note", "catatan") ?? null,
+      created_at:
+        readString(
+          normalized,
+          "disposed_at",
+          "created_at",
+          "createdAt",
+          "start_date",
+          "startDate",
+        ) ?? "",
+      disposed_at:
+        readNullableString(
+          normalized,
+          "disposed_at",
+          "created_at",
+          "createdAt",
+        ) ?? null,
+      start_date:
+        readNullableString(normalized, "start_date", "startDate") ?? null,
+      due_date: readNullableString(normalized, "due_date", "dueDate") ?? null,
+      completed_at:
+        readNullableString(normalized, "completed_at", "completedAt") ?? null,
+      parent_disposition_id:
+        readNullableString(
+          normalized,
+          "parent_disposition_id",
+          "parentDispositionId",
+        ) ?? null,
+      status:
+        statusKey === "IN_PROGRESS" ||
+        statusKey === "COMPLETED" ||
+        statusKey === "FORWARDED"
+          ? statusKey
+          : "NEW",
+      status_key:
+        statusKey === "IN_PROGRESS" ||
+        statusKey === "COMPLETED" ||
+        statusKey === "FORWARDED"
+          ? statusKey
+          : "NEW",
+      status_label:
+        readString(normalized, "status_label", "statusLabel") || "Baru",
+      sequence: readNumber(normalized, "sequence") ?? index + 1,
+      is_current: Boolean(normalized.is_current),
+      timeline_label:
+        readString(normalized, "timeline_label", "timelineLabel") ||
+        `${readString(normalized, "sender_name", "senderName") || "-"} -> ${readString(normalized, "receiver_name", "receiverName") || "-"}`,
+      is_disposisi_ulang:
+        Boolean(normalized.is_disposisi_ulang) ||
+        Boolean(
           readNullableString(
             normalized,
             "parent_disposition_id",
             "parentDispositionId",
-          ) ?? null,
-        status:
-          statusKey === "IN_PROGRESS" ||
-          statusKey === "COMPLETED" ||
-          statusKey === "FORWARDED"
-            ? statusKey
-            : "NEW",
-        status_key:
-          statusKey === "IN_PROGRESS" ||
-          statusKey === "COMPLETED" ||
-          statusKey === "FORWARDED"
-            ? statusKey
-            : "NEW",
-        status_label:
-          readString(normalized, "status_label", "statusLabel") || "Baru",
-        sequence: readNumber(normalized, "sequence") ?? index + 1,
-        is_current: Boolean(normalized.is_current),
-        timeline_label:
-          readString(normalized, "timeline_label", "timelineLabel") ||
-          `${readString(normalized, "sender_name", "senderName") || "-"} -> ${readString(normalized, "receiver_name", "receiverName") || "-"}`,
-        is_disposisi_ulang:
-          Boolean(normalized.is_disposisi_ulang) ||
-          Boolean(
-            readNullableString(
-              normalized,
-              "parent_disposition_id",
-              "parentDispositionId",
-            ),
-          ) ||
-          index > 0,
-        can_start: Boolean(normalized.can_start),
-        can_complete: Boolean(normalized.can_complete),
-        can_redispose: Boolean(normalized.can_redispose),
-      });
+          ),
+        ) ||
+        index > 0,
+      can_start: Boolean(normalized.can_start),
+      can_complete: Boolean(normalized.can_complete),
+      can_redispose: Boolean(normalized.can_redispose),
+    });
 
-      return items;
-    }, []);
+    return items;
+  }, []);
 }
 
 function mapAssignableUserRecord(record: UnknownRecord): SuratUser | null {
@@ -277,7 +270,13 @@ function mapAssignableUserRecord(record: UnknownRecord): SuratUser | null {
     (roleRecord ? readString(roleRecord, "name", "label") : null) ?? "";
   const divisionName =
     (divisionRecord ? readString(divisionRecord, "name", "label") : null) ??
-    readString(record, "division_name", "divisionName", "division_id", "divisionId") ??
+    readString(
+      record,
+      "division_name",
+      "divisionName",
+      "division_id",
+      "divisionId",
+    ) ??
     "-";
 
   if (!id || !name) return null;
@@ -363,23 +362,25 @@ export function mapMemorandumRecord(
     perihal: regarding,
     divisiAsal:
       readString(record, "origin_division_name", "originDivisionName") ??
-      (originDivisionRecord ? readString(originDivisionRecord, "name") : null) ??
+      (originDivisionRecord
+        ? readString(originDivisionRecord, "name")
+        : null) ??
       readString(record, "division_name", "divisionName") ??
-      (legacyDivisionRecord ? readString(legacyDivisionRecord, "name") : null) ??
+      (legacyDivisionRecord
+        ? readString(legacyDivisionRecord, "name")
+        : null) ??
       readString(record, "origin_division_id", "originDivisionId") ??
       "-",
     divisiTujuanAwal: targetDivisionNames,
     pembuatMemo:
       readString(record, "sender_name", "senderName", "created_by_name") ??
-      (creatorRecord
-        ? readString(creatorRecord, "name", "username")
-        : null) ??
+      (creatorRecord ? readString(creatorRecord, "name", "username") : null) ??
       readString(record, "created_by", "createdBy") ??
       "-",
     tanggal: memoDate,
     keterangan: readString(record, "description") ?? "",
     penerimaTipe: "perorangan",
-    penerima: readReceivers(record),
+    penerima: readInitialRecipients(record),
     fileName: fallbackFileName,
     fileUrl: previewableFileUrl,
     watermark: mapWatermarkFileMeta(record.watermark),
@@ -394,9 +395,13 @@ export function mapMemorandumRecord(
       readString(record, "origin_division_id", "originDivisionId") ?? undefined,
     originDivisionName:
       readString(record, "origin_division_name", "originDivisionName") ??
-      (originDivisionRecord ? readString(originDivisionRecord, "name") : null) ??
+      (originDivisionRecord
+        ? readString(originDivisionRecord, "name")
+        : null) ??
       readString(record, "division_name", "divisionName") ??
-      (legacyDivisionRecord ? readString(legacyDivisionRecord, "name") : null) ??
+      (legacyDivisionRecord
+        ? readString(legacyDivisionRecord, "name")
+        : null) ??
       undefined,
     receivedDate:
       readNullableString(record, "received_date", "receivedDate") ?? undefined,
@@ -411,15 +416,21 @@ export function mapMemorandumRecord(
       undefined,
     creatorDivisionId:
       readString(record, "creator_division_id", "creatorDivisionId") ??
-      (creatorRecord ? readString(creatorRecord, "division_id", "divisionId") : null) ??
+      (creatorRecord
+        ? readString(creatorRecord, "division_id", "divisionId")
+        : null) ??
       undefined,
     disposisi_history: dispositions,
+    initial_recipient_names: readInitialRecipients(record),
     current_holders: currentHolders,
     current_holder_names:
       currentHolders.map((item) => item.name).filter(Boolean) || [],
     active_dispositions_count:
-      readNumber(record, "active_dispositions_count", "activeDispositionsCount") ??
-      currentHolders.length,
+      readNumber(
+        record,
+        "active_dispositions_count",
+        "activeDispositionsCount",
+      ) ?? currentHolders.length,
     last_holder: lastHolder,
     last_holder_name:
       readNullableString(record, "last_holder_name", "lastHolderName") ??
@@ -464,6 +475,11 @@ async function getMemorandumsPage({
 
 export const memorandumService = {
   getPage: getMemorandumsPage,
+  getById: async (id: string): Promise<Memorandum | null> => {
+    const res = await api.get(`/memorandums/${id}`);
+    const record = extractRecord(res.data);
+    return record ? mapMemorandumRecord(record) : null;
+  },
   getAll: async (): Promise<Memorandum[]> => {
     const first = await getMemorandumsPage({
       page: 1,

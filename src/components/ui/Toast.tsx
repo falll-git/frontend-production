@@ -138,7 +138,7 @@ function ToastItemComponent({
           onClick={closeToast}
           aria-label="Tutup notifikasi"
           className={[
-            "-mr-1 -mt-1 rounded-md p-1 transition-colors",
+            "-mr-2 -mt-2 inline-flex size-11 shrink-0 items-center justify-center rounded-md transition-colors",
             "text-slate-400 hover:bg-white/70 hover:text-slate-700",
           ].join(" ")}
         >

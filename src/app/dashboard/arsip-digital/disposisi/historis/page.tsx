@@ -123,13 +123,20 @@ function DetailInfoItem({
 }: DetailInfoItemProps) {
   return (
     <div
-      className={`space-y-1 rounded-xl border border-gray-200 bg-white px-4 py-3 ${className}`.trim()}
+      data-ui="modal-definition-cell"
+      className={`min-w-0 bg-white px-4 py-3.5 sm:px-5 ${className}`.trim()}
     >
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
         {label}
       </p>
-      <div className="text-sm font-semibold text-slate-900">{value}</div>
-      {helper ? <div className="text-xs text-slate-500">{helper}</div> : null}
+      <div className="mt-1.5 min-w-0 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-slate-900">
+        {value}
+      </div>
+      {helper ? (
+        <div className="mt-1 min-w-0 break-words text-xs leading-5 text-slate-500">
+          {helper}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -256,18 +263,14 @@ export default function HistorisDisposisiPage() {
     resetPage,
   } = useClientPagination(data, OPERATIONAL_TABLE_PAGE_SIZE);
 
-  const canViewSelectedDocument =
-    Boolean(
-      selectedItem &&
-        selectedItem.statusKey === "APPROVED" &&
-        selectedItem.canViewDocument &&
-        selectedItem.document?.fileUrl,
-    );
-  const canUpdateHistorisDisposisi = hasCapability(menuUrl, "update");
-  const canRevokeHistorisDisposisi = hasFeature(
-    menuUrl,
-    REVOKE_ACCESS_FEATURE,
+  const canViewSelectedDocument = Boolean(
+    selectedItem &&
+    selectedItem.statusKey === "APPROVED" &&
+    selectedItem.canViewDocument &&
+    selectedItem.document?.fileUrl,
   );
+  const canUpdateHistorisDisposisi = hasCapability(menuUrl, "update");
+  const canRevokeHistorisDisposisi = hasFeature(menuUrl, REVOKE_ACCESS_FEATURE);
   const canRevokeAccess = (item: Disposisi) =>
     canUpdateHistorisDisposisi &&
     canRevokeHistorisDisposisi &&
@@ -331,12 +334,14 @@ export default function HistorisDisposisiPage() {
       <div className={`${SETUP_PAGE_SEARCH_CARD_CLASS} mb-8`}>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-3">
-            <span className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Cakupan Laporan</span>
+            <span className={SETUP_PAGE_SEARCH_LABEL_CLASS}>
+              Cakupan Laporan
+            </span>
             <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
               <button
                 type="button"
                 onClick={() => setReportScope("my")}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                className={`inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                   reportScope === "my"
                     ? "bg-[#0d5a8f] text-white shadow-sm"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -347,7 +352,7 @@ export default function HistorisDisposisiPage() {
               <button
                 type="button"
                 onClick={() => setReportScope("all")}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                className={`inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                   reportScope === "all"
                     ? "bg-[#0d5a8f] text-white shadow-sm"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -362,16 +367,18 @@ export default function HistorisDisposisiPage() {
             <div className="flex flex-wrap items-center gap-3">
               <span className={SETUP_PAGE_SEARCH_LABEL_CLASS}>Filter Saya</span>
               <div className="inline-flex flex-wrap rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
-                {([
-                  ["all", "Semua"],
-                  ["requested", "Permohonan"],
-                  ["approved", "Persetujuan"],
-                ] as const).map(([key, label]) => (
+                {(
+                  [
+                    ["all", "Semua"],
+                    ["requested", "Permohonan"],
+                    ["approved", "Persetujuan"],
+                  ] as const
+                ).map(([key, label]) => (
                   <button
                     key={key}
                     type="button"
                     onClick={() => setMyReportFilter(key)}
-                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    className={`inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                       myReportFilter === key
                         ? "bg-[#0d5a8f] text-white shadow-sm"
                         : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -392,7 +399,9 @@ export default function HistorisDisposisiPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Total Riwayat
             </p>
-            <p className="mt-1 text-2xl font-semibold text-gray-900">{data.length}</p>
+            <p className="mt-1 text-2xl font-semibold text-gray-900">
+              {data.length}
+            </p>
           </div>
           <History className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
@@ -401,7 +410,9 @@ export default function HistorisDisposisiPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Disetujui
             </p>
-            <p className="mt-1 text-2xl font-semibold text-gray-900">{totalApproved}</p>
+            <p className="mt-1 text-2xl font-semibold text-gray-900">
+              {totalApproved}
+            </p>
           </div>
           <CheckCircle2 className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
@@ -410,145 +421,207 @@ export default function HistorisDisposisiPage() {
             <p className="text-sm font-semibold uppercase tracking-[0.08em] text-gray-500">
               Ditolak
             </p>
-            <p className="mt-1 text-2xl font-semibold text-gray-900">{totalRejected}</p>
+            <p className="mt-1 text-2xl font-semibold text-gray-900">
+              {totalRejected}
+            </p>
           </div>
           <XCircle className="h-7 w-7 text-slate-900" aria-hidden="true" />
         </div>
       </div>
 
       <SetupTableCard variant="workflow">
-          <SetupDataTable variant="workflow" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
-            <SetupDataTableColGroup>
-              {HISTORIS_DISPOSISI_TABLE_COLUMN_WIDTHS.map((width, index) => (
-                <SetupDataTableCol
-                  key={`${index}-${width ?? "flex"}`}
-                  style={width ? { width } : undefined}
-                />
-              ))}
-            </SetupDataTableColGroup>
-            <SetupDataTableHead className="ltr:text-left rtl:text-right">
-              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Kode</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Nama Dokumen</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
-                  {reportScope === "my" && myReportFilter === "requested"
-                    ? "Pemilik"
-                    : "Pemohon"}
-                </SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Tgl Pengajuan</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Tgl Aksi</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Status</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
-              </SetupDataTableRow>
-            </SetupDataTableHead>
-            <SetupDataTableBody className="divide-y divide-gray-200">
-              {paginatedData.map((item, idx) => {
-                const relatedUser =
-                  reportScope === "my" && myReportFilter === "requested"
-                    ? item.pemilik
-                    : item.pemohon;
+        <SetupDataTable
+          variant="workflow"
+          density="compact"
+          className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}
+        >
+          <SetupDataTableColGroup>
+            {HISTORIS_DISPOSISI_TABLE_COLUMN_WIDTHS.map((width, index) => (
+              <SetupDataTableCol
+                key={`${index}-${width ?? "flex"}`}
+                style={width ? { width } : undefined}
+              />
+            ))}
+          </SetupDataTableColGroup>
+          <SetupDataTableHead className="ltr:text-left rtl:text-right">
+            <SetupDataTableRow
+              className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}
+            >
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}
+              >
+                No
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}
+              >
+                Kode
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}
+              >
+                Nama Dokumen
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}
+              >
+                {reportScope === "my" && myReportFilter === "requested"
+                  ? "Pemilik"
+                  : "Pemohon"}
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}
+              >
+                Tgl Pengajuan
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}
+              >
+                Tgl Aksi
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}
+              >
+                Status
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}
+              >
+                Aksi
+              </SetupDataTableHeaderCell>
+            </SetupDataTableRow>
+          </SetupDataTableHead>
+          <SetupDataTableBody className="divide-y divide-gray-200">
+            {paginatedData.map((item, idx) => {
+              const relatedUser =
+                reportScope === "my" && myReportFilter === "requested"
+                  ? item.pemilik
+                  : item.pemohon;
 
-                return (
-                  <SetupDataTableRow
-                    key={item.id}
-                    onDoubleClick={() => setSelectedItem(item)}
-                    className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer hover:bg-gray-50`}
-                  >
-                    <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                      {(paginationMeta.page - 1) * paginationMeta.limit + idx + 1}
-                    </SetupDataTableCell>
-                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
-                      <span
-                        className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 tabular-nums"
-                        title={item.document?.kode ?? "-"}
-                      >
-                        {item.document?.kode ?? "-"}
-                      </span>
-                    </SetupDataTableCell>
-                    <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}>
-                      <span className="block truncate" title={item.document?.namaDokumen ?? "-"}>
-                        {item.document?.namaDokumen ?? "-"}
-                      </span>
-                    </SetupDataTableCell>
-                    <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}>
-                      <span className="block truncate" title={formatPersonName(relatedUser || "-")}>
-                        {formatPersonName(relatedUser || "-")}
-                      </span>
-                    </SetupDataTableCell>
-                    <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
-                      <span className="block truncate tabular-nums" title={formatDateOnly(item.tglPengajuan)}>
-                        {formatDateOnly(item.tglPengajuan)}
-                      </span>
-                    </SetupDataTableCell>
-                    <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
-                      <span className="block truncate tabular-nums" title={item.tglAksi ? formatDateOnly(item.tglAksi) : "-"}>
-                        {item.tglAksi ? formatDateOnly(item.tglAksi) : "-"}
-                      </span>
-                    </SetupDataTableCell>
-                    <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                      <SetupStatusBadge
-                        status={getDisposisiStatusLabel(item.statusKey)}
-                      />
-                    </SetupDataTableCell>
-                    <SetupDataTableCell
-                      className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
-                      onClick={(event) => event.stopPropagation()}
-                      onDoubleClick={(event) => event.stopPropagation()}
-                    >
-                      <SetupActionMenu
-                        items={[
-                          {
-                            key: "detail",
-                            label: "Detail",
-                            icon: Eye,
-                            tone: "blue",
-                            onClick: () => setSelectedItem(item),
-                          },
-                          ...(canRevokeAccess(item)
-                            ? [
-                                {
-                                  key: "revoke",
-                                  label: "Cabut Akses",
-                                  icon: XCircle,
-                                  tone: "red" as const,
-                                  disabled: isRevokingAccess,
-                                  onClick: () => handleRevokeAccess(item),
-                                },
-                              ]
-                            : []),
-                        ]}
-                        label={`Buka aksi untuk disposisi ${item.document?.kode ?? item.id}`}
-                        menuLabel={`Aksi disposisi ${item.document?.kode ?? item.id}`}
-                      />
-                    </SetupDataTableCell>
-                  </SetupDataTableRow>
-                );
-              })}
-              {data.length === 0 ? (
-                <SetupDataTableEmptyRow
-                  colSpan={8}
-                  icon={History}
-                  tone="neutral"
-                  isFiltered={
-                    reportScope !== "all" ||
-                    myReportFilter !== "all" ||
-                    Boolean(filterKantorId) ||
-                    Boolean(filterLemariId)
-                  }
-                  description={
-                    isLoadingHistory
-                      ? undefined
-                      : "Riwayat tindak lanjut disposisi arsip akan tampil di sini."
-                  }
+              return (
+                <SetupDataTableRow
+                  key={item.id}
+                  onDoubleClick={() => setSelectedItem(item)}
+                  className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer hover:bg-gray-50`}
                 >
-                  {isLoadingHistory
-                    ? "Memuat riwayat disposisi..."
-                    : "Belum ada riwayat disposisi pada tab ini."}
-                </SetupDataTableEmptyRow>
-              ) : null}
-            </SetupDataTableBody>
-          </SetupDataTable>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}
+                  >
+                    {(paginationMeta.page - 1) * paginationMeta.limit + idx + 1}
+                  </SetupDataTableCell>
+                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                    <span
+                      className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 tabular-nums"
+                      title={item.document?.kode ?? "-"}
+                    >
+                      {item.document?.kode ?? "-"}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell
+                    className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}
+                  >
+                    <span
+                      className="block truncate"
+                      title={item.document?.namaDokumen ?? "-"}
+                    >
+                      {item.document?.namaDokumen ?? "-"}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell
+                    className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}
+                  >
+                    <span
+                      className="block truncate"
+                      title={formatPersonName(relatedUser || "-")}
+                    >
+                      {formatPersonName(relatedUser || "-")}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell
+                    className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}
+                  >
+                    <span
+                      className="block truncate tabular-nums"
+                      title={formatDateOnly(item.tglPengajuan)}
+                    >
+                      {formatDateOnly(item.tglPengajuan)}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell
+                    className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}
+                  >
+                    <span
+                      className="block truncate tabular-nums"
+                      title={item.tglAksi ? formatDateOnly(item.tglAksi) : "-"}
+                    >
+                      {item.tglAksi ? formatDateOnly(item.tglAksi) : "-"}
+                    </span>
+                  </SetupDataTableCell>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                  >
+                    <SetupStatusBadge
+                      status={getDisposisiStatusLabel(item.statusKey)}
+                    />
+                  </SetupDataTableCell>
+                  <SetupDataTableCell
+                    className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                    onClick={(event) => event.stopPropagation()}
+                    onDoubleClick={(event) => event.stopPropagation()}
+                  >
+                    <SetupActionMenu
+                      items={[
+                        {
+                          key: "detail",
+                          label: "Detail",
+                          icon: Eye,
+                          tone: "blue",
+                          onClick: () => setSelectedItem(item),
+                        },
+                        ...(canRevokeAccess(item)
+                          ? [
+                              {
+                                key: "revoke",
+                                label: "Cabut Akses",
+                                icon: XCircle,
+                                tone: "red" as const,
+                                disabled: isRevokingAccess,
+                                onClick: () => handleRevokeAccess(item),
+                              },
+                            ]
+                          : []),
+                      ]}
+                      label={`Buka aksi untuk disposisi ${item.document?.kode ?? item.id}`}
+                      menuLabel={`Aksi disposisi ${item.document?.kode ?? item.id}`}
+                    />
+                  </SetupDataTableCell>
+                </SetupDataTableRow>
+              );
+            })}
+            {data.length === 0 ? (
+              <SetupDataTableEmptyRow
+                colSpan={8}
+                icon={History}
+                tone="neutral"
+                isFiltered={
+                  reportScope !== "all" ||
+                  myReportFilter !== "all" ||
+                  Boolean(filterKantorId) ||
+                  Boolean(filterLemariId)
+                }
+                description={
+                  isLoadingHistory
+                    ? undefined
+                    : "Riwayat tindak lanjut disposisi arsip akan tampil di sini."
+                }
+              >
+                {isLoadingHistory
+                  ? "Memuat riwayat disposisi..."
+                  : "Belum ada riwayat disposisi pada tab ini."}
+              </SetupDataTableEmptyRow>
+            ) : null}
+          </SetupDataTableBody>
+        </SetupDataTable>
         <Pagination
           page={paginationMeta.page}
           lastPage={paginationMeta.lastPage}
@@ -584,7 +657,7 @@ export default function HistorisDisposisiPage() {
                 description="Ringkasan permintaan akses dokumen dan hasil keputusan yang telah diproses."
               />
               <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,0.9fr)]">
-                <div className="space-y-4 self-start rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <div className="space-y-4 self-start rounded-lg border border-gray-200 bg-white p-5">
                   <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
                     <div className="space-y-2">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -604,7 +677,10 @@ export default function HistorisDisposisiPage() {
                     />
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div
+                    data-ui-layout="modal-definition-grid"
+                    className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 md:grid-cols-2 [&>*:last-child:nth-child(odd)]:md:col-span-2"
+                  >
                     <DetailInfoItem
                       label="Tanggal Pengajuan"
                       value={formatDateOnly(selectedItem.tglPengajuan)}
@@ -627,14 +703,19 @@ export default function HistorisDisposisiPage() {
                     />
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div
+                    data-ui-layout="modal-definition-grid"
+                    className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 md:grid-cols-2"
+                  >
                     <DetailInfoItem
                       label="Jenis Dokumen"
                       value={selectedItem.document?.jenisDokumen ?? "-"}
                     />
                     <DetailInfoItem
                       label="Lokasi Penyimpanan"
-                      value={selectedItem.document?.storage?.locationLabel ?? "-"}
+                      value={
+                        selectedItem.document?.storage?.locationLabel ?? "-"
+                      }
                     />
                     <DetailInfoItem
                       label="Pemohon"
@@ -647,9 +728,9 @@ export default function HistorisDisposisiPage() {
                   </div>
                 </div>
 
-                <div className="space-y-3 self-start rounded-2xl border border-gray-200 bg-slate-50 p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <div className="space-y-3 self-start rounded-lg border border-gray-200 bg-slate-50 p-5">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-200 bg-white text-sky-600">
                       <FileBadge2 className="size-5" strokeWidth={1.9} />
                     </div>
                     <div>
@@ -674,10 +755,6 @@ export default function HistorisDisposisiPage() {
                         status={
                           selectedItem.isActiveAccess ? "Aktif" : "Nonaktif"
                         }
-                        label={
-                          selectedItem.isActiveAccess ? "Aktif" : "Nonaktif"
-                        }
-                        tone={selectedItem.isActiveAccess ? "emerald" : "red"}
                       />
                     </DetailKeyValueRow>
                   </div>
@@ -710,12 +787,18 @@ export default function HistorisDisposisiPage() {
                 title="Catatan Keputusan"
                 description="Alasan pengajuan dan catatan akhir dari proses disposisi."
               />
-              <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+              <div className="rounded-lg border border-gray-200 bg-white p-5">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <DetailField label="Alasan Pengajuan" contentClassName="leading-7 text-gray-700">
+                  <DetailField
+                    label="Alasan Pengajuan"
+                    contentClassName="leading-7 text-gray-700"
+                  >
                     {selectedItem.alasanPengajuan || "-"}
                   </DetailField>
-                  <DetailField label="Catatan Aksi" contentClassName="leading-7 text-gray-700">
+                  <DetailField
+                    label="Catatan Aksi"
+                    contentClassName="leading-7 text-gray-700"
+                  >
                     {selectedItem.alasanAksi || "-"}
                   </DetailField>
                 </div>

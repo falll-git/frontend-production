@@ -7,10 +7,16 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { AUTH_STORAGE_KEYS, clearAuthBrowserStorage } from "@/lib/auth-storage";
-import { setAccessToken } from "@/lib/axios";
+import {
+  isSessionRefreshRateLimitError,
+  isSessionRefreshTransientError,
+  setAccessToken,
+} from "@/lib/axios";
+import { createRequestRefreshCoordinator } from "@/lib/request-refresh-coordinator";
 import {
   clearRuntimeRbacData,
   setRuntimeRbacData,
@@ -28,6 +34,8 @@ type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 const RBAC_REFRESH_EVENT = "ruang-arsip:rbac-refresh";
 const RBAC_REFRESH_STORAGE_KEY = "ruang-arsip.rbac-refresh-at";
 const RBAC_REFRESH_INTERVAL_MS = 60_000;
+const RBAC_REFRESH_RETRY_COOLDOWN_MS = 5_000;
+const RBAC_REFRESH_POLL_INTERVAL_MS = 15_000;
 
 interface SignInResultSuccess {
   ok: true;
@@ -260,45 +268,69 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<User | null>(null);
   const [dashboardMenus, setDashboardMenus] = useState<DashboardMenuNode[]>([]);
+  const activeRoleIdRef = useRef<string | null>(null);
+  const rbacRefreshCoordinator = useMemo(
+    () =>
+      createRequestRefreshCoordinator({
+        freshForMs: RBAC_REFRESH_INTERVAL_MS,
+        retryCooldownMs: RBAC_REFRESH_RETRY_COOLDOWN_MS,
+      }),
+    [],
+  );
 
   const syncRuntimeRbac = useCallback(async (options?: {
     clearOnFailure?: boolean;
+    force?: boolean;
     refreshUser?: boolean;
+    roleId?: string | null;
   }) => {
     const clearOnFailure = options?.clearOnFailure ?? true;
+    const force = options?.force ?? false;
     const refreshUser = options?.refreshUser ?? false;
+    const roleId = options?.roleId ?? activeRoleIdRef.current;
 
     try {
-      const [menus, roleMenus, nextUser] = await Promise.all([
-        menuService.getAll(),
-        roleMenuService.getAll(),
-        refreshUser
-          ? userService
-              .getMe()
-              .then((me) => normalizeUserPayload(me as unknown))
-              .catch(() => null)
-          : Promise.resolve(null),
-      ]);
+      await rbacRefreshCoordinator.run(
+        async () => {
+          if (!roleId) throw new Error("Role pengguna aktif tidak tersedia.");
 
-      setRuntimeRbacData({ menus, roleMenus });
-      setDashboardMenus(menus);
+          const nextUser = refreshUser
+            ? await userService
+                .getMe()
+                .then((me) => normalizeUserPayload(me as unknown))
+                .catch(() => null)
+            : null;
+          if (refreshUser && (!nextUser || !nextUser.is_active)) {
+            throw new Error("Sesi pengguna tidak valid.");
+          }
+          const effectiveRoleId = nextUser?.role_id ?? roleId;
+          const [menus, roleMenus] = await Promise.all([
+            menuService.getAll(),
+            // Runtime hanya memerlukan izin role pengguna aktif. Memuat semua
+            // role pada akun admin menambah banyak request pagination tanpa
+            // memberi informasi yang dipakai oleh layout.
+            roleMenuService.getByRoleId(effectiveRoleId),
+          ]);
 
-      if (refreshUser) {
-        if (!nextUser || !nextUser.is_active) {
-          throw new Error("Sesi pengguna tidak valid.");
-        }
+          setRuntimeRbacData({ menus, roleMenus });
+          setDashboardMenus(menus);
 
-        const publicUser = toPublicUser(nextUser);
-        setUser(publicUser);
-        updateStoredUser(publicUser);
-      }
+          if (refreshUser) {
+            const publicUser = toPublicUser(nextUser!);
+            activeRoleIdRef.current = publicUser.role_id;
+            setUser(publicUser);
+            updateStoredUser(publicUser);
+          }
+        },
+        { force },
+      );
     } catch {
       if (clearOnFailure) {
         clearRuntimeRbacData();
         setDashboardMenus([]);
       }
     }
-  }, []);
+  }, [rbacRefreshCoordinator]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -316,9 +348,23 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
         let nextUser =
           parsedUser && parsedUser.is_active ? toPublicUser(parsedUser) : null;
 
-        const refreshPayload = await authService
-          .refresh({ remember })
-          .catch(() => null);
+        let refreshPayload: Awaited<ReturnType<typeof authService.refresh>> | null =
+          null;
+        try {
+          refreshPayload = await authService.refresh({ remember });
+        } catch (error) {
+          if (
+            (isSessionRefreshRateLimitError(error) ||
+              isSessionRefreshTransientError(error)) &&
+            nextUser
+          ) {
+            activeRoleIdRef.current = nextUser.role_id;
+            if (cancelled) return;
+            setUser(nextUser);
+            setStatus("authenticated");
+            return;
+          }
+        }
         const refreshedToken = extractToken(refreshPayload);
 
         if (!refreshedToken) {
@@ -353,7 +399,12 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
           return;
         }
 
-        await syncRuntimeRbac({ clearOnFailure: true });
+        activeRoleIdRef.current = nextUser.role_id;
+        await syncRuntimeRbac({
+          clearOnFailure: true,
+          force: true,
+          roleId: nextUser.role_id,
+        });
 
         if (cancelled) return;
 
@@ -446,14 +497,20 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
         }
       }
 
-      await syncRuntimeRbac({ clearOnFailure: true });
+      activeRoleIdRef.current = nextUser.role_id;
+      rbacRefreshCoordinator.reset();
+      await syncRuntimeRbac({
+        clearOnFailure: true,
+        force: true,
+        roleId: nextUser.role_id,
+      });
 
       const publicUser = toPublicUser(nextUser);
       setUser(publicUser);
       setStatus("authenticated");
       return { ok: true, user: publicUser };
     },
-    [syncRuntimeRbac],
+    [rbacRefreshCoordinator, syncRuntimeRbac],
   );
 
   const signIn = useCallback(
@@ -489,43 +546,55 @@ export function AuthProvider({ children }: AuthProviderProps): ReactNode {
     } finally {
       clearStoredSession();
       clearRuntimeRbacData();
+      activeRoleIdRef.current = null;
+      rbacRefreshCoordinator.reset();
       setDashboardMenus([]);
       setAccessToken(null);
       setUser(null);
       setStatus("unauthenticated");
     }
-  }, []);
+  }, [rbacRefreshCoordinator]);
 
   const refreshRbac = useCallback(async () => {
-    await syncRuntimeRbac({ clearOnFailure: false, refreshUser: true });
+    await syncRuntimeRbac({
+      clearOnFailure: false,
+      force: true,
+      refreshUser: true,
+    });
   }, [syncRuntimeRbac]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     if (status !== "authenticated") return undefined;
 
-    const refreshCurrentAccess = () => {
-      void syncRuntimeRbac({ clearOnFailure: false, refreshUser: true });
+    const refreshCurrentAccess = (force = false) => {
+      void syncRuntimeRbac({
+        clearOnFailure: false,
+        force,
+        refreshUser: true,
+      });
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") refreshCurrentAccess();
     };
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === RBAC_REFRESH_STORAGE_KEY) refreshCurrentAccess();
+      if (event.key === RBAC_REFRESH_STORAGE_KEY) refreshCurrentAccess(true);
     };
 
-    window.addEventListener("focus", refreshCurrentAccess);
-    window.addEventListener(RBAC_REFRESH_EVENT, refreshCurrentAccess);
+    const handleFocus = () => refreshCurrentAccess();
+    window.addEventListener("focus", handleFocus);
+    const handleExplicitRefresh = () => refreshCurrentAccess(true);
+    window.addEventListener(RBAC_REFRESH_EVENT, handleExplicitRefresh);
     window.addEventListener("storage", handleStorage);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     const intervalId = window.setInterval(
       refreshCurrentAccess,
-      RBAC_REFRESH_INTERVAL_MS,
+      RBAC_REFRESH_POLL_INTERVAL_MS,
     );
 
     return () => {
-      window.removeEventListener("focus", refreshCurrentAccess);
-      window.removeEventListener(RBAC_REFRESH_EVENT, refreshCurrentAccess);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener(RBAC_REFRESH_EVENT, handleExplicitRefresh);
       window.removeEventListener("storage", handleStorage);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.clearInterval(intervalId);

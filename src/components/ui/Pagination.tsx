@@ -79,7 +79,7 @@ export default function Pagination({
             type="button"
             onClick={() => onPageChange(currentPage - 1)}
             disabled={!canGoPrevious}
-            className="grid h-8 w-8 place-content-center rounded border border-gray-200 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 rtl:rotate-180"
+            className="grid size-11 place-content-center rounded border border-gray-200 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 rtl:rotate-180"
             aria-label="Halaman sebelumnya"
           >
             <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -103,7 +103,7 @@ export default function Pagination({
                   event.currentTarget.blur();
                 }
               }}
-              className="h-8 w-16 rounded border border-gray-300 px-2 text-center text-sm tabular-nums outline-none transition focus:border-[#1773B0] focus:ring-2 focus:ring-[#1773B0]/10 disabled:bg-gray-50 disabled:text-gray-400"
+              className="h-11 w-16 rounded border border-gray-300 px-2 text-center text-sm tabular-nums outline-none transition focus:border-[#1773B0] focus:ring-2 focus:ring-[#1773B0]/10 disabled:bg-gray-50 disabled:text-gray-400"
             />
           </label>
         </li>
@@ -113,7 +113,7 @@ export default function Pagination({
             type="button"
             onClick={() => onPageChange(currentPage + 1)}
             disabled={!canGoNext}
-            className="grid h-8 w-8 place-content-center rounded border border-gray-200 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 rtl:rotate-180"
+            className="grid size-11 place-content-center rounded border border-gray-200 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 rtl:rotate-180"
             aria-label="Halaman berikutnya"
           >
             <ChevronRight className="h-4 w-4" aria-hidden="true" />

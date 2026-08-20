@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Edit2, Trash2 } from "lucide-react";
+import { Download, Edit2, Trash2 } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
 import SetupActionMenu from "@/components/ui/SetupActionMenu";
@@ -24,6 +24,7 @@ function ActionMenuWorkflowHarness() {
   return (
     <>
       <div>
+        <button type="button">Sebelum menu</button>
         <span>{name}</span>
         <SetupActionMenu
           label="Buka aksi divisi"
@@ -43,6 +44,7 @@ function ActionMenuWorkflowHarness() {
             },
           ]}
         />
+        <button type="button">Sesudah menu</button>
       </div>
 
       {isEditing ? (
@@ -69,19 +71,31 @@ describe("SetupActionMenu", () => {
     render(<ActionMenuWorkflowHarness />);
 
     const trigger = screen.getByRole("button", { name: "Buka aksi divisi" });
+    expect(trigger).toHaveClass("size-11");
     trigger.focus();
     await user.keyboard("{Enter}");
 
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(
       screen.getByRole("menuitem", { name: "Edit" }),
-    ).toBeInTheDocument();
+    ).toHaveClass("min-h-11");
     expect(
       screen.getByRole("menuitem", { name: "Hapus" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Edit" })).toHaveFocus();
+
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("menuitem", { name: "Hapus" })).toHaveFocus();
+
+    await user.keyboard("{Home}");
+    expect(screen.getByRole("menuitem", { name: "Edit" })).toHaveFocus();
+
+    await user.keyboard("{End}");
+    expect(screen.getByRole("menuitem", { name: "Hapus" })).toHaveFocus();
 
     await user.keyboard("{Escape}");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveFocus();
   });
 
   it("dapat dibuka kembali setelah aksi edit mengubah data baris", async () => {
@@ -94,6 +108,7 @@ describe("SetupActionMenu", () => {
     await user.click(screen.getByRole("menuitem", { name: "Edit" }));
 
     expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveFocus();
 
     const nameInput = screen.getByRole("textbox", { name: "Nama divisi" });
     await user.clear(nameInput);
@@ -111,5 +126,61 @@ describe("SetupActionMenu", () => {
     expect(
       screen.getByRole("menuitem", { name: "Hapus" }),
     ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["Tab", false],
+    ["Shift+Tab", true],
+  ])(
+    "menutup menu saat navigasi %s meninggalkan menu",
+    async (_label, shiftKey) => {
+      const user = userEvent.setup();
+      render(<ActionMenuWorkflowHarness />);
+
+      const trigger = screen.getByRole("button", { name: "Buka aksi divisi" });
+      await user.click(trigger);
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+
+      fireEvent.keyDown(screen.getByRole("menuitem", { name: "Edit" }), {
+        key: "Tab",
+        shiftKey,
+      });
+
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", {
+            name: shiftKey ? "Sebelum menu" : "Sesudah menu",
+          }),
+        ).toHaveFocus(),
+      );
+    },
+  );
+
+  it("memperlebar menu untuk label panjang tanpa memotong teks", async () => {
+    const user = userEvent.setup();
+    render(
+      <SetupActionMenu
+        label="Buka aksi dokumen"
+        items={[
+          {
+            key: "download",
+            label: "Unduh dokumen pendukung yang sudah ditandatangani",
+            icon: Download,
+            onClick: () => undefined,
+          },
+        ]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Buka aksi dokumen" }));
+
+    const menu = screen.getByRole("menu");
+    const menuContainer = menu.parentElement;
+    expect(Number.parseFloat(menuContainer?.style.width ?? "0")).toBeGreaterThan(168);
+    expect(
+      screen.getByText("Unduh dokumen pendukung yang sudah ditandatangani"),
+    ).not.toHaveClass("truncate");
   });
 });

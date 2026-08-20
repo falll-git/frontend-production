@@ -19,10 +19,7 @@ export default function WatermarkFileStatus({
 
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-      <SetupStatusBadge
-        status={statusLabel}
-        tone={isActive ? "emerald" : "red"}
-      />
+      <SetupStatusBadge status={statusLabel} />
       {watermark?.error_message ? (
         <span className="text-xs font-medium text-red-600">
           {watermark.error_message}

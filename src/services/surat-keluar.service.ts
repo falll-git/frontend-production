@@ -1,8 +1,5 @@
 import api from "@/lib/axios";
-import {
-  deriveDocumentFileName,
-  toPreviewableFileUrl,
-} from "@/lib/utils/file";
+import { deriveDocumentFileName, toPreviewableFileUrl } from "@/lib/utils/file";
 import {
   extractPaginationMeta,
   extractList,
@@ -12,17 +9,17 @@ import {
   readString,
   toMultipartFormData,
 } from "@/services/api.utils";
-import { MAX_TABLE_PAGE_SIZE, OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import {
+  MAX_TABLE_PAGE_SIZE,
+  OPERATIONAL_TABLE_PAGE_SIZE,
+} from "@/lib/pagination";
 import { mapWatermarkFileMeta } from "@/services/watermark.service";
 import {
   readPhysicalStorage,
   readPhysicalStorageLabel,
 } from "@/services/persuratan-storage.mapper";
 import type { PageQuery, PaginatedResult } from "@/types/api.types";
-import type {
-  OutgoingMailPayload,
-  SuratKeluar,
-} from "@/types/surat.types";
+import type { OutgoingMailPayload, SuratKeluar } from "@/types/surat.types";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -111,7 +108,9 @@ export function mapSuratKeluarRecord(
       undefined,
     creatorDivisionId:
       readString(record, "creator_division_id", "creatorDivisionId") ??
-      (creatorRecord ? readString(creatorRecord, "division_id", "divisionId") : null) ??
+      (creatorRecord
+        ? readString(creatorRecord, "division_id", "divisionId")
+        : null) ??
       undefined,
   };
 }
@@ -144,6 +143,11 @@ async function getSuratKeluarPage({
 
 export const suratKeluarService = {
   getPage: getSuratKeluarPage,
+  getById: async (id: string): Promise<SuratKeluar | null> => {
+    const res = await api.get(`/outgoing-mails/${id}`);
+    const record = extractRecord(res.data);
+    return record ? mapSuratKeluarRecord(record) : null;
+  },
   getAll: async (): Promise<SuratKeluar[]> => {
     const first = await getSuratKeluarPage({
       page: 1,

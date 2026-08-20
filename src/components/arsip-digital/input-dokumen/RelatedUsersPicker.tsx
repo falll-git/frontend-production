@@ -108,7 +108,12 @@ export default function RelatedUsersPicker({
         User Terkait
       </label>
       <div className="rounded-lg border border-gray-200 bg-white">
-        <div className="flex min-h-11 items-center border-b border-gray-100 px-4 py-3 text-sm font-medium text-gray-600">
+        <div
+          className="flex min-h-11 items-center border-b border-gray-100 px-4 py-3 text-sm font-medium text-gray-600"
+          role="status"
+          aria-live="polite"
+          aria-busy={isBusy}
+        >
           {isBusy
             ? "Memuat daftar user..."
             : selectedCount > 0
@@ -160,13 +165,20 @@ export default function RelatedUsersPicker({
           })}
 
           {isBusy ? (
-            <div className="px-4 py-8 text-center text-sm font-medium text-gray-600">
+            <div
+              className="px-4 py-8 text-center text-sm font-medium text-gray-600"
+              role="status"
+              aria-live="polite"
+            >
               Memuat user terkait...
             </div>
           ) : null}
 
           {!isBusy && errorMessage ? (
-            <div className="bg-red-50 px-4 py-8 text-center text-sm font-medium text-red-700">
+            <div
+              className="bg-red-50 px-4 py-8 text-center text-sm font-medium text-red-700"
+              role="alert"
+            >
               {errorMessage}
             </div>
           ) : null}

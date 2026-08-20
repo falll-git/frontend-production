@@ -10,6 +10,7 @@ import {
 import { useEffect, useState } from "react";
 
 import StorageSummaryCard from "@/components/arsip/StorageSummaryCard";
+import { resolveStorageGridModalLayout } from "@/components/arsip/storage-grid-modal-layout";
 import DashboardModal from "@/components/ui/DashboardModal";
 import Pagination from "@/components/ui/Pagination";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
@@ -98,6 +99,7 @@ export default function RakGridModal({
     !isLoading && paginationMeta.total === 0 && debouncedSearch.length === 0;
   const hasNoFilteredData =
     !isLoading && paginationMeta.total === 0 && debouncedSearch.length > 0;
+  const modalLayout = resolveStorageGridModalLayout(paginationMeta.total);
 
   return (
     <DashboardModal
@@ -105,7 +107,7 @@ export default function RakGridModal({
       title={`${lemari.kodeLemari} \u00B7 ${kantor.namaKantor}`}
       description={`${paginationMeta.total} rak`}
       onClose={onClose}
-      maxWidth="5xl"
+      maxWidth={modalLayout.maxWidth}
       bodyClassName="px-4 py-5 sm:px-5 sm:py-6"
       footerClassName="flex items-center justify-between gap-3 border-t border-gray-100 bg-gray-50 p-4 sm:p-5"
       footer={
@@ -141,7 +143,10 @@ export default function RakGridModal({
           </div>
 
           {errorMessage ? (
-            <div className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">
+            <div
+              className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center"
+              role="alert"
+            >
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-slate-900">
                 <SearchX className="h-7 w-7" aria-hidden="true" />
               </div>
@@ -169,14 +174,18 @@ export default function RakGridModal({
               />
             </div>
           ) : isLoading && rakPage.length === 0 ? (
-            <div className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center">
+            <div
+              className="flex min-h-[260px] flex-col items-center justify-center px-6 text-center"
+              role="status"
+              aria-live="polite"
+            >
               <p className="text-base font-medium text-gray-700">
                 Memuat daftar rak...
               </p>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div className={modalLayout.gridClassName}>
                 {rakPage.map((rak, idx) => {
                   const hasKapasitas = typeof rak.kapasitas === "number";
                   const status = rak.status;

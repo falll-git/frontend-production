@@ -1,4 +1,8 @@
 import type { PaginationMeta } from "@/types/api.types";
+import type {
+  DepositLedgerSnapshot,
+  DepositTransactionSource,
+} from "@/types/deposit-ledger.types";
 
 export type DebtorStatus = "ACTIVE" | "INACTIVE" | string;
 export type DebtorContractStatus = "ACTIVE" | "CLOSED" | "INACTIVE" | string;
@@ -748,6 +752,7 @@ export type DebtorWorkflowDepositTransaction = {
   transaction_date: string | null;
   action: string;
   raw_action?: string | null;
+  source: DepositTransactionSource;
   amount: number;
   notes: string | null;
   file: DebtorFileMeta | null;
@@ -769,6 +774,7 @@ export type DebtorWorkflowDeposit = {
   total_payment_amount?: number;
   total_refund_amount?: number;
   balance_amount?: number;
+  ledger: DepositLedgerSnapshot | null;
   status: string;
   notes: string | null;
   deposit_type: DebtorParameterSummary | null;

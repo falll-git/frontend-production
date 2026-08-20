@@ -22,7 +22,7 @@ export default function DashboardPageShell({
   children,
   variant = "wide",
   spacing = "none",
-  animated = true,
+  animated = false,
   className,
 }: {
   children: ReactNode;
@@ -35,7 +35,7 @@ export default function DashboardPageShell({
     <div
       className={cx(
         VARIANT_CLASS[variant],
-        animated && "animate-fade-in",
+        animated && "animate-dashboard-page-in",
         SPACING_CLASS[spacing],
         className,
       )}

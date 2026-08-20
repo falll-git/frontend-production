@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 import { login } from "./support/auth";
+import {
+  assertModalPresentation,
+  assertNoHorizontalOverflow,
+} from "./support/modal-contract";
 
 test.beforeEach(async ({ page }) => {
   await login(page);
@@ -16,6 +20,7 @@ test("drill-down tempat penyimpanan memakai satu modal konsisten", async ({
 
   await page.getByRole("button", { name: "Lihat Lemari", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(1);
+  await assertModalPresentation(page, page.getByRole("dialog"));
   await expect(
     page.getByRole("dialog").getByRole("button", { name: "Tutup modal" }),
   ).toBeVisible();
@@ -26,6 +31,7 @@ test("drill-down tempat penyimpanan memakai satu modal konsisten", async ({
     .first()
     .click();
   await expect(page.getByRole("dialog")).toHaveCount(1);
+  await assertModalPresentation(page, page.getByRole("dialog"));
   await expect(
     page.getByRole("dialog").getByRole("button", {
       name: "Lihat Dokumen",
@@ -40,15 +46,12 @@ test("drill-down tempat penyimpanan memakai satu modal konsisten", async ({
     .click();
   const documentDialog = page.getByRole("dialog");
   await expect(documentDialog).toHaveCount(1);
+  await assertModalPresentation(page, documentDialog);
   await expect(
     documentDialog.getByPlaceholder("Cari dokumen..."),
   ).toBeVisible();
 
-  const dimensions = await documentDialog.evaluate((element) => ({
-    clientWidth: element.clientWidth,
-    scrollWidth: element.scrollWidth,
-  }));
-  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+  await assertNoHorizontalOverflow(page, documentDialog);
 
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);

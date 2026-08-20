@@ -218,7 +218,10 @@ export default function DokumenListModal({
           </div>
 
           {errorMessage ? (
-            <div className="flex min-h-[300px] flex-col items-center justify-center px-6 text-center">
+            <div
+              className="flex min-h-[300px] flex-col items-center justify-center px-6 text-center"
+              role="alert"
+            >
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-slate-900">
                 <SearchX className="h-7 w-7" aria-hidden="true" />
               </div>
@@ -246,7 +249,11 @@ export default function DokumenListModal({
               />
             </div>
           ) : isLoading && documentPage.length === 0 ? (
-            <div className="flex min-h-[300px] flex-col items-center justify-center px-6 text-center">
+            <div
+              className="flex min-h-[300px] flex-col items-center justify-center px-6 text-center"
+              role="status"
+              aria-live="polite"
+            >
               <p className="text-base font-medium text-gray-700">
                 Memuat daftar dokumen...
               </p>

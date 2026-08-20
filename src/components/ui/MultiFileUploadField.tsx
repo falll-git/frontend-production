@@ -186,7 +186,7 @@ export default function MultiFileUploadField({
                 </div>
                 <button
                   type="button"
-                  className="rounded-md border border-slate-200 p-2 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                  className="inline-flex size-11 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
                   onClick={() => removeFile(file)}
                   aria-label={`Hapus ${file.name}`}
                   title={`Hapus ${file.name}`}

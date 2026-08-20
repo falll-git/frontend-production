@@ -1,8 +1,5 @@
 import api from "@/lib/axios";
-import {
-  deriveDocumentFileName,
-  toPreviewableFileUrl,
-} from "@/lib/utils/file";
+import { deriveDocumentFileName, toPreviewableFileUrl } from "@/lib/utils/file";
 import {
   extractPaginationMeta,
   extractList,
@@ -12,7 +9,10 @@ import {
   readString,
   toMultipartFormData,
 } from "@/services/api.utils";
-import { MAX_TABLE_PAGE_SIZE, OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
+import {
+  MAX_TABLE_PAGE_SIZE,
+  OPERATIONAL_TABLE_PAGE_SIZE,
+} from "@/lib/pagination";
 import { mapWatermarkFileMeta } from "@/services/watermark.service";
 import {
   readPhysicalStorage,
@@ -44,6 +44,23 @@ function readStringArray(value: unknown): string[] {
   return value
     .map((item) => (typeof item === "string" ? item.trim() : ""))
     .filter(Boolean);
+}
+
+function readInitialRecipientNames(
+  record: UnknownRecord,
+  dispositions: SuratDisposisi[],
+): string[] {
+  const explicitNames = readStringArray(record.initial_recipient_names);
+  if (explicitNames.length > 0) return [...new Set(explicitNames)];
+
+  return Array.from(
+    new Set(
+      dispositions
+        .filter((item) => !item.parent_disposition_id)
+        .map((item) => item.ke_user_nama.trim())
+        .filter(Boolean),
+    ),
+  );
 }
 
 function readUserIds(value: unknown): string[] {
@@ -80,14 +97,11 @@ function readTargetManagerIds(
 }
 
 function readDispositions(record: UnknownRecord): string[] {
-  const currentHolderNames = Array.isArray(record.current_holder_names)
-    ? record.current_holder_names.filter(
-        (item): item is string => typeof item === "string" && item.trim().length > 0,
-      )
-    : null;
-
-  if (currentHolderNames && currentHolderNames.length > 0) {
-    return currentHolderNames;
+  if (Array.isArray(record.current_holder_names)) {
+    return record.current_holder_names.filter(
+      (item): item is string =>
+        typeof item === "string" && item.trim().length > 0,
+    );
   }
 
   const source = Array.isArray(record.dispositions)
@@ -101,6 +115,14 @@ function readDispositions(record: UnknownRecord): string[] {
   return source
     .map((item) => asRecord(item))
     .filter((item): item is UnknownRecord => item !== null)
+    .filter((item) => {
+      const status = String(readString(item, "status", "status_key") || "")
+        .trim()
+        .toUpperCase();
+      return (
+        Boolean(item.is_current) || status === "NEW" || status === "IN_PROGRESS"
+      );
+    })
     .map((item) => {
       const receiverRecord = asRecord(item.receiver);
       return (
@@ -160,110 +182,106 @@ function readDispositionHistory(record: UnknownRecord): SuratDisposisi[] {
   if (!source) return [];
 
   return source.reduce<SuratDisposisi[]>((items, item, index) => {
-      const normalized = asRecord(item);
-      if (!normalized) return items;
+    const normalized = asRecord(item);
+    if (!normalized) return items;
 
-      const senderRecord = asRecord(normalized.sender);
-      const receiverRecord = asRecord(normalized.receiver);
-      const senderId = readString(normalized, "sender_id", "senderId") ?? "";
-      const receiverId =
-        readString(normalized, "receiver_id", "receiverId") ?? "";
-      const statusKey = (
+    const senderRecord = asRecord(normalized.sender);
+    const receiverRecord = asRecord(normalized.receiver);
+    const senderId = readString(normalized, "sender_id", "senderId") ?? "";
+    const receiverId =
+      readString(normalized, "receiver_id", "receiverId") ?? "";
+    const statusKey = (
+      readString(normalized, "status_key", "statusKey", "status") ?? ""
+    ).toUpperCase();
+
+    items.push({
+      id: readString(normalized, "id") ?? `disp-${index + 1}`,
+      surat_masuk_id:
         readString(
           normalized,
-          "status_key",
-          "statusKey",
-          "status",
-        ) ?? ""
-      ).toUpperCase();
-
-      items.push({
-        id: readString(normalized, "id") ?? `disp-${index + 1}`,
-        surat_masuk_id:
-          readString(
-            normalized,
-            "incoming_mails_id",
-            "incoming_mail_id",
-            "surat_masuk_id",
-            "incomingMailId",
-          ) ?? "",
-        dari_user_id: senderId,
-        dari_user_nama:
-          readString(normalized, "sender_name", "senderName") ??
-          (senderRecord
-            ? readString(senderRecord, "name", "username")
-            : null) ??
-          senderId ??
-          "-",
-        ke_user_id: receiverId,
-        ke_user_nama:
-          readString(normalized, "receiver_name", "receiverName") ??
-          (receiverRecord
-            ? readString(receiverRecord, "name", "username")
-            : null) ??
-          receiverId ??
-          "-",
-        catatan: readNullableString(normalized, "note", "catatan") ?? null,
-        created_at:
-          readString(
-            normalized,
-            "disposed_at",
-            "created_at",
-            "createdAt",
-            "start_date",
-            "startDate",
-          ) ?? "",
-        disposed_at:
-          readNullableString(normalized, "disposed_at", "created_at", "createdAt") ??
-          null,
-        start_date:
-          readNullableString(normalized, "start_date", "startDate") ?? null,
-        due_date:
-          readNullableString(normalized, "due_date", "dueDate") ?? null,
-        completed_at:
-          readNullableString(normalized, "completed_at", "completedAt") ?? null,
-        parent_disposition_id:
+          "incoming_mails_id",
+          "incoming_mail_id",
+          "surat_masuk_id",
+          "incomingMailId",
+        ) ?? "",
+      dari_user_id: senderId,
+      dari_user_nama:
+        readString(normalized, "sender_name", "senderName") ??
+        (senderRecord ? readString(senderRecord, "name", "username") : null) ??
+        senderId ??
+        "-",
+      ke_user_id: receiverId,
+      ke_user_nama:
+        readString(normalized, "receiver_name", "receiverName") ??
+        (receiverRecord
+          ? readString(receiverRecord, "name", "username")
+          : null) ??
+        receiverId ??
+        "-",
+      catatan: readNullableString(normalized, "note", "catatan") ?? null,
+      created_at:
+        readString(
+          normalized,
+          "disposed_at",
+          "created_at",
+          "createdAt",
+          "start_date",
+          "startDate",
+        ) ?? "",
+      disposed_at:
+        readNullableString(
+          normalized,
+          "disposed_at",
+          "created_at",
+          "createdAt",
+        ) ?? null,
+      start_date:
+        readNullableString(normalized, "start_date", "startDate") ?? null,
+      due_date: readNullableString(normalized, "due_date", "dueDate") ?? null,
+      completed_at:
+        readNullableString(normalized, "completed_at", "completedAt") ?? null,
+      parent_disposition_id:
+        readNullableString(
+          normalized,
+          "parent_disposition_id",
+          "parentDispositionId",
+        ) ?? null,
+      status:
+        statusKey === "IN_PROGRESS" ||
+        statusKey === "COMPLETED" ||
+        statusKey === "FORWARDED"
+          ? statusKey
+          : "NEW",
+      status_key:
+        statusKey === "IN_PROGRESS" ||
+        statusKey === "COMPLETED" ||
+        statusKey === "FORWARDED"
+          ? statusKey
+          : "NEW",
+      status_label:
+        readString(normalized, "status_label", "statusLabel") || "Baru",
+      sequence: readNumber(normalized, "sequence") ?? index + 1,
+      is_current: Boolean(normalized.is_current),
+      timeline_label:
+        readString(normalized, "timeline_label", "timelineLabel") ||
+        `${readString(normalized, "sender_name", "senderName") || "-"} -> ${readString(normalized, "receiver_name", "receiverName") || "-"}`,
+      is_disposisi_ulang:
+        Boolean(normalized.is_disposisi_ulang) ||
+        Boolean(
           readNullableString(
             normalized,
             "parent_disposition_id",
             "parentDispositionId",
-          ) ?? null,
-        status:
-          statusKey === "IN_PROGRESS" ||
-          statusKey === "COMPLETED" ||
-          statusKey === "FORWARDED"
-            ? statusKey
-            : "NEW",
-        status_key:
-          statusKey === "IN_PROGRESS" ||
-          statusKey === "COMPLETED" ||
-          statusKey === "FORWARDED"
-            ? statusKey
-            : "NEW",
-        status_label:
-          readString(normalized, "status_label", "statusLabel") || "Baru",
-        sequence: readNumber(normalized, "sequence") ?? index + 1,
-        is_current: Boolean(normalized.is_current),
-        timeline_label:
-          readString(normalized, "timeline_label", "timelineLabel") ||
-          `${readString(normalized, "sender_name", "senderName") || "-"} -> ${readString(normalized, "receiver_name", "receiverName") || "-"}`,
-        is_disposisi_ulang:
-          Boolean(normalized.is_disposisi_ulang) ||
-          Boolean(
-            readNullableString(
-              normalized,
-              "parent_disposition_id",
-              "parentDispositionId",
-            ),
-          ) ||
-          index > 0,
-        can_start: Boolean(normalized.can_start),
-        can_complete: Boolean(normalized.can_complete),
-        can_redispose: Boolean(normalized.can_redispose),
-      });
+          ),
+        ) ||
+        index > 0,
+      can_start: Boolean(normalized.can_start),
+      can_complete: Boolean(normalized.can_complete),
+      can_redispose: Boolean(normalized.can_redispose),
+    });
 
-      return items;
-    }, []);
+    return items;
+  }, []);
 }
 
 function mapAssignableUserRecord(record: UnknownRecord): SuratUser | null {
@@ -275,7 +293,13 @@ function mapAssignableUserRecord(record: UnknownRecord): SuratUser | null {
     (roleRecord ? readString(roleRecord, "name", "label") : null) ?? "";
   const divisionName =
     (divisionRecord ? readString(divisionRecord, "name", "label") : null) ??
-    readString(record, "division_name", "divisionName", "division_id", "divisionId") ??
+    readString(
+      record,
+      "division_name",
+      "divisionName",
+      "division_id",
+      "divisionId",
+    ) ??
     "-";
 
   if (!id || !name) return null;
@@ -375,6 +399,10 @@ export function mapSuratMasukRecord(
   const disposisiHistory = readDispositionHistory(record).sort(
     (left, right) => (left.sequence ?? 0) - (right.sequence ?? 0),
   );
+  const initialRecipientNames = readInitialRecipientNames(
+    record,
+    disposisiHistory,
+  );
   const latestDispositionWithDueDate =
     [...disposisiHistory].reverse().find((item) => item.due_date) ?? null;
   const latestDispositionWithNote =
@@ -441,13 +469,17 @@ export function mapSuratMasukRecord(
     statusKey: readString(record, "status_key", "statusKey") || undefined,
     statusLabel: readString(record, "status_label", "statusLabel") || undefined,
     disposisi_history: disposisiHistory,
+    initial_recipient_names: initialRecipientNames,
     current_holders: currentHolders,
     current_holder_names:
       currentHolders.map((item) => item.name).filter(Boolean) ||
       disposisiKepada,
     active_dispositions_count:
-      readNumber(record, "active_dispositions_count", "activeDispositionsCount") ??
-      currentHolders.length,
+      readNumber(
+        record,
+        "active_dispositions_count",
+        "activeDispositionsCount",
+      ) ?? currentHolders.length,
     last_holder: lastHolder,
     last_holder_name:
       readNullableString(record, "last_holder_name", "lastHolderName") ??
@@ -513,6 +545,11 @@ async function getSuratMasukPage({
 
 export const suratMasukService = {
   getPage: getSuratMasukPage,
+  getById: async (id: string): Promise<SuratMasuk | null> => {
+    const res = await api.get(`/incoming-mails/${id}`);
+    const record = extractRecord(res.data);
+    return record ? mapSuratMasukRecord(record) : null;
+  },
   getAll: async (): Promise<SuratMasuk[]> => {
     const first = await getSuratMasukPage({
       page: 1,
@@ -586,7 +623,9 @@ export const suratMasukService = {
     const res = await api.get("/incoming-mails/disposition-recipients", {
       params: {
         ...(params?.search ? { search: params.search } : {}),
-        ...(params?.divisionId ? { target_division_id: params.divisionId } : {}),
+        ...(params?.divisionId
+          ? { target_division_id: params.divisionId }
+          : {}),
         ...(params?.limit ? { limit: params.limit } : {}),
       },
     });

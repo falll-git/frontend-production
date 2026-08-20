@@ -15,6 +15,7 @@ import { Check, ChevronDown, Loader2, Search, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { getAnchoredPopupPosition } from "@/lib/ui/anchored-popup";
+import { focusAdjacentToElement } from "@/lib/ui/focus-navigation";
 
 export type SearchableSelectOption = {
   value: string;
@@ -85,6 +86,7 @@ export default function SearchableSelect({
 }: SearchableSelectProps) {
   const generatedId = useId();
   const controlId = id ?? generatedId;
+  const popupId = `${controlId}-popup`;
   const listboxId = `${controlId}-listbox`;
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -93,7 +95,9 @@ export default function SearchableSelect({
   const requestIdRef = useRef(0);
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [asyncOptions, setAsyncOptions] = useState<SearchableSelectOption[]>([]);
+  const [asyncOptions, setAsyncOptions] = useState<SearchableSelectOption[]>(
+    [],
+  );
   const [lastSelectedOption, setLastSelectedOption] =
     useState<SearchableSelectOption | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -137,11 +141,18 @@ export default function SearchableSelect({
     visibleOptions.length > 0
       ? Math.min(activeIndex, visibleOptions.length - 1)
       : 0;
+  const activeOptionId =
+    visibleOptions.length > 0
+      ? `${listboxId}-option-${safeActiveIndex}`
+      : undefined;
 
-  const close = useCallback(() => {
+  const close = useCallback((restoreFocus = false) => {
     setIsOpen(false);
     setQuery("");
     setActiveIndex(0);
+    if (restoreFocus) {
+      window.setTimeout(() => triggerRef.current?.focus(), 0);
+    }
   }, []);
 
   const open = useCallback(() => {
@@ -230,7 +241,7 @@ export default function SearchableSelect({
     if (option.disabled) return;
     setLastSelectedOption(option);
     onChange(option.value, option);
-    close();
+    close(true);
   };
 
   const handleClear = () => {
@@ -248,9 +259,20 @@ export default function SearchableSelect({
   };
 
   const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Tab") {
+      event.preventDefault();
+      const trigger = triggerRef.current;
+      const popup = popupRef.current;
+      close();
+      if (trigger) {
+        focusAdjacentToElement(trigger, event.shiftKey ? -1 : 1, popup);
+      }
+      return;
+    }
+
     if (event.key === "Escape") {
       event.preventDefault();
-      close();
+      close(true);
       return;
     }
 
@@ -286,13 +308,15 @@ export default function SearchableSelect({
         type="button"
         className={cn(
           "app-select searchable-select-trigger flex min-h-11 items-center justify-between gap-2.5 text-left",
+          clearable && value && !disabled && "pr-16",
           !currentOption && "text-gray-400",
           buttonClassName,
         )}
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        aria-controls={listboxId}
+        aria-controls={isOpen ? listboxId : undefined}
+        data-clearable={clearable && value && !disabled ? "true" : undefined}
         data-required={required || undefined}
         onClick={() => (isOpen ? close() : open())}
         onKeyDown={handleButtonKeyDown}
@@ -301,113 +325,152 @@ export default function SearchableSelect({
           {currentOption?.label ?? placeholder}
         </span>
         <span className="flex shrink-0 items-center gap-2">
-          {clearable && value && !disabled ? (
-            <span
-              role="button"
-              tabIndex={-1}
-              className="inline-flex size-5 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-              aria-label="Bersihkan pilihan"
-              onClick={(event) => {
-                event.stopPropagation();
-                handleClear();
-              }}
-            >
-              <X className="size-3.5" aria-hidden="true" />
-            </span>
-          ) : null}
           <ChevronDown className="size-4 text-gray-400" aria-hidden="true" />
         </span>
       </button>
 
-      {isOpen && typeof document !== "undefined" ? createPortal(
-        <div
-          ref={popupRef}
-          id={listboxId}
-          role="listbox"
-          className="fixed z-[10000] overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl ring-1 ring-black/5"
-          style={popupStyle}
+      {clearable && value && !disabled ? (
+        <button
+          type="button"
+          className="absolute right-8 top-1/2 z-10 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#1773B0]/20"
+          aria-label="Bersihkan pilihan"
+          onClick={handleClear}
         >
-          <div className="relative border-b border-gray-100">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400"
-              aria-hidden="true"
-            />
-            <input
-              ref={inputRef}
-              type="search"
-              value={query}
-              className="h-11 w-full border-0 bg-white py-2 pl-9 pr-3 text-sm text-gray-800 outline-none placeholder:text-gray-500 focus:ring-0"
-              placeholder={searchPlaceholder}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={handleInputKeyDown}
-            />
-          </div>
-
-          <div className="max-h-[min(16rem,calc(100vh-5rem))] overflow-y-auto overscroll-contain py-1">
-            {isLoading ? (
-              <div className="flex items-center gap-2 px-3 py-3 text-sm text-gray-500">
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                <span>{loadingLabel}</span>
-              </div>
-            ) : null}
-
-            {!isLoading && hasLoadError ? (
-              <div className="px-3 py-3 text-sm text-red-600">
-                Gagal memuat data. Coba cari ulang.
-              </div>
-            ) : null}
-
-            {!isLoading && !hasLoadError && visibleOptions.length === 0 ? (
-              <div className="px-3 py-3 text-sm text-gray-500">{emptyLabel}</div>
-            ) : null}
-
-            {!isLoading && !hasLoadError
-              ? visibleOptions.map((option, index) => {
-                  const isSelected = option.value === value;
-                  const isActive = index === safeActiveIndex;
-
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      disabled={option.disabled}
-                      className={cn(
-                        "flex w-full items-start gap-2 px-3 py-2.5 text-left text-sm transition-colors",
-                        isActive ? "bg-sky-50 text-gray-950" : "text-gray-700",
-                        option.disabled
-                          ? "cursor-not-allowed opacity-50"
-                          : "hover:bg-sky-50 hover:text-gray-950",
-                      )}
-                      onMouseEnter={() => setActiveIndex(index)}
-                      onClick={() => handleSelect(option)}
-                    >
-                      <Check
-                        className={cn(
-                          "mt-0.5 size-4 shrink-0 text-[#157ec3]",
-                          isSelected ? "opacity-100" : "opacity-0",
-                        )}
-                        aria-hidden="true"
-                      />
-                      <span className="min-w-0">
-                        <span className="block truncate font-medium">
-                          {option.label}
-                        </span>
-                        {option.description ? (
-                          <span className="mt-0.5 block truncate text-xs text-gray-500">
-                            {option.description}
-                          </span>
-                        ) : null}
-                      </span>
-                    </button>
-                  );
-                })
-              : null}
-          </div>
-        </div>,
-        document.body,
+          <X className="size-4" aria-hidden="true" />
+        </button>
       ) : null}
+
+      {isOpen && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={popupRef}
+              id={popupId}
+              data-searchable-select-popup="true"
+              className="fixed z-[10000] flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl ring-1 ring-black/5"
+              style={popupStyle}
+            >
+              <div className="relative shrink-0 border-b border-gray-100">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400"
+                  aria-hidden="true"
+                />
+                <input
+                  ref={inputRef}
+                  type="search"
+                  role="combobox"
+                  value={query}
+                  className="h-11 w-full border-0 bg-white py-2 pl-9 pr-3 text-sm text-gray-800 outline-none placeholder:text-gray-500 focus:ring-0"
+                  placeholder={searchPlaceholder}
+                  aria-label={searchPlaceholder}
+                  aria-autocomplete="list"
+                  aria-controls={listboxId}
+                  aria-expanded="true"
+                  aria-activedescendant={activeOptionId}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={handleInputKeyDown}
+                />
+              </div>
+
+              <div
+                id={listboxId}
+                role="listbox"
+                aria-label="Pilihan tersedia"
+                aria-busy={isLoading}
+                className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1"
+              >
+                {isLoading ? (
+                  <div
+                    className="flex items-center gap-2 px-3 py-3 text-sm text-gray-500"
+                    role="option"
+                    aria-disabled="true"
+                    aria-selected="false"
+                  >
+                    <Loader2
+                      className="size-4 animate-spin"
+                      aria-hidden="true"
+                    />
+                    <span role="status" aria-live="polite">
+                      {loadingLabel}
+                    </span>
+                  </div>
+                ) : null}
+
+                {!isLoading && hasLoadError ? (
+                  <div
+                    className="px-3 py-3 text-sm text-red-600"
+                    role="option"
+                    aria-disabled="true"
+                    aria-selected="false"
+                  >
+                    <span role="alert">Gagal memuat data. Coba cari ulang.</span>
+                  </div>
+                ) : null}
+
+                {!isLoading && !hasLoadError && visibleOptions.length === 0 ? (
+                  <div
+                    className="px-3 py-3 text-sm text-gray-500"
+                    role="option"
+                    aria-disabled="true"
+                    aria-selected="false"
+                  >
+                    <span role="status" aria-live="polite">
+                      {emptyLabel}
+                    </span>
+                  </div>
+                ) : null}
+
+                {!isLoading && !hasLoadError
+                  ? visibleOptions.map((option, index) => {
+                      const isSelected = option.value === value;
+                      const isActive = index === safeActiveIndex;
+
+                      return (
+                        <button
+                          key={option.value}
+                          id={`${listboxId}-option-${index}`}
+                          type="button"
+                          role="option"
+                          tabIndex={-1}
+                          aria-selected={isSelected}
+                          disabled={option.disabled}
+                          className={cn(
+                            "flex min-h-11 w-full items-start gap-2 px-3 py-2.5 text-left text-sm transition-colors",
+                            isActive
+                              ? "bg-sky-50 text-gray-950"
+                              : "text-gray-700",
+                            option.disabled
+                              ? "cursor-not-allowed opacity-50"
+                              : "hover:bg-sky-50 hover:text-gray-950",
+                          )}
+                          onMouseEnter={() => setActiveIndex(index)}
+                          onClick={() => handleSelect(option)}
+                        >
+                          <Check
+                            className={cn(
+                              "mt-0.5 size-4 shrink-0 text-[#157ec3]",
+                              isSelected ? "opacity-100" : "opacity-0",
+                            )}
+                            aria-hidden="true"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block whitespace-normal break-words font-medium">
+                              {option.label}
+                            </span>
+                            {option.description ? (
+                              <span className="mt-0.5 block whitespace-normal break-words text-xs text-gray-500">
+                                {option.description}
+                              </span>
+                            ) : null}
+                          </span>
+                        </button>
+                      );
+                    })
+                  : null}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

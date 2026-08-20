@@ -117,7 +117,6 @@ function mapDetailContext(value: unknown): ActivityCentreDetailContext {
           .map((item) => item.trim())
           .filter(Boolean)
       : [],
-    empty_message: nullableString(record, "empty_message", "emptyMessage"),
     target_path: nullableString(record, "target_path", "targetPath"),
     target_label: nullableString(record, "target_label", "targetLabel"),
   };
@@ -130,17 +129,8 @@ function mapDetail(record: AnyRecord): ActivityCentreDetail | null {
 
   return {
     ...log,
-    source: readString(record, "source") ?? "API",
-    source_label:
-      readString(record, "source_label", "sourceLabel") ?? "Aplikasi",
-    entity_type: readString(record, "entity_type", "entityType") ?? "AKTIVITAS",
-    entity_label:
-      readString(record, "entity_label", "entityLabel") ?? "Aktivitas",
-    entity_id: nullableString(record, "entity_id", "entityId"),
-    object_label: nullableString(record, "object_label", "objectLabel"),
     title: nullableString(record, "title"),
     summary: nullableString(record, "summary"),
-    response_status: readNumber(record, "response_status", "responseStatus"),
     result_label:
       readString(record, "result_label", "resultLabel") ?? "Tercatat",
     result_tone:
@@ -245,8 +235,6 @@ export const activityCentreService = {
     return {
       modules: options("modules"),
       actions: options("actions"),
-      sources: options("sources"),
-      entity_types: options("entity_types"),
       actors: Array.isArray(record.actors)
         ? record.actors
             .map(mapActorOption)

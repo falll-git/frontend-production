@@ -42,34 +42,34 @@ const TONE_CLASS: Record<
 > = {
   neutral: {
     icon: "text-slate-600",
-    iconWrap: "border-slate-200 bg-slate-100/90",
-    panel: "border-slate-200 bg-slate-50/70",
+    iconWrap: "border-slate-200 bg-slate-50",
+    panel: "border-slate-200",
   },
   debitur: {
-    icon: "text-sky-700",
-    iconWrap: "border-sky-100 bg-sky-50/90",
-    panel: "border-slate-200 bg-sky-50/35",
+    icon: "text-slate-600",
+    iconWrap: "border-slate-200 bg-slate-50",
+    panel: "border-slate-200",
   },
   legal: {
-    icon: "text-indigo-700",
-    iconWrap: "border-indigo-100 bg-indigo-50/90",
-    panel: "border-slate-200 bg-indigo-50/35",
+    icon: "text-slate-600",
+    iconWrap: "border-slate-200 bg-slate-50",
+    panel: "border-slate-200",
   },
   import: {
-    icon: "text-teal-700",
-    iconWrap: "border-teal-100 bg-teal-50/90",
-    panel: "border-slate-200 bg-teal-50/35",
+    icon: "text-slate-600",
+    iconWrap: "border-slate-200 bg-slate-50",
+    panel: "border-slate-200",
   },
   parameter: {
-    icon: "text-amber-700",
-    iconWrap: "border-amber-100 bg-amber-50/90",
-    panel: "border-slate-200 bg-amber-50/35",
+    icon: "text-slate-600",
+    iconWrap: "border-slate-200 bg-slate-50",
+    panel: "border-slate-200",
   },
 };
 
 const VARIANT_CLASS: Record<SetupEmptyStateVariant, string> = {
   table: "mx-auto max-w-xl px-4 py-6",
-  panel: "w-full rounded-xl border px-5 py-6 sm:px-6",
+  panel: "w-full rounded-lg border px-5 py-5 sm:px-6",
   compact: "mx-auto max-w-md px-3 py-4",
 };
 
@@ -98,6 +98,8 @@ export default function SetupEmptyState({
 
   return (
     <div
+      role="status"
+      aria-live="polite"
       className={cn(
         "text-center",
         variant === "panel" ? toneClass.panel : "",
@@ -109,7 +111,7 @@ export default function SetupEmptyState({
         {Icon ? (
           <span
             className={cn(
-              "mb-3 inline-flex items-center justify-center rounded-full border shadow-sm",
+              "mb-3 inline-flex items-center justify-center rounded-lg border",
               toneClass.iconWrap,
               variant === "compact" ? "h-9 w-9" : "h-11 w-11",
             )}

@@ -34,6 +34,7 @@ import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupPrimaryButton from "@/components/ui/SetupPrimaryButton";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
 import SetupTextarea from "@/components/ui/SetupTextarea";
+import LoanDetailContent from "@/components/arsip-digital/peminjaman/LoanDetailContent";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { useClientPagination } from "@/hooks/useClientPagination";
 import { OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
@@ -577,7 +578,7 @@ export default function AcceptPeminjamanPage() {
                   Ringkasan dokumen, peminjam, dan tahap proses saat ini.
                 </p>
               </div>
-              <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+              <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-5">
                 <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
                   <div className="space-y-1">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -674,51 +675,29 @@ export default function AcceptPeminjamanPage() {
             </button>
           }
         >
-          <div className="space-y-8">
-            <section className="space-y-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Informasi Peminjaman
-                </p>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  Detail status peminjaman fisik dokumen.
-                </p>
-              </div>
-              <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Identitas Dokumen
-                    </p>
-                    <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
-                      {detailItem.namaDokumen}
-                    </h3>
-                    <p className="text-base font-medium text-slate-500">
-                      {detailItem.kode}
-                    </p>
-                  </div>
-                  <SetupStatusBadge status={getTahapLabel(detailItem.statusKey)} />
-                </div>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <SummaryField label="Peminjam" contentClassName="font-semibold text-gray-900">
-                    {formatPersonName(detailItem.pemohon)}
-                  </SummaryField>
-                  <SummaryField label="Tanggal Pinjam" contentClassName="font-medium text-gray-900">
-                    {formatDateOnly(detailItem.tglPeminjaman)}
-                  </SummaryField>
-                  <SummaryField label="Tanggal Kembali" contentClassName="font-medium text-gray-900">
-                    {formatDateOnly(detailItem.tglPengembalian)}
-                  </SummaryField>
-                </div>
-                <SummaryField
-                  label="Alasan Peminjaman"
-                  contentClassName="leading-7 text-gray-700"
-                >
-                  {detailItem.alasan}
-                </SummaryField>
-              </div>
-            </section>
-          </div>
+          <LoanDetailContent
+            documentName={detailItem.namaDokumen}
+            documentCode={detailItem.kode}
+            status={<SetupStatusBadge status={getTahapLabel(detailItem.statusKey)} />}
+            informationDescription="Detail peminjam dan rentang waktu peminjaman fisik dokumen."
+            informationRows={[
+              {
+                label: "Peminjam",
+                value: formatPersonName(detailItem.pemohon),
+              },
+              {
+                label: "Tanggal Pinjam",
+                value: formatDateOnly(detailItem.tglPeminjaman),
+              },
+              {
+                label: "Tanggal Kembali",
+                value: formatDateOnly(detailItem.tglPengembalian),
+              },
+            ]}
+            noteRows={[
+              { label: "Alasan Peminjaman", value: detailItem.alasan },
+            ]}
+          />
         </DashboardModal>
       ) : null}
     </DashboardPageShell>

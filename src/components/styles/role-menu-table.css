@@ -26,7 +26,7 @@
 
 .role-menu-filter-card .app-input,
 .role-menu-filter-card .app-select {
-  min-height: 40px;
+  min-height: 44px;
 }
 
 @media (min-width: 1024px) {

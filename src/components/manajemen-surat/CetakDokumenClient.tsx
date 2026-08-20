@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarDays,
   Eye,
@@ -23,6 +18,7 @@ import SetupActionMenu, {
 } from "@/components/ui/SetupActionMenu";
 import SetupEmptyState from "@/components/ui/SetupEmptyState";
 import SetupRecordDetailSection from "@/components/ui/SetupRecordDetailSection";
+import SetupModalDetailLayout from "@/components/ui/SetupModalDetailLayout";
 import SetupViewButton from "@/components/ui/SetupViewButton";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupSelect from "@/components/ui/SetupSelect";
@@ -55,6 +51,7 @@ import {
   SETUP_PAGE_SEGMENTED_GROUP_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { formatDate, parseDateString } from "@/lib/utils/date";
+import { formatActiveAssigneeLabel } from "@/lib/persuratan-workflow";
 import { useClientPagination } from "@/hooks/useClientPagination";
 import { OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import type { DocumentFileType } from "@/lib/utils/file";
@@ -340,89 +337,157 @@ function PrintDocumentDetailModal({
         </>
       }
     >
-      <SetupRecordDetailSection
-        title="Informasi Dokumen"
-        rows={[
-          { label: "Dokumen", value: record.subject },
-          { label: "Nomor", value: record.code },
-          {
-            label: "Jenis",
-            value: (
-              <SetupStatusBadge
-                status="Tersedia"
-                label={documentKindLabel}
-                tone={getDocumentKindTone(record.kind)}
-                showIcon={false}
-              />
-            ),
-          },
-          { label: getRecordDateLabel(record), value: formatDate(record.sortDate) },
-          { label: "Status", value: getRecordStatusLabel(record) },
-          { label: "Lokasi Penyimpanan", value: getRecordStorageLabel(record) },
-          { label: "Nama File", value: formatDocumentFileName(record.fileName) },
-          {
-            label: "Status File",
-            value: (
-              <SetupStatusBadge
-                status={canPrint ? "Tersedia" : hasFile ? "Preview" : "Kosong"}
-                label={canPrint ? "Bisa Dicetak" : hasFile ? "Preview Saja" : "File Kosong"}
-                tone={canPrint ? "emerald" : hasFile ? "blue" : "amber"}
-              />
-            ),
-          },
-        ]}
-      />
-
-      <SetupRecordDetailSection
-        title="Detail Persuratan"
-        rows={[
-          { label: getRecordPartyLabel(record), value: getRecordPartyValue(record) },
-          {
-            label:
-              record.kind === "surat-keluar"
-                ? "Alamat Penerima"
-                : record.kind === "surat-masuk"
-                  ? "Alamat Pengirim"
-                  : "Pembuat Memo",
-            value: getRecordPartyDetail(record),
-          },
-          {
-            label: "Sifat / Kategori",
-            value: record.kind === "memorandum" ? "Memorandum" : record.record.sifat,
-          },
-          { label: "Tenggat", value: getRecordDeadlineValue(record) },
-          ...(record.kind === "surat-masuk"
-            ? [
-                {
-                  label: "Disposisi Kepada",
-                  value: formatJoinedValues(record.record.disposisiKepada),
-                },
-                {
-                  label: "Catatan Disposisi",
-                  value: record.record.keteranganTenggat ?? "-",
-                },
-              ]
-            : []),
-          ...(record.kind === "surat-keluar"
-            ? [{ label: "Media Pengiriman", value: record.record.media }]
-            : []),
-          ...(record.kind === "memorandum"
-            ? [
-                {
-                  label: "Divisi Tujuan",
-                  value: formatJoinedValues(record.record.divisiTujuanAwal),
-                },
-                {
-                  label: "Penerima",
-                  value: formatJoinedValues(record.record.penerima),
-                },
-              ]
-            : []),
-          {
-            label: record.kind === "surat-keluar" ? "Sifat Surat" : "Keterangan",
-            value: getRecordDescription(record),
-          },
-        ]}
+      <SetupModalDetailLayout
+        information={
+          <SetupRecordDetailSection
+            title="Informasi Utama"
+            description="Identitas, jenis, tanggal, status, dan lokasi dokumen persuratan."
+            rows={[
+              { label: "Dokumen", value: record.subject },
+              { label: "Nomor", value: record.code },
+              {
+                label: "Jenis",
+                value: (
+                  <SetupStatusBadge
+                    status="Tersedia"
+                    label={documentKindLabel}
+                    tone={getDocumentKindTone(record.kind)}
+                    showIcon={false}
+                  />
+                ),
+              },
+              {
+                label: getRecordDateLabel(record),
+                value: formatDate(record.sortDate),
+              },
+              { label: "Status", value: getRecordStatusLabel(record) },
+              {
+                label: "Lokasi Penyimpanan",
+                value: getRecordStorageLabel(record),
+              },
+            ]}
+          />
+        }
+        details={
+          <SetupRecordDetailSection
+            title="Detail Persuratan"
+            description="Pihak terkait, kategori, tenggat, disposisi, dan keterangan sesuai jenis surat."
+            rows={[
+              {
+                label: getRecordPartyLabel(record),
+                value: getRecordPartyValue(record),
+              },
+              {
+                label:
+                  record.kind === "surat-keluar"
+                    ? "Alamat Penerima"
+                    : record.kind === "surat-masuk"
+                      ? "Alamat Pengirim"
+                      : "Pembuat Memo",
+                value: getRecordPartyDetail(record),
+              },
+              {
+                label: "Sifat / Kategori",
+                value:
+                  record.kind === "memorandum"
+                    ? "Memorandum"
+                    : record.record.sifat,
+              },
+              { label: "Tenggat", value: getRecordDeadlineValue(record) },
+              ...(record.kind === "surat-masuk"
+                ? [
+                    {
+                      label: "Penerima Awal",
+                      value: formatJoinedValues(
+                        record.record.initial_recipient_names,
+                      ),
+                    },
+                    {
+                      label: "Penanggung Jawab Aktif",
+                      value: formatActiveAssigneeLabel({
+                        names: record.record.current_holder_names,
+                        status: record.record.statusKey,
+                      }),
+                    },
+                    {
+                      label: "Catatan Disposisi",
+                      value: record.record.keteranganTenggat ?? "-",
+                    },
+                  ]
+                : []),
+              ...(record.kind === "surat-keluar"
+                ? [{ label: "Media Pengiriman", value: record.record.media }]
+                : []),
+              ...(record.kind === "memorandum"
+                ? [
+                    {
+                      label: "Divisi Tujuan",
+                      value: formatJoinedValues(record.record.divisiTujuanAwal),
+                    },
+                    {
+                      label: "Penerima Awal",
+                      value: formatJoinedValues(
+                        record.record.initial_recipient_names,
+                      ),
+                    },
+                    {
+                      label: "Penanggung Jawab Aktif",
+                      value: formatActiveAssigneeLabel({
+                        names: record.record.current_holder_names,
+                        status: record.record.statusKey,
+                      }),
+                    },
+                  ]
+                : []),
+              {
+                label:
+                  record.kind === "surat-keluar" ? "Sifat Surat" : "Keterangan",
+                value: getRecordDescription(record),
+              },
+            ]}
+          />
+        }
+        attachments={
+          <SetupRecordDetailSection
+            title="Lampiran"
+            description="File yang tersedia untuk dipreview atau dicetak."
+            rows={[
+              {
+                label: "Nama File",
+                value: formatDocumentFileName(record.fileName),
+              },
+              {
+                label: "Status File",
+                value: (
+                  <SetupStatusBadge
+                    status={
+                      canPrint ? "Tersedia" : hasFile ? "Preview" : "Kosong"
+                    }
+                    label={
+                      canPrint
+                        ? "Bisa Dicetak"
+                        : hasFile
+                          ? "Preview Saja"
+                          : "File Kosong"
+                    }
+                    tone={canPrint ? "emerald" : hasFile ? "blue" : "amber"}
+                  />
+                ),
+              },
+              {
+                label: "Aksi File",
+                value: (
+                  <SetupViewButton
+                    onClick={() => onPreview(record)}
+                    label="Preview"
+                    title={hasFile ? "Preview dokumen" : "File belum tersedia"}
+                    disabled={!hasFile}
+                  />
+                ),
+              },
+            ]}
+          />
+        }
       />
     </DashboardModal>
   );
@@ -430,7 +495,12 @@ function PrintDocumentDetailModal({
 
 function PrintListLoadingSkeleton() {
   return (
-    <div className="px-4 py-4" aria-label="Memuat dokumen persuratan">
+    <div
+      className="px-4 py-4"
+      role="status"
+      aria-live="polite"
+      aria-label="Memuat dokumen persuratan"
+    >
       <div className="mb-4 flex items-center justify-between gap-4">
         <SetupSkeletonBlock className="h-4 w-40" />
         <SetupSkeletonBlock className="h-7 w-28 rounded-full" />
@@ -554,7 +624,8 @@ function mapPrintableItem(item: CorrespondencePrintableItem): PrintableRecord {
       code: item.document_number || record.namaSurat,
       subject: item.subject || record.penerima,
       primaryText: item.primary_text || record.alamatPenerima,
-      secondaryText: item.secondary_text || `${record.media} - ${record.statusLabel}`,
+      secondaryText:
+        item.secondary_text || `${record.media} - ${record.statusLabel}`,
       searchText: normalizeKeyword(
         [
           record.namaSurat,
@@ -615,7 +686,10 @@ function MiniPdfPreview({
     return (
       <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-[#f4f6fb] px-4 text-center md:min-h-[560px] md:px-6">
         <div>
-          <FileText className="mx-auto mb-3 h-7 w-7 text-gray-400" aria-hidden="true" />
+          <FileText
+            className="mx-auto mb-3 h-7 w-7 text-gray-400"
+            aria-hidden="true"
+          />
           <p className="text-base font-semibold text-gray-900">
             File dokumen belum tersedia
           </p>
@@ -647,7 +721,10 @@ function MiniPdfPreview({
   return (
     <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-[#f4f6fb] px-4 text-center md:min-h-[560px] md:px-6">
       <div className="max-w-sm">
-        <FileText className="mx-auto mb-3 h-7 w-7 text-gray-400" aria-hidden="true" />
+        <FileText
+          className="mx-auto mb-3 h-7 w-7 text-gray-400"
+          aria-hidden="true"
+        />
         <p className="text-base font-semibold text-gray-900">
           Preview belum tersedia untuk format ini
         </p>
@@ -660,11 +737,7 @@ function MiniPdfPreview({
   );
 }
 
-function PdfDocumentPreview({
-  fileUrl,
-}: {
-  fileUrl: string;
-}) {
+function PdfDocumentPreview({ fileUrl }: { fileUrl: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [pageWidth, setPageWidth] = useState(560);
   const [pageCount, setPageCount] = useState(0);
@@ -699,9 +772,7 @@ function PdfDocumentPreview({
           ) : null}
           <Document
             file={fileUrl}
-            loading={
-              <PdfPreviewLoadingSkeleton />
-            }
+            loading={<PdfPreviewLoadingSkeleton />}
             onLoadSuccess={({ numPages }: { numPages: number }) => {
               setPageCount(numPages);
               setHasError(false);
@@ -712,7 +783,10 @@ function PdfDocumentPreview({
             error={
               <div className="flex min-h-[320px] items-center justify-center rounded-lg bg-white px-4 text-center shadow-sm ring-1 ring-gray-200 md:min-h-[560px] md:px-6">
                 <div>
-                  <FileText className="mx-auto mb-3 h-7 w-7 text-gray-400" aria-hidden="true" />
+                  <FileText
+                    className="mx-auto mb-3 h-7 w-7 text-gray-400"
+                    aria-hidden="true"
+                  />
                   <p className="text-base font-semibold text-gray-900">
                     Preview dokumen belum bisa ditampilkan
                   </p>
@@ -727,9 +801,7 @@ function PdfDocumentPreview({
                   width={pageWidth}
                   renderTextLayer={false}
                   renderAnnotationLayer={false}
-                  loading={
-                    <PdfPreviewLoadingSkeleton />
-                  }
+                  loading={<PdfPreviewLoadingSkeleton />}
                 />
               </div>
             )}
@@ -762,9 +834,8 @@ export default function CetakDokumenClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [printableData, setPrintableData] = useState<PrintableRecord[]>([]);
   const displayedReportScope: CorrespondenceReportScope = reportScope;
-  const effectiveMyReportFilter = activeKind !== "surat-keluar"
-    ? myReportFilter
-    : undefined;
+  const effectiveMyReportFilter =
+    activeKind !== "surat-keluar" ? myReportFilter : undefined;
   const visibleReportScopeOptions =
     availableReportScopes.length > 0
       ? REPORT_SCOPE_OPTIONS.filter((option) =>
@@ -785,13 +856,16 @@ export default function CetakDokumenClient() {
       setIsLoading(true);
 
       try {
-        const { filters, items } = await correspondenceService.getPrintableDocuments({
-          kind: activeKind,
-          onlyWithFile: true,
-          scope: displayedReportScope,
-          myFilter:
-            displayedReportScope === "my" ? effectiveMyReportFilter : undefined,
-        });
+        const { filters, items } =
+          await correspondenceService.getPrintableDocuments({
+            kind: activeKind,
+            onlyWithFile: true,
+            scope: displayedReportScope,
+            myFilter:
+              displayedReportScope === "my"
+                ? effectiveMyReportFilter
+                : undefined,
+          });
 
         if (ignore) return;
 
@@ -886,8 +960,7 @@ export default function CetakDokumenClient() {
     selectedRecord && isValidFileUrl(selectedRecord.fileUrl),
   );
   const selectedRecordCanPrint =
-    selectedRecordHasFile &&
-    canDirectPrintFileType(selectedRecordFileType);
+    selectedRecordHasFile && canDirectPrintFileType(selectedRecordFileType);
 
   const openRecordPreview = (record: PrintableRecord | null | undefined) => {
     if (!record) {
@@ -900,10 +973,7 @@ export default function CetakDokumenClient() {
       return;
     }
 
-    openPreview(
-      record.fileUrl,
-      formatDocumentFileName(record.fileName),
-    );
+    openPreview(record.fileUrl, formatDocumentFileName(record.fileName));
   };
 
   const printRecord = (record: PrintableRecord | null | undefined) => {
@@ -917,10 +987,7 @@ export default function CetakDokumenClient() {
       return;
     }
 
-    const fileType = detectDocumentFileType(
-      record.fileUrl,
-      record.fileName,
-    );
+    const fileType = detectDocumentFileType(record.fileUrl, record.fileName);
     if (!canDirectPrintFileType(fileType)) {
       showToast(
         "Cetak langsung hanya tersedia untuk PDF, JPG, JPEG, dan PNG. File PPT/PPTX atau Office bisa dibuka/diunduh dulu.",
@@ -1015,7 +1082,9 @@ export default function CetakDokumenClient() {
                 <span className={SETUP_PAGE_SEARCH_LABEL_CLASS}>
                   Filter Saya
                 </span>
-                <div className={`${SETUP_PAGE_SEGMENTED_GROUP_CLASS} flex-wrap`}>
+                <div
+                  className={`${SETUP_PAGE_SEGMENTED_GROUP_CLASS} flex-wrap`}
+                >
                   {MY_REPORT_FILTER_OPTIONS.map((option) => {
                     const isActive = myReportFilter === option.value;
 
@@ -1168,7 +1237,8 @@ export default function CetakDokumenClient() {
                         record.fileName,
                       );
                       const hasFile = isValidFileUrl(record.fileUrl);
-                      const canPrint = hasFile && canDirectPrintFileType(fileType);
+                      const canPrint =
+                        hasFile && canDirectPrintFileType(fileType);
                       const deadlineValue = getRecordDeadlineValue(record);
                       const actionItems: SetupActionMenuItem[] = [
                         {
@@ -1272,7 +1342,13 @@ export default function CetakDokumenClient() {
                                 size="sm"
                               />
                               <SetupStatusBadge
-                                status={canPrint ? "Tersedia" : hasFile ? "Preview" : "Kosong"}
+                                status={
+                                  canPrint
+                                    ? "Tersedia"
+                                    : hasFile
+                                      ? "Preview"
+                                      : "Kosong"
+                                }
                                 label={
                                   canPrint
                                     ? "Bisa Cetak"
@@ -1280,7 +1356,13 @@ export default function CetakDokumenClient() {
                                       ? "Preview"
                                       : "Tanpa File"
                                 }
-                                tone={canPrint ? "emerald" : hasFile ? "blue" : "amber"}
+                                tone={
+                                  canPrint
+                                    ? "emerald"
+                                    : hasFile
+                                      ? "blue"
+                                      : "amber"
+                                }
                                 showIcon={false}
                                 size="sm"
                               />
@@ -1375,7 +1457,9 @@ export default function CetakDokumenClient() {
                     value={
                       selectedRecord.kind === "surat-keluar"
                         ? selectedRecord.record.statusLabel
-                        : formatDeadlineValue(selectedRecord.record.tenggatWaktu)
+                        : formatDeadlineValue(
+                            selectedRecord.record.tenggatWaktu,
+                          )
                     }
                   />
                 </div>

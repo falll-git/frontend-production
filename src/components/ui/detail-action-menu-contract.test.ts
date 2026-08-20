@@ -133,3 +133,49 @@ test("setiap baris tabel dengan detail double-click memiliki menu Aksi berlabel"
   expect(auditedRows.length).toBeGreaterThan(0);
   expect(violations).toEqual([]);
 }, 30_000);
+
+test("setiap menu aksi yang berada di tabel memiliki kolom Aksi", () => {
+  const sourceRoot = join(process.cwd(), "src");
+  const files = walk(sourceRoot).filter(
+    (file) => file.endsWith(".tsx") && !file.endsWith(".test.tsx"),
+  );
+  const auditedMenus: string[] = [];
+  const violations: string[] = [];
+
+  for (const file of files) {
+    const source = ts.createSourceFile(
+      file,
+      readFileSync(file, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+
+    const visit = (node: ts.Node) => {
+      const openingElement = ts.isJsxElement(node)
+        ? node.openingElement
+        : ts.isJsxSelfClosingElement(node)
+          ? node
+          : undefined;
+
+      if (openingElement && ACTION_COMPONENTS.has(tagName(openingElement))) {
+        const table = findTable(node);
+        if (table) {
+          const line = source.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+          const location = `${relative(process.cwd(), file)}:${line}`;
+          auditedMenus.push(location);
+          if (!hasActionHeader(table)) {
+            violations.push(`${location} berada di tabel tanpa kolom Aksi`);
+          }
+        }
+      }
+
+      ts.forEachChild(node, visit);
+    };
+
+    visit(source);
+  }
+
+  expect(auditedMenus.length).toBeGreaterThan(0);
+  expect(violations).toEqual([]);
+}, 30_000);

@@ -238,11 +238,25 @@ export default function Notification() {
   const [isMutatingId, setIsMutatingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const unreadRequestRef = useRef<Promise<number> | null>(null);
+  const panelRequestRef = useRef<Promise<void> | null>(null);
 
   const refreshUnreadCount = useCallback(async () => {
-    const count = await notificationService.getUnreadCount();
-    setUnreadCount(count);
-    return count;
+    if (unreadRequestRef.current) return unreadRequestRef.current;
+
+    const current = notificationService
+      .getUnreadCount()
+      .then((count) => {
+        setUnreadCount(count);
+        return count;
+      })
+      .finally(() => {
+        if (unreadRequestRef.current === current) {
+          unreadRequestRef.current = null;
+        }
+      });
+    unreadRequestRef.current = current;
+    return current;
   }, []);
 
   const loadNotifications = useCallback(
@@ -284,11 +298,19 @@ export default function Notification() {
 
   const refreshPanel = useCallback(
     async ({ showRefreshing = false }: { showRefreshing?: boolean } = {}) => {
-      await refreshNotificationPanel({
+      if (panelRequestRef.current) return panelRequestRef.current;
+
+      const current = refreshNotificationPanel({
         loadNotifications,
         refreshUnreadCount,
         showRefreshing,
+      }).finally(() => {
+        if (panelRequestRef.current === current) {
+          panelRequestRef.current = null;
+        }
       });
+      panelRequestRef.current = current;
+      return current;
     },
     [loadNotifications, refreshUnreadCount],
   );
@@ -492,7 +514,7 @@ export default function Notification() {
 
           <div className="notif-list">
             {errorMessage ? (
-              <div className="notif-error" role="status" aria-live="polite">
+              <div className="notif-error" role="alert">
                 <CircleAlert className="notif-error-icon" aria-hidden="true" />
                 <span>{errorMessage}</span>
                 <button

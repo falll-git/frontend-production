@@ -27,8 +27,60 @@
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  touch-action: pan-x pan-y;
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
+}
+
+@media (min-width: 1024px) {
+  .setup-responsive-table [data-table-action="true"] {
+    position: sticky;
+    inset-inline-end: 0;
+    width: 4.75rem;
+    min-width: 4.75rem;
+    background: #ffffff;
+    background-clip: padding-box;
+    box-shadow: -1px 0 0 rgba(148, 163, 184, 0.18);
+    text-align: center;
+  }
+
+  .setup-responsive-table [data-table-action="true"]::before {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: -0.5rem;
+    width: 0.5rem;
+    background: linear-gradient(
+      to right,
+      rgba(15, 23, 42, 0),
+      rgba(15, 23, 42, 0.055)
+    );
+    content: "";
+    pointer-events: none;
+  }
+
+  .setup-responsive-table__head [data-table-action="true"] {
+    z-index: 12;
+    background: var(--setup-table-head-bg, #f8fafc);
+  }
+
+  .setup-responsive-table__body [data-table-action="true"] {
+    z-index: 8;
+  }
+
+  .setup-responsive-table .correspondence-disposition-column {
+    position: sticky;
+    inset-inline-end: 4.75rem;
+    z-index: 7;
+    background: #ffffff;
+    background-clip: padding-box;
+    box-shadow: -1px 0 0 rgba(148, 163, 184, 0.12);
+  }
+
+  .setup-responsive-table__head .correspondence-disposition-column {
+    z-index: 11;
+    background: var(--setup-table-head-bg, #f8fafc);
+  }
 }
 
 .setup-table-scroll::-webkit-scrollbar {
@@ -266,6 +318,13 @@
     justify-content: space-between !important;
   }
 
+  .setup-responsive-table__cell[data-table-action="true"] {
+    align-items: center;
+    border-top: 1px solid #f1f5f9 !important;
+    margin-top: 0.25rem;
+    padding-top: 0.625rem !important;
+  }
+
   .setup-responsive-table__cell[data-mobile-label]::before {
     content: attr(data-mobile-label);
     flex: 0 0 min(38%, 7.5rem);
@@ -310,7 +369,7 @@
   }
 
   .setup-responsive-table__cell .uiverse-modal-button {
-    min-height: 36px;
+    min-height: 44px;
     min-width: 0;
     max-width: 100%;
     padding: 7px 10px;

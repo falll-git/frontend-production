@@ -48,17 +48,19 @@ describe("SearchableSelect", () => {
     await user.click(trigger);
 
     const listbox = screen.getByRole("listbox");
-    expect(listbox).toHaveStyle({
+    const popup = listbox.closest('[data-searchable-select-popup="true"]');
+    expect(popup).toHaveStyle({
       bottom: "108px",
       left: "33px",
       maxHeight: "320px",
       width: "284px",
     });
-    expect(container.contains(listbox)).toBe(false);
+    expect(container.contains(popup)).toBe(false);
     expect(screen.getByPlaceholderText("Cari data...")).toHaveFocus();
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 
   it("keeps long selected labels on one truncated line", () => {
@@ -80,6 +82,43 @@ describe("SearchableSelect", () => {
         "Pilihan dengan nama yang sangat panjang untuk ruang sempit",
       ),
     ).toHaveClass("min-w-0", "truncate");
+  });
+
+  it("merender tombol bersihkan sebagai saudara pemicu dan membungkus opsi panjang", async () => {
+    const user = userEvent.setup();
+    render(
+      <SearchableSelect
+        value="selected"
+        options={[
+          { value: "selected", label: "Pilihan aktif" },
+          {
+            value: "long",
+            label: "Pilihan dengan nama yang panjang dan tetap terbaca",
+            description:
+              "Keterangan panjang yang tidak boleh terpotong di panel terbuka",
+          },
+        ]}
+        onChange={vi.fn()}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Pilihan aktif" });
+    const clearButton = screen.getByRole("button", {
+      name: "Bersihkan pilihan",
+    });
+    expect(trigger.contains(clearButton)).toBe(false);
+    expect(trigger).toHaveAttribute("data-clearable", "true");
+    expect(clearButton).toHaveClass("h-11", "w-11");
+
+    await user.click(trigger);
+    expect(
+      screen.getByText("Pilihan dengan nama yang panjang dan tetap terbaca"),
+    ).toHaveClass("whitespace-normal", "break-words");
+    expect(
+      screen.getByText(
+        "Keterangan panjang yang tidak boleh terpotong di panel terbuka",
+      ),
+    ).toHaveClass("whitespace-normal", "break-words");
   });
 
   it("memfilter, menavigasi keyboard, dan memilih opsi yang aktif", async () => {
@@ -110,6 +149,10 @@ describe("SearchableSelect", () => {
     await user.type(search, "cabang");
     expect(screen.queryByText("Admin")).not.toBeInTheDocument();
     expect(screen.getByText("Manager")).toBeInTheDocument();
+    expect(search).toHaveAttribute(
+      "aria-activedescendant",
+      screen.getByRole("option", { name: /Manager/ }).id,
+    );
     await user.keyboard("{ArrowDown}{ArrowUp}{Enter}");
 
     expect(onChange).toHaveBeenCalledWith(
@@ -117,6 +160,7 @@ describe("SearchableSelect", () => {
       expect.objectContaining({ label: "Manager" }),
     );
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("mengabaikan opsi disabled dan dapat membersihkan pilihan", async () => {
@@ -125,13 +169,19 @@ describe("SearchableSelect", () => {
     const { rerender } = render(
       <SearchableSelect
         value="blocked"
-        options={[{ value: "blocked", label: "Tidak dapat dipilih", disabled: true }]}
+        options={[
+          { value: "blocked", label: "Tidak dapat dipilih", disabled: true },
+        ]}
         onChange={onChange}
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Tidak dapat dipilih" }));
-    await user.click(screen.getByRole("option", { name: "Tidak dapat dipilih" }));
+    await user.click(
+      screen.getByRole("button", { name: "Tidak dapat dipilih" }),
+    );
+    await user.click(
+      screen.getByRole("option", { name: "Tidak dapat dipilih" }),
+    );
     expect(onChange).not.toHaveBeenCalled();
 
     rerender(
@@ -186,7 +236,9 @@ describe("SearchableSelect", () => {
 
     await user.click(screen.getByRole("button", { name: "Pilih data" }));
     await waitFor(() => expect(loadOptions).toHaveBeenCalledWith(""));
-    await user.click(await screen.findByRole("option", { name: "Hasil async" }));
+    await user.click(
+      await screen.findByRole("option", { name: "Hasil async" }),
+    );
     expect(onChange).toHaveBeenCalledWith(
       "async-1",
       expect.objectContaining({ label: "Hasil async" }),
@@ -200,10 +252,79 @@ describe("SearchableSelect", () => {
         debounceMs={0}
       />,
     );
-    expect(screen.getByRole("button", { name: "Hasil async" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Hasil async" }),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Hasil async" }));
     await waitFor(() =>
-      expect(screen.getByText("Gagal memuat data. Coba cari ulang.")).toBeInTheDocument(),
+      expect(
+        screen.getByText("Gagal memuat data. Coba cari ulang."),
+      ).toBeInTheDocument(),
     );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Gagal memuat data. Coba cari ulang.",
+    );
+  });
+
+  it("mengumumkan loading dan hasil kosong di dalam listbox", async () => {
+    const user = userEvent.setup();
+    let resolveOptions:
+      | ((options: Array<{ value: string; label: string }>) => void)
+      | undefined;
+    const loadOptions = vi.fn(
+      () =>
+        new Promise<Array<{ value: string; label: string }>>((resolve) => {
+          resolveOptions = resolve;
+        }),
+    );
+    render(
+      <SearchableSelect
+        value=""
+        loadOptions={loadOptions}
+        onChange={vi.fn()}
+        debounceMs={0}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Pilih data" }));
+    await waitFor(() => expect(loadOptions).toHaveBeenCalled());
+    expect(screen.getByRole("status")).toHaveTextContent("Memuat data...");
+
+    resolveOptions?.([]);
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Data tidak ditemukan",
+      ),
+    );
+  });
+
+  it("menutup popup dan meneruskan fokus saat Tab atau Shift+Tab", async () => {
+    const user = userEvent.setup();
+    render(
+      <div>
+        <button type="button">Sebelum</button>
+        <SearchableSelect
+          value=""
+          options={[{ value: "1", label: "Admin" }]}
+          onChange={vi.fn()}
+        />
+        <button type="button">Sesudah</button>
+      </div>,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Pilih data" });
+    await user.click(trigger);
+    await user.keyboard("{Tab}");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Sesudah" })).toHaveFocus(),
+    );
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+    await user.click(trigger);
+    await user.keyboard("{Shift>}{Tab}{/Shift}");
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Sebelum" })).toHaveFocus(),
+    );
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 });

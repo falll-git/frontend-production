@@ -2,6 +2,7 @@
 
 import DashboardModal from "@/components/ui/DashboardModal";
 import { useDocumentPreviewContext } from "@/components/ui/DocumentPreviewContext";
+import SetupModalDetailLayout from "@/components/ui/SetupModalDetailLayout";
 import SetupRecordDetailSection from "@/components/ui/SetupRecordDetailSection";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
 import SetupViewButton from "@/components/ui/SetupViewButton";
@@ -110,8 +111,11 @@ export default function ReportDocumentDetailModal({
         </button>
       }
     >
-      <SetupRecordDetailSection
-        title="Informasi Dokumen"
+      <SetupModalDetailLayout
+        information={
+          <SetupRecordDetailSection
+        title="Informasi Utama"
+        description="Identitas, status peminjaman, akses, dan klasifikasi dokumen."
         rows={[
           { label: "Nama Dokumen", value: document.namaDokumen },
           { label: "Kode Dokumen", value: document.kode },
@@ -134,51 +138,12 @@ export default function ReportDocumentDetailModal({
           { label: "Keterangan", value: document.detail || EMPTY_LABEL },
         ]}
       />
-
-      <SetupRecordDetailSection
-        title="File Dokumen"
-        rows={[
-          {
-            label: "Nama File",
-            value: document.fileName || document.namaDokumen || EMPTY_LABEL,
-          },
-          {
-            label: "Status Watermark",
-            value: (
-              <SetupStatusBadge
-                status={isWatermarkActive ? "Aktif" : "Nonaktif"}
-                label={isWatermarkActive ? "Aktif" : "Nonaktif"}
-                tone={isWatermarkActive ? "emerald" : "red"}
-              />
-            ),
-          },
-          {
-            label: "Aksi",
-            value: (
-              <SetupViewButton
-                onClick={() =>
-                  document.fileUrl
-                    ? openPreview(
-                        document.fileUrl,
-                        document.fileName || document.namaDokumen,
-                      )
-                    : undefined
-                }
-                disabled={!document.fileUrl}
-                label="Preview"
-                title={
-                  document.fileUrl
-                    ? "Preview dokumen"
-                    : "File dokumen belum tersedia"
-                }
-              />
-            ),
-          },
-        ]}
-      />
-
-      <SetupRecordDetailSection
-        title="Kepemilikan dan Akses"
+        }
+        details={
+          <div className="space-y-6">
+          <SetupRecordDetailSection
+        title="Detail Kepemilikan dan Akses"
+        description="PIC, pembuat, divisi, debitur, dan pengguna yang berelasi dengan dokumen."
         rows={[
           {
             label: "PIC / Pemilik",
@@ -238,7 +203,8 @@ export default function ReportDocumentDetailModal({
       />
 
       <SetupRecordDetailSection
-        title="Lokasi Penyimpanan"
+        title="Detail Lokasi Penyimpanan"
+        description="Jalur penyimpanan fisik dokumen di kantor, lemari, dan rak."
         rows={[
           {
             label: "Jalur Lokasi",
@@ -256,6 +222,51 @@ export default function ReportDocumentDetailModal({
           { label: "Rak", value: document.storage?.rackName || EMPTY_LABEL },
           { label: "Lokasi", value: getDocumentLocation(document) },
         ]}
+      />
+          </div>
+        }
+        attachments={
+          <SetupRecordDetailSection
+        title="Lampiran"
+        description="File digital dan status watermark yang terkait dengan dokumen."
+        rows={[
+          {
+            label: "Nama File",
+            value: document.fileName || document.namaDokumen || EMPTY_LABEL,
+          },
+          {
+            label: "Status Watermark",
+            value: (
+              <SetupStatusBadge
+                status={isWatermarkActive ? "Aktif" : "Nonaktif"}
+              />
+            ),
+          },
+          {
+            label: "Aksi",
+            value: (
+              <SetupViewButton
+                onClick={() =>
+                  document.fileUrl
+                    ? openPreview(
+                        document.fileUrl,
+                        document.fileName || document.namaDokumen,
+                      )
+                    : undefined
+                }
+                disabled={!document.fileUrl}
+                label="Preview"
+                title={
+                  document.fileUrl
+                    ? "Preview dokumen"
+                    : "File dokumen belum tersedia"
+                }
+              />
+            ),
+          },
+        ]}
+      />
+        }
       />
     </DashboardModal>
   );

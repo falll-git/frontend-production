@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildContentSecurityPolicy } from "@/lib/content-security-policy";
+import {
+  buildContentSecurityPolicy,
+  shouldUseDevelopmentCsp,
+} from "@/lib/content-security-policy";
 
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const contentSecurityPolicy = buildContentSecurityPolicy({
     backendOrigin: process.env.NEXT_PUBLIC_API_URL,
-    isDevelopment: process.env.NODE_ENV === "development",
+    isDevelopment: shouldUseDevelopmentCsp({
+      allowInsecureLoopback: process.env.E2E_ALLOW_INSECURE_LOOPBACK,
+      hostname: request.nextUrl.hostname,
+      nodeEnvironment: process.env.NODE_ENV,
+    }),
     nonce,
   });
   const requestHeaders = new Headers(request.headers);

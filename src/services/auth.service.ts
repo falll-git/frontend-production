@@ -1,5 +1,5 @@
 import axios from "axios";
-import api from "@/lib/axios";
+import api, { requestSessionRefresh } from "@/lib/axios";
 import { createClientRequestId } from "@/lib/client-error-reporting";
 import type {
   ForgotPasswordResponse,
@@ -35,10 +35,9 @@ export const authService = {
     return res.data;
   },
   refresh: async (options?: { remember?: boolean }): Promise<RefreshResponse> => {
-    const res = await api.post("/auth/refresh", {
+    return requestSessionRefresh({
       remember: Boolean(options?.remember),
-    });
-    return res.data;
+    }) as Promise<RefreshResponse>;
   },
   forgotPassword: async (email: string): Promise<ForgotPasswordResponse> => {
     const res = await api.post("/auth/forgot-password", { email });

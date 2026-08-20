@@ -20,6 +20,7 @@ import { useAppToast } from "@/components/ui/AppToastProvider";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import BasicDateInput from "@/components/ui/BasicDateInput";
 import InputDokumenSectionTitle from "@/components/arsip-digital/input-dokumen/InputDokumenSectionTitle";
+import DispositionRequestResponsiveGrid from "@/components/arsip-digital/disposisi/DispositionRequestResponsiveGrid";
 import Pagination from "@/components/ui/Pagination";
 import SetupPrimaryButton from "@/components/ui/SetupPrimaryButton";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
@@ -82,13 +83,15 @@ function ModalInfoItem({
 }) {
   return (
     <div
-      className={`space-y-1 rounded-xl border border-gray-200 bg-white px-4 py-3 ${className}`.trim()}
+      className={`min-w-0 space-y-1 rounded-xl border border-gray-200 bg-white px-4 py-3 ${className}`.trim()}
     >
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
         {label}
       </p>
-      <div className="text-sm font-semibold text-slate-900">{value}</div>
-      {helper ? <div className="text-xs text-slate-500">{helper}</div> : null}
+      <div className="break-words text-sm font-semibold text-slate-900">{value}</div>
+      {helper ? (
+        <div className="break-words text-xs text-slate-500">{helper}</div>
+      ) : null}
     </div>
   );
 }
@@ -480,10 +483,10 @@ export default function PengajuanDisposisiPageClient() {
               title="Dokumen yang Diajukan"
               description="Ringkasan dokumen yang akan dimasukkan ke pengajuan disposisi."
             />
-            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.85fr)]">
-              <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+            <DispositionRequestResponsiveGrid>
+              <div className="min-w-0 space-y-4 rounded-lg border border-gray-200 bg-white p-5">
                 <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
-                  <div className="space-y-2">
+                  <div className="min-w-0 space-y-2">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                       Paket Pengajuan
                     </p>
@@ -503,7 +506,7 @@ export default function PengajuanDisposisiPageClient() {
 
                 <div className="max-h-64 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50">
                   {selectedDocuments.map((doc) => (
-                    <div key={doc.id} className="flex items-start gap-3 px-4 py-3">
+                    <div key={doc.id} className="flex min-w-0 items-start gap-3 px-4 py-3">
                       <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white text-sky-600 shadow-sm">
                         <FileText className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
                       </div>
@@ -515,7 +518,7 @@ export default function PengajuanDisposisiPageClient() {
                           >
                             {doc.namaDokumen}
                           </p>
-                          <span className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
+                          <span className="max-w-full break-all rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 tabular-nums">
                             {doc.kode}
                           </span>
                         </div>
@@ -531,12 +534,12 @@ export default function PengajuanDisposisiPageClient() {
                 </div>
               </div>
 
-              <div className="space-y-4 rounded-2xl border border-gray-200 bg-slate-50 p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+              <div className="min-w-0 space-y-4 rounded-lg border border-gray-200 bg-slate-50 p-5">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm">
+                  <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-sky-600">
                     <UserRound className="size-5" strokeWidth={1.9} aria-hidden="true" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <h4 className="text-lg font-semibold text-slate-950">
                       Pemilik Dokumen
                     </h4>
@@ -561,7 +564,7 @@ export default function PengajuanDisposisiPageClient() {
                   ) : null}
                 </div>
               </div>
-            </div>
+            </DispositionRequestResponsiveGrid>
           </section>
 
           <section className="space-y-4">
@@ -569,7 +572,7 @@ export default function PengajuanDisposisiPageClient() {
               title="Detail Pengajuan"
               description="Isi alasan dan batas waktu akses yang diminta."
             />
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+            <div className="rounded-lg border border-gray-200 bg-white p-5">
               <div className="space-y-5">
                 <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex items-center gap-3">

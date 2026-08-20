@@ -144,7 +144,11 @@ export default function KantorLemariPage() {
             Kembali ke Ruang Arsip Digital
           </Link>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm">
+        <div
+          className="rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm"
+          role="status"
+          aria-live="polite"
+        >
           <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-gray-300">
             <SearchX className="h-7 w-7" aria-hidden="true" />
           </div>
@@ -187,14 +191,21 @@ export default function KantorLemariPage() {
       </div>
 
       {errorMessage ? (
-        <div className="mt-6 rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm">
+        <div
+          className="mt-6 rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm"
+          role="alert"
+        >
           <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-gray-300">
             <SearchX className="h-7 w-7" aria-hidden="true" />
           </div>
           <p className="text-base font-medium text-gray-700">{errorMessage}</p>
         </div>
       ) : isLoading && lemariPage.length === 0 ? (
-        <div className="mt-6 rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm">
+        <div
+          className="mt-6 rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm"
+          role="status"
+          aria-live="polite"
+        >
           <p className="text-base font-medium text-gray-700">
             Memuat daftar lemari...
           </p>

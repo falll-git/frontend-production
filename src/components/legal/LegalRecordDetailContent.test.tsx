@@ -18,6 +18,15 @@ const contract = {
   debtor: { name: "Debitur Contoh" },
 };
 
+function expectStandardDetailOrder(container: HTMLElement) {
+  expect(
+    Array.from(
+      container.querySelectorAll("[data-modal-detail-part]"),
+      (element) => element.getAttribute("data-modal-detail-part"),
+    ),
+  ).toEqual(["information", "detail", "attachment"]);
+}
+
 function progressFixture(
   overrides: Partial<LegalProgressRecord> = {},
 ): LegalProgressRecord {
@@ -41,7 +50,7 @@ function progressFixture(
 
 describe("LegalRecordDetailContent", () => {
   it("menampilkan field khusus notaris dengan pola detail bersama", () => {
-    render(
+    const { container } = render(
       <LegalProgressDetailContent
         item={progressFixture({
           deed_type: "Akta Jual Beli",
@@ -53,11 +62,13 @@ describe("LegalRecordDetailContent", () => {
       />,
     );
 
-    expect(screen.getByText("Kontrak dan Pihak Ketiga")).toBeInTheDocument();
+    expect(screen.getByText("Informasi Utama")).toBeInTheDocument();
     expect(screen.getByText("Jenis Akta")).toBeInTheDocument();
     expect(screen.getByText("Akta Jual Beli")).toBeInTheDocument();
     expect(screen.getByText("Nomor Akta")).toBeInTheDocument();
     expect(screen.queryByText("Nilai Taksasi")).not.toBeInTheDocument();
+    expect(screen.getByText("Lampiran")).toBeInTheDocument();
+    expectStandardDetailOrder(container);
   });
 
   it("menampilkan field khusus KJPP tanpa mengubah pola tampilannya", () => {
@@ -106,14 +117,15 @@ describe("LegalRecordDetailContent", () => {
       updated_at: null,
     } as unknown as LegalClaim;
 
-    render(
+    const { container } = render(
       <LegalClaimDetailContent item={claim} onOpenFile={vi.fn()} />,
     );
 
-    expect(screen.getByText("Kontrak dan Klaim")).toBeInTheDocument();
-    expect(screen.getByText("Nilai dan Realisasi")).toBeInTheDocument();
+    expect(screen.getByText("Informasi Utama")).toBeInTheDocument();
+    expect(screen.getByText("Detail Klaim")).toBeInTheDocument();
     expect(screen.getByText("Kebakaran")).toBeInTheDocument();
     expect(screen.getByText("Catatan klaim")).toBeInTheDocument();
+    expectStandardDetailOrder(container);
   });
 
   it("menampilkan relasi, nilai, dan riwayat transaksi dana titipan", () => {
@@ -149,14 +161,17 @@ describe("LegalRecordDetailContent", () => {
       updated_at: null,
     } as unknown as LegalDeposit;
 
-    render(
+    const { container } = render(
       <LegalDepositDetailContent item={deposit} onOpenFile={vi.fn()} />,
     );
 
-    expect(screen.getByText("Relasi Titipan")).toBeInTheDocument();
+    expect(screen.getByText("Informasi Utama")).toBeInTheDocument();
+    expect(screen.getByText("Detail Dana Titipan")).toBeInTheDocument();
     expect(screen.getByText("Riwayat Transaksi")).toBeInTheDocument();
     expect(screen.getByText("Titipan Notaris")).toBeInTheDocument();
     expect(screen.getByText("Titipan awal")).toBeInTheDocument();
+    expect(screen.getByText("Lampiran")).toBeInTheDocument();
+    expectStandardDetailOrder(container);
   });
 
   it("menampilkan seluruh field asuransi, agunan, status, dan file unik", () => {
@@ -319,7 +334,7 @@ describe("LegalRecordDetailContent", () => {
     );
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(
-      screen.getByText("Belum ada transaksi pada dana titipan ini."),
+      screen.getByText("Belum ada transaksi pada ledger dana titipan ini."),
     ).toBeInTheDocument();
   });
 });

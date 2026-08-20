@@ -14,13 +14,7 @@ import {
   SetupTableCard,
 } from "@/components/ui/SetupDataTable";
 import { useEffect, useMemo, useState } from "react";
-import {
-  Archive,
-  ArrowRightLeft,
-  CirclePlus,
-  Eye,
-  Pencil,
-} from "lucide-react";
+import { Archive, ArrowRightLeft, CirclePlus, Eye, Pencil } from "lucide-react";
 
 import DashboardModal from "@/components/ui/DashboardModal";
 import FeatureHeader from "@/components/ui/FeatureHeader";
@@ -50,10 +44,7 @@ import { formatDateOnly } from "@/lib/utils/date";
 import { exportToExcel } from "@/lib/utils/exportExcel";
 
 type StorageHistoryActionLabel =
-  | "Input Baru"
-  | "Pindah Lokasi"
-  | "Perubahan Data"
-  | "Hapus";
+  "Input Baru" | "Pindah Lokasi" | "Perubahan Data" | "Hapus";
 
 type StorageHistoryRow = {
   id: string;
@@ -247,9 +238,7 @@ export default function HistorisPenyimpananPage() {
         title="Historis Penyimpanan"
         subtitle="Riwayat perubahan lokasi dan aktivitas dokumen arsip digital."
         icon={<Archive />}
-        actions={
-          <SetupExcelButton onClick={handleExport} />
-        }
+        actions={<SetupExcelButton onClick={handleExport} />}
       />
 
       <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
@@ -339,128 +328,187 @@ export default function HistorisPenyimpananPage() {
       </div>
 
       <SetupTableCard variant="report">
-          <SetupDataTable variant="report" density="compact" className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}>
-            <SetupDataTableColGroup>
-              {HISTORIS_PENYIMPANAN_TABLE_COLUMN_WIDTHS.map((width, index) => (
-                <SetupDataTableCol
-                  key={`${index}-${width ?? "flex"}`}
-                  style={width ? { width } : undefined}
-                />
-              ))}
-            </SetupDataTableColGroup>
-            <SetupDataTableHead className="ltr:text-left rtl:text-right">
-              <SetupDataTableRow className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}>No</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Tanggal</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Jam</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>Kode</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
-                  Nama Dokumen
-                </SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>
-                  Jenis Aksi
-                </SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
-                  Lokasi Lama
-                </SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>
-                  Lokasi Baru
-                </SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}>User</SetupDataTableHeaderCell>
-                <SetupDataTableHeaderCell className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}>Aksi</SetupDataTableHeaderCell>
-              </SetupDataTableRow>
-            </SetupDataTableHead>
-            <SetupDataTableBody className="divide-y divide-gray-100">
-              {paginatedData.map((item, idx) => (
-                <SetupDataTableRow
-                  key={item.id}
-                  className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer hover:bg-gray-50/50`}
-                  onDoubleClick={() => setSelectedItem(item)}
+        <SetupDataTable
+          variant="report"
+          density="compact"
+          className={`${SETUP_PAGE_MODERN_TABLE_CLASS}`}
+        >
+          <SetupDataTableColGroup>
+            {HISTORIS_PENYIMPANAN_TABLE_COLUMN_WIDTHS.map((width, index) => (
+              <SetupDataTableCol
+                key={`${index}-${width ?? "flex"}`}
+                style={width ? { width } : undefined}
+              />
+            ))}
+          </SetupDataTableColGroup>
+          <SetupDataTableHead className="ltr:text-left rtl:text-right">
+            <SetupDataTableRow
+              className={SETUP_PAGE_MODERN_TABLE_HEADER_ROW_CLASS}
+            >
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_NUMBER_HEADER_CELL_CLASS}
+              >
+                No
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}
+              >
+                Tanggal
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}
+              >
+                Jam
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}
+              >
+                Kode
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}
+              >
+                Nama Dokumen
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}
+              >
+                Jenis Aksi
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}
+              >
+                Lokasi Lama
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}
+              >
+                Lokasi Baru
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_HEADER_CELL_CLASS}
+              >
+                User
+              </SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell
+                className={SETUP_PAGE_MODERN_CENTER_HEADER_CELL_CLASS}
+              >
+                Aksi
+              </SetupDataTableHeaderCell>
+            </SetupDataTableRow>
+          </SetupDataTableHead>
+          <SetupDataTableBody className="divide-y divide-gray-100">
+            {paginatedData.map((item, idx) => (
+              <SetupDataTableRow
+                key={item.id}
+                className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer hover:bg-gray-50/50`}
+                onDoubleClick={() => setSelectedItem(item)}
+              >
+                <SetupDataTableCell
+                  className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}
                 >
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_NUMBER_CELL_CLASS}>
-                    {(paginationMeta.page - 1) * paginationMeta.limit + idx + 1}
-                  </SetupDataTableCell>
-                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
-                    <span
-                      className="block truncate tabular-nums"
-                      title={formatDateOnly(item.tanggal)}
-                    >
-                      {formatDateOnly(item.tanggal)}
-                    </span>
-                  </SetupDataTableCell>
-                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
-                    <span className="block truncate tabular-nums" title={item.jam}>
-                      {item.jam}
-                    </span>
-                  </SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
-                    <span
-                      className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 tabular-nums"
-                      title={item.kode}
-                    >
-                      {item.kode}
-                    </span>
-                  </SetupDataTableCell>
-                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}>
-                    <span className="block truncate" title={item.namaDokumen}>
-                      {item.namaDokumen}
-                    </span>
-                  </SetupDataTableCell>
-                  <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
-                    <SetupStatusBadge status={item.aksiLabel} />
-                  </SetupDataTableCell>
-                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}>
-                    <span className="block truncate" title={item.lokasiLama}>
-                      {item.lokasiLama}
-                    </span>
-                  </SetupDataTableCell>
-                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-medium text-gray-900`}>
-                    <span className="block truncate" title={item.lokasiBaru}>
-                      {item.lokasiBaru}
-                    </span>
-                  </SetupDataTableCell>
-                  <SetupDataTableCell className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}>
-                    <span
-                      className="block truncate"
-                      title={formatPersonName(item.user)}
-                    >
-                      {formatPersonName(item.user)}
-                    </span>
-                  </SetupDataTableCell>
-                  <SetupDataTableCell
-                    className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
-                    onClick={(event) => event.stopPropagation()}
-                    onDoubleClick={(event) => event.stopPropagation()}
+                  {(paginationMeta.page - 1) * paginationMeta.limit + idx + 1}
+                </SetupDataTableCell>
+                <SetupDataTableCell
+                  className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}
+                >
+                  <span
+                    className="block truncate tabular-nums"
+                    title={formatDateOnly(item.tanggal)}
                   >
-                    <SetupActionMenu
-                      items={[
-                        {
-                          key: "detail",
-                          label: "Detail",
-                          icon: Eye,
-                          tone: "blue",
-                          onClick: () => setSelectedItem(item),
-                        },
-                      ]}
-                      label={`Buka aksi untuk historis penyimpanan ${item.kode}`}
-                      menuLabel={`Aksi historis penyimpanan ${item.kode}`}
-                    />
-                  </SetupDataTableCell>
-                </SetupDataTableRow>
-              ))}
-              {filteredData.length === 0 ? (
-                <SetupDataTableEmptyRow
-                  colSpan={10}
-                  icon={Archive}
-                  tone="neutral"
-                  isFiltered={searchTerm.trim().length > 0 || filterAksi !== "Semua"}
-                  description="Riwayat perpindahan, input, dan perubahan lokasi dokumen akan tampil di sini."
+                    {formatDateOnly(item.tanggal)}
+                  </span>
+                </SetupDataTableCell>
+                <SetupDataTableCell
+                  className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}
                 >
-                  Belum ada data historis penyimpanan yang sesuai.
-                </SetupDataTableEmptyRow>
-              ) : null}
-            </SetupDataTableBody>
-          </SetupDataTable>
+                  <span
+                    className="block truncate tabular-nums"
+                    title={item.jam}
+                  >
+                    {item.jam}
+                  </span>
+                </SetupDataTableCell>
+                <SetupDataTableCell className={SETUP_PAGE_MODERN_CELL_CLASS}>
+                  <span
+                    className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 tabular-nums"
+                    title={item.kode}
+                  >
+                    {item.kode}
+                  </span>
+                </SetupDataTableCell>
+                <SetupDataTableCell
+                  className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}
+                >
+                  <span className="block truncate" title={item.namaDokumen}>
+                    {item.namaDokumen}
+                  </span>
+                </SetupDataTableCell>
+                <SetupDataTableCell
+                  className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                >
+                  <SetupStatusBadge status={item.aksiLabel} />
+                </SetupDataTableCell>
+                <SetupDataTableCell
+                  className={`${SETUP_PAGE_MODERN_CELL_CLASS} text-gray-600`}
+                >
+                  <span className="block truncate" title={item.lokasiLama}>
+                    {item.lokasiLama}
+                  </span>
+                </SetupDataTableCell>
+                <SetupDataTableCell
+                  className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-medium text-gray-900`}
+                >
+                  <span className="block truncate" title={item.lokasiBaru}>
+                    {item.lokasiBaru}
+                  </span>
+                </SetupDataTableCell>
+                <SetupDataTableCell
+                  className={`${SETUP_PAGE_MODERN_CELL_CLASS} font-semibold text-gray-900`}
+                >
+                  <span
+                    className="block truncate"
+                    title={formatPersonName(item.user)}
+                  >
+                    {formatPersonName(item.user)}
+                  </span>
+                </SetupDataTableCell>
+                <SetupDataTableCell
+                  className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}
+                  onClick={(event) => event.stopPropagation()}
+                  onDoubleClick={(event) => event.stopPropagation()}
+                >
+                  <SetupActionMenu
+                    items={[
+                      {
+                        key: "detail",
+                        label: "Detail",
+                        icon: Eye,
+                        tone: "blue",
+                        onClick: () => setSelectedItem(item),
+                      },
+                    ]}
+                    label={`Buka aksi untuk historis penyimpanan ${item.kode}`}
+                    menuLabel={`Aksi historis penyimpanan ${item.kode}`}
+                  />
+                </SetupDataTableCell>
+              </SetupDataTableRow>
+            ))}
+            {filteredData.length === 0 ? (
+              <SetupDataTableEmptyRow
+                colSpan={10}
+                icon={Archive}
+                tone="neutral"
+                isFiltered={
+                  searchTerm.trim().length > 0 || filterAksi !== "Semua"
+                }
+                description="Riwayat perpindahan, input, dan perubahan lokasi dokumen akan tampil di sini."
+              >
+                Belum ada data historis penyimpanan yang sesuai.
+              </SetupDataTableEmptyRow>
+            ) : null}
+          </SetupDataTableBody>
+        </SetupDataTable>
         <Pagination
           page={paginationMeta.page}
           lastPage={paginationMeta.lastPage}
@@ -499,7 +547,7 @@ export default function HistorisPenyimpananPage() {
                   Ringkasan aktivitas penyimpanan dan perubahan lokasi dokumen.
                 </p>
               </div>
-              <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+              <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-5">
                 <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
                   <div className="space-y-1">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -514,7 +562,10 @@ export default function HistorisPenyimpananPage() {
                   </div>
                   <SetupStatusBadge status={selectedItem.aksiLabel} />
                 </div>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div
+                  data-ui-layout="modal-definition-grid"
+                  className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 md:grid-cols-2 [&>*:last-child:nth-child(odd)]:md:col-span-2"
+                >
                   <DetailInfoItem
                     label="Tanggal"
                     value={formatDateOnly(selectedItem.tanggal)}
@@ -537,7 +588,10 @@ export default function HistorisPenyimpananPage() {
                   Lokasi sebelum dan sesudah aktivitas tercatat.
                 </p>
               </div>
-              <div className="grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 md:grid-cols-2">
+              <div
+                data-ui-layout="modal-definition-grid"
+                className="grid gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 md:grid-cols-2"
+              >
                 <DetailInfoItem
                   label="Lokasi Lama"
                   value={selectedItem.lokasiLama}
@@ -562,11 +616,14 @@ type DetailInfoItemProps = {
 
 function DetailInfoItem({ label, value }: DetailInfoItemProps) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-slate-50 px-4 py-3">
+    <div
+      data-ui="modal-definition-cell"
+      className="min-w-0 bg-white px-4 py-3.5 sm:px-5"
+    >
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
         {label}
       </p>
-      <p className="mt-2 break-words text-sm font-semibold leading-6 text-slate-900">
+      <p className="mt-1.5 min-w-0 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-slate-900">
         {value || "-"}
       </p>
     </div>

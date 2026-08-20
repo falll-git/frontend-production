@@ -5,9 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
-  CheckCircle2,
   Copy,
-  Clock3,
   Mail,
   Pencil,
   Save,
@@ -128,16 +126,16 @@ function isValidEmail(value: string) {
 
 function getOnboardingBadgeMeta(status: UserRecord["onboarding_status"]) {
   if (status === "PENDING_ACTIVATION") {
-    return { tone: "amber" as const, icon: Clock3 };
+    return { tone: "amber" as const };
   }
 
   if (status === "NOT_ACTIVATED") {
-    return { tone: "gray" as const, icon: AlertTriangle };
+    return { tone: "gray" as const };
   }
 
   return status === "ACTIVE"
-    ? { tone: "emerald" as const, icon: CheckCircle2 }
-    : { tone: "gray" as const, icon: AlertTriangle };
+    ? { tone: "emerald" as const }
+    : { tone: "gray" as const };
 }
 
 function getOnboardingLabel(user: UserRecord) {
@@ -953,13 +951,6 @@ export default function ManajemenUserPage() {
                     >
                       <SetupStatusBadge
                         status={canAccessRestrictedDocuments ? "Ya" : "Tidak"}
-                        label={canAccessRestrictedDocuments ? "Ya" : "Tidak"}
-                        tone={canAccessRestrictedDocuments ? "emerald" : "gray"}
-                        icon={
-                          canAccessRestrictedDocuments
-                            ? ShieldCheck
-                            : ShieldOff
-                        }
                       />
                     </SetupDataTableCell>
                     <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>
@@ -970,7 +961,6 @@ export default function ManajemenUserPage() {
                         status={getOnboardingLabel(user)}
                         label={getOnboardingLabel(user)}
                         tone={onboardingBadge.tone}
-                        icon={onboardingBadge.icon}
                       />
                     </SetupDataTableCell>
                     <SetupDataTableCell className={SETUP_PAGE_MODERN_CENTER_CELL_CLASS}>

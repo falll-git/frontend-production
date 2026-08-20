@@ -12,7 +12,7 @@ import { authService } from "@/services/auth.service";
 const INPUT_CLASS =
   "w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#157ec3] focus:ring-2 focus:ring-[#157ec3]/20";
 const PRIMARY_BUTTON =
-  "inline-flex min-h-10 items-center justify-center rounded-xl bg-[#0d5a8f] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#084a76] disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex min-h-11 items-center justify-center rounded-xl bg-[#0d5a8f] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#084a76] disabled:cursor-not-allowed disabled:opacity-60";
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;

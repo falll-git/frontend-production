@@ -29,7 +29,7 @@
 }
 
 .dashboard-modal__footer .uiverse-modal-button {
-  min-height: 38px;
+  min-height: 44px;
   padding: 8px 12px;
 }
 
@@ -54,6 +54,6 @@
 
   .dashboard-modal__footer .uiverse-modal-button {
     width: 100%;
-    min-height: 38px;
+    min-height: 44px;
   }
 }

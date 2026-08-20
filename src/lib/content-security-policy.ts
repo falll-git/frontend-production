@@ -4,6 +4,27 @@ type ContentSecurityPolicyOptions = {
   nonce: string;
 };
 
+const LOOPBACK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+
+export function shouldUseDevelopmentCsp({
+  allowInsecureLoopback,
+  hostname,
+  nodeEnvironment,
+}: {
+  allowInsecureLoopback?: string;
+  hostname: string;
+  nodeEnvironment?: string;
+}) {
+  if (nodeEnvironment === "development") {
+    return true;
+  }
+
+  return (
+    allowInsecureLoopback === "true" &&
+    LOOPBACK_HOSTNAMES.has(hostname.trim().toLowerCase())
+  );
+}
+
 function normalizeOrigin(value: string | undefined) {
   try {
     return value ? new URL(value).origin : "";

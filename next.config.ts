@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { resolveFileBackedEnv } from "./src/lib/file-backed-env";
+import { createBackendRewrites } from "./src/lib/backend-rewrites";
 
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || "";
 const serverActionsEncryptionKey =
@@ -63,14 +64,7 @@ const nextConfig: NextConfig = {
     pollIntervalMs: 1000,
   },
   async rewrites() {
-    if (!backendApiUrl) return [];
-
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${backendApiUrl}/:path*`,
-      },
-    ];
+    return createBackendRewrites(backendApiUrl);
   },
   async headers() {
     return [

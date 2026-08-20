@@ -7,6 +7,17 @@
   min-width: 0;
 }
 
-.setup-filter-card :where(input, select, button[aria-haspopup="listbox"], button[aria-haspopup="dialog"]) {
+.setup-filter-card
+  :where(
+    input,
+    select,
+    button[aria-haspopup="listbox"],
+    button[aria-haspopup="dialog"]
+  ) {
   max-width: 100%;
+}
+
+.setup-filter-card :where(label, [data-filter-label]) {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }

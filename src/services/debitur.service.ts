@@ -1,4 +1,8 @@
 import api from "@/lib/axios";
+import {
+  mapDepositLedgerSnapshot,
+  mapDepositTransactionSource,
+} from "@/services/deposit-ledger.mapper";
 import type { IdebFacilityFilter } from "@/lib/ideb-facility-filter";
 import { MAX_TABLE_PAGE_SIZE, OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import {
@@ -1528,6 +1532,7 @@ function mapDepositTransaction(record: unknown): DebtorWorkflowDepositTransactio
     transaction_date: normalizeDate(item.transaction_date),
     action: readString(item, "action") ?? "-",
     raw_action: nullableString(item, "raw_action", "rawAction"),
+    source: mapDepositTransactionSource(item.source),
     amount: numberValue(item, "amount"),
     notes: nullableString(item, "notes"),
     file: mapFile(item.file),
@@ -1573,6 +1578,7 @@ function mapWorkflowDeposit(record: unknown): DebtorWorkflowDeposit | null {
       "balance_amount",
       numberValue(item, "remaining_amount"),
     ),
+    ledger: mapDepositLedgerSnapshot(item.ledger),
     status: readString(item, "status") ?? "PENDING",
     notes: nullableString(item, "notes"),
     deposit_type: mapParameter(item.deposit_type),

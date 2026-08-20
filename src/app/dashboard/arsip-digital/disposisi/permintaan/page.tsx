@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import InputDokumenSectionTitle from "@/components/arsip-digital/input-dokumen/InputDokumenSectionTitle";
+import DispositionReviewResponsiveGrid from "@/components/arsip-digital/disposisi/DispositionReviewResponsiveGrid";
 import DashboardModal from "@/components/ui/DashboardModal";
 import BasicDateInput from "@/components/ui/BasicDateInput";
 import Pagination from "@/components/ui/Pagination";
@@ -530,18 +531,18 @@ export default function PermintaanDisposisiPage() {
                 title="Ringkasan Permintaan"
                 description="Pastikan data permintaan sesuai sebelum memproses akses dokumen."
               />
-              <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.85fr)]">
-                <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+              <DispositionReviewResponsiveGrid>
+                <div className="min-w-0 space-y-4 rounded-lg border border-gray-200 bg-white p-5">
                   <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 md:flex-row md:items-start md:justify-between">
-                    <div className="space-y-2">
+                    <div className="min-w-0 space-y-2">
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Dokumen Diminta
                       </p>
                       <div className="space-y-1">
-                        <h3 className="text-2xl font-semibold tracking-tight text-slate-950">
+                        <h3 className="break-words text-2xl font-semibold tracking-tight text-slate-950">
                           {selectedItem.namaDokumen}
                         </h3>
-                        <p className="text-base font-medium text-slate-500">
+                        <p className="break-all text-base font-medium text-slate-500">
                           {selectedItem.kode}
                         </p>
                       </div>
@@ -564,12 +565,12 @@ export default function PermintaanDisposisiPage() {
                   </div>
                 </div>
 
-                <div className="space-y-4 rounded-2xl border border-gray-200 bg-slate-50 p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <div className="min-w-0 space-y-4 rounded-lg border border-gray-200 bg-slate-50 p-5">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm">
+                    <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-sky-600">
                       <UserRound className="size-5" strokeWidth={1.9} aria-hidden="true" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <h4 className="text-lg font-semibold text-slate-950">
                         Pemohon Akses
                       </h4>
@@ -578,16 +579,16 @@ export default function PermintaanDisposisiPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-white p-4">
-                    <p className="text-lg font-semibold text-slate-950">
+                  <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4">
+                    <p className="break-all text-lg font-semibold text-slate-950">
                       {formatPersonName(selectedItem.pemohon)}
                     </p>
-                    <p className="mt-2 text-sm leading-7 text-slate-600">
+                    <p className="mt-2 break-words text-sm leading-7 text-slate-600">
                       {selectedItem.alasan || "-"}
                     </p>
                   </div>
                 </div>
-              </div>
+              </DispositionReviewResponsiveGrid>
             </section>
 
             {actionType ? (
@@ -596,7 +597,7 @@ export default function PermintaanDisposisiPage() {
                   title="Tindak Lanjut"
                   description="Isi keputusan dan catatan yang akan tersimpan pada histori disposisi."
                 />
-                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                <div className="rounded-lg border border-gray-200 bg-white p-5">
                   <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <div
                       className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white ${
@@ -609,7 +610,7 @@ export default function PermintaanDisposisiPage() {
                         <AlertTriangle className="size-5" strokeWidth={1.9} aria-hidden="true" />
                       )}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm font-semibold text-slate-950">
                         {actionType === "approve"
                           ? "Setujui akses dokumen"

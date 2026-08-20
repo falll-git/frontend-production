@@ -179,8 +179,36 @@
   }
 }
 
+@keyframes dashboardPageEnter {
+  from {
+    transform: translateY(4px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes dashboardPriorityEnter {
+  from {
+    transform: translateY(6px) scale(0.995);
+  }
+
+  to {
+    transform: translateY(0) scale(1);
+  }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-dashboard-page-in {
+  animation: dashboardPageEnter 0.22s ease-out;
+}
+
+.animate-dashboard-priority-in {
+  animation: dashboardPriorityEnter 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .animate-slide-in {

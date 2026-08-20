@@ -1,6 +1,8 @@
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { Eye } from "lucide-react";
+import { describe, expect, it, vi } from "vitest";
 
+import SetupActionMenu from "@/components/ui/SetupActionMenu";
 import {
   SetupDataTable,
   SetupDataTableBody,
@@ -42,6 +44,10 @@ describe("SetupDataTable", () => {
           <SetupDataTableRow>
             <SetupDataTableCell colSpan={3}>Ringkasan</SetupDataTableCell>
           </SetupDataTableRow>
+          <SetupDataTableRow>
+            <SetupDataTableCell colSpan={2}>Gabungan</SetupDataTableCell>
+            <SetupDataTableCell>Kolom ketiga</SetupDataTableCell>
+          </SetupDataTableRow>
         </SetupDataTableBody>
       </SetupDataTable>,
     );
@@ -67,6 +73,10 @@ describe("SetupDataTable", () => {
     );
     expect(screen.getByText("Ringkasan").closest("td")).not.toHaveAttribute(
       "data-mobile-label",
+    );
+    expect(screen.getByText("Kolom ketiga").closest("td")).toHaveAttribute(
+      "data-mobile-label",
+      "2026",
     );
   });
 
@@ -159,6 +169,7 @@ describe("SetupDataTable", () => {
       </SetupDataTable>,
     );
     expect(screen.getAllByRole("row", { hidden: true })).toHaveLength(2);
+    expect(screen.getByRole("status")).toHaveTextContent("Memuat data");
   });
 
   it("mengizinkan region scroll dikonfigurasi untuk tabel yang sudah berlabel", () => {
@@ -171,5 +182,88 @@ describe("SetupDataTable", () => {
       "tabindex",
       "-1",
     );
+  });
+
+  it("meneruskan nama region scroll dari kartu tabel", () => {
+    render(
+      <SetupTableCard scrollAriaLabel="Historis IDEB">
+        <span>Isi tabel</span>
+      </SetupTableCard>,
+    );
+
+    expect(
+      screen.getByRole("region", { name: "Historis IDEB" }),
+    ).toBeInTheDocument();
+  });
+
+  it("menandai kolom Aksi pada header dan sel terkait", () => {
+    render(
+      <SetupDataTable aria-label="Daftar beraksi">
+        <SetupDataTableHead>
+          <SetupDataTableRow>
+            <SetupDataTableHeaderCell>Nama</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Aksi</SetupDataTableHeaderCell>
+          </SetupDataTableRow>
+        </SetupDataTableHead>
+        <SetupDataTableBody>
+          <SetupDataTableRow>
+            <SetupDataTableCell>Nasabah</SetupDataTableCell>
+            <SetupDataTableCell>
+              <button type="button">Detail</button>
+            </SetupDataTableCell>
+          </SetupDataTableRow>
+        </SetupDataTableBody>
+      </SetupDataTable>,
+    );
+
+    expect(screen.getByRole("columnheader", { name: "Aksi" })).toHaveAttribute(
+      "data-table-action",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Detail" }).closest("td")).toHaveAttribute(
+      "data-table-action",
+      "true",
+    );
+    expect(screen.getByText("Nasabah").closest("td")).not.toHaveAttribute(
+      "data-table-action",
+    );
+  });
+
+  it("menjalankan klik ganda baris hanya dari area non-interaktif", () => {
+    const handleDoubleClick = vi.fn();
+    render(
+      <SetupDataTable>
+        <SetupDataTableHead>
+          <SetupDataTableRow>
+            <SetupDataTableHeaderCell>Nama</SetupDataTableHeaderCell>
+            <SetupDataTableHeaderCell>Aksi</SetupDataTableHeaderCell>
+          </SetupDataTableRow>
+        </SetupDataTableHead>
+        <SetupDataTableBody>
+          <SetupDataTableRow onDoubleClick={handleDoubleClick}>
+            <SetupDataTableCell>Area detail</SetupDataTableCell>
+            <SetupDataTableCell>
+              <SetupActionMenu
+                label="Buka aksi"
+                items={[
+                  {
+                    key: "detail",
+                    label: "Detail",
+                    icon: Eye,
+                    onClick: () => undefined,
+                  },
+                ]}
+              />
+            </SetupDataTableCell>
+          </SetupDataTableRow>
+        </SetupDataTableBody>
+      </SetupDataTable>,
+    );
+
+    fireEvent.doubleClick(screen.getByText("Area detail"));
+    expect(handleDoubleClick).toHaveBeenCalledTimes(1);
+
+    fireEvent.doubleClick(screen.getByRole("button", { name: "Buka aksi" }));
+    expect(handleDoubleClick).toHaveBeenCalledTimes(1);
   });
 });

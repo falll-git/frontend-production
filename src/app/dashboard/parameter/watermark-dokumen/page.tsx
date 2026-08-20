@@ -753,7 +753,7 @@ export default function SetupWatermarkDokumenPage() {
                         type="button"
                         disabled={!canUpdate || isFetching}
                         onClick={() => appendTemplateToken(option.key)}
-                        className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
+                        className="inline-flex min-h-11 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
                       >
                         {option.key}
                       </button>
@@ -827,7 +827,7 @@ export default function SetupWatermarkDokumenPage() {
                   onChange={(event) =>
                     updateForm("text_opacity", Number(event.target.value))
                   }
-                  className="w-full accent-[#1773B0]"
+                  className="min-h-10 w-full accent-[#1773B0]"
                 />
               </div>
 
@@ -921,7 +921,7 @@ export default function SetupWatermarkDokumenPage() {
                   onChange={(event) =>
                     updateForm("image_opacity", Number(event.target.value))
                   }
-                  className="w-full accent-[#1773B0]"
+                  className="min-h-10 w-full accent-[#1773B0]"
                 />
               </div>
               <div>
@@ -942,7 +942,7 @@ export default function SetupWatermarkDokumenPage() {
                   onChange={(event) =>
                     updateForm("image_scale", Number(event.target.value))
                   }
-                  className="w-full accent-[#1773B0]"
+                  className="min-h-10 w-full accent-[#1773B0]"
                 />
               </div>
             </div>
@@ -1009,7 +1009,7 @@ export default function SetupWatermarkDokumenPage() {
                   onChange={(event) =>
                     updateForm("rotation", Number(event.target.value))
                   }
-                  className="w-full accent-[#1773B0]"
+                  className="min-h-10 w-full accent-[#1773B0]"
                 />
               </div>
 
