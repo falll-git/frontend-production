@@ -261,9 +261,11 @@ test("Escape membatalkan modal tenggat tanpa menyimpan surat masuk", async ({
   await page
     .getByLabel("Perihal Surat")
     .fill("Perihal uji pembatalan modal tenggat");
-  await page.locator("#surat-masuk-file-input").setInputFiles(
-    "D:/frontend-production/tests/e2e/visual-public.spec.ts-snapshots/login-public-desktop-win32.png",
-  );
+  await page.locator("#surat-masuk-file-input").setInputFiles({
+    name: "lampiran-regression.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.4\n% fixture lintas-platform\n%%EOF\n", "utf8"),
+  });
 
   const division = page.getByRole("checkbox", { name: /^Pilih / }).first();
   await expect(division).toBeVisible();

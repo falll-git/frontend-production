@@ -279,7 +279,9 @@ test("Import SLIK, riwayat job, dan IDEB pending membuka modal yang sesuai", asy
   await page.goto("/dashboard/informasi-debitur/admin/upload-slik", {
     waitUntil: "domcontentloaded",
   });
-  const uploadImport = page.getByRole("button", { name: "Upload File" });
+  const uploadImport = page
+    .getByRole("button", { name: "Upload File" })
+    .first();
   await uploadImport.click();
   await verifyAndClose({
     page,
