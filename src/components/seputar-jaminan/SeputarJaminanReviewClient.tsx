@@ -241,7 +241,7 @@ export default function SeputarJaminanReviewClient() {
         </>
       )}
 
-      {mediaWaiting > 0 ? <SetupState variant="error" title={`${mediaWaiting} gambar belum siap`} description="Publikasi tidak dapat disetujui sampai semua gambar selesai disinkronkan." /> : null}
+      {mediaWaiting > 0 ? <SetupState variant="error" title={`${mediaWaiting} gambar belum siap`} description="Publikasi tidak dapat disetujui sampai semua gambar selesai disinkronkan." className="text-red-800" /> : null}
 
       <DashboardModal
         isOpen={Boolean(target)}
