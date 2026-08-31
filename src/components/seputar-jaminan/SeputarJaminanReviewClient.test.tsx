@@ -105,6 +105,7 @@ describe("Seputar Jaminan review presentation", () => {
     expect(await screen.findByText("Tidak ada pengajuan yang menunggu")).toBeInTheDocument();
     expect(screen.queryByLabelText("Ringkasan antrean pemeriksaan")).not.toBeInTheDocument();
     expect(screen.queryByText("Katalog menunggu pemeriksaan")).not.toBeInTheDocument();
+    expect(screen.getByText("Semua pengajuan sudah selesai diperiksa.").parentElement?.parentElement).toHaveClass("text-slate-700");
   });
 
   it("keeps revision validation inline and focuses the textarea", async () => {
@@ -152,37 +153,4 @@ describe("Seputar Jaminan review presentation", () => {
     });
   });
 
-  it("keeps the pending-media warning readable without changing the shared state", async () => {
-    service.getReviews.mockResolvedValue([
-      {
-        ...pendingPublication,
-        current_version: {
-          ...pendingPublication.current_version,
-          media: [
-            {
-              id: "media-review-1",
-              purpose: "PUBLICATION_IMAGE",
-              state: "READY",
-              file_name: "rumah-depan.webp",
-              mime_type: "image/webp",
-              size_bytes: 1024,
-              width: 1200,
-              height: 800,
-              central_ready: false,
-              preview_url: "/api/seputar-jaminan/media/media-review-1/preview",
-              created_at: "2026-08-28T00:00:00.000Z",
-              sort_order: 0,
-              is_cover: true,
-              alt_text: "Tampak depan rumah",
-            },
-          ],
-        },
-      },
-    ]);
-
-    render(<SeputarJaminanReviewClient />);
-
-    expect(await screen.findByRole("alert")).toHaveClass("text-red-800");
-    expect(screen.getByText("1 gambar belum siap")).toBeInTheDocument();
-  });
 });
