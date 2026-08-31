@@ -25,6 +25,7 @@ type MultiFileUploadFieldProps = {
   required?: boolean;
   title?: string;
   validateFile?: (file: File) => string | null;
+  onValidationError?: (message: string) => void;
   onChange: (files: File[]) => void;
 };
 
@@ -97,6 +98,7 @@ export default function MultiFileUploadField({
   required = true,
   title,
   validateFile,
+  onValidationError,
   onChange,
 }: MultiFileUploadFieldProps) {
   const { showToast } = useAppToast();
@@ -119,7 +121,8 @@ export default function MultiFileUploadField({
       const error = validateFile?.(file);
       if (error) {
         event.target.value = "";
-        showToast(error, "error");
+        if (onValidationError) onValidationError(error);
+        else showToast(error, "error");
         return;
       }
     }
@@ -127,7 +130,9 @@ export default function MultiFileUploadField({
     const mergedFiles = mergeSelectedFiles(files, selectedFiles);
     if (mergedFiles.length > maxFiles) {
       event.target.value = "";
-      showToast(`Maksimal ${maxFiles} file untuk satu upload.`, "error");
+      const message = `Maksimal ${maxFiles} file untuk satu upload.`;
+      if (onValidationError) onValidationError(message);
+      else showToast(message, "error");
       return;
     }
 

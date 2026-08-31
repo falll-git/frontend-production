@@ -1024,6 +1024,58 @@ const MODAL_CALLER_SOURCE_INVENTORY: readonly ModalCallerSourceInventoryEntry[] 
     viewport: PASS_ALL,
     evidence: "visual",
   },
+  {
+    id: "seputar-jaminan-catalog-form",
+    source: "src/components/seputar-jaminan/SeputarJaminanCatalogClient.tsx",
+    ordinal: 1,
+    owner: "SeputarJaminanCatalogClient",
+    routes: ["/dashboard/seputar-jaminan/katalog"],
+    title: "Buat atau Perbarui Draf Katalog",
+    trigger: { label: "Buat katalog", tokens: ["setFormOpen(true)", "Buat katalog"] },
+    kind: "form",
+    dataConditions: FORM_DATA,
+    viewport: NEEDS_FIX_ALL,
+    evidence: "source-only",
+  },
+  {
+    id: "seputar-jaminan-catalog-detail",
+    source: "src/components/seputar-jaminan/SeputarJaminanCatalogClient.tsx",
+    ordinal: 2,
+    owner: "SeputarJaminanCatalogClient",
+    routes: ["/dashboard/seputar-jaminan/katalog"],
+    title: "Detail Katalog",
+    trigger: { label: "Lihat detail", tokens: ["openDetail", "Lihat detail"] },
+    kind: "detail",
+    dataConditions: DETAIL_DATA,
+    viewport: NEEDS_FIX_ALL,
+    evidence: "source-only",
+  },
+  {
+    id: "seputar-jaminan-review-decision",
+    source: "src/components/seputar-jaminan/SeputarJaminanReviewClient.tsx",
+    ordinal: 1,
+    owner: "SeputarJaminanReviewClient",
+    routes: ["/dashboard/seputar-jaminan/pemeriksaan"],
+    title: "Keputusan Pemeriksaan",
+    trigger: { label: "Setujui atau minta perbaikan", tokens: ["begin(", "Setujui & tayangkan"] },
+    kind: "confirmation",
+    dataConditions: DETAIL_DATA,
+    viewport: NEEDS_FIX_ALL,
+    evidence: "source-only",
+  },
+  {
+    id: "seputar-jaminan-contact-form",
+    source: "src/components/seputar-jaminan/SeputarJaminanProfileContactClient.tsx",
+    ordinal: 1,
+    owner: "SeputarJaminanProfileContactClient",
+    routes: ["/dashboard/seputar-jaminan/profil-kontak"],
+    title: "Tambah atau Perbarui Kontak WhatsApp",
+    trigger: { label: "Tambah kontak", tokens: ["setContactModalOpen(true)", "Tambah kontak"] },
+    kind: "form",
+    dataConditions: FORM_DATA,
+    viewport: NEEDS_FIX_ALL,
+    evidence: "source-only",
+  },
 ];
 
 const ALL_VIEWPORTS = ["desktop", "tablet", "mobile"] as const;
@@ -1050,6 +1102,8 @@ const DEBTOR_REMAINING_SPEC =
   "tests/e2e/modal-debtor-remaining.dashboard.spec.ts";
 const PERSURATAN_NOTIFICATION_SPEC =
   "tests/e2e/persuratan-notification.dashboard.spec.ts";
+const SEPUTAR_JAMINAN_MODALS_SPEC =
+  "tests/e2e/seputar-jaminan-modals.dashboard.spec.ts";
 
 /**
  * Bukti di bawah hanya berisi modal yang benar-benar dibuka oleh browser E2E.
@@ -1058,6 +1112,18 @@ const PERSURATAN_NOTIFICATION_SPEC =
 export const MODAL_RUNTIME_EVIDENCE: Readonly<
   Record<string, ModalRuntimeEvidence>
 > = {
+  "seputar-jaminan-catalog-form": allViewportEvidence(
+    SEPUTAR_JAMINAN_MODALS_SPEC,
+  ),
+  "seputar-jaminan-catalog-detail": allViewportEvidence(
+    SEPUTAR_JAMINAN_MODALS_SPEC,
+  ),
+  "seputar-jaminan-review-decision": allViewportEvidence(
+    SEPUTAR_JAMINAN_MODALS_SPEC,
+  ),
+  "seputar-jaminan-contact-form": allViewportEvidence(
+    SEPUTAR_JAMINAN_MODALS_SPEC,
+  ),
   "activity-centre-detail": allViewportEvidence(REMEDIATION_SPEC),
   "collateral-expiry-monitoring": allViewportEvidence(REMEDIATION_SPEC),
   "dashboard-deposit-detail": allViewportEvidence(LEGAL_DASHBOARD_SPEC),

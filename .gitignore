@@ -11,6 +11,8 @@ quality-reports/
 performance-reports/
 release-reports/
 playwright/.auth/
+/.playwright-mcp/
+/*.png
 
 *.log
 npm-debug.log*

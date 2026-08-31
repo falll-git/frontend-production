@@ -11,6 +11,45 @@ import {
 import type { DashboardMenuNode } from "@/types/rbac.types";
 import { MenuLucideIcon } from "./MenuLucideIcon";
 
+const DASHBOARD_ROOT = "/dashboard";
+const SEPUTAR_JAMINAN_ROOT = "/dashboard/seputar-jaminan";
+
+export function groupDashboardMenus(nodes: DashboardMenuNode[]) {
+  const sorted = [...nodes].sort((a, b) => a.order - b.order);
+
+  return {
+    dashboard: sorted.filter(
+      (node) => normalizePath(node.url) === DASHBOARD_ROOT,
+    ),
+    ruwang: sorted.filter((node) => {
+      const url = normalizePath(node.url);
+      return url !== DASHBOARD_ROOT && url !== SEPUTAR_JAMINAN_ROOT;
+    }),
+    seputarJaminan: sorted.filter(
+      (node) => normalizePath(node.url) === SEPUTAR_JAMINAN_ROOT,
+    ),
+  };
+}
+
+function SidebarContextLabel({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="mx-3 mb-1 mt-3 border-l-2 border-white/30 py-0.5 pl-3">
+      <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-white">
+        {title}
+      </p>
+      <p className="mt-0.5 text-[11px] leading-4 text-white/65">
+        {description}
+      </p>
+    </div>
+  );
+}
+
 function MenuBranch({
   node,
   depth,
@@ -138,8 +177,8 @@ export function DashboardSidebarMenu({
     return next;
   }, [openById, pathExpandedIds]);
 
-  const sortedMenus = useMemo(
-    () => [...visibleMenus].sort((a, b) => a.order - b.order),
+  const groupedMenus = useMemo(
+    () => groupDashboardMenus(visibleMenus),
     [visibleMenus],
   );
 
@@ -149,7 +188,41 @@ export function DashboardSidebarMenu({
 
   return (
     <>
-      {sortedMenus.map((node) => (
+      {groupedMenus.dashboard.map((node) => (
+        <MenuBranch
+          key={node.id}
+          node={node}
+          depth={0}
+          pathname={pathname}
+          sidebarExpanded={sidebarExpanded}
+          openById={effectiveOpenById}
+          toggleOpen={toggleOpen}
+        />
+      ))}
+      {sidebarExpanded && groupedMenus.ruwang.length > 0 ? (
+        <SidebarContextLabel
+          title="Ruwang Arsip"
+          description="Arsip dan operasional internal BPRS."
+        />
+      ) : null}
+      {groupedMenus.ruwang.map((node) => (
+        <MenuBranch
+          key={node.id}
+          node={node}
+          depth={0}
+          pathname={pathname}
+          sidebarExpanded={sidebarExpanded}
+          openById={effectiveOpenById}
+          toggleOpen={toggleOpen}
+        />
+      ))}
+      {sidebarExpanded && groupedMenus.seputarJaminan.length > 0 ? (
+        <SidebarContextLabel
+          title="Seputar Jaminan"
+          description="Siapkan katalog aset untuk masyarakat."
+        />
+      ) : null}
+      {groupedMenus.seputarJaminan.map((node) => (
         <MenuBranch
           key={node.id}
           node={node}
