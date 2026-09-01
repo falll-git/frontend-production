@@ -21,7 +21,7 @@ describe("BasicDateInput", () => {
     setViewport(360, 800);
 
     const { container } = render(
-      <BasicDateInput value="" onChange={vi.fn()} />,
+      <BasicDateInput value="2026-08-01" onChange={vi.fn()} />,
     );
 
     const trigger = screen.getByRole("button", { name: "Pilih tanggal" });
