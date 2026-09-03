@@ -105,7 +105,7 @@ describe("Seputar Jaminan review presentation", () => {
     expect(await screen.findByText("Tidak ada pengajuan yang menunggu")).toBeInTheDocument();
     expect(screen.queryByLabelText("Ringkasan antrean pemeriksaan")).not.toBeInTheDocument();
     expect(screen.queryByText("Katalog menunggu pemeriksaan")).not.toBeInTheDocument();
-    expect(screen.getByText("Semua pengajuan sudah selesai diperiksa.").parentElement?.parentElement).toHaveClass("text-slate-700");
+    expect(screen.getByText("Semua pengajuan sudah selesai diperiksa.").parentElement?.parentElement).toHaveClass("text-slate-900");
   });
 
   it("keeps revision validation inline and focuses the textarea", async () => {

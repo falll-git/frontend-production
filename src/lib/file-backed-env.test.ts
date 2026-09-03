@@ -34,7 +34,7 @@ describe("resolveFileBackedEnv", () => {
     ).toBe("direct-value");
   });
 
-  it("membaca dan menyimpan secret melalui file yang sama", () => {
+  it("membaca dan menyimpan secret melalui file yang sama secara idempotent", () => {
     const filePath = createSecretFile(" file-backed-value\n");
     const env: NodeJS.ProcessEnv = {
       NODE_ENV: "production",
@@ -43,6 +43,7 @@ describe("resolveFileBackedEnv", () => {
 
     expect(resolveFileBackedEnv("APP_SECRET", env)).toBe("file-backed-value");
     expect(env.APP_SECRET).toBe("file-backed-value");
+    expect(resolveFileBackedEnv("APP_SECRET", env)).toBe("file-backed-value");
   });
 
   it("menolak nilai langsung dan file yang diisi bersamaan", () => {

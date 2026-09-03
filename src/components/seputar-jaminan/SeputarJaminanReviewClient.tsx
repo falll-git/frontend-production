@@ -190,7 +190,7 @@ export default function SeputarJaminanReviewClient() {
         action={<SjSecondaryButton loading={loading} onClick={() => void load()}>{!loading ? <RefreshCw className="size-4" aria-hidden="true" /> : null}Muat ulang</SjSecondaryButton>}
       />
 
-      {loading ? <SetupState variant="loading" title="Memuat daftar pemeriksaan…" /> : error ? <SetupState variant="error" title="Daftar pemeriksaan belum dapat dimuat" description={error} /> : total === 0 ? <SetupState title="Tidak ada pengajuan yang menunggu" description="Semua pengajuan sudah selesai diperiksa." icon={BadgeCheck} className="max-w-none text-slate-700" /> : (
+      {loading ? <SetupState variant="loading" title="Memuat daftar pemeriksaan…" /> : error ? <SetupState variant="error" title="Daftar pemeriksaan belum dapat dimuat" description={error} /> : total === 0 ? <SetupState title="Tidak ada pengajuan yang menunggu" description="Semua pengajuan sudah selesai diperiksa." icon={BadgeCheck} className="max-w-none text-slate-900" /> : (
         <>
           <section aria-label="Ringkasan antrean pemeriksaan" className={SETUP_PAGE_TABLE_CARD_CLASS}>
             <div className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">

@@ -1,8 +1,16 @@
 import type { NextConfig } from "next";
-import { resolveFileBackedEnv } from "./src/lib/file-backed-env";
+import {
+  resolveFileBackedEnv,
+  wasFileBackedEnvResolved,
+} from "./src/lib/file-backed-env";
 import { createBackendRewrites } from "./src/lib/backend-rewrites";
+import { validateProductionDeployment } from "./src/config/production-deployment";
 
 const publicApiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+const directServerActionsEncryptionKey =
+  wasFileBackedEnvResolved("NEXT_SERVER_ACTIONS_ENCRYPTION_KEY")
+    ? ""
+    : process.env.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY || "";
 const serverActionsEncryptionKey =
   resolveFileBackedEnv("NEXT_SERVER_ACTIONS_ENCRYPTION_KEY");
 const deploymentId =
@@ -14,6 +22,11 @@ const appRelease =
   process.env.NEXT_PUBLIC_APP_RELEASE || deploymentId;
 const backendApiUrl = publicApiUrl.startsWith("http") ? publicApiUrl : "";
 const isProduction = process.env.NODE_ENV === "production";
+validateProductionDeployment(process.env, {
+  directServerActionsEncryptionKey,
+  repositoryRoot: process.cwd(),
+  serverActionsEncryptionKey,
+});
 if (isProduction && !backendApiUrl) {
   throw new Error("NEXT_PUBLIC_API_URL wajib diisi dengan URL backend production.");
 }
@@ -22,22 +35,6 @@ if (isProduction && !serverActionsEncryptionKey.trim()) {
   throw new Error(
     "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY wajib diisi di production agar Server Action stabil antar build dan PM2 instance.",
   );
-}
-
-if (isProduction && serverActionsEncryptionKey) {
-  let decodedKeyLength = 0;
-
-  try {
-    decodedKeyLength = Buffer.from(serverActionsEncryptionKey, "base64").length;
-  } catch {
-    decodedKeyLength = 0;
-  }
-
-  if (![16, 24, 32].includes(decodedKeyLength)) {
-    throw new Error(
-      "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY harus base64 valid dengan decoded length 16, 24, atau 32 bytes. Generate dengan: openssl rand -base64 32",
-    );
-  }
 }
 
 const nextConfig: NextConfig = {

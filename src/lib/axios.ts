@@ -341,7 +341,7 @@ function handleAuthFailureRedirect() {
   clearAuthBrowserStorage();
 
   if (typeof window !== "undefined") {
-    window.location.href = "/";
+    window.location.href = window.location.origin;
   }
 }
 

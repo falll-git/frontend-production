@@ -329,10 +329,12 @@ export default function SeputarJaminanCatalogClient() {
   useSeputarJaminanModalScrollLock(formOpen || Boolean(detail));
   const formTriggerRef = useRef<HTMLElement | null>(null);
   const detailTriggerRef = useRef<HTMLElement | null>(null);
+  const loadRequestRef = useRef(0);
   const { showToast } = useAppToast();
   const access = useProtectedAction();
 
   const load = useCallback(async () => {
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -343,13 +345,15 @@ export default function SeputarJaminanCatalogClient() {
         ...(stateFilter ? { state: stateFilter } : {}),
         ...(categoryFilter ? { category: categoryFilter } : {}),
       });
+      if (requestId !== loadRequestRef.current) return;
       setItems(result.items);
       setTotal(result.pagination.total);
       setLastPage(Math.max(1, result.pagination.total_pages));
     } catch (loadError) {
+      if (requestId !== loadRequestRef.current) return;
       setError(readableError(loadError));
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestRef.current) setLoading(false);
     }
   }, [categoryFilter, page, search, stateFilter]);
 

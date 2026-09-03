@@ -2,7 +2,20 @@ import { closeSync, fstatSync, openSync, readSync } from "node:fs";
 import { isAbsolute } from "node:path";
 
 const MAX_SECRET_FILE_SIZE_BYTES = 64 * 1024;
+const RESOLVED_FILE_MARKER_PREFIX = "__RUWANG_FILE_BACKED_RESOLVED__";
 type EnvironmentValues = Record<string, string | undefined>;
+
+function markerKey(key: string): string {
+  return `${RESOLVED_FILE_MARKER_PREFIX}${key}`;
+}
+
+export function wasFileBackedEnvResolved(
+  key: string,
+  env: EnvironmentValues = process.env,
+): boolean {
+  const filePath = (env[`${key}_FILE`] || "").trim();
+  return Boolean(filePath && env[markerKey(key)] === filePath);
+}
 
 export function resolveFileBackedEnv(
   key: string,
@@ -13,6 +26,7 @@ export function resolveFileBackedEnv(
   const filePath = (env[fileKey] || "").trim();
   if (!filePath) return directValue;
   if (directValue) {
+    if (wasFileBackedEnvResolved(key, env)) return directValue;
     throw new Error(`${key} dan ${fileKey} tidak boleh diisi bersamaan.`);
   }
   if (env.NODE_ENV === "production" && !isAbsolute(filePath)) {
@@ -60,6 +74,7 @@ export function resolveFileBackedEnv(
     }
 
     env[key] = value;
+    env[markerKey(key)] = filePath;
     return value;
   } catch (error) {
     if (error instanceof Error && error.message.startsWith(fileKey)) {
