@@ -14,6 +14,11 @@ test("halaman login memiliki form yang dapat diakses", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Masuk ke Ruwang Arsip" }),
   ).toBeVisible();
+  await expect(page.locator("form")).toHaveAttribute("method", "post");
+  await expect(page.locator("form")).toHaveAttribute(
+    "action",
+    "/api/auth/login",
+  );
   await expect(page.getByLabel("Username")).toHaveAttribute(
     "autocomplete",
     "username",
@@ -22,6 +27,8 @@ test("halaman login memiliki form yang dapat diakses", async ({ page }) => {
     "autocomplete",
     "current-password",
   );
+  await expect(page.getByLabel("Username")).toBeEnabled();
+  await expect(page.locator("input#password")).toBeEnabled();
 
   await page.getByRole("button", { name: "Masuk", exact: true }).click();
   await expect(

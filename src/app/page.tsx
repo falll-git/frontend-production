@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Lock, User } from "lucide-react";
@@ -8,6 +8,8 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import AuthSplitLayout from "@/components/auth/AuthSplitLayout";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import UiverseCheckbox from "@/components/ui/UiverseCheckbox";
+
+const subscribeToHydration = () => () => undefined;
 
 function humanizeLoginError(message: string): string {
   if (/activation is pending/i.test(message)) {
@@ -32,6 +34,11 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const isHydrated = useSyncExternalStore(
+    subscribeToHydration,
+    () => true,
+    () => false,
+  );
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
@@ -41,7 +48,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLoading) return;
+    if (!isHydrated || isLoading) return;
 
     const trimmedUsername = username.trim();
     const isPasswordEmpty = !password.trim();
@@ -88,7 +95,14 @@ export default function LoginPage() {
               </div>
             </header>
 
-            <form onSubmit={handleLogin} className="space-y-5" noValidate>
+            <form
+              method="post"
+              action="/api/auth/login"
+              onSubmit={handleLogin}
+              className="space-y-5"
+              aria-busy={isLoading}
+              noValidate
+            >
               <div>
                 <label
                   htmlFor="username"
@@ -109,6 +123,7 @@ export default function LoginPage() {
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
+                    disabled={!isHydrated || isLoading}
                     placeholder="Masukkan username"
                     className="auth-input"
                     maxLength={128}
@@ -136,6 +151,7 @@ export default function LoginPage() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    disabled={!isHydrated || isLoading}
                     placeholder="Masukkan password"
                     className="auth-input auth-input-with-action"
                     maxLength={128}
@@ -143,6 +159,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
+                    disabled={!isHydrated || isLoading}
                     className="absolute right-1.5 top-1/2 z-10 inline-flex size-11 -translate-y-1/2 items-center justify-center rounded-full text-[#0d5a8f] transition-colors hover:bg-sky-50 hover:text-[#083f66] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#0d5a8f]"
                     aria-label={
                       showPassword
@@ -163,6 +180,7 @@ export default function LoginPage() {
                 <UiverseCheckbox
                   checked={rememberMe}
                   onCheckedChange={setRememberMe}
+                  disabled={!isHydrated || isLoading}
                   label="Ingat Saya"
                   className="auth-remember-checkbox"
                 />
@@ -177,7 +195,7 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={!isHydrated || isLoading}
                 className="button mt-2"
               >
                 {isLoading ? (
