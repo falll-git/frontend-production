@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   CheckCircle2,
+  EyeOff,
   FileText,
   ImagePlus,
   Pencil,
@@ -326,6 +327,7 @@ export default function SeputarJaminanCatalogClient() {
   const [mediaUploadError, setMediaUploadError] = useState<string | null>(null);
   const [mediaUploadProgress, setMediaUploadProgress] = useState({ completed: 0, total: 0 });
   const [actionLoading, setActionLoading] = useState(false);
+  const [unpublishConfirm, setUnpublishConfirm] = useState(false);
   useSeputarJaminanModalScrollLock(formOpen || Boolean(detail));
   const formTriggerRef = useRef<HTMLElement | null>(null);
   const detailTriggerRef = useRef<HTMLElement | null>(null);
@@ -585,6 +587,7 @@ export default function SeputarJaminanCatalogClient() {
   };
 
   const openDetail = async (publication: SjPublication) => {
+    setUnpublishConfirm(false);
     detailTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setActionLoading(true);
     try {
@@ -611,16 +614,33 @@ export default function SeputarJaminanCatalogClient() {
     });
   };
 
-  const runCommand = async (publication: SjPublication, command: "submit" | "reconfirm" | "archive") => {
-    const feature = command === "reconfirm" ? "sj_reconfirm" : command === "archive" ? "sj_archive" : null;
+  const runCommand = async (publication: SjPublication, command: "submit" | "reconfirm" | "unpublish" | "archive") => {
+    const feature = command === "reconfirm"
+      ? "sj_reconfirm"
+      : command === "unpublish"
+        ? "sj_unpublish"
+        : command === "archive"
+          ? "sj_archive"
+          : null;
     if (feature ? !access.ensureFeature("/dashboard/seputar-jaminan", feature) : !access.ensureCapability(SJ_CATALOG, "update")) return;
     setActionLoading(true);
     try {
-      await seputarJaminanService.publicationCommand(publication.id, command, publication.lock_version);
+      if (command === "unpublish") {
+        await seputarJaminanService.unpublishPublication(publication.id, publication.lock_version, "OWNER_REQUEST");
+      } else {
+        await seputarJaminanService.publicationCommand(publication.id, command, publication.lock_version);
+      }
       showToast(
-        command === "submit" ? "Katalog diajukan untuk diperiksa." : command === "reconfirm" ? "Ketersediaan aset sudah dikonfirmasi." : "Katalog berhasil diarsipkan.",
+        command === "submit"
+          ? "Katalog diajukan untuk diperiksa."
+          : command === "reconfirm"
+            ? "Ketersediaan aset sudah dikonfirmasi."
+            : command === "unpublish"
+              ? "Katalog sedang diturunkan dari website publik."
+              : "Katalog berhasil diarsipkan.",
         "success",
       );
+      setUnpublishConfirm(false);
       setDetail(null);
       await load();
     } catch (commandError) {
@@ -1124,31 +1144,65 @@ export default function SeputarJaminanCatalogClient() {
 
       <DashboardModal
         isOpen={Boolean(detail)}
-        onClose={() => setDetail(null)}
+        onClose={() => {
+          setUnpublishConfirm(false);
+          setDetail(null);
+        }}
         maxWidth="3xl"
         title={detail?.title ?? "Detail katalog"}
         description={detail ? `${detail.reference_code} · ${CATEGORY_LABEL[detail.asset_category]}` : undefined}
         footer={detail ? (
           <div className="flex w-full flex-wrap justify-end gap-2">
-            {["DRAFT", "REVISION_REQUIRED"].includes(detail.state) ? (
+            {detail.state === "PUBLISHED" && unpublishConfirm ? (
+              <>
+                <p className="w-full text-sm leading-6 text-slate-600" role="status">
+                  Katalog akan hilang dari website publik. Data tetap tersimpan dan dapat diarsipkan setelah proses penarikan selesai.
+                </p>
+                <SjSecondaryButton disabled={actionLoading} onClick={() => setUnpublishConfirm(false)}>
+                  Batal
+                </SjSecondaryButton>
+                <button
+                  type="button"
+                  className="uiverse-modal-button uiverse-modal-button--danger"
+                  disabled={actionLoading}
+                  aria-busy={actionLoading || undefined}
+                  onClick={() => void runCommand(detail, "unpublish")}
+                >
+                  {actionLoading ? <RefreshCw className="size-4 animate-spin" aria-hidden="true" /> : <EyeOff className="size-4" aria-hidden="true" />}
+                  Ya, tarik dari website
+                </button>
+              </>
+            ) : null}
+            {!unpublishConfirm && ["DRAFT", "REVISION_REQUIRED"].includes(detail.state) ? (
               <SjSecondaryButton onClick={() => void openEdit(detail)}>
                 <Pencil className="size-4" aria-hidden="true" />
                 Perbarui draf
               </SjSecondaryButton>
             ) : null}
-            {detail.state === "DRAFT" ? (
+            {!unpublishConfirm && detail.state === "DRAFT" ? (
               <SjPrimaryButton loading={actionLoading} onClick={() => void runCommand(detail, "submit")}>
                 <Send className="size-4" aria-hidden="true" />
                 Ajukan pemeriksaan
               </SjPrimaryButton>
             ) : null}
-            {detail.state === "PUBLISHED" ? (
-              <SjSecondaryButton loading={actionLoading} onClick={() => void runCommand(detail, "reconfirm")}>
-                {!actionLoading ? <RefreshCw className="size-4" aria-hidden="true" /> : null}
-                Konfirmasi tersedia
-              </SjSecondaryButton>
+            {!unpublishConfirm && detail.state === "PUBLISHED" ? (
+              <>
+                <SjSecondaryButton loading={actionLoading} onClick={() => void runCommand(detail, "reconfirm")}>
+                  {!actionLoading ? <RefreshCw className="size-4" aria-hidden="true" /> : null}
+                  Konfirmasi tersedia
+                </SjSecondaryButton>
+                <button
+                  type="button"
+                  className="uiverse-modal-button uiverse-modal-button--danger"
+                  disabled={actionLoading}
+                  onClick={() => setUnpublishConfirm(true)}
+                >
+                  <EyeOff className="size-4" aria-hidden="true" />
+                  Tarik dari website
+                </button>
+              </>
             ) : null}
-            {["UNPUBLISHED", "REVISION_REQUIRED"].includes(detail.state) ? (
+            {!unpublishConfirm && ["UNPUBLISHED", "REVISION_REQUIRED"].includes(detail.state) ? (
               <button
                 type="button"
                 className="uiverse-modal-button uiverse-modal-button--danger"

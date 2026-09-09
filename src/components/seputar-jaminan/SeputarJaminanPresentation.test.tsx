@@ -70,6 +70,10 @@ describe("Seputar Jaminan presentation contract", () => {
     expect(dashboardSource).toContain('className="mt-1 text-sm leading-5 text-slate-500"');
     expect(catalogSource).toContain("<SetupViewButton");
     expect(catalogSource).toContain("uiverse-modal-button--danger");
+    expect(catalogSource).toContain("Tarik dari website");
+    expect(catalogSource).toContain("Ya, tarik dari website");
+    expect(catalogSource).toContain("unpublishPublication");
+    expect(catalogSource).toContain('"OWNER_REQUEST"');
     expect(catalogSource).toContain("Arsipkan katalog");
     expect(catalogSource).toContain("Ubah");
     expect(catalogSource).not.toContain("\n                        Edit\n");
