@@ -1,5 +1,7 @@
 "use client";
 
+import { formatDateTime } from "@/lib/utils/date";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CartesianGrid,
@@ -622,7 +624,7 @@ export default function StorageOverviewWidget({
               </p>
               <p className="mt-1 text-xs text-gray-500">
                 Diperbarui{" "}
-                {data.updated_at ? new Date(data.updated_at).toLocaleString("id-ID") : "-"}
+                {formatDateTime(data.updated_at)}
               </p>
             </div>
             <p className="text-right text-sm font-bold text-gray-900">

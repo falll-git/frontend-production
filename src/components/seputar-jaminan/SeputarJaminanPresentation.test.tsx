@@ -1,10 +1,9 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const componentNames = [
   "SeputarJaminanUI.tsx",
-  "SeputarJaminanDashboardClient.tsx",
   "SeputarJaminanCatalogClient.tsx",
   "SeputarJaminanReviewClient.tsx",
   "SeputarJaminanProfileContactClient.tsx",
@@ -50,9 +49,6 @@ describe("Seputar Jaminan presentation contract", () => {
     const uiSource = source(
       "src/components/seputar-jaminan/SeputarJaminanUI.tsx",
     );
-    const dashboardSource = source(
-      "src/components/seputar-jaminan/SeputarJaminanDashboardClient.tsx",
-    );
     const catalogSource = source(
       "src/components/seputar-jaminan/SeputarJaminanCatalogClient.tsx",
     );
@@ -65,38 +61,40 @@ describe("Seputar Jaminan presentation contract", () => {
 
     expect(uiSource).toContain("aria-busy={loading || undefined}");
     expect(uiSource).toContain("disabled={loading || disabled}");
-    expect(dashboardSource).toContain("<SjSecondaryButton onClick={() => void load()} loading={loading}>");
-    expect(dashboardSource).toContain('<SjSecondaryButton loading={reconciling}');
-    expect(dashboardSource).toContain('className="mt-1 text-sm leading-5 text-slate-500"');
-    expect(catalogSource).toContain("<SetupViewButton");
+
+    expect(catalogSource).toContain("<SetupActionMenu");
     expect(catalogSource).toContain("uiverse-modal-button--danger");
     expect(catalogSource).toContain("Tarik dari website");
     expect(catalogSource).toContain("Ya, tarik dari website");
     expect(catalogSource).toContain("unpublishPublication");
     expect(catalogSource).toContain('"OWNER_REQUEST"');
-    expect(catalogSource).toContain("Arsipkan katalog");
+    expect(catalogSource).toContain("Arsipkan publikasi");
     expect(catalogSource).toContain("Ubah");
     expect(catalogSource).not.toContain("\n                        Edit\n");
-    expect(profileSource).toContain('profile?.state === "DRAFT" ? <SjSecondaryButton');
-    expect(profileSource).toContain('loading={savingAction === "profile-submit"}');
-    expect(profileSource).toContain("Ajukan pemeriksaan");
-    expect(reviewSource).toContain("<SjSecondaryButton className=\"w-full sm:w-auto\"");
-    expect(reviewSource).toContain("<SjPrimaryButton onClick={() => begin");
+    expect(profileSource).toContain('<SjRecordActions subject={profile} busy={saving}');
+    expect(profileSource).toContain("name:'submit',label:'Ajukan'");
+    expect(profileSource).toContain("onClick:()=>void submitProfile()");
+    expect(reviewSource).toContain("<SjRecordActions");
+    expect(reviewSource).toContain("Setujui profil");
   });
 
-  it("keeps the publication dashboard compact without repeated navigation cards", () => {
-    const dashboardSource = source(
-      "src/components/seputar-jaminan/SeputarJaminanDashboardClient.tsx",
-    );
-
-    expect(dashboardSource).toContain('title="Ringkasan publikasi"');
-    expect(dashboardSource).toContain('aria-label="Pekerjaan Seputar Jaminan"');
-    expect(dashboardSource).toContain("md:grid-cols-3 md:divide-x md:divide-y-0");
-    expect(dashboardSource).toContain("focus-visible:ring-inset focus-visible:ring-sky-600/20");
-    expect(dashboardSource).toContain('title="Belum ada publikasi"');
-    expect(dashboardSource).not.toContain("SjQuickLink");
-    expect(dashboardSource).not.toContain("SETUP_PAGE_PANEL_CLASS");
-    expect(dashboardSource).not.toContain("motion-safe:hover:-translate");
+  it("retires delivery navigation without granting monitoring roles submission access", () => {
+    const queue = source("src/components/seputar-jaminan/SeputarJaminanWorkQueue.tsx");
+    expect(queue).not.toContain('SeputarJaminanDeliveryPanel');
+    expect(queue).not.toContain('SJ_SUMMARY');
+    expect(queue).toContain('hasCapability(SJ_SUBMISSIONS, "read")');
+    expect(source("src/app/dashboard/seputar-jaminan/page.tsx")).toContain('redirect("/dashboard/seputar-jaminan/publikasi")');
+    // Retired bookmarks must not restore the operator UI or grant review access.
+    for (const route of ['bantuan', 'ringkasan']) {
+      expect(existsSync(join(process.cwd(), `src/app/dashboard/seputar-jaminan/${route}/page.tsx`))).toBe(false);
+    }
+    expect(source("src/lib/rbac.ts")).not.toContain('"/dashboard/seputar-jaminan/bantuan"');
+    for (const file of ['SeputarJaminanOperator.tsx', 'SeputarJaminanOperatorLink.tsx']) {
+      expect(existsSync(join(process.cwd(), 'src/components/seputar-jaminan', file))).toBe(false);
+    }
+    expect(queue).not.toContain('SeputarJaminanOperatorLink');
+    expect(source('src/components/seputar-jaminan/SeputarJaminanCatalogClient.tsx')).not.toContain('SeputarJaminanOperatorLink');
+    expect(queue).not.toContain('SETUP_PAGE_SEGMENTED_GROUP_CLASS');
   });
 
   it("uses the shared responsive Ruwang index for the publication catalog", () => {
@@ -108,18 +106,20 @@ describe("Seputar Jaminan presentation contract", () => {
     expect(catalogSource).toContain('variant="crud"');
     expect(catalogSource).toContain('density="compact"');
     expect(catalogSource).toContain('aria-label="Daftar publikasi Seputar Jaminan"');
-    expect(catalogSource).toContain("<SetupDataTableHeaderCell>Kode</SetupDataTableHeaderCell>");
+    expect(catalogSource).toContain("<SetupDataTableHeaderCell>Aset / versi kerja</SetupDataTableHeaderCell>");
     expect(catalogSource).toContain("<SetupDataTableHeaderCell>Kategori</SetupDataTableHeaderCell>");
-    expect(catalogSource).toContain("<SetupDataTableHeaderCell>Judul</SetupDataTableHeaderCell>");
-    expect(catalogSource).toContain("<SetupDataTableHeaderCell>Lokasi</SetupDataTableHeaderCell>");
-    expect(catalogSource).toContain("<SetupDataTableHeaderCell>Status</SetupDataTableHeaderCell>");
-    expect(catalogSource).toContain('aria-label="Muat ulang daftar katalog"');
-    expect(catalogSource).toContain('containerClassName="col-span-2 lg:col-span-1"');
+    expect(catalogSource).toContain('[publication.city_regency, publication.province].filter(Boolean)');
+    expect(catalogSource).toContain("<SetupDataTableHeaderCell>Pengajuan</SetupDataTableHeaderCell>");
+    expect(catalogSource).toContain("<SetupDataTableHeaderCell>Penayangan</SetupDataTableHeaderCell>");
+    expect(catalogSource).toContain('aria-label="Muat ulang daftar publikasi"');
+    // Responsive sizing is checked in the browser with the sidebar open;
+    // pinning the old lg class would preserve the 1024px clipping regression.
     expect(catalogSource).toContain("<SetupDataTableEmptyRow");
-    expect(catalogSource).toContain('"Katalog tidak ditemukan" : "Belum ada katalog"');
+    expect(catalogSource).toContain('"Publikasi tidak ditemukan" : "Belum ada publikasi"');
     expect(catalogSource).toContain('<SjStatusBadge state={publication.state} />');
-    expect(catalogSource).toContain('<SetupViewButton disabled={actionLoading} label="Lihat detail"');
-    expect(catalogSource).toContain('<Pagination page={page} lastPage={lastPage} total={total} limit={20}');
+    expect(catalogSource).toContain("label:'Lihat detail',icon:Eye,disabled:actionLoading");
+    // Cursor navigation behavior is verified through rendered controls below,
+    // not by requiring the previous offset-pagination implementation.
     expect(catalogSource).not.toContain('<article key={publication.id}');
   });
 
@@ -130,21 +130,24 @@ describe("Seputar Jaminan presentation contract", () => {
 
     expect(catalogSource).toContain('import SetupFormSection from "@/components/ui/SetupFormSection"');
     for (const sectionTitle of [
-      "Sumber data",
-      "Informasi publik",
+      "Data aset",
       "Lokasi dan spesifikasi",
-      "Kontak marketing",
-      "Media publik",
+      "Foto",
+      "Kontak",
     ]) {
       expect(catalogSource).toContain(`title="${sectionTitle}"`);
     }
     expect(catalogSource).toContain('id="sj-publication-source-collateral"');
+    expect(catalogSource.match(/<SetupFormSection\s/g)).toHaveLength(4);
+    expect(catalogSource.indexOf('title="Foto"')).toBeLessThan(catalogSource.indexOf('title="Kontak"'));
     expect(catalogSource).toContain('id="sj-publication-taxonomy"');
     expect(catalogSource).toContain('id="sj-publication-title"');
     expect(catalogSource).toContain('id="sj-publication-city"');
     expect(catalogSource).toContain('id="sj-publication-whatsapp-contact"');
     expect(catalogSource).toContain('id="sj-publication-add-media"');
-    expect(catalogSource).toContain('footer={<><SjSecondaryButton');
+    expect(catalogSource).toContain('footer={saveOperation.uncertain');
+    expect(catalogSource).toContain('Periksa penyimpanan');
+    expect(catalogSource).toContain('Simpan dan ajukan');
     expect(catalogSource).toContain("function validateForm(form: CatalogForm, sourceIsLocked: boolean)");
     expect(catalogSource).toContain("function toPayload(form: CatalogForm): SjPublicationDraftPayload");
   });
@@ -166,7 +169,7 @@ describe("Seputar Jaminan presentation contract", () => {
     expect(catalogSource).toContain("SjMediaPreview");
     expect(profileSource).toContain("SjMediaPreview");
     expect(catalogSource).toContain('label="Gambar utama"');
-    expect(catalogSource).toContain("Hapus dari katalog");
+    expect(catalogSource).toContain("Hapus dari publikasi");
     expect(catalogSource).toContain("role=\"progressbar\"");
     expect(profileSource).toContain("role=\"progressbar\"");
     expect(catalogSource).not.toContain("watermark-type-button");
@@ -183,29 +186,38 @@ describe("Seputar Jaminan presentation contract", () => {
     expect(profileSource).toContain('variant="crud"');
     expect(profileSource).toContain('density="compact"');
     expect(profileSource).toContain("SetupDataTableEmptyRow");
-    expect(profileSource).toContain("Dapat digunakan pada beberapa katalog");
+    expect(profileSource).toContain("Kontak yang belum dicabut. Pilih kontak saat menyiapkan publikasi.");
     expect(profileSource).toContain("Berakhir {contact.phone_e164.slice(-4)}");
-    expect(profileSource).toContain('title={editingContact ? "Perbarui kontak WhatsApp" : "Tambah kontak WhatsApp"}');
+    expect(profileSource).toContain("editingContact?.state === 'REJECTED' ? 'Perbaiki kontak WhatsApp'");
+    expect(profileSource).toContain('"Perbarui kontak WhatsApp" : "Tambah kontak WhatsApp"');
     expect(profileSource).not.toContain('<article key={contact.id}');
     expect(profileSource).not.toContain("{contact.phone_e164}</p>");
   });
 
-  it("keeps publication detail inside DashboardModal with record rows and a simple history list", () => {
+  it("keeps publication detail inside DashboardModal with record rows without history panels", () => {
     const catalogSource = source(
       "src/components/seputar-jaminan/SeputarJaminanCatalogClient.tsx",
     );
 
     expect(catalogSource).toContain("DashboardModal");
-    expect(catalogSource).toContain('data-ui="sj-publication-detail-records"');
-    expect(catalogSource).toContain("divide-y divide-slate-200 border-y border-slate-200");
-    expect(catalogSource).toContain('data-ui="sj-publication-review-history"');
-    expect(catalogSource).toContain("REVIEW_ACTION_LABEL[review.action] ?? review.action");
-    expect(catalogSource).toContain('dateTime={review.created_at}');
-    expect(catalogSource).toContain('description?.trim() || "Belum ada deskripsi."');
+    const contentSource = source("src/components/seputar-jaminan/SeputarJaminanPublicationContent.tsx");
+    expect(catalogSource).toContain('<SjPublicationContent publication={detail}');
+    expect(contentSource).toContain("SetupRecordDetailSection");
+    expect(catalogSource).not.toContain('SeputarJaminanHistory');
+    expect(catalogSource).not.toContain('detail.reviews.map');
+    expect(contentSource).toContain("version.description||'Belum diisi'");
     expect(catalogSource).toContain("const detailTriggerRef = useRef<HTMLElement | null>(null)");
-    expect(catalogSource).toContain("if (detail || !detailTriggerRef.current) return");
+    expect(catalogSource).toContain("if (detailId || !detailTriggerRef.current) return");
     expect(catalogSource).not.toContain("grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-5 sm:grid-cols-2");
     expect(catalogSource).not.toContain("flex items-start gap-3 rounded-lg border border-slate-200 p-3");
+  });
+
+  it("removes history UI and requests from all former callers while retaining the submission worklist", () => {
+    for (const file of ['SeputarJaminanCatalogClient', 'SeputarJaminanProfileContactClient', 'SeputarJaminanSubmissionsClient']) {
+      const text = source(`src/components/seputar-jaminan/${file}.tsx`);
+      expect(text).not.toMatch(/SeputarJaminanHistory|riwayat|getHistory\(/i);
+    }
+    expect(source('src/components/seputar-jaminan/SeputarJaminanSubmissionsClient.tsx')).toContain('title="Daftar pengajuan"');
   });
 
   it("keeps the review queue compact and the decision modal accessible", () => {

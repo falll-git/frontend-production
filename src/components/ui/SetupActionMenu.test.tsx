@@ -2,7 +2,7 @@ import { useState } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Download, Edit2, Trash2 } from "lucide-react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import SetupActionMenu from "@/components/ui/SetupActionMenu";
 
@@ -65,6 +65,40 @@ function ActionMenuWorkflowHarness() {
 }
 
 describe("SetupActionMenu", () => {
+  it('preserves the default hiding of unavailable actions for existing consumers', async()=>{
+    const action=vi.fn();
+    render(<SetupActionMenu items={[{key:'edit',label:'Ubah',icon:Edit2,onClick:action},{key:'delete',label:'Hapus',icon:Trash2,disabled:true,onClick:action}]} />);
+    await userEvent.click(screen.getByRole('button',{name:'Buka aksi'}));
+    expect(screen.getByRole('menuitem',{name:'Ubah'})).toBeVisible();
+    expect(screen.queryByRole('menuitem',{name:'Hapus'})).not.toBeInTheDocument();
+  });
+
+  it('explains disabled actions without allowing pointer or keyboard activation', async()=>{
+    const user=userEvent.setup(),action=vi.fn();
+    const items=[{key:'delete',label:'Cabut kontak',icon:Trash2,disabled:true,disabledReason:'Kontak masih dipakai publikasi.',onClick:action}];
+    const {rerender}=render(<SetupActionMenu showDisabledItems items={items} />);
+    const trigger=screen.getByRole('button',{name:'Buka aksi'});
+    await user.click(trigger);
+    const item=screen.getByRole('menuitem',{name:'Cabut kontak'});
+    expect(item).toHaveAttribute('aria-disabled','true');
+    expect(item).toHaveAccessibleDescription('Kontak masih dipakai publikasi.');
+    expect(item).toHaveFocus();
+    await user.keyboard('{Enter} ');await user.click(item);
+    expect(action).not.toHaveBeenCalled();expect(screen.getByRole('menu')).toBeVisible();
+    await user.keyboard('{Escape}');expect(trigger).toHaveFocus();
+    rerender(<SetupActionMenu showDisabledItems items={[{...items[0],disabled:false}]} />);
+    await user.click(trigger);await user.click(screen.getByRole('menuitem',{name:'Cabut kontak'}));
+    expect(action).toHaveBeenCalledOnce();
+  });
+
+  it('blocks an action that becomes unavailable while the menu is open', async()=>{
+    const action=vi.fn(),item={key:'save',label:'Simpan',icon:Edit2,onClick:action};
+    const {rerender}=render(<SetupActionMenu showDisabledItems items={[item]} />);
+    await userEvent.click(screen.getByRole('button',{name:'Buka aksi'}));
+    rerender(<SetupActionMenu showDisabledItems items={[{...item,disabled:true,disabledReason:'Sedang diproses.'}]} />);
+    fireEvent.click(screen.getByRole('menuitem',{name:'Simpan'}));
+    expect(action).not.toHaveBeenCalled();expect(screen.getByText('Sedang diproses.')).toBeVisible();
+  });
   it("dapat dibuka lewat keyboard dan menampilkan label aksi", async () => {
     const user = userEvent.setup();
 

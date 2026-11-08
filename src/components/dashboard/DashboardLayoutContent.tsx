@@ -17,6 +17,8 @@ import Notification from "@/components/Notification";
 import { useDocumentPreviewContext } from "@/components/ui/DocumentPreviewContext";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useAppToast } from "@/components/ui/AppToastProvider";
+import useAccessibleModal from "@/hooks/useAccessibleModal";
+import usePageScrollLock from "@/hooks/usePageScrollLock";
 import { DashboardSidebarMenu } from "@/components/dashboard/DashboardSidebarMenu";
 import {
   RBAC_DENIED_MESSAGE,
@@ -25,7 +27,7 @@ import {
   getRoleLabel,
   getDashboardRouteDecision,
 } from "@/lib/rbac";
-import { formatDateDisplay, toIsoDate } from "@/lib/utils/date";
+import { formatDate, formatTime, toIsoDate } from "@/lib/utils/date";
 import type { DashboardMenuNode } from "@/types/rbac.types";
 
 const SIDEBAR_OPEN_STORAGE_KEY = "ruang-arsip.dashboard.sidebar-open";
@@ -74,6 +76,13 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
       : (getMenuTitleForPath(dashboardMenus, pathname) ?? "Dashboard");
   const lastScrollYRef = useRef(0);
   const scrollTickingRef = useRef(false);
+  const mobileNavigationActive = mobileMenuOpen && !isDesktop && !isPreviewOpen && !isOverlayOpen;
+  const mobileNavigationRef = useAccessibleModal<HTMLElement>({
+    enabled: mobileNavigationActive,
+    onClose: () => setMobileMenuOpen(false),
+  });
+
+  usePageScrollLock(mobileNavigationActive);
 
   const updateSidebarOpen = useCallback(
     (value: boolean | ((prev: boolean) => boolean)) => {
@@ -320,6 +329,12 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
       )}
 
       <aside
+        ref={mobileNavigationRef}
+        id="dashboard-navigation"
+        role={mobileNavigationActive ? "dialog" : undefined}
+        aria-modal={mobileNavigationActive || undefined}
+        aria-label="Menu navigasi"
+        tabIndex={mobileNavigationActive ? -1 : undefined}
         aria-hidden={isSidebarHidden}
         inert={isSidebarHidden}
         className={`fixed left-0 top-0 z-50 h-screen transition-all duration-300 ease-in-out flex-col ${
@@ -413,7 +428,7 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
                   <p className="text-sm font-medium text-white truncate">
                     {user.name}
                   </p>
-                  <p className="text-xs text-white/90">
+                  <p className="text-xs text-white/90 [overflow-wrap:anywhere]">
                     {getRoleLabel(role)}
                   </p>
                 </div>
@@ -460,6 +475,8 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
               }}
               className="inline-flex size-11 items-center justify-center rounded-xl transition-colors hover:bg-gray-100 lg:hidden"
               aria-label="Buka menu"
+              aria-controls="dashboard-navigation"
+              aria-expanded={mobileNavigationActive}
             >
               <Menu className="w-6 h-6 text-gray-700" />
             </button>
@@ -529,10 +546,7 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
               <div className="flex items-center gap-2 px-4 py-2">
                 <Clock className="w-4 h-4 text-[#0d5a8f]" aria-hidden="true" />
                 <span className="font-semibold tabular-nums text-[#0d5a8f]">
-                  {now.toLocaleTimeString("id-ID", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {formatTime(now)}
                 </span>
               </div>
 
@@ -547,7 +561,7 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
                   aria-hidden="true"
                 />
                 <span className="font-semibold text-[#0d5a8f] tabular-nums">
-                  {formatDateDisplay(toIsoDate(now), "")}
+                  {formatDate(toIsoDate(now))}
                 </span>
               </div>
             </div>
@@ -564,10 +578,7 @@ export default function DashboardLayoutContent({ children }: { children: ReactNo
             >
               <Clock className="w-4 h-4" aria-hidden="true" />
               <span className="font-semibold tabular-nums">
-                {now.toLocaleTimeString("id-ID", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {formatTime(now)}
               </span>
             </div>
           </div>

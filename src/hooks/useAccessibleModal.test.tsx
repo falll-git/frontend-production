@@ -140,6 +140,14 @@ test("popup portal milik modal tetap interaktif saat background dibuat inert", a
   expect(popup).not.toHaveAttribute("aria-hidden");
   expect(screen.getByRole("button", { name: "Opsi portal" })).toBeVisible();
 
+  const option = screen.getByRole("button", { name: "Opsi portal" });
+  option.focus();
+  expect(option).toHaveFocus();
+  fireEvent.keyDown(option, { key: "Tab" });
+  expect(screen.getByRole("button", { name: "Pilih" })).toHaveFocus();
+  fireEvent.keyDown(screen.getByRole("button", { name: "Pilih" }), { key: "Tab" });
+  expect(option).toHaveFocus();
+
   unmount();
   expect(background).not.toHaveAttribute("inert");
   expect(background).not.toHaveAttribute("aria-hidden");

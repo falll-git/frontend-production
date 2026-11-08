@@ -15,7 +15,12 @@ const DASHBOARD_ROOT = "/dashboard";
 const SEPUTAR_JAMINAN_ROOT = "/dashboard/seputar-jaminan";
 
 export function groupDashboardMenus(nodes: DashboardMenuNode[]) {
-  const sorted = [...nodes].sort((a, b) => a.order - b.order);
+  const sorted = nodes.map(node => {
+    if (normalizePath(node.url) !== SEPUTAR_JAMINAN_ROOT) return node;
+    const children = node.children.filter(child => normalizePath(child.url) !== SEPUTAR_JAMINAN_ROOT + "/ringkasan");
+    // Retire the technical entry, never turn its permission into Pengajuan.
+    return { ...node, children };
+  }).sort((a, b) => a.order - b.order);
 
   return {
     dashboard: sorted.filter(
@@ -25,9 +30,9 @@ export function groupDashboardMenus(nodes: DashboardMenuNode[]) {
       const url = normalizePath(node.url);
       return url !== DASHBOARD_ROOT && url !== SEPUTAR_JAMINAN_ROOT;
     }),
-    seputarJaminan: sorted.filter(
-      (node) => normalizePath(node.url) === SEPUTAR_JAMINAN_ROOT,
-    ),
+    seputarJaminan: sorted
+      .filter((node) => normalizePath(node.url) === SEPUTAR_JAMINAN_ROOT)
+      .filter((node) => node.children.length > 0),
   };
 }
 

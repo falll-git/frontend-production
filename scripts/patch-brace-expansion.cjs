@@ -4,7 +4,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const EXPECTED_VERSION = "5.0.9";
+const EXPECTED_VERSION = "5.0.12";
 const MARKER = "RUWANG_ARSIP_COMMONJS_COMPAT";
 const SOURCE_MAP_LINE = "//# sourceMappingURL=index.js.map";
 const COMPATIBILITY_ADAPTER = `

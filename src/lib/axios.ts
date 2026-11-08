@@ -437,7 +437,15 @@ api.interceptors.response.use(
 
     return Promise.reject(
       new ApiRequestError(
-        getApiMessage(error.response?.data) ?? "Terjadi kesalahan pada server",
+        getApiMessage(error.response?.data) ?? (
+          error.code === "ECONNABORTED" || error.code === "ETIMEDOUT"
+            ? "Permintaan terlalu lama. Silakan coba lagi."
+            : statusCode === null
+              ? "Belum mendapat respons. Periksa koneksi Anda, lalu coba lagi."
+              : statusCode >= 500
+                ? "Layanan sedang bermasalah. Silakan coba lagi."
+                : "Permintaan tidak dapat diproses. Periksa isian atau akses Anda."
+        ),
         { requestId, statusCode },
       ),
     );

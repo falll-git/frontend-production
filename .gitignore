@@ -12,6 +12,7 @@ performance-reports/
 release-reports/
 playwright/.auth/
 /.playwright-mcp/
+/.playwright-cli/
 /*.png
 
 *.log

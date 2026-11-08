@@ -1,11 +1,21 @@
 "use client";
+import SeputarJaminanObservation from './SeputarJaminanObservation';
+import SjPublicationContent, { SjPublicationThumbnail, SjPublicationListObservation } from './SeputarJaminanPublicationContent';
+import { SjPublicationVersions, SjWorkflowSummary } from './SeputarJaminanWorkflow';
+
+import useSjListQuery from "./useSjListQuery";
+import useDiscardChanges from "./useDiscardChanges";
+import { sjAction, sjEntryAction, sjEntryButton, sjMediaAction } from './actionAvailability';
+import SjRecordActions from './SjRecordActions';
+import SjCursorNavigation from './SjCursorNavigation';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import useSjSaveOperation from './useSjSaveOperation';
 import {
   Archive,
   CheckCircle2,
   EyeOff,
-  FileText,
+  Eye,
   ImagePlus,
   Pencil,
   Plus,
@@ -16,6 +26,7 @@ import {
 } from "lucide-react";
 
 import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
+import DashboardNotice from "@/components/ui/DashboardNotice";
 import {
   SetupDataTable,
   SetupDataTableBody,
@@ -27,32 +38,33 @@ import {
   SetupDataTableHeaderCell,
   SetupDataTableRow,
   SetupTableCode,
+  SetupTableScroll,
 } from "@/components/ui/SetupDataTable";
 import DashboardModal from "@/components/ui/DashboardModal";
 import useSeputarJaminanModalScrollLock from "@/components/seputar-jaminan/useSeputarJaminanModalScrollLock";
 import MultiFileUploadField from "@/components/ui/MultiFileUploadField";
-import Pagination from "@/components/ui/Pagination";
 import SetupFormSection from "@/components/ui/SetupFormSection";
 import SetupSearchInput from "@/components/ui/SetupSearchInput";
 import SetupSelect from "@/components/ui/SetupSelect";
+import SearchableSelect from "@/components/ui/SearchableSelect";
 import SetupState from "@/components/ui/SetupState";
 import SetupStatusBadge from "@/components/ui/SetupStatusBadge";
 import SetupTextInput from "@/components/ui/SetupTextInput";
 import SetupTextarea from "@/components/ui/SetupTextarea";
-import SetupViewButton from "@/components/ui/SetupViewButton";
+import SetupActionMenu from "@/components/ui/SetupActionMenu";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { arsipService } from "@/services/arsip.service";
 import { seputarJaminanService } from "@/services/seputar-jaminan.service";
-import type { Dokumen } from "@/types/arsip.types";
 import type {
   SjAssetCategory,
   SjContact,
-  SjEligibleCollateral,
+  SjMedia,
   SjMediaDraft,
   SjProfile,
   SjPublication,
   SjPublicationDraftPayload,
+  SjSettings,
   SjSourceType,
   SjTaxonomy,
 } from "@/types/seputar-jaminan.types";
@@ -61,7 +73,10 @@ import {
   CATEGORY_LABEL,
   PUBLICATION_STATE_LABEL,
   SJ_CATALOG,
+  SJ_SUBMISSIONS,
+  SJ_SUMMARY,
   SjPageHeader,
+  SJ_TABLE_LOADING_CLASS,
   SjPrimaryButton,
   SjSecondaryButton,
   SjSection,
@@ -75,6 +90,10 @@ import {
   SjMediaPreview,
   validateSjPublicImage,
 } from "./SeputarJaminanMedia";
+import SeputarJaminanChangeRequestModal, {
+  type SjChangeRequestTarget,
+} from "./SeputarJaminanChangeRequestModal";
+import type { SjChangeRequestAction } from "@/types/seputar-jaminan.types";
 
 type FormMedia = SjMediaDraft & {
   id: string;
@@ -158,21 +177,6 @@ const EMPTY_FORM: CatalogForm = {
   media: [],
 };
 
-const REVIEW_ACTION_LABEL: Record<string, string> = {
-  SUBMITTED: "Diajukan untuk pemeriksaan",
-  REVISION_REQUESTED: "Diminta untuk diperbaiki",
-  APPROVED: "Disetujui",
-  PUBLISH_REQUESTED: "Diajukan untuk ditayangkan",
-  UNPUBLISHED: "Diturunkan dari katalog publik",
-  RECONFIRMED: "Ketersediaan dikonfirmasi",
-  ARCHIVED: "Diarsipkan",
-};
-
-const REVIEW_DATE_FORMATTER = new Intl.DateTimeFormat("id-ID", {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
 function numericAttribute(key: string, value: string) {
   const parsed = Number(value);
   if (["floor_count", "manufacture_year"].includes(key)) return Math.trunc(parsed);
@@ -218,7 +222,7 @@ function toPayload(form: CatalogForm): SjPublicationDraftPayload {
 
 function validateForm(form: CatalogForm, sourceIsLocked: boolean) {
   if (!sourceIsLocked && form.source_type === "COLLATERAL" && !form.source_collateral_id) {
-    return "Pilih agunan yang menjadi sumber katalog.";
+    return "Pilih agunan yang menjadi sumber publikasi.";
   }
   if (!sourceIsLocked && form.source_type === "MANUAL") {
     if (!form.manual_evidence_document_id) return "Pilih dokumen bukti untuk input manual.";
@@ -227,13 +231,13 @@ function validateForm(form: CatalogForm, sourceIsLocked: boolean) {
     }
   }
   if (!form.taxonomy_item_id) return "Pilih jenis aset.";
-  if (form.title.trim().length < 5) return "Judul katalog harus berisi sedikitnya 5 karakter.";
+  if (form.title.trim().length < 5) return "Judul publikasi harus berisi sedikitnya 5 karakter.";
   if (form.description.trim().length < 20) {
     return "Deskripsi publik harus berisi sedikitnya 20 karakter.";
   }
   if (form.city_regency.trim().length < 2) return "Isi kota atau kabupaten aset.";
   if (form.province.trim().length < 2) return "Isi provinsi aset.";
-  if (!form.whatsapp_contact_version_id) return "Pilih kontak WhatsApp untuk katalog ini.";
+  if (!form.whatsapp_contact_version_id) return "Pilih kontak WhatsApp untuk publikasi ini.";
   if (!form.profile_version_id) return "Profil BPRS terverifikasi belum tersedia.";
 
   const missingAttribute = ATTRIBUTE_FIELDS[form.asset_category].find(
@@ -265,15 +269,15 @@ function validateForm(form: CatalogForm, sourceIsLocked: boolean) {
 
 function validationTargetId(message: string) {
   const directTargets: Record<string, string> = {
-    "Pilih agunan yang menjadi sumber katalog.": "sj-publication-source-collateral",
+    "Pilih agunan yang menjadi sumber publikasi.": "sj-publication-source-collateral",
     "Pilih dokumen bukti untuk input manual.": "sj-publication-manual-evidence",
     "Jelaskan alasan input manual sedikitnya 10 karakter.": "sj-publication-manual-reason",
     "Pilih jenis aset.": "sj-publication-taxonomy",
-    "Judul katalog harus berisi sedikitnya 5 karakter.": "sj-publication-title",
+    "Judul publikasi harus berisi sedikitnya 5 karakter.": "sj-publication-title",
     "Deskripsi publik harus berisi sedikitnya 20 karakter.": "sj-publication-description",
     "Isi kota atau kabupaten aset.": "sj-publication-city",
     "Isi provinsi aset.": "sj-publication-province",
-    "Pilih kontak WhatsApp untuk katalog ini.": "sj-publication-whatsapp-contact",
+    "Pilih kontak WhatsApp untuk publikasi ini.": "sj-publication-whatsapp-contact",
     "Profil BPRS terverifikasi belum tersedia.": "sj-publication-whatsapp-contact",
     "Tambahkan sedikitnya satu gambar publik.": "sj-publication-add-media",
     "Pilih tepat satu gambar utama.": "sj-publication-cover-0",
@@ -304,64 +308,134 @@ function editablePayload(payload: SjPublicationDraftPayload) {
 
 export default function SeputarJaminanCatalogClient() {
   const [items, setItems] = useState<SjPublication[]>([]);
-  const [page, setPage] = useState(1);
-  const [lastPage, setLastPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [search, setSearch] = useState("");
-  const [stateFilter, setStateFilter] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const { params: listQuery, update: updateListQuery } = useSjListQuery();
+  const cursor = listQuery.get('cursor') ?? '';
+  const detailId = listQuery.get('detail') ?? '';
+  const sort = listQuery.get('sort') ?? 'created_desc';
+  const legacyPage = listQuery.get('page');
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const search = listQuery.get("search") ?? "";
+  const setSearch = (value: string) => updateListQuery({search: value, page: '', cursor: ''}, true);
+  const stateFilter = listQuery.get("state") ?? "";
+  const setStateFilter = (value: string) => updateListQuery({state: value, page: '', cursor: ''});
+  const categoryFilter = listQuery.get("category") ?? "";
+  const confirmation = listQuery.get('confirmation') ?? '';
+  const setCategoryFilter = (value: string) => updateListQuery({category: value, page: '', cursor: ''});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [detail, setDetail] = useState<SjPublication | null>(null);
+  const [detailBusy,setDetailBusy]=useState(false);
+  const [detailError,setDetailError]=useState<string|null>(null);
+  const [savedSubmissionNotice,setSavedSubmissionNotice]=useState<{id:string;message:string}|null>(null);
+  const [detailReload,setDetailReload]=useState(0);
+  const [formError,setFormError]=useState<string|null>(null);
+  const [commandError,setCommandError]=useState<string|null>(null);
+  const detailEntry=useRef<string|null>(null);
   const [editing, setEditing] = useState<SjPublication | null>(null);
   const [form, setForm] = useState<CatalogForm>(EMPTY_FORM);
   const [taxonomy, setTaxonomy] = useState<SjTaxonomy | null>(null);
   const [profile, setProfile] = useState<SjProfile | null>(null);
   const [contacts, setContacts] = useState<SjContact[]>([]);
-  const [collaterals, setCollaterals] = useState<SjEligibleCollateral[]>([]);
-  const [documents, setDocuments] = useState<Dokumen[]>([]);
+  const [contactCursor,setContactCursor]=useState<string|null>(null);
+  const [contactMoreBusy,setContactMoreBusy]=useState(false);
+  const [contactMoreError,setContactMoreError]=useState<string|null>(null);
+  const contactLoadSequence=useRef(0);
+  const [settings, setSettings] = useState<SjSettings | null>(null);
   const [saving, setSaving] = useState(false);
+  const [submittingForm,setSubmittingForm] = useState(false);
+  const saveOperation = useSjSaveOperation();
+  const focusSaveError = useRef(false);
+  useEffect(() => {
+    if (!saving && formError && focusSaveError.current) {
+      const errorElement = document.getElementById('sj-publication-save-error');
+      if (errorElement) {
+        focusSaveError.current = false;
+        errorElement.focus();
+        errorElement.scrollIntoView?.({ block: 'center', behavior: 'instant' });
+      }
+    }
+  }, [saving, formError]);
   const [uploading, setUploading] = useState(false);
   const [mediaUploadFiles, setMediaUploadFiles] = useState<File[]>([]);
   const [mediaUploadError, setMediaUploadError] = useState<string | null>(null);
   const [mediaUploadProgress, setMediaUploadProgress] = useState({ completed: 0, total: 0 });
   const [actionLoading, setActionLoading] = useState(false);
   const [unpublishConfirm, setUnpublishConfirm] = useState(false);
-  useSeputarJaminanModalScrollLock(formOpen || Boolean(detail));
+  const [archiveConfirm, setArchiveConfirm] = useState(false);
+  const [changeRequest, setChangeRequest] = useState<{
+    target: SjChangeRequestTarget;
+    actions: SjChangeRequestAction[];
+  } | null>(null);
+  useSeputarJaminanModalScrollLock(formOpen || Boolean(detailId));
   const formTriggerRef = useRef<HTMLElement | null>(null);
   const detailTriggerRef = useRef<HTMLElement | null>(null);
   const loadRequestRef = useRef(0);
   const { showToast } = useAppToast();
   const access = useProtectedAction();
+  const ensureAction = (publication: SjPublication, name: string) => {
+    const action = sjAction(publication, name);
+    if (!action.available) showToast(action.reason || 'Tindakan belum tersedia.', 'warning');
+    return action.available;
+  };
 
   const load = useCallback(async () => {
     const requestId = ++loadRequestRef.current;
     setLoading(true);
     setError(null);
     try {
-      const result = await seputarJaminanService.getPublications({
-        page,
-        limit: 20,
-        ...(search.trim() ? { search: search.trim() } : {}),
-        ...(stateFilter ? { state: stateFilter } : {}),
-        ...(categoryFilter ? { category: categoryFilter } : {}),
-      });
+      if(sort!=='created_desc')throw new Error('Urutan pada tautan ini tidak didukung. Atur ulang untuk memakai urutan terbaru dibuat.');
+      if (legacyPage !== null && legacyPage !== '1') throw new Error('Tautan halaman lama tidak dapat dipakai. Ubah filter atau hapus nomor halaman untuk mulai dari awal.');
+      const [result, nextSettings] = await Promise.all([
+        seputarJaminanService.getPublicationPage({
+          ...(cursor ? {cursor} : {}),
+          limit: 20,
+          ...(search.trim() ? { search: search.trim() } : {}),
+          ...(stateFilter ? { state: stateFilter } : {}),
+          ...(categoryFilter ? { category: categoryFilter } : {}),
+          ...(confirmation ? { confirmation } : {}),
+        }),
+        seputarJaminanService.getSettings(),
+      ]);
       if (requestId !== loadRequestRef.current) return;
       setItems(result.items);
-      setTotal(result.pagination.total);
-      setLastPage(Math.max(1, result.pagination.total_pages));
+      setNextCursor(result.page_info.next_cursor);
+      setSettings(nextSettings);
     } catch (loadError) {
       if (requestId !== loadRequestRef.current) return;
       setError(readableError(loadError));
     } finally {
       if (requestId === loadRequestRef.current) setLoading(false);
     }
-  }, [categoryFilter, page, search, stateFilter]);
+  }, [categoryFilter, confirmation, cursor, legacyPage, search, stateFilter, sort]);
 
   useEffect(() => {
+    const sequence=loadRequestRef;
     void load();
+    return () => { ++sequence.current; };
   }, [load]);
+
+  useEffect(()=>{
+    let active=true;setDetail(null);setDetailError(null);setCommandError(null);setUnpublishConfirm(false);setArchiveConfirm(false);
+    if(!detailId){setDetailBusy(false);return;}
+    setDetailBusy(true);
+    void (async()=>{
+      try{
+        if(!/^[a-zA-Z0-9-]{1,64}$/.test(detailId))throw new Error('Identitas publikasi pada tautan tidak valid.');
+        const row=await seputarJaminanService.getPublication(detailId);
+        if(row.id!==detailId)throw new Error('Jawaban detail tidak sesuai publikasi yang diminta.');
+        if(active)setDetail(row);
+      }catch(e){if(active)setDetailError(readableError(e));}
+      finally{if(active)setDetailBusy(false);}
+    })();
+    return()=>{active=false;};
+  },[detailId,detailReload]);
+
+  const closeDetail=()=>{
+    setUnpublishConfirm(false);setArchiveConfirm(false);setDetail(null);
+    if(detailEntry.current===window.location.search){window.history.back();}
+    else updateListQuery({detail:''},true);
+  };
 
   useEffect(() => {
     if (formOpen || !formTriggerRef.current) return;
@@ -372,38 +446,56 @@ export default function SeputarJaminanCatalogClient() {
   }, [formOpen]);
 
   useEffect(() => {
-    if (detail || !detailTriggerRef.current) return;
+    if (detailId || !detailTriggerRef.current) return;
     const trigger = detailTriggerRef.current;
     requestAnimationFrame(() => {
-      if (document.contains(trigger)) trigger.focus();
+      if (document.contains(trigger)) trigger.focus({preventScroll:true});
     });
-  }, [detail]);
+  }, [detailId]);
 
   const loadDependencies = useCallback(async () => {
-    const [nextTaxonomy, nextProfile, nextContacts, collateralPage, documentPage] = await Promise.all([
+    const sequence=++contactLoadSequence.current;
+    const [nextTaxonomy, nextProfile, nextContacts] = await Promise.all([
       seputarJaminanService.getTaxonomy(),
       seputarJaminanService.getProfile(),
-      seputarJaminanService.getContacts(),
-      seputarJaminanService.getEligibleCollaterals({ page: 1, limit: 100 }),
-      arsipService.getPage({ page: 1, limit: 100 }),
+      seputarJaminanService.getContactPage({state:'VERIFIED',limit:20}),
     ]);
     setTaxonomy(nextTaxonomy);
     setProfile(nextProfile);
-    setContacts(nextContacts);
-    setCollaterals(collateralPage.items);
-    setDocuments(documentPage.items);
-    return { nextTaxonomy, nextProfile, nextContacts };
+    if(sequence===contactLoadSequence.current){setContacts(nextContacts.items);setContactCursor(nextContacts.page_info.next_cursor);setContactMoreError(null);}
+    return { nextTaxonomy, nextProfile, nextContacts:nextContacts.items };
   }, []);
+  const loadCollateralPage = useCallback(async (query: string, page: number) => {
+    const result = await seputarJaminanService.getEligibleCollaterals({ page, limit: 20, search: query.trim() || undefined });
+    return { options: result.items.map(item => ({ value: item.id, label: `${item.collateral_number || "Tanpa nomor"} — ${item.collateral_type || item.description || "Agunan"}` })), nextPage: page < result.pagination.total_pages ? page + 1 : null };
+  }, []);
+  const loadDocumentPage = useCallback(async (query: string, page: number) => {
+    const result = await arsipService.getPage({ page, limit: 20, search: query.trim() || undefined });
+    return { options: result.items.map(item => ({ value: item.id, label: `${item.kode} — ${item.namaDokumen}` })), nextPage: page < result.meta.lastPage ? page + 1 : null };
+  }, []);
+  const loadMoreContactOptions=async()=>{
+    if(!contactCursor||contactMoreBusy)return;
+    const sequence=contactLoadSequence.current;setContactMoreBusy(true);setContactMoreError(null);
+    try{const page=await seputarJaminanService.getContactPage({state:'VERIFIED',limit:20,cursor:contactCursor});
+      if(sequence===contactLoadSequence.current){setContacts(rows=>[...rows,...page.items.filter(item=>!rows.some(old=>old.id===item.id))]);setContactCursor(page.page_info.next_cursor);}
+    }catch(e){if(sequence===contactLoadSequence.current)setContactMoreError(readableError(e));}
+    finally{setContactMoreBusy(false);}
+  };
 
+  const formGuard = useDiscardChanges(formOpen, form, () => setFormOpen(false), saving || uploading || saveOperation.uncertain);
+  const canSubmitForm = access.hasCapability(SJ_CATALOG,'update') && Boolean(settings?.review_enabled)
+    && (settings?.review_authority !== 'central' || Boolean(settings.review_submission_ready));
   const openCreate = async () => {
     if (!access.ensureCapability(SJ_CATALOG, "create")) return;
+    if (!sjEntryAction(settings,'create_publication').available) return;
     formTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setSaving(true);
+    setFormError(null);
     try {
       const deps = await loadDependencies();
-      const verifiedContacts = deps.nextContacts.filter((contact) => contact.state === "VERIFIED" && contact.current_version_id);
+      const verifiedContacts = deps.nextContacts.filter((contact) => contact.state === "VERIFIED" && !contact.revoked_at && contact.current_version_id);
       if (deps.nextProfile?.state !== "VERIFIED" || !deps.nextProfile.current_version_id) {
-        showToast("Profil BPRS harus disetujui sebelum membuat katalog.", "warning");
+        showToast("Profil BPRS harus disetujui sebelum membuat publikasi.", "warning");
         return;
       }
       if (verifiedContacts.length === 0) {
@@ -420,7 +512,7 @@ export default function SeputarJaminanCatalogClient() {
         asset_category: firstCategory?.code ?? "LAND",
         taxonomy_item_id: firstCategory?.items[0]?.id ?? "",
         profile_version_id: deps.nextProfile.current_version_id,
-        whatsapp_contact_version_id: verifiedContacts.find((item) => item.is_default)?.current_version_id ?? verifiedContacts[0].current_version_id ?? "",
+        whatsapp_contact_version_id: verifiedContacts.find((item) => item.is_default)?.current_version_id ?? "",
       });
       setFormOpen(true);
     } catch (loadError) {
@@ -432,10 +524,12 @@ export default function SeputarJaminanCatalogClient() {
 
   const openEdit = async (publication: SjPublication) => {
     if (!access.ensureCapability(SJ_CATALOG, "update")) return;
+    if (!ensureAction(publication, 'edit_draft')) return;
     formTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const version = publication.current_version;
     if (!version) return;
     setSaving(true);
+    setFormError(null);
     try {
       const deps = await loadDependencies();
       setEditing(publication);
@@ -449,13 +543,16 @@ export default function SeputarJaminanCatalogClient() {
         manual_evidence_document_id: "",
         asset_category: publication.asset_category,
         taxonomy_item_id:
-          deps.nextTaxonomy.categories.flatMap((entry) => entry.items).find((item) => item.code === version.subcategory)?.id ?? "",
+          deps.nextTaxonomy.categories.find((entry) => entry.code === publication.asset_category)?.items.find((item) => item.code === version.subcategory)?.id ?? "",
         title: version.title,
         description: version.description,
         city_regency: version.city_regency,
         province: version.province,
         whatsapp_contact_version_id: version.whatsapp_contact?.version_id ?? "",
-        profile_version_id: version.profile_version_id,
+        // A new draft uses the profile displayed below, not the older profile
+        // embedded in the immutable publication snapshot.
+        profile_version_id: deps.nextProfile?.state === 'VERIFIED'
+          ? deps.nextProfile.current_version_id ?? '' : '',
         attributes: Object.fromEntries(Object.entries(version.attributes).map(([key, value]) => [key, value == null ? "" : String(value)])),
         media: version.media.map((media, index) => ({
           id: media.id,
@@ -484,7 +581,7 @@ export default function SeputarJaminanCatalogClient() {
     () => taxonomy?.categories.find((entry) => entry.code === form.asset_category)?.items ?? [],
     [form.asset_category, taxonomy],
   );
-  const verifiedContacts = contacts.filter((contact) => contact.state === "VERIFIED" && contact.current_version_id);
+  const verifiedContacts = contacts.filter((contact) => contact.state === "VERIFIED" && !contact.revoked_at && contact.current_version_id);
 
   const updateCategory = (category: SjAssetCategory) => {
     const categoryItems = taxonomy?.categories.find((entry) => entry.code === category)?.items ?? [];
@@ -497,9 +594,11 @@ export default function SeputarJaminanCatalogClient() {
   };
 
   const uploadImages = async (files: File[]) => {
+    const allowed=sjEntryAction(settings,'upload_media');
+    if(!allowed.available){showToast(allowed.reason!, 'warning');return;}
     if (files.length === 0) return;
     if (form.media.length + files.length > 10) {
-      showToast("Maksimal 10 gambar untuk satu katalog.", "warning");
+      showToast("Maksimal 10 gambar untuk satu publikasi.", "warning");
       setMediaUploadFiles([]);
       return;
     }
@@ -549,10 +648,15 @@ export default function SeputarJaminanCatalogClient() {
     }
   };
 
-  const save = async () => {
+  const save = async (submit = false) => {
+    if (saving || uploading || saveOperation.isRunning()) return;
+    if (!access.ensureCapability(SJ_CATALOG, editing ? 'update' : 'create')) return;
+    if (!editing && !sjEntryAction(settings,'create_publication').available) return;
+    if (editing && !ensureAction(editing, 'edit_draft')) return;
+    if (submit && !canSubmitForm) return;
     const validationMessage = validateForm(form, Boolean(editing));
     if (validationMessage) {
-      showToast(validationMessage, "warning");
+      setFormError(validationMessage);
       const targetId = validationTargetId(validationMessage);
       if (targetId) {
         requestAnimationFrame(() => {
@@ -565,38 +669,40 @@ export default function SeputarJaminanCatalogClient() {
       return;
     }
     setSaving(true);
+    setFormError(null);
     try {
+      setSubmittingForm(submit);
       const payload = toPayload(form);
-      if (editing) {
-        await seputarJaminanService.updatePublication(editing.id, {
-          ...editablePayload(payload),
-          expected_version: editing.lock_version,
-        });
-        showToast("Draf katalog berhasil diperbarui.", "success");
-      } else {
-        await seputarJaminanService.createPublication(payload);
-        showToast("Draf katalog berhasil dibuat.", "success");
+      const result = await saveOperation.run({kind:'PUBLICATION',intent:submit ? 'SAVE_AND_SUBMIT' : 'SAVE_DRAFT',
+        ...(editing ? {resource_id:editing.id} : {}),draft:editing ? {...editablePayload(payload),expected_version:editing.lock_version} : payload});
+      if (!result) return;
+      if (result.intent === 'SAVE_AND_SUBMIT' && result.state === 'DRAFT') {
+        setSavedSubmissionNotice({id:result.resource_id,message:result.submission_error!});
+        setFormOpen(false);
+        updateListQuery({detail:result.resource_id});
+        setDetailReload(value=>value+1);
+        await load();
+        return;
       }
+      showToast(result.intent === 'SAVE_AND_SUBMIT' ? 'Publikasi disimpan dan diajukan untuk diperiksa.' : 'Draf publikasi berhasil disimpan.', 'success');
+      setSavedSubmissionNotice(null);
       setFormOpen(false);
+      setDetailReload(value=>value+1);
       await load();
     } catch (saveError) {
-      showToast(readableError(saveError), "error");
+      setFormError(readableError(saveError));
+      focusSaveError.current = true;
     } finally {
       setSaving(false);
+      setSubmittingForm(false);
     }
   };
 
-  const openDetail = async (publication: SjPublication) => {
-    setUnpublishConfirm(false);
+  const openDetail = (publication: SjPublication) => {
+    setUnpublishConfirm(false);setArchiveConfirm(false);
     detailTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setActionLoading(true);
-    try {
-      setDetail(await seputarJaminanService.getPublication(publication.id));
-    } catch (detailError) {
-      showToast(readableError(detailError), "error");
-    } finally {
-      setActionLoading(false);
-    }
+    updateListQuery({detail:publication.id});
+    detailEntry.current=window.location.search;
   };
 
   const removeMedia = (mediaId: string) => {
@@ -615,6 +721,8 @@ export default function SeputarJaminanCatalogClient() {
   };
 
   const runCommand = async (publication: SjPublication, command: "submit" | "reconfirm" | "unpublish" | "archive") => {
+    if (!ensureAction(publication, command)) return;
+    if (sjAction(publication, command).mode !== 'DIRECT') return;
     const feature = command === "reconfirm"
       ? "sj_reconfirm"
       : command === "unpublish"
@@ -622,8 +730,18 @@ export default function SeputarJaminanCatalogClient() {
         : command === "archive"
           ? "sj_archive"
           : null;
-    if (feature ? !access.ensureFeature("/dashboard/seputar-jaminan", feature) : !access.ensureCapability(SJ_CATALOG, "update")) return;
+    const featurePath = command === "reconfirm" ? SJ_SUMMARY : SJ_SUBMISSIONS;
+    if (feature ? !access.ensureFeature(featurePath, feature) : !access.ensureCapability(SJ_CATALOG, "update")) return;
+    if (
+      command === "submit" &&
+      settings?.review_authority === "central" &&
+      !settings.review_submission_ready
+    ) {
+      showToast("Penerima pemeriksaan pusat belum siap. Pengajuan belum dapat dikirim.", "warning");
+      return;
+    }
     setActionLoading(true);
+    setCommandError(null);
     try {
       if (command === "unpublish") {
         await seputarJaminanService.unpublishPublication(publication.id, publication.lock_version, "OWNER_REQUEST");
@@ -632,155 +750,199 @@ export default function SeputarJaminanCatalogClient() {
       }
       showToast(
         command === "submit"
-          ? "Katalog diajukan untuk diperiksa."
+          ? "Publikasi diajukan untuk diperiksa."
           : command === "reconfirm"
             ? "Ketersediaan aset sudah dikonfirmasi."
             : command === "unpublish"
-              ? "Katalog sedang diturunkan dari website publik."
-              : "Katalog berhasil diarsipkan.",
+              ? "Penarikan dicatat di bank dan masuk antrean pengiriman. Status di website belum bisa dipastikan."
+              : "Publikasi berhasil diarsipkan.",
         "success",
       );
-      setUnpublishConfirm(false);
-      setDetail(null);
+      setUnpublishConfirm(false);setArchiveConfirm(false);
+      closeDetail();
       await load();
     } catch (commandError) {
-      showToast(readableError(commandError), "error");
+      setCommandError(readableError(commandError));
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const openPublicationChangeRequest = (publication: SjPublication, actions: SjChangeRequestAction[]) => {
+    if (!access.ensureCapability(SJ_CATALOG, "update")) return;
+    const names: Partial<Record<SjChangeRequestAction, string>> = {
+      UNPUBLISH_PUBLICATION: 'unpublish', ARCHIVE_PUBLICATION: 'archive', RECONFIRM_PUBLICATION: 'reconfirm',
+    };
+    const permitted = actions.filter(action => {
+      const name = names[action];
+      return name && sjAction(publication, name).available && sjAction(publication, name).mode === 'REQUEST_CONTROL';
+    });
+    if (!permitted.length) {
+      const name = names[actions[0]];
+      showToast(name ? sjAction(publication, name).reason || 'Tindakan belum tersedia.' : 'Tindakan belum tersedia.', 'warning');
+      return;
+    }
+    if (!settings?.review_submission_ready) {
+      showToast("Penerima pemeriksaan pusat belum siap. Permintaan belum dapat dikirim.", "warning");
+      return;
+    }
+    setChangeRequest({
+      target: { kind: "publication", id: publication.id, label: publication.title || publication.reference_code, version: publication.lock_version },
+      actions: permitted,
+    });
+  };
+
+  const openMediaChangeRequest = (media: SjMedia) => {
+    if (!access.ensureCapability(SJ_CATALOG, "update")) return;
+    const assessment=sjMediaAction({...media,action_availability:detail?.media_actions?.[media.id]},'request_revoke');
+    if(!assessment.available||assessment.mode!=='REQUEST_CONTROL'){showToast(assessment.reason||'Pencabutan belum tersedia.', 'warning');return;}
+    if (!settings?.review_submission_ready) {
+      showToast("Penerima pemeriksaan pusat belum siap. Permintaan belum dapat dikirim.", "warning");
+      return;
+    }
+    setChangeRequest({ target: { kind: "media", id: media.id, label: media.file_name }, actions: ["REVOKE_MEDIA"] });
   };
 
   return (
     <DashboardPageShell spacing="lg" animated>
       <SjPageHeader
         eyebrow="Seputar Jaminan · Ruwang"
-        title="Katalog aset"
-        description="Kelola draf dan status katalog. Harga, dokumen internal, serta identitas nasabah tidak pernah ditampilkan di website publik."
+        title="Daftar Publikasi"
+        description="Kelola draf dan status publikasi. Harga, dokumen internal, serta identitas nasabah tidak pernah ditampilkan di website publik."
         icon={Store}
-        action={<SjPrimaryButton loading={saving} onClick={() => void openCreate()}><Plus className="size-4" aria-hidden="true" />Buat katalog</SjPrimaryButton>}
+        action={<><SjSecondaryButton disabled={loading || formOpen || Boolean(detailId)} aria-busy={loading || undefined} onClick={() => void load()} aria-label="Muat ulang daftar publikasi"><RefreshCw className={loading ? "size-4 motion-safe:animate-spin" : "size-4"} aria-hidden="true" />Muat ulang</SjSecondaryButton>{sjEntryAction(settings,'create_publication').reason_code!=='PERMISSION_DENIED'?<SjPrimaryButton {...sjEntryButton(settings,'create_publication')} loading={saving} onClick={() => void openCreate()}><Plus className="size-4" aria-hidden="true" />Buat publikasi</SjPrimaryButton>:null}</>}
       />
 
       <SjSection
-        title="Daftar katalog"
-        description={`${total} katalog ditemukan`}
-        action={(
-          <SjSecondaryButton
-            className="self-start px-3 py-2 text-sm"
-            onClick={() => void load()}
-            loading={loading}
-            aria-label="Muat ulang daftar katalog"
-          >
-            {!loading ? <RefreshCw className="size-4" aria-hidden="true" /> : null}
-            Muat ulang
-          </SjSecondaryButton>
-        )}
+        title="Publikasi BPRS"
+        description={loading ? "Memuat publikasi…" : error ? "Jumlah publikasi belum dapat dimuat." : `${items.length} publikasi pada halaman ini`}
       >
-        <div className="grid grid-cols-2 gap-3 border-b border-slate-100 p-4 lg:grid-cols-[minmax(280px,1fr)_220px_220px] lg:p-5" aria-label="Filter daftar katalog">
-          <SetupSearchInput containerClassName="col-span-2 lg:col-span-1" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Cari judul atau kode katalog…" aria-label="Cari katalog" />
-          <SetupSelect value={stateFilter} onChange={(event) => { setStateFilter(event.target.value); setPage(1); }} aria-label="Filter status">
+        <div className="grid grid-cols-2 gap-3 border-b border-slate-100 p-4 xl:grid-cols-[minmax(0,1fr)_180px_180px] lg:p-5" aria-label="Filter daftar publikasi">
+          <SetupSearchInput containerClassName="col-span-2 xl:col-span-1" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari judul atau kode publikasi…" aria-label="Cari publikasi" />
+          <SetupSelect value={stateFilter} onChange={(event) => setStateFilter(event.target.value)} aria-label="Filter status">
             <option value="">Semua status</option>
             {Object.entries(PUBLICATION_STATE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </SetupSelect>
-          <SetupSelect value={categoryFilter} onChange={(event) => { setCategoryFilter(event.target.value); setPage(1); }} aria-label="Filter kategori">
+          <SetupSelect value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} aria-label="Filter kategori">
             <option value="">Semua kategori</option>
             {Object.entries(CATEGORY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </SetupSelect>
         </div>
 
-        <SetupDataTable variant="crud" density="compact" className="[table-layout:fixed]" aria-label="Daftar publikasi Seputar Jaminan">
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-3 text-sm text-slate-600" aria-label="Filter aktif dan urutan">
+          <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={Boolean(confirmation)} onChange={e=>updateListQuery({confirmation:e.target.checked?'soon':'',cursor:'',page:''})}/>Konfirmasi ≤ 7 hari atau lewat tenggat</label>
+          <span className="mr-auto">Urutan: terbaru dibuat</span>
+{([{key:'search',value:search,label:`Pencarian: ${search}`},{key:'state',value:stateFilter,label:PUBLICATION_STATE_LABEL[stateFilter]||stateFilter},{key:'category',value:categoryFilter,label:CATEGORY_LABEL[categoryFilter as SjAssetCategory]||categoryFilter}]).filter(item=>item.value).map(item=><button key={item.key} type="button" aria-label={`Hapus filter ${item.label}`} onClick={()=>updateListQuery({[item.key]:'',cursor:'',page:''})} className="min-h-11 max-w-full break-words rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left font-medium text-slate-700 hover:border-sky-500 focus-visible:outline-2 focus-visible:outline-sky-600">{item.label} <span aria-hidden="true">×</span></button>)}
+          {search||stateFilter||categoryFilter||confirmation||cursor||legacyPage||sort!=='created_desc'?<SjSecondaryButton onClick={()=>updateListQuery({search:'',state:'',category:'',confirmation:'',cursor:'',page:'',sort:''})}>Atur ulang</SjSecondaryButton>:null}
+        </div>
+
+        <SetupTableScroll aria-label="Gulir tabel publikasi">
+        <SetupDataTable variant="crud" density="compact" className="lg:min-w-[960px]" style={{tableLayout:'fixed'}} aria-label="Daftar publikasi Seputar Jaminan">
           <SetupDataTableColGroup>
-            <SetupDataTableCol className="w-[13%]" />
-            <SetupDataTableCol className="w-[13%]" />
-            <SetupDataTableCol className="w-[22%]" />
-            <SetupDataTableCol className="w-[16%]" />
+            <SetupDataTableCol className="w-[34%]" />
+            <SetupDataTableCol className="w-[14%]" />
             <SetupDataTableCol className="w-[18%]" />
-            <SetupDataTableCol className="w-[18%]" />
+            <SetupDataTableCol className="w-[24%]" />
+            <SetupDataTableCol className="w-[10%]" />
           </SetupDataTableColGroup>
           <SetupDataTableHead>
             <SetupDataTableRow>
-              <SetupDataTableHeaderCell>Kode</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Aset / versi kerja</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell>Kategori</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Judul</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Lokasi</SetupDataTableHeaderCell>
-              <SetupDataTableHeaderCell>Status</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Pengajuan</SetupDataTableHeaderCell>
+              <SetupDataTableHeaderCell>Penayangan</SetupDataTableHeaderCell>
               <SetupDataTableHeaderCell className="text-center">Aksi</SetupDataTableHeaderCell>
             </SetupDataTableRow>
           </SetupDataTableHead>
           <SetupDataTableBody>
             {loading ? (
-              <SetupDataTableEmptyRow colSpan={6} state="loading" loadingRows={3} loadingColumns={6}>
-                Memuat katalog…
+              <SetupDataTableEmptyRow colSpan={5} state="loading" className={`${SJ_TABLE_LOADING_CLASS} [&>div]:min-h-16`} loadingRows={20} loadingColumns={5}>
+                Memuat publikasi…
               </SetupDataTableEmptyRow>
             ) : error ? (
-              <SetupDataTableEmptyRow colSpan={6} state="error" description={error}>
-                Katalog belum dapat dimuat
+              <SetupDataTableEmptyRow colSpan={5} state="error" description={error}>
+                Publikasi belum dapat dimuat
               </SetupDataTableEmptyRow>
             ) : items.length === 0 ? (
               <SetupDataTableEmptyRow
-                colSpan={6}
+                colSpan={5}
                 icon={Store}
-                isFiltered={Boolean(search.trim() || stateFilter || categoryFilter)}
+                isFiltered={Boolean(search.trim() || stateFilter || categoryFilter || confirmation)}
                 description={
-                  search.trim() || stateFilter || categoryFilter
-                    ? "Ubah kata kunci atau filter untuk melihat katalog lain."
-                    : "Buat katalog pertama setelah profil BPRS dan kontak WhatsApp selesai diverifikasi."
+                  search.trim() || stateFilter || categoryFilter || confirmation
+                    ? "Ubah kata kunci atau filter untuk melihat publikasi lain."
+                    : "Buat publikasi pertama setelah profil BPRS dan kontak WhatsApp selesai diverifikasi."
                 }
               >
-                {search.trim() || stateFilter || categoryFilter ? "Katalog tidak ditemukan" : "Belum ada katalog"}
+                {search.trim() || stateFilter || categoryFilter || confirmation ? "Publikasi tidak ditemukan" : "Belum ada publikasi"}
               </SetupDataTableEmptyRow>
             ) : items.map((publication) => (
               <SetupDataTableRow key={publication.id}>
                 <SetupDataTableCell>
-                  <SetupTableCode>{publication.reference_code}</SetupTableCode>
+                  <div className="flex min-w-0 items-start gap-3"><SjPublicationThumbnail publication={publication}/><div className="min-w-0 space-y-1">
+                  <div><SetupTableCode>{publication.reference_code}</SetupTableCode></div>
+                  <button
+                    type="button"
+                    style={{whiteSpace:'normal',overflowWrap:'anywhere'}}
+                    className="setup-table-primary-text inline-flex min-h-11 items-center text-left break-words [overflow-wrap:anywhere] underline-offset-4 hover:text-sky-700 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-600/30"
+                    onClick={() => void openDetail(publication)}
+                  >
+                    {publication.title ?? "Draf tanpa judul"}
+                  </button>
+                  <span className="setup-table-secondary-text block">
+                    {[publication.city_regency, publication.province].filter(Boolean).join(", ") || "Lokasi belum diisi"}
+                  </span>
+                  </div></div>
                 </SetupDataTableCell>
                 <SetupDataTableCell>
                   <span className="text-sm font-semibold text-slate-700">{CATEGORY_LABEL[publication.asset_category]}</span>
                 </SetupDataTableCell>
                 <SetupDataTableCell>
-                  <h3 className="setup-table-primary-text">{publication.title ?? "Draf tanpa judul"}</h3>
-                </SetupDataTableCell>
-                <SetupDataTableCell>
-                  <span className="setup-table-secondary-text block">
-                    {[publication.city_regency, publication.province].filter(Boolean).join(", ") || "Lokasi belum diisi"}
-                  </span>
-                </SetupDataTableCell>
-                <SetupDataTableCell>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="space-y-2">
                     <SjStatusBadge state={publication.state} />
-                    <SjStatusBadge state={publication.sync_state} kind="sync" />
+                    {['FAILED','QUARANTINED','RETRYING'].includes(publication.sync_state)?<div><SjStatusBadge state={publication.sync_state} kind="sync" /></div>:null}
                   </div>
+                </SetupDataTableCell>
+                <SetupDataTableCell>
+                    <SjPublicationListObservation publication={publication} onInspect={() => openDetail(publication)}/>
                 </SetupDataTableCell>
                 <SetupDataTableCell className="text-center">
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {publication.state !== "ARCHIVED" ? (
-                      <SjSecondaryButton onClick={() => void openEdit(publication)}>
-                        <Pencil className="size-4" aria-hidden="true" />
-                        Ubah
-                      </SjSecondaryButton>
-                    ) : null}
-                    <SetupViewButton disabled={actionLoading} label="Lihat detail" onClick={() => void openDetail(publication)} />
-                  </div>
+                  <SetupActionMenu label={`Aksi publikasi ${publication.reference_code}`} menuLabel={`Aksi publikasi ${publication.reference_code}`} showDisabledItems items={[
+                    {key:'detail',label:'Lihat detail',icon:Eye,disabled:actionLoading,disabledReason:'Tunggu proses yang sedang berjalan.',onClick:()=>void openDetail(publication)},
+                    ...(["DRAFT", "REVISION_REQUIRED", "APPROVED", "PUBLISHED", "UNPUBLISHED"].includes(publication.state) && sjAction(publication,'edit_draft').reason_code!=='PERMISSION_DENIED' ? [{
+                      key:'edit',label:publication.state === 'APPROVED' || publication.state === 'PUBLISHED' ? 'Ajukan perubahan' : 'Ubah',icon:Pencil,
+                      disabled:saving || !sjAction(publication,'edit_draft').available,
+                      disabledReason:saving ? 'Tunggu penyimpanan selesai.' : sjAction(publication,'edit_draft').reason || undefined,
+                      onClick:()=>void openEdit(publication),
+                    }] : []),
+                  ]} />
                 </SetupDataTableCell>
               </SetupDataTableRow>
             ))}
           </SetupDataTableBody>
         </SetupDataTable>
-        <Pagination page={page} lastPage={lastPage} total={total} limit={20} isLoading={loading} onPageChange={setPage} />
+        </SetupTableScroll>
+        {!error ? <SjCursorNavigation key={`${search}:${stateFilter}:${categoryFilter}:${confirmation}`} busy={loading} label="publikasi" count={items.length} cursor={cursor} next={nextCursor} onNavigate={value => updateListQuery({cursor:value,page:''})} /> : null}
+        {error && (cursor || legacyPage) ? <SjSecondaryButton onClick={() => updateListQuery({cursor:'',page:''})}>Kembali ke awal daftar</SjSecondaryButton> : null}
+        {error?<div className="p-4"><SjSecondaryButton onClick={()=>void load()}>Coba muat ulang daftar</SjSecondaryButton></div>:null}
       </SjSection>
 
       <DashboardModal
         isOpen={formOpen}
-        onClose={() => setFormOpen(false)}
-        closeDisabled={saving || uploading}
+        onClose={formGuard.requestClose}
+        closeDisabled={saving || uploading || saveOperation.uncertain}
         maxWidth="5xl"
-        title={editing ? "Perbarui draf katalog" : "Buat katalog baru"}
+        title={editing ? (editing.published_version ? "Ajukan perubahan publikasi" : "Perbarui draf publikasi") : "Buat publikasi baru"}
         description="Isi hanya informasi yang aman dilihat masyarakat. Kolom bertanda wajib harus dilengkapi."
-        footer={<><SjSecondaryButton disabled={saving || uploading} onClick={() => setFormOpen(false)}>Batal</SjSecondaryButton><SjPrimaryButton loading={saving} disabled={uploading} onClick={() => void save()}>Simpan draf</SjPrimaryButton></>}
+        footer={saveOperation.uncertain ? <SjPrimaryButton loading={saving} onClick={() => void save()}>Periksa penyimpanan</SjPrimaryButton> : <><SjSecondaryButton disabled={saving || uploading} onClick={formGuard.requestClose}>Batal</SjSecondaryButton><SjSecondaryButton loading={saving && !submittingForm} disabled={saving || uploading} onClick={() => void save()}>Simpan draf</SjSecondaryButton>{access.hasCapability(SJ_CATALOG,'update') ? <SjPrimaryButton loading={saving && submittingForm} disabled={saving || uploading || !canSubmitForm} onClick={() => void save(true)}>{editing?.state === 'REVISION_REQUIRED' ? 'Simpan dan ajukan ulang' : 'Simpan dan ajukan'}</SjPrimaryButton> : null}</>}
       >
-        <div className="space-y-5">
+        {formError?<div id="sj-publication-save-error" tabIndex={-1} role="alert" className="mb-5 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{formError} Isian tetap tersimpan di formulir ini.</div>:null}
+        <fieldset disabled={saving || uploading || saveOperation.uncertain} className="min-w-0 space-y-5">
+          {!canSubmitForm ? <p className="text-sm text-slate-600">Pengajuan belum tersedia. Anda masih bisa menyimpan draf.</p> : null}
+          {editing?.current_version?.rejection_reason?<SetupState variant="error" title="Catatan perbaikan" description={editing.current_version.rejection_reason}/>:null}
           <SetupFormSection
-            title="Sumber data"
-            description="Tentukan asal informasi katalog. Sumber yang sudah tersimpan tidak dapat diganti."
+            title="Data aset"
+            description="Pilih sumber dan isi informasi yang boleh dilihat masyarakat."
           >
             {editing ? (
               <div className="md:col-span-2">
@@ -790,7 +952,7 @@ export default function SeputarJaminanCatalogClient() {
                     : "Input manual dengan dokumen bukti"}
                 </p>
                 <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Sumber dikunci setelah katalog dibuat agar riwayat pemeriksaan tetap utuh.
+                  Sumber data tidak dapat diganti setelah publikasi dibuat.
                 </p>
               </div>
             ) : (
@@ -800,7 +962,7 @@ export default function SeputarJaminanCatalogClient() {
                   <SetupSelect
                     id="sj-publication-source-type"
                     value={form.source_type}
-                    onChange={(event) => setForm((current) => ({ ...current, source_type: event.target.value as SjSourceType }))}
+                    onChange={(event) => { const value = event.target.value as SjSourceType; setForm((current) => ({ ...current, source_type: value })); }}
                   >
                     <option value="COLLATERAL">Agunan yang sudah ada di Ruwang</option>
                     <option value="MANUAL">Input manual dengan dokumen bukti</option>
@@ -809,34 +971,28 @@ export default function SeputarJaminanCatalogClient() {
                 {form.source_type === "COLLATERAL" ? (
                   <label htmlFor="sj-publication-source-collateral" className="space-y-2 text-sm font-semibold text-slate-700">
                     Pilih agunan <span className="text-rose-600">*</span>
-                    <SetupSelect
+                    <SearchableSelect
                       id="sj-publication-source-collateral"
                       required
                       value={form.source_collateral_id}
-                      onChange={(event) => setForm((current) => ({ ...current, source_collateral_id: event.target.value }))}
-                    >
-                      <option value="">Pilih agunan…</option>
-                      {collaterals.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.collateral_number || "Tanpa nomor"} — {item.collateral_type || item.description || "Agunan"}
-                        </option>
-                      ))}
-                    </SetupSelect>
+                      onChange={(value) => setForm((current) => ({ ...current, source_collateral_id: value }))}
+                      loadPage={loadCollateralPage}
+                      placeholder="Pilih agunan…"
+                      searchPlaceholder="Cari nomor atau keterangan agunan…"
+                    />
                   </label>
                 ) : (
                   <label htmlFor="sj-publication-manual-evidence" className="space-y-2 text-sm font-semibold text-slate-700">
                     Dokumen bukti <span className="text-rose-600">*</span>
-                    <SetupSelect
+                    <SearchableSelect
                       id="sj-publication-manual-evidence"
                       required
                       value={form.manual_evidence_document_id}
-                      onChange={(event) => setForm((current) => ({ ...current, manual_evidence_document_id: event.target.value }))}
-                    >
-                      <option value="">Pilih dokumen Ruwang…</option>
-                      {documents.map((document) => (
-                        <option key={document.id} value={document.id}>{document.kode} — {document.namaDokumen}</option>
-                      ))}
-                    </SetupSelect>
+                      onChange={(value) => setForm((current) => ({ ...current, manual_evidence_document_id: value }))}
+                      loadPage={loadDocumentPage}
+                      placeholder="Pilih dokumen Ruwang…"
+                      searchPlaceholder="Cari kode atau nama dokumen…"
+                    />
                   </label>
                 )}
                 {form.source_type === "MANUAL" ? (
@@ -848,18 +1004,13 @@ export default function SeputarJaminanCatalogClient() {
                       minLength={10}
                       rows={3}
                       value={form.manual_reason}
-                      onChange={(event) => setForm((current) => ({ ...current, manual_reason: event.target.value }))}
+                      onChange={(event) => { const value = event.target.value; setForm((current) => ({ ...current, manual_reason: value })); }}
                     />
                   </label>
                 ) : null}
               </>
             )}
-          </SetupFormSection>
 
-          <SetupFormSection
-            title="Informasi publik"
-            description="Informasi ini akan dibaca masyarakat pada website Seputar Jaminan."
-          >
             <label htmlFor="sj-publication-category" className="space-y-2 text-sm font-semibold text-slate-700">
               Kategori <span className="text-rose-600">*</span>
               <SetupSelect
@@ -876,21 +1027,24 @@ export default function SeputarJaminanCatalogClient() {
                 id="sj-publication-taxonomy"
                 required
                 value={form.taxonomy_item_id}
-                onChange={(event) => setForm((current) => ({ ...current, taxonomy_item_id: event.target.value }))}
+                onChange={(event) => { const value = event.target.value; setForm((current) => ({ ...current, taxonomy_item_id: value })); }}
               >
                 <option value="">Pilih jenis aset…</option>
                 {categoryItems.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
               </SetupSelect>
             </label>
             <label htmlFor="sj-publication-title" className="space-y-2 text-sm font-semibold text-slate-700 md:col-span-2">
-              Judul katalog <span className="text-rose-600">*</span>
+              Judul publikasi <span className="text-rose-600">*</span>
               <SetupTextInput
                 id="sj-publication-title"
                 required
                 minLength={5}
                 maxLength={160}
                 value={form.title}
-                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+                onChange={(event) => {
+                  const title = event.target.value;
+                  setForm((current) => ({ ...current, title }));
+                }}
                 placeholder="Contoh: Rumah tinggal dua lantai"
               />
             </label>
@@ -903,7 +1057,7 @@ export default function SeputarJaminanCatalogClient() {
                 maxLength={5000}
                 rows={5}
                 value={form.description}
-                onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+                onChange={(event) => { const value = event.target.value; setForm((current) => ({ ...current, description: value })); }}
                 placeholder="Jelaskan karakter aset dan lingkungan secara ringkas tanpa alamat lengkap atau data nasabah."
               />
             </label>
@@ -919,7 +1073,7 @@ export default function SeputarJaminanCatalogClient() {
                 id="sj-publication-city"
                 required
                 value={form.city_regency}
-                onChange={(event) => setForm((current) => ({ ...current, city_regency: event.target.value }))}
+                onChange={(event) => { const value = event.target.value; setForm((current) => ({ ...current, city_regency: value })); }}
               />
             </label>
             <label htmlFor="sj-publication-province" className="space-y-2 text-sm font-semibold text-slate-700">
@@ -928,7 +1082,7 @@ export default function SeputarJaminanCatalogClient() {
                 id="sj-publication-province"
                 required
                 value={form.province}
-                onChange={(event) => setForm((current) => ({ ...current, province: event.target.value }))}
+                onChange={(event) => { const value = event.target.value; setForm((current) => ({ ...current, province: value })); }}
               />
             </label>
             {ATTRIBUTE_FIELDS[form.asset_category].map((field) => {
@@ -941,10 +1095,7 @@ export default function SeputarJaminanCatalogClient() {
                       id={inputId}
                       required={field.required}
                       value={form.attributes[field.key] ?? ""}
-                      onChange={(event) => setForm((current) => ({
-                        ...current,
-                        attributes: { ...current.attributes, [field.key]: event.target.value },
-                      }))}
+                      onChange={(event) => { const value=event.target.value; setForm((current) => ({...current,attributes:{...current.attributes,[field.key]:value}})); }}
                     >
                       <option value="">Pilih…</option>
                       {(taxonomy?.vocabularies[field.vocabulary] ?? []).map((value) => (
@@ -958,10 +1109,7 @@ export default function SeputarJaminanCatalogClient() {
                       min={field.kind === "number" ? 0 : undefined}
                       required={field.required}
                       value={form.attributes[field.key] ?? ""}
-                      onChange={(event) => setForm((current) => ({
-                        ...current,
-                        attributes: { ...current.attributes, [field.key]: event.target.value },
-                      }))}
+                      onChange={(event) => { const value=event.target.value; setForm((current) => ({...current,attributes:{...current.attributes,[field.key]:value}})); }}
                     />
                   )}
                 </label>
@@ -969,36 +1117,10 @@ export default function SeputarJaminanCatalogClient() {
             })}
           </SetupFormSection>
 
-          <SetupFormSection
-            title="Kontak marketing"
-            description="Pilih nomor terverifikasi yang boleh digunakan oleh satu atau beberapa katalog."
-          >
-            <label htmlFor="sj-publication-whatsapp-contact" className="space-y-2 text-sm font-semibold text-slate-700">
-              Kontak WhatsApp <span className="text-rose-600">*</span>
-              <SetupSelect
-                id="sj-publication-whatsapp-contact"
-                required
-                value={form.whatsapp_contact_version_id}
-                onChange={(event) => setForm((current) => ({ ...current, whatsapp_contact_version_id: event.target.value }))}
-              >
-                {verifiedContacts.map((contact) => (
-                  <option key={contact.id} value={contact.current_version_id ?? ""}>
-                    {contact.label} · berakhir {contact.phone_e164.slice(-4)}{contact.is_default ? " · utama" : ""}
-                  </option>
-                ))}
-              </SetupSelect>
-            </label>
-            <div className="flex items-start gap-3 pt-1 text-sm text-slate-600">
-              <CheckCircle2 className="mt-0.5 size-6 shrink-0 text-emerald-600" aria-hidden="true" />
-              <div>
-                <p className="font-bold text-slate-900">Profil BPRS terhubung</p>
-                <p className="mt-1 leading-6">{profile?.display_name ?? "Profil belum tersedia"}</p>
-              </div>
-            </div>
-          </SetupFormSection>
+
 
           <SetupFormSection
-            title="Media publik"
+            title="Foto"
             description="Tambahkan 1–10 gambar yang aman dipublikasikan, maksimal 10 MB per gambar. Data lokasi foto otomatis dibersihkan."
             contentClassName="md:grid-cols-1"
           >
@@ -1007,7 +1129,7 @@ export default function SeputarJaminanCatalogClient() {
               accept={SJ_PUBLIC_IMAGE_ACCEPT}
               label="Gambar publik"
               required={false}
-              disabled={uploading || form.media.length >= 10}
+              disabled={uploading || form.media.length >= 10 || !sjEntryAction(settings,'upload_media').available}
               files={mediaUploadFiles}
               maxFiles={Math.max(1, 10 - form.media.length)}
               title={
@@ -1028,6 +1150,7 @@ export default function SeputarJaminanCatalogClient() {
                 if (files.length > 0) void uploadImages(files);
               }}
             />
+            {!sjEntryAction(settings,'upload_media').available?<p className="text-sm text-slate-600">{sjEntryAction(settings,'upload_media').reason}</p>:null}
             {uploading && mediaUploadProgress.total > 0 ? (
               <div className="space-y-2" aria-live="polite">
                 <div className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-700">
@@ -1039,7 +1162,7 @@ export default function SeputarJaminanCatalogClient() {
                 <div
                   className="h-2 overflow-hidden rounded-full bg-slate-200"
                   role="progressbar"
-                  aria-label="Kemajuan unggah gambar katalog"
+                  aria-label="Kemajuan unggah gambar publikasi"
                   aria-valuemin={0}
                   aria-valuemax={mediaUploadProgress.total}
                   aria-valuenow={mediaUploadProgress.completed}
@@ -1060,6 +1183,7 @@ export default function SeputarJaminanCatalogClient() {
                 {mediaUploadFiles.length > 0 ? (
                   <SjSecondaryButton
                     loading={uploading}
+                    {...sjEntryButton(settings,'upload_media')}
                     onClick={() => void uploadImages(mediaUploadFiles)}
                   >
                     {!uploading ? <RefreshCw className="size-4" aria-hidden="true" /> : null}
@@ -1102,10 +1226,10 @@ export default function SeputarJaminanCatalogClient() {
                         minLength={3}
                         maxLength={240}
                         value={media.alt_text}
-                        onChange={(event) => setForm((current) => ({
+                        onChange={(event) => {const alt_text=event.target.value;setForm((current) => ({
                           ...current,
-                          media: current.media.map((item) => item.id === media.id ? { ...item, alt_text: event.target.value } : item),
-                        }))}
+                          media: current.media.map((item) => item.id === media.id ? { ...item, alt_text } : item),
+                        }));}}
                         placeholder="Jelaskan isi gambar"
                       />
                       <div className="flex flex-wrap items-center gap-2">
@@ -1127,10 +1251,10 @@ export default function SeputarJaminanCatalogClient() {
                           type="button"
                           className="uiverse-modal-button uiverse-modal-button--danger"
                           onClick={() => removeMedia(media.id)}
-                          aria-label={`Hapus ${media.fileName} dari katalog`}
+                          aria-label={`Hapus ${media.fileName} dari publikasi`}
                         >
                           <Trash2 className="size-4" aria-hidden="true" />
-                          Hapus dari katalog
+                          Hapus dari publikasi
                         </button>
                       </div>
                     </div>
@@ -1139,24 +1263,57 @@ export default function SeputarJaminanCatalogClient() {
               </div>
             )}
           </SetupFormSection>
-        </div>
+          <SetupFormSection
+            title="Kontak"
+            description="Pilih kontak WhatsApp untuk aset ini. Kontak utama dapat diganti."
+          >
+            <label htmlFor="sj-publication-whatsapp-contact" className="space-y-2 text-sm font-semibold text-slate-700">
+              Kontak WhatsApp <span className="text-rose-600">*</span>
+              <SetupSelect
+                id="sj-publication-whatsapp-contact"
+                required
+                value={form.whatsapp_contact_version_id}
+                onChange={(event) => { const value = event.target.value; setForm((current) => ({ ...current, whatsapp_contact_version_id: value })); }}
+              >
+                <option value="">Pilih kontak…</option>
+                {form.whatsapp_contact_version_id&&!verifiedContacts.some(c=>c.current_version_id===form.whatsapp_contact_version_id)?<option value={form.whatsapp_contact_version_id}>Kontak yang tersimpan pada versi ini</option>:null}
+                {verifiedContacts.map((contact) => (
+                  <option key={contact.id} value={contact.current_version_id ?? ""}>
+                    {contact.label} · berakhir {contact.phone_e164.slice(-4)}{contact.is_default ? " · utama" : ""}
+                  </option>
+                ))}
+              </SetupSelect>
+            </label>
+            {contactCursor?<SjSecondaryButton disabled={contactMoreBusy} onClick={()=>void loadMoreContactOptions()}>{contactMoreBusy?'Memuat kontak…':'Muat pilihan kontak berikutnya'}</SjSecondaryButton>:null}
+            {contactMoreError?<p role="alert" className="text-sm text-rose-700">{contactMoreError}</p>:null}
+            <div className="flex items-start gap-3 pt-1 text-sm text-slate-600">
+              <CheckCircle2 className="mt-0.5 size-6 shrink-0 text-emerald-600" aria-hidden="true" />
+              <div>
+                <p className="font-bold text-slate-900">Profil BPRS yang disetujui</p>
+                <p className="mt-1 leading-6">{profile?.display_name ?? "Profil belum tersedia"}</p>
+              </div>
+            </div>
+          </SetupFormSection>
+        </fieldset>
       </DashboardModal>
 
       <DashboardModal
-        isOpen={Boolean(detail)}
-        onClose={() => {
-          setUnpublishConfirm(false);
-          setDetail(null);
-        }}
+        isOpen={Boolean(detailId) && !formOpen && !changeRequest}
+        onClose={closeDetail}
+        closeDisabled={actionLoading}
         maxWidth="3xl"
-        title={detail?.title ?? "Detail katalog"}
+        title={detail?.title ? detail.title.length>72?`${detail.title.slice(0,72)}…`:detail.title : "Detail publikasi"}
+        ariaLabel={detail?.title ?? "Detail publikasi"}
         description={detail ? `${detail.reference_code} · ${CATEGORY_LABEL[detail.asset_category]}` : undefined}
         footer={detail ? (
           <div className="flex w-full flex-wrap justify-end gap-2">
-            {detail.state === "PUBLISHED" && unpublishConfirm ? (
+            <SjSecondaryButton disabled={actionLoading} onClick={closeDetail}>Kembali ke daftar</SjSecondaryButton>
+            {commandError?<p role="alert" className="w-full text-sm text-rose-700">{commandError} Muat ulang detail sebelum mencoba lagi.</p>:null}
+            {commandError?<SjSecondaryButton disabled={actionLoading} onClick={()=>setDetailReload(value=>value+1)}>Muat ulang detail</SjSecondaryButton>:null}
+            {settings?.review_authority === "local" && detail.workflow_eligibility?.withdrawal.eligible && unpublishConfirm ? (
               <>
                 <p className="w-full text-sm leading-6 text-slate-600" role="status">
-                  Katalog akan hilang dari website publik. Data tetap tersimpan dan dapat diarsipkan setelah proses penarikan selesai.
+                  Penarikan versi yang sudah disetujui akan dikirim ke Seputar Jaminan. Draf perubahan tetap tersimpan. Ini belum memastikan publikasi sudah hilang dari website.
                 </p>
                 <SjSecondaryButton disabled={actionLoading} onClick={() => setUnpublishConfirm(false)}>
                   Batal
@@ -1164,7 +1321,7 @@ export default function SeputarJaminanCatalogClient() {
                 <button
                   type="button"
                   className="uiverse-modal-button uiverse-modal-button--danger"
-                  disabled={actionLoading}
+                  disabled={actionLoading || !sjAction(detail, 'unpublish').available}
                   aria-busy={actionLoading || undefined}
                   onClick={() => void runCommand(detail, "unpublish")}
                 >
@@ -1173,83 +1330,49 @@ export default function SeputarJaminanCatalogClient() {
                 </button>
               </>
             ) : null}
-            {!unpublishConfirm && ["DRAFT", "REVISION_REQUIRED"].includes(detail.state) ? (
-              <SjSecondaryButton onClick={() => void openEdit(detail)}>
-                <Pencil className="size-4" aria-hidden="true" />
-                Perbarui draf
-              </SjSecondaryButton>
-            ) : null}
-            {!unpublishConfirm && detail.state === "DRAFT" ? (
-              <SjPrimaryButton loading={actionLoading} onClick={() => void runCommand(detail, "submit")}>
-                <Send className="size-4" aria-hidden="true" />
-                Ajukan pemeriksaan
-              </SjPrimaryButton>
-            ) : null}
-            {!unpublishConfirm && detail.state === "PUBLISHED" ? (
-              <>
-                <SjSecondaryButton loading={actionLoading} onClick={() => void runCommand(detail, "reconfirm")}>
-                  {!actionLoading ? <RefreshCw className="size-4" aria-hidden="true" /> : null}
-                  Konfirmasi tersedia
-                </SjSecondaryButton>
-                <button
-                  type="button"
-                  className="uiverse-modal-button uiverse-modal-button--danger"
-                  disabled={actionLoading}
-                  onClick={() => setUnpublishConfirm(true)}
-                >
-                  <EyeOff className="size-4" aria-hidden="true" />
-                  Tarik dari website
-                </button>
-              </>
-            ) : null}
-            {!unpublishConfirm && ["UNPUBLISHED", "REVISION_REQUIRED"].includes(detail.state) ? (
-              <button
-                type="button"
-                className="uiverse-modal-button uiverse-modal-button--danger"
-                disabled={actionLoading}
-                aria-busy={actionLoading || undefined}
-                onClick={() => void runCommand(detail, "archive")}
-              >
-                {actionLoading ? <RefreshCw className="size-4 animate-spin" aria-hidden="true" /> : <Archive className="size-4" aria-hidden="true" />}
-                Arsipkan katalog
-              </button>
-            ) : null}
+            {archiveConfirm&&settings?.review_authority==='local'?<>
+              <p role="status" className="w-full text-sm text-slate-600">Publikasi dipindahkan ke arsip, bukan dihapus. Ini bukan tindakan penarikan dari website.</p>
+              <SjSecondaryButton disabled={actionLoading} onClick={()=>setArchiveConfirm(false)}>Batal</SjSecondaryButton>
+              <button type="button" className="uiverse-modal-button uiverse-modal-button--danger" disabled={actionLoading||!sjAction(detail,'archive').available} onClick={()=>void runCommand(detail,'archive')}>Ya, arsipkan publikasi</button>
+            </>:null}
+            {!unpublishConfirm && !archiveConfirm ? <SjRecordActions subject={detail} busy={actionLoading} label="Aksi publikasi" actions={[
+              ...(detail.state==='DRAFT'?[{name:'submit',label:'Ajukan pemeriksaan',icon:Send,primary:true,onClick:()=>void runCommand(detail,'submit')}]:[]),
+              ...(['DRAFT','REVISION_REQUIRED','APPROVED','PUBLISHED','UNPUBLISHED'].includes(detail.state)?[{name:'edit_draft',label:detail.state==='REVISION_REQUIRED'?'Perbaiki publikasi':detail.published_version?'Ajukan perubahan':'Perbarui draf',icon:Pencil,primary:true,onClick:()=>void openEdit(detail)}]:[]),
+              ...(detail.state==='PUBLISHED'?[{name:'reconfirm',label:'Konfirmasi tersedia',icon:RefreshCw,onClick:()=>settings?.review_authority==='central'?openPublicationChangeRequest(detail,['RECONFIRM_PUBLICATION']):void runCommand(detail,'reconfirm')}]:[]),
+              ...(detail.workflow_eligibility?.withdrawal.eligible?[{name:'unpublish',label:settings?.review_authority==='central'?'Ajukan penarikan':'Tarik dari website',icon:EyeOff,destructive:true,onClick:()=>settings?.review_authority==='central'?openPublicationChangeRequest(detail,['UNPUBLISH_PUBLICATION']):setUnpublishConfirm(true)}]:[]),
+              ...((settings?.review_authority==='central'&&(Boolean(detail.published_version)||['PUBLISHED','UNPUBLISHED'].includes(detail.state)))||(settings?.review_authority==='local'&&['UNPUBLISHED','REVISION_REQUIRED'].includes(detail.state))?[{name:'archive',label:settings?.review_authority==='central'?'Ajukan arsip':'Arsipkan publikasi',icon:Archive,destructive:true,onClick:()=>settings?.review_authority==='central'?openPublicationChangeRequest(detail,['ARCHIVE_PUBLICATION']):setArchiveConfirm(true)}]:[]),
+            ]}/> : null}
+            {!unpublishConfirm && !archiveConfirm && !detail.workflow_eligibility?.withdrawal.eligible && detail.workflow_eligibility?.withdrawal.reason && sjAction(detail,'unpublish').reason_code!=='PERMISSION_DENIED' ? <p className="w-full text-sm text-slate-600">{detail.workflow_eligibility.withdrawal.reason}</p>:null}
           </div>
         ) : undefined}
       >
+        {detailBusy?<SetupState variant="loading" title="Memuat detail publikasi…"/>:null}
+        {savedSubmissionNotice?.id===detailId && (!detail || detail.state==='DRAFT') ? <DashboardNotice tone="amber" title="Draf tersimpan, tetapi belum diajukan" description={savedSubmissionNotice.message}/> : null}
+        {detailError?<div className="space-y-3"><SetupState variant="error" title="Detail belum dapat dimuat" description={detailError}/><SjSecondaryButton onClick={()=>setDetailReload(value=>value+1)}>Coba lagi</SjSecondaryButton><SjSecondaryButton onClick={closeDetail}>Kembali ke daftar</SjSecondaryButton></div>:null}
         {detail ? (
           <div className="space-y-5">
-            <dl
-              data-ui="sj-publication-detail-records"
-              className="divide-y divide-slate-200 border-y border-slate-200"
-            >
-              <div className="grid gap-2 py-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start sm:gap-4">
-                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Status</dt>
-                <dd className="flex min-w-0 flex-wrap gap-2">
-                  <SjStatusBadge state={detail.state} />
-                  <SjStatusBadge state={detail.sync_state} kind="sync" />
-                </dd>
-              </div>
-              <div className="grid gap-1 py-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start sm:gap-4">
-                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Lokasi publik</dt>
-                <dd className="break-words text-sm font-semibold leading-6 text-slate-900">
-                  {[detail.city_regency, detail.province].filter(Boolean).join(", ") || "Belum dilengkapi"}
-                </dd>
-              </div>
-              <div className="grid gap-1 py-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start sm:gap-4">
-                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Sumber</dt>
-                <dd className="break-words text-sm font-semibold leading-6 text-slate-900">
-                  {detail.source_type === "COLLATERAL" ? "Agunan Ruwang" : "Input manual terverifikasi"}
-                </dd>
-              </div>
-              <div className="grid gap-1 py-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start sm:gap-4">
-                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Deskripsi publik</dt>
-                <dd className="min-w-0 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">
-                  {detail.current_version?.description?.trim() || "Belum ada deskripsi."}
-                </dd>
-              </div>
-            </dl>
-
+            <SjWorkflowSummary state={detail.state} syncState={detail.sync_state} />
+            <SeputarJaminanObservation key={detail.id} kind="publication" id={detail.id} subject={detail} />
+            <SjPublicationContent publication={detail} mediaAction={settings?.review_authority === 'central' ? media => {
+              const action=sjMediaAction({...media,action_availability:detail.media_actions?.[media.id]},'request_revoke');
+              if(action.reason_code==='PERMISSION_DENIED')return null;
+              return <div className="space-y-2"><SjSecondaryButton disabled={!action.available} title={action.reason||undefined} onClick={() => openMediaChangeRequest(media)}><Trash2 className="size-4" aria-hidden="true" />Ajukan pencabutan</SjSecondaryButton>{!action.available?<p className="text-sm text-slate-600">{action.reason}</p>:null}</div>;
+            } : undefined}/>
+            {detail.current_version&&detail.published_version&&detail.current_version.id!==detail.published_version.id?<SjPublicationVersions working={detail.current_version} approved={detail.published_version} />:null}
+            {settings?.review_authority === "central" && !settings.review_submission_ready ? (
+              <DashboardNotice
+                tone="amber"
+                title="Pengajuan belum dapat dikirim"
+                description="Penerima pemeriksaan pusat belum siap. Draf tetap tersimpan dan dapat dilanjutkan setelah sambungan tersedia."
+              />
+            ) : null}
+            {settings?.review_authority === "central" && ["PUBLISHED", "UNPUBLISHED"].includes(detail.state) ? (
+              <DashboardNotice
+                tone="sky"
+                title="Penarikan dan arsip diputuskan melalui Control"
+                description="Bank mengajukan alasan dan dampak yang diharapkan. Data tidak dihapus fisik dan keputusan diterapkan setelah pemeriksaan pusat."
+              />
+            ) : null}
             {detail.current_version?.rejection_reason ? (
               <SetupState
                 variant="error"
@@ -1258,41 +1381,19 @@ export default function SeputarJaminanCatalogClient() {
               />
             ) : null}
 
-            {detail.reviews?.length ? (
-              <section aria-labelledby="sj-publication-review-history-title">
-                <h3 id="sj-publication-review-history-title" className="text-sm font-bold text-slate-900">
-                  Riwayat pemeriksaan
-                </h3>
-                <ol
-                  data-ui="sj-publication-review-history"
-                  className="mt-3 divide-y divide-slate-200 border-y border-slate-200"
-                >
-                  {detail.reviews.map((review) => (
-                    <li key={review.id} className="grid min-w-0 grid-cols-[1.25rem_minmax(0,1fr)] gap-3 py-4">
-                      <FileText className="mt-0.5 size-5 text-sky-600" aria-hidden="true" />
-                      <div className="min-w-0">
-                        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                          <p className="text-sm font-bold leading-5 text-slate-900">
-                            {REVIEW_ACTION_LABEL[review.action] ?? review.action}
-                          </p>
-                          <time className="text-xs leading-5 text-slate-500" dateTime={review.created_at}>
-                            {REVIEW_DATE_FORMATTER.format(new Date(review.created_at))}
-                          </time>
-                        </div>
-                        {review.reason ? (
-                          <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">
-                            {review.reason}
-                          </p>
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            ) : null}
+
           </div>
         ) : null}
       </DashboardModal>
+
+      {formGuard.confirmation}
+      <SeputarJaminanChangeRequestModal
+        open={Boolean(changeRequest)}
+        target={changeRequest?.target ?? null}
+        actions={changeRequest?.actions ?? []}
+        onClose={() => setChangeRequest(null)}
+        onSubmitted={async()=>{await load();setDetailReload(value=>value+1);}}
+      />
     </DashboardPageShell>
   );
 }

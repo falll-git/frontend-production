@@ -112,7 +112,7 @@ import {
 } from "@/components/ui/setupPageStyles";
 import { SETUP_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import { DOCUMENT_UPLOAD_MAX_SIZE_LABEL } from "@/lib/upload-limits";
-import { formatDateOnly, formatDateTime } from "@/lib/utils/date";
+import { formatDateOnly, formatDateTime, formatDateTimeShort, formatDateTimeForExport } from "@/lib/utils/date";
 import {
   areVisitLocationSamplesConsistent,
   getVisitLocationVerificationStep,
@@ -6778,13 +6778,7 @@ function formatImportErrorSummary(item: DebtorImportJob) {
 }
 
 function formatImportDateTime(value: string | null | undefined) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
+  return formatDateTimeShort(value);
 }
 
 function ImportDetailItem({
@@ -9433,7 +9427,7 @@ export function DebtorReportClient() {
               keterangan_expired: item.expiry_note ?? "-",
               keterangan_agunan: item.description ?? "-",
               pengubah_expired: item.expiry_updater?.name ?? "-",
-              waktu_perubahan_expired: formatDateTime(item.expiry_updated_at),
+              waktu_perubahan_expired: formatDateTimeForExport(item.expiry_updated_at),
               status_link:
                 reportCollateralDebtorId(item) ||
                 item.contract_id ||

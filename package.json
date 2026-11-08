@@ -2,8 +2,22 @@
   "name": "ruang-arsip",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "npm@11.21.0",
   "engines": {
-    "node": "^22.12 || 24.x"
+    "node": "^22.13 || 24.x",
+    "npm": "11.21.0"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "^22.13 || 24.x",
+      "onFail": "error"
+    },
+    "packageManager": {
+      "name": "npm",
+      "version": "11.21.0",
+      "onFail": "error"
+    }
   },
   "scripts": {
     "postinstall": "node scripts/patch-brace-expansion.cjs",
@@ -19,7 +33,7 @@
     "test:visit-location": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/lib/visit-location.test.mjs",
     "test:e2e:server": "npm run build && npm run start",
     "test:e2e:preflight": "node scripts/verify-e2e-credentials.mjs",
-    "test:e2e:preflight:test": "node --test scripts/brace-expansion-compat.test.mjs scripts/verify-e2e-credentials.test.mjs scripts/verify-ci-workflow.test.mjs",
+    "test:e2e:preflight:test": "node --test scripts/brace-expansion-compat.test.mjs scripts/production-dependencies.test.mjs scripts/verify-e2e-credentials.test.mjs scripts/verify-ci-workflow.test.mjs scripts/verify-package-policy.test.mjs scripts/verify-dependency-age.test.mjs",
     "test:e2e:run": "playwright test",
     "test:e2e": "npm run test:e2e:preflight && npm run test:e2e:run",
     "test:e2e:public": "playwright test --project=public-desktop --project=public-mobile",
@@ -29,17 +43,19 @@
     "test:visual:update": "npm run test:visual -- --update-snapshots",
     "test:csp-production": "node scripts/verify-production-csp.mjs",
     "audit:dependencies": "npm audit --audit-level=high",
-    "ci:verify-workflow": "node scripts/verify-ci-workflow.mjs",
-    "config:production:validate": "vitest run --config vitest.production.config.ts",
-    "quality": "npm run ci:verify-workflow && npm run config:production:validate && npm run lint && npm run typecheck && npm run test:coverage && npm run test:visit-location && npm run test:e2e:preflight:test && npm run build",
+    "ci:verify-workflow": "node scripts/verify-package-policy.mjs && node scripts/verify-ci-workflow.mjs",
+    "check:dependency-age": "node scripts/verify-dependency-age.mjs",
+    "deps:install": "node scripts/verify-package-policy.mjs && node scripts/verify-dependency-age.mjs && npm ci",
+    "config:production:validate": "vitest run --config vitest.production.config.mts",
+    "quality": "npm run ci:verify-workflow && npm run check:dependency-age && npm run config:production:validate && npm run lint && npm run typecheck && npm run test:coverage && npm run test:visit-location && npm run test:e2e:preflight:test && npm run build",
     "quality:browser": "npm run test:e2e:preflight && npm run test:csp-production && npm run test:e2e:run",
     "quality:release": "npm run quality && npm run audit:dependencies && npm run quality:browser"
   },
   "dependencies": {
-    "axios": "^1.16.0",
+    "axios": "1.20.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.563.0",
-    "next": "16.3.4",
+    "next": "16.3.8",
     "pdfjs-dist": "^5.4.296",
     "react": "19.2.3",
     "react-dom": "19.2.3",
@@ -49,6 +65,7 @@
     "write-excel-file": "^4.0.6"
   },
   "devDependencies": {
+    "braces": "file:vendor/ruwang-braces-depth-guard-3.0.3-ruwang.depth.1.tgz",
     "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
@@ -60,17 +77,19 @@
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^5.0.0",
     "eslint": "^9",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "16.3.8",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^5.0.0"
   },
   "overrides": {
-    "brace-expansion": "5.0.9",
+    "braces": "$braces",
+    "brace-expansion": "5.0.12",
     "js-yaml": "5.4.1",
     "postcss": "8.5.25",
-    "sharp": "0.35.4",
-    "undici": "7.29.0"
+    "sharp": "0.35.5",
+    "source-map-js": "1.2.2",
+    "undici": "7.29.1"
   }
 }

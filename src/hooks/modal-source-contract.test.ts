@@ -63,15 +63,15 @@ function modalCallerKeysFromSource() {
     .sort();
 }
 
-test("baseline mengunci seluruh 71 caller DashboardModal", () => {
+test("baseline mengunci seluruh 77 caller DashboardModal", () => {
   const sourceCallerKeys = modalCallerKeysFromSource();
   const baselineCallerKeys = MODAL_CALLER_BASELINE.map(
     (caller) => `${caller.source}#${caller.ordinal}`,
   ).sort();
 
-  expect(sourceCallerKeys).toHaveLength(71);
-  expect(MODAL_CALLER_BASELINE).toHaveLength(71);
-  expect(new Set(baselineCallerKeys).size).toBe(71);
+  expect(sourceCallerKeys).toHaveLength(77);
+  expect(MODAL_CALLER_BASELINE).toHaveLength(77);
+  expect(new Set(baselineCallerKeys).size).toBe(77);
   expect(sourceCallerKeys).toEqual(baselineCallerKeys);
 }, 20_000);
 
@@ -188,11 +188,11 @@ test("bukti runtime hanya mereferensikan caller yang terdaftar", () => {
   ).toEqual([]);
 });
 
-test("ringkasan memisahkan 71 caller source dari kelulusan runtime", () => {
+test("ringkasan memisahkan 77 caller source dari bukti historis dan SJ yang berubah", () => {
   expect(summarizeModalRuntimeEvidence()).toEqual({
-    desktop: { passed: 71, notVerified: 0, total: 71 },
-    tablet: { passed: 71, notVerified: 0, total: 71 },
-    mobile: { passed: 71, notVerified: 0, total: 71 },
+    desktop: { passed: 67, notVerified: 10, total: 77 },
+    tablet: { passed: 67, notVerified: 10, total: 77 },
+    mobile: { passed: 67, notVerified: 10, total: 77 },
   });
 });
 

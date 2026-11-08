@@ -399,7 +399,6 @@ export default function LaporanTitipanSection({
             const meta = jenisMeta[item.jenisTitipan];
             const SummaryIcon = meta.icon;
             const hasBalance = item.saldoAkhir > 0;
-            const hasMismatch = item.mismatchedRecords > 0;
 
             return (
               <button
@@ -471,18 +470,6 @@ export default function LaporanTitipanSection({
                   </div>
                 </div>
 
-                {hasMismatch ? (
-                  <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
-                    <AlertTriangle
-                      className="mt-0.5 h-4 w-4 shrink-0 text-amber-700"
-                      aria-hidden="true"
-                    />
-                    <span>
-                      {item.mismatchedRecords} data perlu rekonsiliasi ledger.
-                    </span>
-                  </div>
-                ) : null}
-
                 <div className="mt-6 flex items-center justify-between font-medium text-[#0d5a8f]">
                   <span className="text-sm">Lihat Detail</span>
                   <ChevronRight
@@ -499,7 +486,7 @@ export default function LaporanTitipanSection({
       <DashboardModal
         isOpen={selectedJenisTitipan !== null}
         title={selectedMeta?.title ?? "Laporan Dana Titipan"}
-        description="Rekap ledger titipan, pembayaran, refund, dan saldo akhir."
+        description="Rincian titipan, pembayaran, pengembalian dana, dan saldo akhir."
         maxWidth="5xl"
         bodyClassName="space-y-5 p-4 sm:p-5"
         onClose={closeDepositSummary}
@@ -540,9 +527,9 @@ export default function LaporanTitipanSection({
                 aria-hidden="true"
               />
               <span>
-                {selectedSummary?.mismatchedRecords} dana titipan memiliki agregat
-                lama yang tidak cocok dengan riwayat. Ringkasan di atas memakai
-                nilai ledger transaksi; buka detail untuk melihat perbandingannya.
+                {selectedSummary?.mismatchedRecords} data memiliki perbedaan catatan.
+                Angka laporan dihitung dari riwayat transaksi. Buka detail data
+                untuk melihat perbedaannya.
               </span>
             </div>
           </div>
@@ -641,7 +628,7 @@ export default function LaporanTitipanSection({
                       <div className="flex flex-col items-center gap-1.5">
                         <SetupStatusBadge status={statusLabel(item.status)} />
                         {item.ledger?.reconciliation.status === "MISMATCH" ? (
-                          <SetupStatusBadge status="Perlu Rekonsiliasi" />
+                          <SetupStatusBadge status="Perlu Rekonsiliasi" label="Perbedaan catatan" />
                         ) : null}
                       </div>
                     </SetupDataTableCell>
@@ -650,7 +637,6 @@ export default function LaporanTitipanSection({
                         className="flex items-center justify-center"
                         onClick={(event) => event.stopPropagation()}
                         onDoubleClick={(event) => event.stopPropagation()}
-                        onKeyDown={(event) => event.stopPropagation()}
                       >
                         <SetupActionMenu
                           label={`Buka aksi dana titipan ${item.contract?.no_kontrak ?? ""}`}

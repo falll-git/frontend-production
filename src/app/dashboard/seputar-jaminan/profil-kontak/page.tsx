@@ -1,5 +1,5 @@
-import SeputarJaminanProfileContactClient from "@/components/seputar-jaminan/SeputarJaminanProfileContactClient";
+import { redirect } from "next/navigation";
 
 export default function SeputarJaminanProfileContactPage() {
-  return <SeputarJaminanProfileContactClient />;
+  redirect("/dashboard/seputar-jaminan/profil");
 }

@@ -20,7 +20,19 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - name: Bootstrap pinned npm in ephemeral runner
+        working-directory: ${{ runner.temp }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.21.0 --ignore-scripts --no-audit --no-fund
+          test "$(npm --version)" = "11.21.0"
+      - name: Verify frontend package policy
+        run: node scripts/verify-package-policy.mjs
+      - name: Install frontend dependencies
+        run: |
+          node scripts/verify-dependency-age.mjs
+          npm ci
       - run: npm audit --audit-level=high
 
   codeql:

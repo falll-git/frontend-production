@@ -40,6 +40,11 @@ const e2eAuthRateLimitMax = parsePositiveInteger(
   "E2E_AUTH_RATE_LIMIT_MAX",
   250,
 );
+const e2eBackendStartupTimeoutMs = parsePositiveInteger(
+  process.env.E2E_BACKEND_STARTUP_TIMEOUT_MS,
+  "E2E_BACKEND_STARTUP_TIMEOUT_MS",
+  60_000,
+);
 
 function assertReusableFrontendBuild() {
   if (!reuseFrontendBuild) return;
@@ -120,7 +125,7 @@ const webServers = [
           cwd: managedBackendDirectory,
           url: backendHealthUrl,
           reuseExistingServer: false,
-          timeout: 60_000,
+          timeout: e2eBackendStartupTimeoutMs,
           stdout: "pipe" as const,
           stderr: "pipe" as const,
           env: {

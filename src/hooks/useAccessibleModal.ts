@@ -53,6 +53,21 @@ function isPortalOwnedByDialog(element: HTMLElement, dialog: HTMLElement) {
   );
 }
 
+function ownedPortals(dialog: HTMLElement) {
+  return Array.from(document.body.children).filter((element): element is HTMLElement =>
+    element instanceof HTMLElement && !element.contains(dialog) && isPortalOwnedByDialog(element, dialog),
+  );
+}
+
+function dialogFocusScope(dialog: HTMLElement) {
+  const portals = ownedPortals(dialog);
+  return focusableElements(dialog).flatMap(element => {
+    const controlled = element.getAttribute('aria-controls');
+    const portal = controlled ? portals.find(item => item.id === controlled || Array.from(item.querySelectorAll('[id]')).some(child => child.id === controlled)) : null;
+    return portal ? [element, ...focusableElements(portal)] : [element];
+  });
+}
+
 function backgroundElementsFor(dialog: HTMLElement) {
   const background = new Set<HTMLElement>();
   let branch: HTMLElement =
@@ -211,8 +226,8 @@ export default function useAccessibleModal<T extends HTMLElement = HTMLDivElemen
     }, 0);
 
     const trapTabKey = (event: KeyboardEvent) => {
-      if (event.key !== "Tab" || !isTopmostModal(dialog)) return;
-      const elements = focusableElements(dialog);
+      if (event.defaultPrevented || event.key !== "Tab" || !isTopmostModal(dialog)) return;
+      const elements = dialogFocusScope(dialog);
       if (elements.length === 0) {
         event.preventDefault();
         dialog.focus();
@@ -222,6 +237,17 @@ export default function useAccessibleModal<T extends HTMLElement = HTMLDivElemen
       const firstFocusable = elements[0];
       const lastFocusable = elements[elements.length - 1];
       const activeElement = document.activeElement;
+
+      // Portals live outside the dialog DOM, but belong after their controller
+      // in the modal's keyboard order. Do not pull their input focus away.
+      if (ownedPortals(dialog).length > 0) {
+        const index = elements.indexOf(activeElement as HTMLElement);
+        const next = index < 0 ? (event.shiftKey ? elements.length - 1 : 0)
+          : (index + (event.shiftKey ? -1 : 1) + elements.length) % elements.length;
+        event.preventDefault();
+        elements[next].focus();
+        return;
+      }
 
       if (!dialog.contains(activeElement)) {
         event.preventDefault();
@@ -257,7 +283,7 @@ export default function useAccessibleModal<T extends HTMLElement = HTMLDivElemen
     const handleFocusIn = (event: FocusEvent) => {
       if (!isTopmostModal(dialog)) return;
       const target = event.target;
-      if (target instanceof Node && dialog.contains(target)) return;
+      if (target instanceof Node && (dialog.contains(target) || ownedPortals(dialog).some(portal => portal.contains(target)))) return;
 
       (focusableElements(dialog)[0] ?? dialog).focus();
     };

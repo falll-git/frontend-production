@@ -1,5 +1,7 @@
 "use client";
 
+import { formatDate } from "@/lib/utils/date";
+
 import {
   useCallback,
   useEffect,
@@ -114,17 +116,6 @@ function formatCurrency(value: number | null | undefined) {
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(Number(value || 0));
-}
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }).format(date);
 }
 
 function formatPeriod(value: string | null | undefined) {

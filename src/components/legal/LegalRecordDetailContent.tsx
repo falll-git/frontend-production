@@ -496,7 +496,7 @@ export function LegalDepositDetailContent({
       information={
       <SetupRecordDetailSection
         title="Informasi Utama"
-        description="Relasi kontrak, jenis titipan, pihak ketiga, dan status ledger."
+        description="Kontrak, jenis titipan, pihak ketiga, dan status dana titipan."
         rows={[
           { label: "Nomor Kontrak", value: item.contract?.no_kontrak ?? "-" },
           { label: "Debitur", value: item.contract?.debtor?.name ?? "-" },
@@ -521,7 +521,7 @@ export function LegalDepositDetailContent({
         <div className="space-y-6">
           <SetupRecordDetailSection
             title="Detail Dana Titipan"
-            description="Ringkasan nilai ledger dan catatan dana titipan."
+            description="Jumlah dan catatan dana titipan."
             rows={[
               {
                 label: "Total Titipan",
@@ -634,7 +634,7 @@ export function LegalDepositDetailContent({
               ) : null}
               {!isTransactionLoading && transactions.length === 0 ? (
                 <SetupDataTableEmptyRow colSpan={7}>
-                  Belum ada transaksi pada ledger dana titipan ini.
+                  Belum ada transaksi untuk dana titipan ini.
                 </SetupDataTableEmptyRow>
               ) : null}
             </SetupDataTableBody>

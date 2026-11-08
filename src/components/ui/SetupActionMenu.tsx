@@ -20,6 +20,7 @@ export type SetupActionMenuItem = {
   icon: LucideIcon;
   tone?: SetupActionTone;
   disabled?: boolean;
+  disabledReason?: string;
   onClick: () => void | Promise<void>;
 };
 
@@ -33,6 +34,8 @@ type SetupActionMenuProps = {
   items: SetupActionMenuItem[];
   label?: string;
   menuLabel?: string;
+  /** Keep unavailable actions discoverable; existing consumers still hide them. */
+  showDisabledItems?: boolean;
 };
 
 const ACTION_ICON_BUTTON_CLASS =
@@ -65,7 +68,9 @@ function getMenuHeight(items: SetupActionMenuItem[], menuWidth: number) {
   const itemHeight = items.reduce((height, item) => {
     const estimatedTextWidth = item.label.trim().length * 7.5;
     const lineCount = Math.max(1, Math.ceil(estimatedTextWidth / availableTextWidth));
-    return height + Math.max(44, lineCount * 20 + 16);
+    const reasonLines = item.disabled && item.disabledReason
+      ? Math.ceil(item.disabledReason.length * 7 / availableTextWidth) : 0;
+    return height + Math.max(44, lineCount * 20 + reasonLines * 16 + 16);
   }, 0);
 
   return Math.max(46, itemHeight + 12);
@@ -110,9 +115,10 @@ export default function SetupActionMenu({
   items,
   label = "Buka aksi",
   menuLabel = "Aksi data",
+  showDisabledItems = false,
 }: SetupActionMenuProps) {
   const menuId = useId();
-  const activeItems = items.filter((item) => !item.disabled);
+  const activeItems = items.filter((item) => showDisabledItems || !item.disabled);
   const menuWidth = getPreferredMenuWidth(activeItems);
   const menuHeight = getMenuHeight(activeItems, menuWidth);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
@@ -306,7 +312,8 @@ export default function SetupActionMenu({
               <div
                 ref={menuRef}
                 id={menuId}
-                className="flex w-full flex-col rounded-lg bg-white p-1.5 shadow-lg ring-1 ring-black/5"
+                className="flex w-full flex-col overflow-y-auto rounded-lg bg-white p-1.5 shadow-lg ring-1 ring-black/5"
+                style={{ maxHeight: Math.max(44, window.innerHeight - position.top - 12) }}
                 role="menu"
                 aria-label={menuLabel}
                 onKeyDown={handleMenuKeyDown}
@@ -319,12 +326,15 @@ export default function SetupActionMenu({
                       key={item.key}
                       type="button"
                       role="menuitem"
+                      aria-disabled={item.disabled || undefined}
+                      aria-describedby={item.disabled && item.disabledReason ? `${menuId}-${index}-reason` : undefined}
                       className={getGroupedActionButtonClass(
                         index,
                         activeItems.length,
                         item.tone ?? "gray",
                       )}
                       onClick={() => {
+                        if (item.disabled) return;
                         closeMenu(true);
                         void item.onClick();
                       }}
@@ -337,7 +347,8 @@ export default function SetupActionMenu({
                         strokeWidth={1.5}
                       />
                       <span className="min-w-0 whitespace-normal break-words">
-                        {item.label}
+                        <span className={item.disabled ? "text-gray-500" : undefined}>{item.label}</span>
+                        {item.disabled && item.disabledReason ? <span id={`${menuId}-${index}-reason`} className="mt-1 block text-xs font-normal text-gray-500">{item.disabledReason}</span> : null}
                       </span>
                     </button>
                   );

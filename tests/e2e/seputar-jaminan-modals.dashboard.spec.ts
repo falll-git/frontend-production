@@ -102,6 +102,29 @@ const publication = {
   updated_at: now,
 };
 
+const submission = {
+  id: "profile-version-modal-runtime",
+  kind: "PROFILE",
+  request_kind: "CHANGE",
+  resource_id: profile.id,
+  resource_label: profile.display_name,
+  submitted_by: { id: "user-modal-runtime", name: "Admin BPRS Uji" },
+  submitted_at: now,
+  version_number: 2,
+  payload_checksum: "sha256:profile-modal-runtime",
+  review_state: "REVISION_REQUIRED",
+  reviewer_note: "Lengkapi deskripsi wilayah layanan sebelum diajukan kembali.",
+  delivery_state: "RECEIVED_BY_CONTROL",
+  bank_application_state: "APPLIED_BY_BANK",
+  public_state: "PUBLIC_CONFIRMED",
+  snapshot: {
+    display_name: profile.display_name,
+    city_regency: profile.city_regency,
+    province: profile.province,
+    short_description: profile.short_description,
+  },
+};
+
 const reviewPublication = {
   ...publication,
   review_source: {
@@ -161,10 +184,22 @@ async function installSeputarJaminanFixtures(page: Page) {
 
     const pathname = new URL(request.url()).pathname.replace(/^\/api\/v1/, "");
     if (pathname === "/seputar-jaminan/taxonomy") return json(route, taxonomy);
+    if (pathname === "/seputar-jaminan/settings") {
+      return json(route, {
+        review_authority: "local",
+        review_submission_ready: true,
+      });
+    }
     if (pathname === "/seputar-jaminan/profile") return json(route, profile);
     if (pathname === "/seputar-jaminan/contacts") return json(route, [contact]);
     if (pathname === "/seputar-jaminan/reviews") {
       return json(route, [reviewPublication]);
+    }
+    if (pathname === "/seputar-jaminan/submissions") {
+      return json(route, {
+        items: [submission],
+        pagination: { page: 1, limit: 20, total: 1, total_pages: 1 },
+      });
     }
     if (pathname === "/seputar-jaminan/eligible-collaterals") {
       return json(route, {
@@ -234,15 +269,16 @@ test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
 });
 
-test("empat modal Seputar Jaminan memenuhi kontrak runtime", async ({
+test("lima modal Seputar Jaminan memenuhi kontrak runtime", async ({
   page,
 }, testInfo) => {
-  await page.goto("/dashboard/seputar-jaminan/katalog", {
+  await page.goto("/dashboard/seputar-jaminan/publikasi", {
     waitUntil: "domcontentloaded",
   });
 
-  const detailOpener = page.getByRole("button", { name: "Lihat detail" });
+  const detailOpener = page.getByRole("button", { name: /^Aksi publikasi / });
   await detailOpener.press("Enter");
+  await page.getByRole("menuitem", { name: "Lihat detail", exact: true }).press("Enter");
   let dialog = await expectModalRuntimeContract(page, version.title);
   await page.screenshot({
     path: testInfo.outputPath("catalog-detail.png"),
@@ -255,7 +291,7 @@ test("empat modal Seputar Jaminan memenuhi kontrak runtime", async ({
 
   const formOpener = page.getByRole("button", { name: "Buat katalog" });
   await formOpener.press("Enter");
-  dialog = await expectModalRuntimeContract(page, "Buat katalog baru");
+  dialog = await expectModalRuntimeContract(page, "Buat publikasi baru");
   await expect(dialog.getByLabel("Sumber data")).toBeVisible();
   await page.keyboard.press("Tab");
   expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(
@@ -289,7 +325,7 @@ test("empat modal Seputar Jaminan memenuhi kontrak runtime", async ({
   await expect(dialog).toBeHidden();
   await expect(reviewOpener).toBeFocused();
 
-  await page.goto("/dashboard/seputar-jaminan/profil-kontak", {
+  await page.goto("/dashboard/seputar-jaminan/kontak", {
     waitUntil: "domcontentloaded",
   });
   const contactOpener = page.getByRole("button", { name: "Tambah kontak" });
@@ -304,4 +340,23 @@ test("empat modal Seputar Jaminan memenuhi kontrak runtime", async ({
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(contactOpener).toBeFocused();
+
+  await page.goto("/dashboard/seputar-jaminan/pengajuan", {
+    waitUntil: "domcontentloaded",
+  });
+  const submissionOpener = page.getByRole("button", { name: /^Aksi pengajuan / });
+  await submissionOpener.press("Enter");
+  await page.getByRole("menuitem", { name: "Lihat detail", exact: true }).press("Enter");
+  dialog = await expectModalRuntimeContract(page, profile.display_name);
+  await expect(dialog.getByText("Catatan pemeriksa")).toBeVisible();
+  await expect(dialog.getByText("Diterapkan bank")).toBeVisible();
+  await expect(dialog.getByText("Tampil publik")).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("submission-detail.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(submissionOpener).toBeFocused();
 });

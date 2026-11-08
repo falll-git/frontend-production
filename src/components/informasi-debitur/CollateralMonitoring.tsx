@@ -70,11 +70,8 @@ function formatPreviewDate(value: string | Date | null | undefined) {
   const date = toDateOnly(value);
   if (!date) return "-";
 
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }).format(date);
+  // This preview represents a UTC calendar date, not a local timestamp.
+  return formatDateOnly(date.toISOString().slice(0, 10));
 }
 
 function statusByCalendarWindow({

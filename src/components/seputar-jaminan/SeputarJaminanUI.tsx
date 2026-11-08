@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { RefreshCw } from "lucide-react";
 
@@ -15,41 +14,20 @@ import {
   SETUP_PAGE_TABLE_CARD_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { cn } from "@/lib/utils";
+import { PUBLICATION_STATE_LABEL, SYNC_STATE_LABEL, ENTITY_STATE_LABEL } from './labels';
+export { PUBLICATION_STATE_LABEL, SYNC_STATE_LABEL, ENTITY_STATE_LABEL } from './labels';
 
 export const SJ_ROOT = "/dashboard/seputar-jaminan";
-export const SJ_CATALOG = `${SJ_ROOT}/katalog`;
-export const SJ_REVIEW = `${SJ_ROOT}/pemeriksaan`;
-export const SJ_PROFILE = `${SJ_ROOT}/profil-kontak`;
-
-export const PUBLICATION_STATE_LABEL: Record<string, string> = {
-  DRAFT: "Draf",
-  IN_REVIEW: "Menunggu pemeriksaan",
-  REVISION_REQUIRED: "Perlu diperbaiki",
-  APPROVED: "Disetujui",
-  PUBLISHED: "Tayang",
-  UNPUBLISHED: "Tidak tayang",
-  ARCHIVED: "Diarsipkan",
-};
-
-export const SYNC_STATE_LABEL: Record<string, string> = {
-  NOT_QUEUED: "Belum dikirim",
-  QUEUED: "Menunggu dikirim",
-  SENDING: "Sedang dikirim",
-  ACKNOWLEDGED: "Sudah tersambung",
-  RETRYING: "Mencoba kembali",
-  FAILED: "Gagal dikirim",
-  QUARANTINED: "Perlu diperiksa",
-};
-
-export const ENTITY_STATE_LABEL: Record<string, string> = {
-  DRAFT: "Draf",
-  IN_REVIEW: "Menunggu pemeriksaan",
-  VERIFIED: "Terverifikasi",
-  REJECTED: "Perlu diperbaiki",
-  REVISION_REQUIRED: "Perlu diperbaiki",
-  REVOKED: "Dicabut",
-  READY: "Siap",
-};
+// Reuse the bank skeleton, but let its columns stack with SJ's mobile rows.
+export const SJ_TABLE_LOADING_CLASS = "max-lg:block max-lg:w-full max-lg:[&>div]:min-w-0 max-lg:[&>div]:grid max-lg:[&>div]:grid-cols-2 max-lg:[&>div>div]:w-full";
+// Legacy API permission key, retained for monitoring; no longer a navigation page.
+export const SJ_SUMMARY = `${SJ_ROOT}/ringkasan`;
+export const SJ_PROFILE = `${SJ_ROOT}/profil`;
+export const SJ_CONTACTS = `${SJ_ROOT}/kontak`;
+export const SJ_PUBLICATIONS = `${SJ_ROOT}/publikasi`;
+export const SJ_SUBMISSIONS = `${SJ_ROOT}/pengajuan`;
+export const SJ_CATALOG = SJ_PUBLICATIONS;
+export const SJ_REVIEW = SJ_SUBMISSIONS;
 
 export const CATEGORY_LABEL: Record<string, string> = {
   LAND: "Tanah",
@@ -160,7 +138,7 @@ export function SjSection({
 
 export function SjStatusBadge({ state, kind = "publication" }: { state: string; kind?: "publication" | "sync" | "connection" }) {
   const danger = ["FAILED", "QUARANTINED", "REVISION_REQUIRED", "REJECTED", "REVOKED", "SUSPENDED"].includes(state);
-  const success = ["PUBLISHED", "ACKNOWLEDGED", "VERIFIED", "ACTIVE", "READY"].includes(state);
+  const success = ["APPROVED", "PUBLISHED", "ACKNOWLEDGED", "VERIFIED", "ACTIVE", "READY"].includes(state);
   const waiting = ["IN_REVIEW", "QUEUED", "SENDING", "RETRYING", "PENDING", "PROCESSING", "UPLOAD_PENDING", "UPLOADED"].includes(state);
   const label =
     kind === "publication"
@@ -182,8 +160,26 @@ export function SjStatusBadge({ state, kind = "publication" }: { state: string; 
       label={label}
       tone={tone}
       showIcon={danger}
+      wrap
     />
   );
+}
+
+export function SjPublicStatusBadge({
+  state,
+  syncState,
+  hasPublishedVersion,
+  onInspect,
+}: {
+  state: string;
+  syncState: string;
+  hasPublishedVersion: boolean;
+  onInspect?: () => void;
+}) {
+  // List inputs describe bank workflow only; evidence is loaded in the detail.
+  return onInspect
+    ? <button type="button" onClick={onInspect} className="min-h-11 text-left text-sm font-semibold text-[#1773B0] underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">Lihat hasil pengecekan</button>
+    : <SetupStatusBadge status={`PUBLIC_NOT_LOADED_${state}_${syncState}_${hasPublishedVersion}`} label="Lihat pengecekan di detail" tone="slate" />;
 }
 
 export function SjPrimaryButton({
@@ -196,7 +192,7 @@ export function SjPrimaryButton({
   return (
     <SetupPrimaryButton
       className={cn("[&>span]:inline-flex [&>span]:items-center [&>span]:gap-2", className)}
-      icon={loading ? <RefreshCw className="size-4 animate-spin" aria-hidden="true" /> : undefined}
+      icon={loading ? <RefreshCw className="size-4 motion-safe:animate-spin" aria-hidden="true" /> : undefined}
       disabled={loading || disabled}
       aria-busy={loading || undefined}
       {...props}
@@ -224,23 +220,8 @@ export function SjSecondaryButton({
       aria-busy={loading || undefined}
       {...props}
     >
-      {loading ? <RefreshCw className="size-4 animate-spin" aria-hidden="true" /> : null}
+      {loading ? <RefreshCw className="size-4 motion-safe:animate-spin" aria-hidden="true" /> : null}
       {children}
     </button>
-  );
-}
-
-export function SjQuickLink({ href, title, description, icon: Icon }: { href: string; title: string; description: string; icon: LucideIcon }) {
-  return (
-    <Link
-      href={href}
-      className="group flex min-h-32 items-start gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition motion-safe:hover:-translate-y-0.5 hover:border-sky-600/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-sky-600/20"
-    >
-      <Icon className="size-7 shrink-0 text-sky-600 transition-transform motion-safe:group-hover:scale-105" strokeWidth={1.7} aria-hidden="true" />
-      <span>
-        <span className="block font-bold text-slate-950">{title}</span>
-        <span className="mt-1 block text-sm leading-5 text-slate-600">{description}</span>
-      </span>
-    </Link>
   );
 }

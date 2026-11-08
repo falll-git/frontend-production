@@ -38,7 +38,7 @@ import {
   getLegalAuditEntityLabel,
   getLegalAuditSourceLabel,
 } from "@/lib/legal-audit-presentation";
-import { formatDateOnly } from "@/lib/utils/date";
+import { formatDateOnly, formatDateTime } from "@/lib/utils/date";
 import {
   deriveDocumentFileName,
   toPreviewableFileUrl,
@@ -341,19 +341,6 @@ function formatCurrency(value: number | null | undefined) {
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(Number(value ?? 0));
-}
-
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return formatDateOnly(value);
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
 }
 
 function optionLabel(options: Option[], value: string | null | undefined) {
@@ -3084,7 +3071,7 @@ export function LegalDepositClient({
                   <div className="flex flex-col items-center gap-1.5">
                     <SetupStatusBadge status={statusLabel(item.status)} />
                     {item.ledger?.reconciliation.status === "MISMATCH" ? (
-                      <SetupStatusBadge status="Perlu Rekonsiliasi" />
+                      <SetupStatusBadge status="Perlu Rekonsiliasi" label="Perbedaan catatan" />
                     ) : null}
                   </div>
                 </SetupDataTableCell>

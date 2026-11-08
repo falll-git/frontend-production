@@ -1,5 +1,5 @@
-import SeputarJaminanDashboardClient from "@/components/seputar-jaminan/SeputarJaminanDashboardClient";
+import { redirect } from "next/navigation";
 
 export default function SeputarJaminanDashboardPage() {
-  return <SeputarJaminanDashboardClient />;
+  redirect("/dashboard/seputar-jaminan/publikasi");
 }

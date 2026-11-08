@@ -131,6 +131,18 @@ jobs:
             backend-production/package-lock.json
             frontend-production/package-lock.json
 
+      - name: Bootstrap pinned npm in ephemeral runner
+        working-directory: ${{ runner.temp }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global npm@11.21.0 --ignore-scripts --no-audit --no-fund
+          test "$(npm --version)" = "11.21.0"
+
+      - name: Verify frontend package policy
+        working-directory: frontend-production
+        run: node scripts/verify-package-policy.mjs
+
       - name: Generate ephemeral test credentials
         shell: bash
         run: |
@@ -171,7 +183,13 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend-production
-        run: npm ci
+        run: |
+          node scripts/verify-dependency-age.mjs
+          npm ci
+
+      - name: Verify reviewed braces fork integrity and depth regression
+        working-directory: frontend-production
+        run: node scripts/verify-braces-fork.cjs
 
       - name: Generate Prisma client
         working-directory: backend-production

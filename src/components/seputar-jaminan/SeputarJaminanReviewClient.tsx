@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeCheck,
   ClipboardCheck,
@@ -13,20 +13,23 @@ import DashboardModal from "@/components/ui/DashboardModal";
 import useSeputarJaminanModalScrollLock from "@/components/seputar-jaminan/useSeputarJaminanModalScrollLock";
 import DashboardNotice from "@/components/ui/DashboardNotice";
 import SetupState from "@/components/ui/SetupState";
+import SjRecordActions from "./SjRecordActions";
 import SetupTextarea from "@/components/ui/SetupTextarea";
 import { SETUP_PAGE_TABLE_CARD_CLASS } from "@/components/ui/setupPageStyles";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
 import { seputarJaminanService } from "@/services/seputar-jaminan.service";
+import { sjAction } from './actionAvailability';
 import type {
   SjContact,
   SjProfile,
   SjReviewPublication,
+  SjSettings,
 } from "@/types/seputar-jaminan.types";
 import {
   ATTRIBUTE_LABEL,
   CATEGORY_LABEL,
-  SJ_ROOT,
+  SJ_SUBMISSIONS,
   SjPageHeader,
   SjPrimaryButton,
   SjSecondaryButton,
@@ -52,41 +55,70 @@ export default function SeputarJaminanReviewClient() {
   const [publications, setPublications] = useState<SjReviewPublication[]>([]);
   const [profile, setProfile] = useState<SjProfile | null>(null);
   const [contacts, setContacts] = useState<SjContact[]>([]);
+  const [cursors,setCursors]=useState<{publication:string|null;contact:string|null}>({publication:null,contact:null});
+  const [moreBusy,setMoreBusy]=useState(false),[moreError,setMoreError]=useState<string|null>(null);
+  const [settings, setSettings] = useState<SjSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const loadSequence = useRef(0);
   const [target, setTarget] = useState<ReviewTarget | null>(null);
   const [mode, setMode] = useState<"approve" | "revision">("approve");
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   useSeputarJaminanModalScrollLock(Boolean(target));
   const { showToast } = useAppToast();
   const access = useProtectedAction();
+  const canReadProfile = access.hasCapability("/dashboard/seputar-jaminan/profil", "read");
+  const canReadContacts = access.hasCapability("/dashboard/seputar-jaminan/kontak", "read");
 
   const load = useCallback(async () => {
+    const sequence = ++loadSequence.current;
     setLoading(true);
     setError(null);
     try {
-      const [nextPublications, nextProfile, nextContacts] = await Promise.all([
-        seputarJaminanService.getReviews(),
-        seputarJaminanService.getProfile(),
-        seputarJaminanService.getContacts(),
+      const [nextPublications, nextProfile, nextContacts, nextSettings] = await Promise.all([
+        seputarJaminanService.getReviewPage({limit:20}),
+        canReadProfile ? seputarJaminanService.getProfile() : Promise.resolve(null),
+        canReadContacts ? seputarJaminanService.getContactPage({limit:20,state:'IN_REVIEW'}) : Promise.resolve(null),
+        seputarJaminanService.getSettings(),
       ]);
-      setPublications(nextPublications);
+      if (sequence !== loadSequence.current) return;
+      setPublications(nextPublications.items);
       setProfile(nextProfile?.state === "IN_REVIEW" ? nextProfile : null);
-      setContacts(nextContacts.filter((contact) => contact.state === "IN_REVIEW"));
+      setContacts(nextContacts?.items ?? []);
+      setCursors({publication:nextPublications.page_info.next_cursor,contact:nextContacts?.page_info.next_cursor ?? null});
+      setMoreError(null);
+      setSettings(nextSettings);
     } catch (loadError) {
+      if (sequence !== loadSequence.current) return;
       setError(readableError(loadError));
     } finally {
-      setLoading(false);
+      if (sequence === loadSequence.current) setLoading(false);
     }
-  }, []);
+  }, [canReadProfile, canReadContacts]);
+  const more=async(kind:'publication'|'contact')=>{
+    const cursor=cursors[kind];if(!cursor||moreBusy)return;const sequence=loadSequence.current;setMoreBusy(true);setMoreError(null);
+    try{
+      if(kind==='publication'){
+        const page=await seputarJaminanService.getReviewPage({cursor,limit:20});
+        if(sequence===loadSequence.current){setPublications(rows=>[...rows,...page.items.filter(item=>!rows.some(old=>old.id===item.id))]);setCursors(old=>({...old,publication:page.page_info.next_cursor}));}
+      }else{
+        const page=await seputarJaminanService.getContactPage({cursor,limit:20,state:'IN_REVIEW'});
+        if(sequence===loadSequence.current){setContacts(rows=>[...rows,...page.items.filter(item=>!rows.some(old=>old.id===item.id))]);setCursors(old=>({...old,contact:page.page_info.next_cursor}));}
+      }
+    }catch(e){if(sequence===loadSequence.current)setMoreError(readableError(e));}finally{setMoreBusy(false);}
+  };
 
+  const invalidateLoad = useCallback(() => { ++loadSequence.current; }, []);
   useEffect(() => {
     void load();
-  }, [load]);
+    return invalidateLoad;
+  }, [load, invalidateLoad]);
 
   const total = publications.length + contacts.length + (profile ? 1 : 0);
+  const centralReview = settings?.review_authority === "central";
   const mediaWaiting = useMemo(
     () => publications.reduce(
       (sum, publication) => sum + (publication.current_version?.media.filter((media) => !media.central_ready).length ?? 0),
@@ -96,10 +128,14 @@ export default function SeputarJaminanReviewClient() {
   );
 
   const begin = (nextTarget: ReviewTarget, nextMode: "approve" | "revision") => {
+    if (centralReview) return;
+    setDecisionError(null);
+    const action = sjAction(nextTarget.item, nextMode === 'revision' ? 'request_revision' : nextTarget.kind === 'publication' ? 'approve' : 'verify');
+    if (!action.available) { showToast(action.reason || 'Tindakan belum tersedia.', 'warning'); return; }
     const feature = nextTarget.kind === "publication"
       ? nextMode === "approve" ? "sj_publish" : "sj_review"
       : nextTarget.kind === "profile" ? "sj_profile_verify" : "sj_contact_verify";
-    if (!access.ensureFeature(SJ_ROOT, feature)) return;
+    if (!access.ensureFeature(SJ_SUBMISSIONS, feature)) return;
     setTarget(nextTarget);
     setMode(nextMode);
     setReason("");
@@ -115,6 +151,9 @@ export default function SeputarJaminanReviewClient() {
 
   const submitDecision = async () => {
     if (!target) return;
+    setDecisionError(null);
+    const action = sjAction(target.item, mode === 'revision' ? 'request_revision' : target.kind === 'publication' ? 'approve' : 'verify');
+    if (centralReview || !action.available || action.mode !== 'DIRECT') return;
     if (mode === "revision" && reason.trim().length < 5) {
       setReasonError("Jelaskan bagian yang perlu diperbaiki sedikitnya 5 karakter.");
       requestAnimationFrame(() => {
@@ -162,7 +201,7 @@ export default function SeputarJaminanReviewClient() {
       setReasonError(null);
       await load();
     } catch (decisionError) {
-      showToast(readableError(decisionError), "error");
+      setDecisionError(readableError(decisionError));
     } finally {
       setSaving(false);
     }
@@ -175,13 +214,14 @@ export default function SeputarJaminanReviewClient() {
   ].filter((item) => item.value > 0);
 
   const approvalNotice = target?.kind === "publication"
-    ? "Persetujuan katalog akan langsung memasukkannya ke antrean tayang."
+    ? "Persetujuan katalog akan memasukkannya ke antrean pengiriman. Ini belum berarti aset sudah tampil."
     : target?.kind === "profile"
       ? "Persetujuan profil akan memverifikasi identitas BPRS untuk katalog publik."
       : "Persetujuan kontak akan memverifikasi nomor WhatsApp untuk katalog publik.";
 
   return (
-    <DashboardPageShell spacing="lg" animated>
+    <DashboardPageShell spacing="lg" animated className="[overflow-wrap:anywhere]">
+      {(!canReadProfile || !canReadContacts) && <DashboardNotice tone="amber" title="Daftar mengikuti izin akses Anda" description="Profil atau kontak yang tidak dapat Anda akses tidak diperiksa di halaman ini. Ini bukan berarti pengajuannya kosong." />}
       <SjPageHeader
         eyebrow="Seputar Jaminan · Ruwang"
         title="Pemeriksaan publikasi"
@@ -190,15 +230,16 @@ export default function SeputarJaminanReviewClient() {
         action={<SjSecondaryButton loading={loading} onClick={() => void load()}>{!loading ? <RefreshCw className="size-4" aria-hidden="true" /> : null}Muat ulang</SjSecondaryButton>}
       />
 
-      {loading ? <SetupState variant="loading" title="Memuat daftar pemeriksaan…" /> : error ? <SetupState variant="error" title="Daftar pemeriksaan belum dapat dimuat" description={error} /> : total === 0 ? <SetupState title="Tidak ada pengajuan yang menunggu" description="Semua pengajuan sudah selesai diperiksa." icon={BadgeCheck} className="max-w-none text-slate-900" /> : (
+      {loading ? <SetupState variant="loading" title="Memuat daftar pemeriksaan…" /> : error ? <SetupState variant="error" title="Daftar pemeriksaan belum dapat dimuat" description={error} /> : total === 0 ? <SetupState title="Tidak ada pengajuan yang menunggu" description="Tidak ada pengajuan yang menunggu dalam daftar ini." icon={BadgeCheck} className="max-w-none text-slate-900" /> : (
         <>
+          {centralReview ? <DashboardNotice tone="sky" title="Pemeriksaan dilakukan melalui Ruwang Control" description="Pengajuan di halaman ini hanya dapat ditinjau. Setujui dan minta revisi dilakukan oleh operator pusat agar tidak ada dua jalur keputusan aktif." /> : null}
           <section aria-label="Ringkasan antrean pemeriksaan" className={SETUP_PAGE_TABLE_CARD_CLASS}>
             <div className="flex flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <div className="flex items-center gap-3">
                 <ClipboardCheck className="size-6 shrink-0 text-sky-700" strokeWidth={1.8} aria-hidden="true" />
                 <div>
                   <p className="text-2xl font-bold tabular-nums text-slate-950">{total}</p>
-                  <p className="text-sm text-slate-600">Pengajuan perlu diperiksa</p>
+                  <p className="text-sm text-slate-600">Pengajuan dimuat, bukan total seluruh antrean</p>
                 </div>
               </div>
               <dl className="flex flex-wrap gap-x-6 gap-y-2">
@@ -217,12 +258,12 @@ export default function SeputarJaminanReviewClient() {
               const version = publication.current_version;
               return <article key={publication.id} className="space-y-5 p-5 sm:p-6">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2"><span className="font-mono text-sm font-bold text-sky-800">{publication.reference_code}</span><SjStatusBadge state={publication.state} /></div>
                     <h3 className="mt-3 text-xl font-bold text-slate-950">{version?.title}</h3>
                     <p className="mt-1 text-sm text-slate-500">{CATEGORY_LABEL[publication.asset_category]} · {[version?.city_regency, version?.province].filter(Boolean).join(", ")}</p>
                   </div>
-                  <div className="flex flex-col gap-2 sm:flex-row"><SjSecondaryButton className="w-full sm:w-auto" onClick={() => begin({ kind: "publication", item: publication }, "revision")}><RotateCcw className="size-4" aria-hidden="true" />Minta revisi</SjSecondaryButton><SjPrimaryButton className="w-full sm:w-auto" onClick={() => begin({ kind: "publication", item: publication }, "approve")}><BadgeCheck className="size-4" aria-hidden="true" />Setujui & tayangkan</SjPrimaryButton></div>
+                  {!centralReview ? <SjRecordActions subject={publication} busy={saving} label={`Aksi pemeriksaan ${targetLabel({kind:"publication",item:publication})}`} actions={[{name:"approve",label:"Setujui & kirim",icon:BadgeCheck,primary:true,onClick:()=>begin({kind:"publication",item:publication},"approve")},{name:"request_revision",label:"Minta perbaikan",icon:RotateCcw,onClick:()=>begin({kind:"publication",item:publication},"revision")}]}/> : null}
                 </div>
                 <div className="grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-5 lg:grid-cols-2">
                   <div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Sumber internal</p>{publication.review_source.type === "MANUAL" ? <div className="mt-2 space-y-2 text-sm text-slate-700"><p><span className="font-semibold">Alasan:</span> {publication.review_source.reason || "Tidak tersedia"}</p><p><span className="font-semibold">Bukti:</span> {publication.review_source.evidence_document ? `${publication.review_source.evidence_document.document_number} · ${publication.review_source.evidence_document.document_name}` : "Dokumen tidak dapat diakses"}</p></div> : <div className="mt-2 space-y-2 text-sm text-slate-700"><p><span className="font-semibold">Agunan:</span> {publication.review_source.collateral?.collateral_number || "Tanpa nomor"}</p><p>{publication.review_source.collateral?.collateral_type || publication.review_source.collateral?.description || "Rincian agunan tidak tersedia"}</p></div>}</div>
@@ -235,9 +276,14 @@ export default function SeputarJaminanReviewClient() {
           </SjSection>
 
           {(profile || contacts.length > 0) ? <div className="grid gap-5 xl:grid-cols-2">
-            {profile ? <SjSection title="Profil BPRS" description="Identitas yang akan tampil pada website publik."><div className="space-y-4 p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="text-lg font-bold text-slate-950">{profile.display_name}</h3><p className="mt-1 text-sm text-slate-500">{profile.public_slug} · {profile.city_regency}, {profile.province}</p></div><SjStatusBadge state={profile.state} /></div><p className="text-sm leading-6 text-slate-700">{profile.short_description}</p><p className={`text-sm font-semibold ${profile.logo_ready ? "text-emerald-700" : "text-amber-700"}`}>{profile.logo_ready ? "Logo sudah siap disinkronkan." : "Logo belum selesai disinkronkan."}</p><div className="flex flex-wrap gap-2"><SjSecondaryButton onClick={() => begin({ kind: "profile", item: profile }, "revision")}>Minta perbaikan</SjSecondaryButton><SjPrimaryButton onClick={() => begin({ kind: "profile", item: profile }, "approve")}>Setujui profil</SjPrimaryButton></div></div></SjSection> : null}
-            {contacts.length > 0 ? <SjSection title="Kontak WhatsApp" description="Nomor marketing yang dapat dipakai oleh beberapa katalog."><div className="divide-y divide-slate-100">{contacts.map((contact) => <article key={contact.id} className="space-y-3 p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold text-slate-950">{contact.label}</h3><p className="mt-1 text-sm text-slate-600">{contact.phone_e164}</p></div><SjStatusBadge state={contact.state} /></div><div className="flex flex-wrap gap-2"><SjSecondaryButton onClick={() => begin({ kind: "contact", item: contact }, "revision")}>Minta perbaikan</SjSecondaryButton><SjPrimaryButton onClick={() => begin({ kind: "contact", item: contact }, "approve")}>Verifikasi kontak</SjPrimaryButton></div></article>)}</div></SjSection> : null}
+{profile ? <SjSection title="Profil BPRS" description="Identitas yang akan tampil pada website publik."><div className="space-y-4 p-5"><div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between"><div className="min-w-0 flex-1"><h3 className="text-lg font-bold text-slate-950">{profile.display_name}</h3><p className="mt-1 text-sm text-slate-500">{profile.public_slug} · {profile.city_regency}, {profile.province}</p></div><div className="shrink-0"><SjStatusBadge state={profile.state} /></div></div><p className="text-sm leading-6 text-slate-700">{profile.short_description}</p><p className={`text-sm font-semibold ${profile.logo_ready ? "text-emerald-700" : "text-amber-700"}`}>{profile.logo_ready ? "Logo sudah siap disinkronkan." : "Logo belum selesai disinkronkan."}</p>{!centralReview ? <SjRecordActions subject={profile} busy={saving} label={`Aksi pemeriksaan ${targetLabel({kind:"profile",item:profile})}`} actions={[{name:"verify",label:"Setujui profil",icon:BadgeCheck,primary:true,onClick:()=>begin({kind:"profile",item:profile},"approve")},{name:"request_revision",label:"Minta perbaikan",icon:RotateCcw,onClick:()=>begin({kind:"profile",item:profile},"revision")}]}/> : null}</div></SjSection> : null}
+            {contacts.length > 0 ? <SjSection title="Kontak WhatsApp" description="Nomor marketing yang dapat dipakai oleh beberapa katalog."><div className="divide-y divide-slate-100">{contacts.map((contact) => <article key={contact.id} className="space-y-3 p-5"><div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between"><div className="min-w-0 flex-1"><h3 className="font-bold text-slate-950">{contact.label}</h3><p className="mt-1 text-sm text-slate-600">{contact.phone_e164}</p></div><div className="shrink-0"><SjStatusBadge state={contact.state} /></div></div>{!centralReview ? <SjRecordActions subject={contact} busy={saving} label={`Aksi pemeriksaan ${targetLabel({kind:"contact",item:contact})}`} actions={[{name:"verify",label:"Verifikasi kontak",icon:BadgeCheck,primary:true,onClick:()=>begin({kind:"contact",item:contact},"approve")},{name:"request_revision",label:"Minta perbaikan",icon:RotateCcw,onClick:()=>begin({kind:"contact",item:contact},"revision")}]}/> : null}</article>)}</div></SjSection> : null}
           </div> : null}
+          <div className="flex flex-wrap gap-3">
+            {cursors.publication?<SjSecondaryButton disabled={moreBusy} onClick={()=>void more('publication')}>Muat katalog berikutnya</SjSecondaryButton>:null}
+            {cursors.contact?<SjSecondaryButton disabled={moreBusy} onClick={()=>void more('contact')}>Muat kontak berikutnya</SjSecondaryButton>:null}
+            {moreError?<p role="alert" className="w-full text-sm text-rose-700">{moreError}</p>:null}
+          </div>
         </>
       )}
 
@@ -249,9 +295,11 @@ export default function SeputarJaminanReviewClient() {
         closeDisabled={saving}
         maxWidth="lg"
         title={mode === "approve" ? "Setujui pengajuan?" : "Minta revisi?"}
-        description={mode === "approve" ? `${targetLabel(target)} akan diproses sesuai statusnya.` : `Catatan perbaikan untuk ${targetLabel(target)} akan terlihat oleh pembuat.`}
+        description={mode === "approve" ? "Pengajuan akan diproses sesuai keputusan dan izin Anda." : "Catatan perbaikan akan terlihat oleh pembuat."}
         footer={<><SjSecondaryButton disabled={saving} onClick={closeModal}>Batal</SjSecondaryButton><SjPrimaryButton loading={saving} onClick={() => void submitDecision()}>{mode === "approve" ? "Ya, setujui" : "Kirim catatan"}</SjPrimaryButton></>}
       >
+          {decisionError?<p role="alert" className="mb-4 text-sm text-rose-700">{decisionError}</p>:null}
+          <div className="mb-4 min-w-0 space-y-1 text-sm [overflow-wrap:anywhere]"><p className="font-semibold text-slate-600">Pengajuan yang diperiksa</p><p className="text-slate-900">{targetLabel(target)}</p></div>
         {mode === "revision" ? <div className="space-y-2"><label htmlFor="sj-review-revision-reason" className="block text-sm font-semibold text-slate-700">Bagian yang perlu diperbaiki <span className="text-rose-600">*</span></label><SetupTextarea id="sj-review-revision-reason" rows={5} minLength={5} maxLength={500} value={reason} aria-invalid={Boolean(reasonError)} aria-describedby={reasonError ? "sj-review-revision-error sj-review-revision-count" : "sj-review-revision-help sj-review-revision-count"} onChange={(event) => { setReason(event.target.value); if (event.target.value.trim().length >= 5) setReasonError(null); }} placeholder="Contoh: Foto bagian depan belum jelas. Mohon unggah ulang." className={reasonError ? "border-rose-400 focus:border-rose-500 focus:ring-rose-500/15" : undefined} /><div className="flex items-start justify-between gap-4 text-xs leading-5"><p id={reasonError ? "sj-review-revision-error" : "sj-review-revision-help"} role={reasonError ? "alert" : undefined} className={reasonError ? "font-semibold text-rose-700" : "text-slate-500"}>{reasonError ?? "Tuliskan catatan yang spesifik agar pembuat memahami perbaikannya."}</p><p id="sj-review-revision-count" className="shrink-0 tabular-nums text-slate-500">{reason.length}/500</p></div></div> : <DashboardNotice tone="amber" title="Periksa sekali lagi sebelum menyetujui" description={<>Pastikan informasi, sumber, gambar, lokasi, dan kontak sudah benar. {approvalNotice}</>} />}
       </DashboardModal>
     </DashboardPageShell>

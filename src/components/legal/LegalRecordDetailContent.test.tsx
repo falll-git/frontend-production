@@ -334,7 +334,7 @@ describe("LegalRecordDetailContent", () => {
     );
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(
-      screen.getByText("Belum ada transaksi pada ledger dana titipan ini."),
+      screen.getByText("Belum ada transaksi untuk dana titipan ini."),
     ).toBeInTheDocument();
   });
 });

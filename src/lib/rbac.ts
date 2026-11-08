@@ -31,6 +31,17 @@ export interface RouteAccessDecision {
 
 let runtimeRbacState: RuntimeRbacState | null = null;
 
+const LEGACY_SEPUTAR_JAMINAN_ROUTE_ALIASES: Readonly<Record<string, string>> = {
+  "/dashboard/seputar-jaminan/katalog": "/dashboard/seputar-jaminan/publikasi",
+  "/dashboard/seputar-jaminan/pemeriksaan": "/dashboard/seputar-jaminan/pengajuan",
+  "/dashboard/seputar-jaminan/profil-kontak": "/dashboard/seputar-jaminan/profil",
+};
+
+function permissionPath(pathname: string) {
+  const normalized = normalizePath(pathname);
+  return LEGACY_SEPUTAR_JAMINAN_ROUTE_ALIASES[normalized] ?? normalized;
+}
+
 function allow(): RouteAccessDecision {
   return { allowed: true, reason: "ALLOWED" };
 }
@@ -264,7 +275,7 @@ function getCapabilityFlag(
 function getBestMatchingMenus(pathname: string): FlattenedMenuNode[] {
   if (!runtimeRbacState) return [];
 
-  const normalizedPath = normalizePath(pathname);
+  const normalizedPath = permissionPath(pathname);
   const matchingMenus = runtimeRbacState.flatMenus.filter((menu) => {
     const url = normalizePath(menu.url);
     return url && url !== "/" && matchesPath(normalizedPath, url);
@@ -447,6 +458,12 @@ export function getDashboardRouteDecision(
   const normalizedPath = normalizePath(pathname);
   if (normalizedPath === "/dashboard/account/security" && roleId) {
     return allow();
+  }
+  // The module root renders only a redirect. Evaluate its destination before
+  // the dashboard guard runs; an unreadable navigation parent must not race it.
+  if (normalizedPath === "/dashboard/seputar-jaminan") {
+    return getRuntimeRouteDecision("/dashboard/seputar-jaminan/publikasi", roleId)
+      ?? deny(roleId ? "UNKNOWN_ROUTE_DENIED" : "AUTH_REQUIRED");
   }
   const runtimeDecision = getRuntimeRouteDecision(normalizedPath, roleId);
   if (runtimeDecision) return runtimeDecision;

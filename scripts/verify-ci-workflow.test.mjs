@@ -3,12 +3,13 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-import { validateQualityWorkflow } from "./verify-ci-workflow.mjs";
+import { validateQualityWorkflow, validateSecurityDependencyWorkflow } from "./verify-ci-workflow.mjs";
 
 const workflow = fs.readFileSync(
   path.resolve(".github", "workflows", "quality.yml"),
   "utf8",
 );
+const securityWorkflow = fs.readFileSync(path.resolve(".github", "workflows", "security.yml"), "utf8");
 
 test("workflow Quality memenuhi kebijakan CI quality-only", () => {
   assert.deepEqual(validateQualityWorkflow(workflow), {
@@ -96,4 +97,52 @@ test("workflow Quality menolak action yang tidak dipin", () => {
       ),
     /commit SHA 40 karakter/,
   );
+});
+
+test("dependency-audit Security terpin tanpa melarang permission CodeQL yang sah", () => {
+  assert.match(securityWorkflow, /security-events: write/);
+  assert.deepEqual(validateSecurityDependencyWorkflow(securityWorkflow), {
+    npm_version: "11.21.0", age_check_before_ci: true,
+  });
+});
+
+for (const [label, mutate] of [
+  ["bootstrap hilang", text => text.replace(/      - name: Bootstrap pinned npm in ephemeral runner[\s\S]*?(?=      - )/, "")],
+  ["npm tidak terpin", text => text.replace("npm@11.21.0", "npm@latest")],
+  ["versi bootstrap tidak diverifikasi", text => text.replace('          test "$(npm --version)" = "11.21.0"', "")],
+  ["bootstrap dari checkout", text => text.replace("working-directory: ${{ runner.temp }}", "working-directory: frontend-production")],
+  ["bootstrap hanya komentar", text => text.replace("          npm install --global npm@11.21.0", "          # npm install --global npm@11.21.0")],
+  ["bootstrap menelan kegagalan", text => text.replace("set -euo pipefail", "set +e")],
+  ["bootstrap dilewati", text => text.replace("      - name: Bootstrap pinned npm in ephemeral runner", "      - name: Bootstrap pinned npm in ephemeral runner\n        if: false")],
+  ["lock-age hilang", text => text.replace("          node scripts/verify-dependency-age.mjs\n", "")],
+  ["lock-age setelah instalasi", text => text.replace("          node scripts/verify-dependency-age.mjs\n          npm ci", "          npm ci\n          node scripts/verify-dependency-age.mjs")],
+  ["lock-age hanya komentar", text => text.replace("          node scripts/verify-dependency-age.mjs", "          # node scripts/verify-dependency-age.mjs")],
+  ["install meloloskan kegagalan", text => text.replace("          npm ci", "          npm ci || true")],
+  ["force saat install", text => text.replace("          npm ci", "          npm ci --force")],
+  ["policy check tidak ada", text => text.replace("run: node scripts/verify-package-policy.mjs", "run: echo policy")],
+]) {
+  test(`Quality npm policy menolak ${label}`, () => {
+    assert.throws(() => validateQualityWorkflow(mutate(workflow)), /Workflow npm policy/);
+  });
+  test(`Security npm policy menolak ${label}`, () => {
+    assert.throws(() => validateSecurityDependencyWorkflow(mutate(securityWorkflow)), /Workflow npm policy/);
+  });
+}
+
+test("Security tidak dianggap terlindungi oleh bootstrap pada job lain", () => {
+  const changed = securityWorkflow.replace(/      - name: Bootstrap pinned npm in ephemeral runner[\s\S]*?(?=      - )/, "");
+  assert.throws(() => validateSecurityDependencyWorkflow(changed + "\n  unrelated:\n    steps:\n      - name: Bootstrap pinned npm in ephemeral runner\n"), /Workflow npm policy/);
+});
+
+test("Quality menolak npm ci backend yang ditempatkan sebelum bootstrap", () => {
+  const changed = workflow.replace("      - name: Bootstrap pinned npm in ephemeral runner", "      - name: Early backend install\n        run: npm ci\n      - name: Bootstrap pinned npm in ephemeral runner");
+  assert.throws(() => validateQualityWorkflow(changed), /sebelum bootstrap/);
+});
+
+test("Quality menolak override policy di env job", () => {
+  assert.throws(() => validateQualityWorkflow(workflow.replace("    env:\n", "    env:\n      NPM_CONFIG_MIN_RELEASE_AGE: 0\n")), /override env/);
+});
+
+test("Security menolak job dependency yang sengaja dilewati", () => {
+  assert.throws(() => validateSecurityDependencyWorkflow(securityWorkflow.replace("  dependency-audit:\n", "  dependency-audit:\n    if: false\n")), /skip job/);
 });

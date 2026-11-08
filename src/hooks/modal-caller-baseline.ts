@@ -1029,9 +1029,9 @@ const MODAL_CALLER_SOURCE_INVENTORY: readonly ModalCallerSourceInventoryEntry[] 
     source: "src/components/seputar-jaminan/SeputarJaminanCatalogClient.tsx",
     ordinal: 1,
     owner: "SeputarJaminanCatalogClient",
-    routes: ["/dashboard/seputar-jaminan/katalog"],
-    title: "Buat atau Perbarui Draf Katalog",
-    trigger: { label: "Buat katalog", tokens: ["setFormOpen(true)", "Buat katalog"] },
+    routes: ["/dashboard/seputar-jaminan/publikasi"],
+    title: "Buat atau Perbarui Draf Publikasi",
+    trigger: { label: "Buat publikasi", tokens: ["setFormOpen(true)", "Buat publikasi"] },
     kind: "form",
     dataConditions: FORM_DATA,
     viewport: NEEDS_FIX_ALL,
@@ -1042,8 +1042,8 @@ const MODAL_CALLER_SOURCE_INVENTORY: readonly ModalCallerSourceInventoryEntry[] 
     source: "src/components/seputar-jaminan/SeputarJaminanCatalogClient.tsx",
     ordinal: 2,
     owner: "SeputarJaminanCatalogClient",
-    routes: ["/dashboard/seputar-jaminan/katalog"],
-    title: "Detail Katalog",
+    routes: ["/dashboard/seputar-jaminan/publikasi"],
+    title: "Detail Publikasi",
     trigger: { label: "Lihat detail", tokens: ["openDetail", "Lihat detail"] },
     kind: "detail",
     dataConditions: DETAIL_DATA,
@@ -1057,7 +1057,7 @@ const MODAL_CALLER_SOURCE_INVENTORY: readonly ModalCallerSourceInventoryEntry[] 
     owner: "SeputarJaminanReviewClient",
     routes: ["/dashboard/seputar-jaminan/pemeriksaan"],
     title: "Keputusan Pemeriksaan",
-    trigger: { label: "Setujui atau minta perbaikan", tokens: ["begin(", "Setujui & tayangkan"] },
+    trigger: { label: "Setujui atau minta perbaikan", tokens: ["begin(", "Setujui & kirim"] },
     kind: "confirmation",
     dataConditions: DETAIL_DATA,
     viewport: NEEDS_FIX_ALL,
@@ -1066,15 +1066,69 @@ const MODAL_CALLER_SOURCE_INVENTORY: readonly ModalCallerSourceInventoryEntry[] 
   {
     id: "seputar-jaminan-contact-form",
     source: "src/components/seputar-jaminan/SeputarJaminanProfileContactClient.tsx",
-    ordinal: 1,
+    ordinal: 2,
     owner: "SeputarJaminanProfileContactClient",
-    routes: ["/dashboard/seputar-jaminan/profil-kontak"],
+    routes: ["/dashboard/seputar-jaminan/kontak"],
     title: "Tambah atau Perbarui Kontak WhatsApp",
     trigger: { label: "Tambah kontak", tokens: ["setContactModalOpen(true)", "Tambah kontak"] },
     kind: "form",
     dataConditions: FORM_DATA,
     viewport: NEEDS_FIX_ALL,
     evidence: "source-only",
+  },
+  {
+    id: "seputar-jaminan-submission-detail",
+    source: "src/components/seputar-jaminan/SeputarJaminanSubmissionsClient.tsx",
+    ordinal: 1,
+    owner: "SeputarJaminanSubmissionsClient",
+    routes: ["/dashboard/seputar-jaminan/pengajuan"],
+    title: "Detail Pengajuan",
+    trigger: { label: "Lihat detail", tokens: ["updateListQuery({submission:item.id})", "Lihat detail"] },
+    kind: "detail",
+    dataConditions: DETAIL_DATA,
+    viewport: NEEDS_FIX_ALL,
+    evidence: "source-only",
+  },
+  {
+    id: "seputar-jaminan-contact-detail",
+    source: "src/components/seputar-jaminan/SeputarJaminanProfileContactClient.tsx",
+    ordinal: 1, owner: "SeputarJaminanProfileContactClient",
+    routes: ["/dashboard/seputar-jaminan/kontak"], title: "Detail kontak WhatsApp",
+    trigger: { label: "Lihat detail", tokens: ["setDetailContactId(contact.id)", "Lihat detail"] },
+    kind: "detail", dataConditions: DETAIL_DATA, viewport: NEEDS_FIX_ALL, evidence: "source-only",
+  },
+  {
+    id: "seputar-jaminan-change-request",
+    source: "src/components/seputar-jaminan/SeputarJaminanChangeRequestModal.tsx",
+    ordinal: 1, owner: "SeputarJaminanChangeRequestModal",
+    routes: ["/dashboard/seputar-jaminan/profil", "/dashboard/seputar-jaminan/kontak", "/dashboard/seputar-jaminan/publikasi"],
+    title: "Ajukan penarikan, arsip atau pencabutan",
+    trigger: { label: "Ajukan perubahan", tokens: ["isOpen={open}", "Ajukan penarikan", "Ajukan arsip", "Ajukan pencabutan kontak"] },
+    kind: "workflow", dataConditions: FORM_DATA, viewport: NEEDS_FIX_ALL, evidence: "source-only",
+  },
+  {
+    id: "seputar-jaminan-change-detail",
+    source: "src/components/seputar-jaminan/SeputarJaminanSubmissionsClient.tsx",
+    ordinal: 2, owner: "SeputarJaminanSubmissionsClient",
+    routes: ["/dashboard/seputar-jaminan/pengajuan"], title: "Detail permintaan perubahan",
+    trigger: { label: "Lihat detail", tokens: ["openChange(request)", "Lihat detail"] },
+    kind: "detail", dataConditions: DETAIL_DATA, viewport: NEEDS_FIX_ALL, evidence: "source-only",
+  },
+  {
+    id: "seputar-jaminan-version-comparison",
+    source: "src/components/seputar-jaminan/SeputarJaminanWorkflow.tsx",
+    ordinal: 1, owner: "SjVersionComparison",
+    routes: ["/dashboard/seputar-jaminan/profil", "/dashboard/seputar-jaminan/publikasi"], title: "Bandingkan versi di bank",
+    trigger: { label: "Bandingkan versi", tokens: ["setOpen(true)", "Bandingkan versi"] },
+    kind: "detail", dataConditions: DETAIL_DATA, viewport: NEEDS_FIX_ALL, evidence: "source-only",
+  },
+  {
+    id: "seputar-jaminan-discard-changes",
+    source: "src/components/seputar-jaminan/useDiscardChanges.tsx",
+    ordinal: 1, owner: "useDiscardChanges",
+    routes: ["/dashboard/seputar-jaminan/profil", "/dashboard/seputar-jaminan/kontak", "/dashboard/seputar-jaminan/publikasi"], title: "Tinggalkan perubahan?",
+    trigger: { label: "Tutup formulir yang berubah", tokens: ["requestClose:", "setConfirm(true)", "Tinggalkan perubahan?"] },
+    kind: "confirmation", dataConditions: FORM_DATA, viewport: NEEDS_FIX_ALL, evidence: "source-only",
   },
 ];
 
@@ -1102,8 +1156,6 @@ const DEBTOR_REMAINING_SPEC =
   "tests/e2e/modal-debtor-remaining.dashboard.spec.ts";
 const PERSURATAN_NOTIFICATION_SPEC =
   "tests/e2e/persuratan-notification.dashboard.spec.ts";
-const SEPUTAR_JAMINAN_MODALS_SPEC =
-  "tests/e2e/seputar-jaminan-modals.dashboard.spec.ts";
 
 /**
  * Bukti di bawah hanya berisi modal yang benar-benar dibuka oleh browser E2E.
@@ -1112,18 +1164,8 @@ const SEPUTAR_JAMINAN_MODALS_SPEC =
 export const MODAL_RUNTIME_EVIDENCE: Readonly<
   Record<string, ModalRuntimeEvidence>
 > = {
-  "seputar-jaminan-catalog-form": allViewportEvidence(
-    SEPUTAR_JAMINAN_MODALS_SPEC,
-  ),
-  "seputar-jaminan-catalog-detail": allViewportEvidence(
-    SEPUTAR_JAMINAN_MODALS_SPEC,
-  ),
-  "seputar-jaminan-review-decision": allViewportEvidence(
-    SEPUTAR_JAMINAN_MODALS_SPEC,
-  ),
-  "seputar-jaminan-contact-form": allViewportEvidence(
-    SEPUTAR_JAMINAN_MODALS_SPEC,
-  ),
+  // SJ was redesigned after the historical E2E spec. Current candidate evidence
+  // is kept outside the release; an old spec's existence is not current PASS.
   "activity-centre-detail": allViewportEvidence(REMEDIATION_SPEC),
   "collateral-expiry-monitoring": allViewportEvidence(REMEDIATION_SPEC),
   "dashboard-deposit-detail": allViewportEvidence(LEGAL_DASHBOARD_SPEC),

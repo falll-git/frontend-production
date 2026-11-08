@@ -1,5 +1,5 @@
-import SeputarJaminanCatalogClient from "@/components/seputar-jaminan/SeputarJaminanCatalogClient";
+import { redirect } from "next/navigation";
 
 export default function SeputarJaminanCatalogPage() {
-  return <SeputarJaminanCatalogClient />;
+  redirect("/dashboard/seputar-jaminan/publikasi");
 }

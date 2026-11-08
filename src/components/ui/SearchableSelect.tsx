@@ -31,6 +31,7 @@ type SearchableSelectProps = {
   options?: SearchableSelectOption[];
   selectedOption?: SearchableSelectOption | null;
   loadOptions?: (query: string) => Promise<SearchableSelectOption[]>;
+  loadPage?: (query: string, page: number) => Promise<{ options: SearchableSelectOption[]; nextPage: number | null }>;
   onChange: (value: string, option?: SearchableSelectOption | null) => void;
   placeholder?: string;
   searchPlaceholder?: string;
@@ -71,6 +72,7 @@ export default function SearchableSelect({
   options = [],
   selectedOption,
   loadOptions,
+  loadPage,
   onChange,
   placeholder = "Pilih data",
   searchPlaceholder = "Cari data...",
@@ -95,6 +97,8 @@ export default function SearchableSelect({
   const requestIdRef = useRef(0);
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [nextPage, setNextPage] = useState<number | null>(null);
   const [asyncOptions, setAsyncOptions] = useState<SearchableSelectOption[]>(
     [],
   );
@@ -122,7 +126,7 @@ export default function SearchableSelect({
   );
 
   const visibleOptions = useMemo(() => {
-    if (loadOptions) {
+    if (loadOptions || loadPage) {
       return mergeOptions(asyncOptions).slice(0, maxVisibleOptions);
     }
 
@@ -136,7 +140,7 @@ export default function SearchableSelect({
       : options;
 
     return mergeOptions(filtered).slice(0, maxVisibleOptions);
-  }, [asyncOptions, loadOptions, maxVisibleOptions, options, query]);
+  }, [asyncOptions, loadOptions, loadPage, maxVisibleOptions, options, query]);
   const safeActiveIndex =
     visibleOptions.length > 0
       ? Math.min(activeIndex, visibleOptions.length - 1)
@@ -149,6 +153,7 @@ export default function SearchableSelect({
   const close = useCallback((restoreFocus = false) => {
     setIsOpen(false);
     setQuery("");
+    setPage(1);
     setActiveIndex(0);
     if (restoreFocus) {
       window.setTimeout(() => triggerRef.current?.focus(), 0);
@@ -210,7 +215,7 @@ export default function SearchableSelect({
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen || !loadOptions) return undefined;
+    if (!isOpen || (!loadOptions && !loadPage)) return undefined;
 
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
@@ -218,15 +223,17 @@ export default function SearchableSelect({
     const timer = window.setTimeout(() => {
       setIsLoading(true);
       setHasLoadError(false);
-      loadOptions(query)
+      (loadPage ? loadPage(query, page) : loadOptions!(query).then(options => ({ options, nextPage: null })))
         .then((result) => {
           if (requestIdRef.current !== requestId) return;
-          setAsyncOptions(result);
+          setAsyncOptions(result.options);
+          setNextPage(result.nextPage);
           setActiveIndex(0);
         })
         .catch(() => {
           if (requestIdRef.current !== requestId) return;
           setAsyncOptions([]);
+          setNextPage(null);
           setHasLoadError(true);
         })
         .finally(() => {
@@ -234,8 +241,8 @@ export default function SearchableSelect({
         });
     }, debounceMs);
 
-    return () => window.clearTimeout(timer);
-  }, [debounceMs, isOpen, loadOptions, query]);
+    return () => { window.clearTimeout(timer); requestIdRef.current += 1; };
+  }, [debounceMs, isOpen, loadOptions, loadPage, page, query]);
 
   const handleSelect = (option: SearchableSelectOption) => {
     if (option.disabled) return;
@@ -259,7 +266,7 @@ export default function SearchableSelect({
   };
 
   const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Tab") {
+    if (event.key === "Tab" && (!loadPage || event.shiftKey)) {
       event.preventDefault();
       const trigger = triggerRef.current;
       const popup = popupRef.current;
@@ -272,6 +279,7 @@ export default function SearchableSelect({
 
     if (event.key === "Escape") {
       event.preventDefault();
+      event.stopPropagation();
       close(true);
       return;
     }
@@ -290,6 +298,7 @@ export default function SearchableSelect({
 
     if (event.key === "Enter") {
       event.preventDefault();
+      if (isLoading || hasLoadError) return;
       const option = visibleOptions[safeActiveIndex];
       if (option) handleSelect(option);
     }
@@ -344,6 +353,7 @@ export default function SearchableSelect({
         ? createPortal(
             <div
               ref={popupRef}
+              onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(true); } }}
               id={popupId}
               data-searchable-select-popup="true"
               className="fixed z-[10000] flex flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl ring-1 ring-black/5"
@@ -366,7 +376,7 @@ export default function SearchableSelect({
                   aria-controls={listboxId}
                   aria-expanded="true"
                   aria-activedescendant={activeOptionId}
-                  onChange={(event) => setQuery(event.target.value)}
+                  onChange={(event) => { setQuery(event.target.value); setPage(1); if (loadPage || loadOptions) { setIsLoading(true); setAsyncOptions([]); } }}
                   onKeyDown={handleInputKeyDown}
                 />
               </div>
@@ -386,7 +396,7 @@ export default function SearchableSelect({
                     aria-selected="false"
                   >
                     <Loader2
-                      className="size-4 animate-spin"
+                      className="size-4 motion-safe:animate-spin"
                       aria-hidden="true"
                     />
                     <span role="status" aria-live="polite">
@@ -467,6 +477,11 @@ export default function SearchableSelect({
                     })
                   : null}
               </div>
+              {loadPage ? <div className="flex shrink-0 items-center justify-between gap-2 border-t border-gray-100 p-2">
+                <button type="button" className="min-h-11 rounded px-2 text-sm font-medium disabled:opacity-40" disabled={page <= 1 || isLoading} onClick={() => setPage(current => current - 1)}>Sebelumnya</button>
+                <span className="text-xs text-gray-500" aria-live="polite">Halaman {page}</span>
+                <button type="button" className="min-h-11 rounded px-2 text-sm font-medium disabled:opacity-40" disabled={!nextPage || isLoading} onClick={() => nextPage && setPage(nextPage)}>Berikutnya</button>
+              </div> : null}
             </div>,
             document.body,
           )

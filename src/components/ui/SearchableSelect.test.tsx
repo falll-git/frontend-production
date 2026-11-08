@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import SearchableSelect from "@/components/ui/SearchableSelect";
+import DashboardModal from "@/components/ui/DashboardModal";
 
 function setViewport(width: number, height: number) {
   Object.defineProperty(window, "innerWidth", {
@@ -16,6 +17,48 @@ function setViewport(width: number, height: number) {
 }
 
 describe("SearchableSelect", () => {
+  it("keeps search and pagination focus inside the owning modal and Escape closes only the picker", async () => {
+    const user=userEvent.setup(),close=vi.fn();
+    render(<DashboardModal isOpen title="Form pengujian" onClose={close}>
+      <SearchableSelect value="" onChange={vi.fn()} debounceMs={0} loadPage={async()=>({options:[{value:'a',label:'Agunan'}],nextPage:2})}/>
+      <button type="button">Sesudah pemilih</button>
+    </DashboardModal>);
+    await user.click(screen.getByRole('button',{name:'Pilih data'}));
+    await screen.findByRole('option',{name:'Agunan'});
+    await waitFor(()=>expect(screen.getByRole('combobox')).toHaveFocus());
+    await user.tab();expect(screen.getByRole('button',{name:'Berikutnya'})).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(close).not.toHaveBeenCalled();
+    await waitFor(()=>expect(screen.getByRole('button',{name:'Pilih data'})).toHaveFocus());
+  });
+  it("searches and pages on the server while retaining an off-page selection", async () => {
+    const user=userEvent.setup();
+    const loadPage=vi.fn(async (query:string,page:number)=>({options:[{value:`${query}:${page}`,label:`Hasil ${query || 'awal'} ${page}`}],nextPage:page===1?2:null}));
+    const onChange=vi.fn();
+    const view=render(<SearchableSelect value="kept" selectedOption={{value:'kept',label:'Pilihan tersimpan'}} loadPage={loadPage} onChange={onChange} debounceMs={0}/>);
+    await user.click(screen.getByRole('button',{name:'Pilihan tersimpan'}));
+    await screen.findByRole('option',{name:'Hasil awal 1'});
+    await user.click(screen.getByRole('button',{name:'Berikutnya'}));
+    await screen.findByRole('option',{name:'Hasil awal 2'});
+    expect(loadPage).toHaveBeenLastCalledWith('',2);
+    await user.type(screen.getByRole('combobox'),'dokumen');
+    await screen.findByRole('option',{name:'Hasil dokumen 1'});
+    expect(loadPage).toHaveBeenLastCalledWith('dokumen',1);
+    await user.click(screen.getByRole('option',{name:'Hasil dokumen 1'}));
+    expect(onChange).toHaveBeenCalledWith('dokumen:1',{value:'dokumen:1',label:'Hasil dokumen 1'});
+    view.rerender(<SearchableSelect value="dokumen:1" loadPage={loadPage} onChange={onChange} debounceMs={0}/>);
+    expect(screen.getByRole('button',{name:'Hasil dokumen 1'})).toBeVisible();
+  });
+
+  it("reports a failed page without presenting an empty result or a false selection", async()=>{
+    const user=userEvent.setup(),onChange=vi.fn();
+    render(<SearchableSelect value="" loadPage={async()=>{throw new Error('offline');}} onChange={onChange} debounceMs={0}/>);
+    await user.click(screen.getByRole('button',{name:'Pilih data'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Gagal memuat data');
+    await user.keyboard('{Enter}');expect(onChange).not.toHaveBeenCalled();
+    await user.keyboard('{Escape}');expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
   it("portals and flips the options panel above a trigger near the viewport bottom", async () => {
     const user = userEvent.setup();
     setViewport(360, 800);

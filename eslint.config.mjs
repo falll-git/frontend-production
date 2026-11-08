@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([
+    // Reviewed third-party source is verified/tested separately, not rewritten.
+    "vendor/braces-depth-guard/**",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",

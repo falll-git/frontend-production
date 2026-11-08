@@ -76,8 +76,7 @@ export default function DepositLedgerTraceability({
           Dasar Perhitungan Saldo
         </h3>
         <p className="text-sm leading-6 text-slate-600">
-          Ringkasan dihitung dari seluruh transaksi pada ledger, bukan dari angka
-          manual yang berdiri sendiri.
+          Saldo dihitung dari total titipan dikurangi pembayaran dan pengembalian dana.
         </p>
       </div>
 
@@ -92,7 +91,7 @@ export default function DepositLedgerTraceability({
           <span>{formatCurrency(totals.balance)}</span>
         </p>
         <p className="mt-1 text-xs leading-5 text-slate-500">
-          Saldo akhir = Total titipan - Total pembayaran - Total refund
+          Saldo akhir = Total titipan - Total pembayaran - Total pengembalian dana
         </p>
       </div>
 
@@ -130,15 +129,14 @@ export default function DepositLedgerTraceability({
               aria-hidden="true"
             />
             <div className="min-w-0 space-y-2">
-              <p className="font-semibold">Agregat lama tidak cocok dengan riwayat transaksi.</p>
+              <p className="font-semibold">Rekap tersimpan berbeda dengan riwayat transaksi.</p>
               <p className="text-sm leading-6">
-                Angka yang ditampilkan di ringkasan memakai ledger transaksi.
-                Nilai agregat tersimpan tetap dipertahankan untuk pemeriksaan dan
-                tidak diubah otomatis.
+                Angka laporan dihitung dari riwayat transaksi.
+                Catatan sebelumnya tetap disimpan dan tidak diubah otomatis.
               </p>
               <p className="text-xs leading-5 text-amber-900">
-                Agregat tersimpan: titipan {formatCurrency(stored.total_deposit_amount)},
-                pembayaran {formatCurrency(stored.total_payment_amount)}, refund{" "}
+                Catatan sebelumnya: titipan {formatCurrency(stored.total_deposit_amount)},
+                pembayaran {formatCurrency(stored.total_payment_amount)}, pengembalian dana{" "}
                 {formatCurrency(stored.total_refund_amount)}, saldo{" "}
                 {formatCurrency(stored.balance_amount)}.
               </p>
@@ -148,15 +146,14 @@ export default function DepositLedgerTraceability({
       ) : item.ledger ? (
         <div className="flex items-start gap-2 text-sm text-emerald-800">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <span>Ringkasan cocok dengan seluruh transaksi pada ledger.</span>
+          <span>Rekap tersimpan sesuai dengan riwayat transaksi.</span>
         </div>
       ) : (
         <div
           className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900"
           role="status"
         >
-          Status rekonsiliasi belum tersedia. Muat ulang setelah backend terbaru
-          aktif.
+          Kesesuaian catatan belum bisa diperiksa. Coba muat ulang.
         </div>
       )}
     </section>

@@ -73,7 +73,7 @@ describe("DepositLedgerTraceability", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Impor sistem")).toBeInTheDocument();
     expect(
-      screen.getByText("Ringkasan cocok dengan seluruh transaksi pada ledger."),
+      screen.getByText("Rekap tersimpan sesuai dengan riwayat transaksi."),
     ).toBeInTheDocument();
   });
 
@@ -108,7 +108,7 @@ describe("DepositLedgerTraceability", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Agregat lama tidak cocok dengan riwayat transaksi.",
+      "Rekap tersimpan berbeda dengan riwayat transaksi.",
     );
     expect(screen.getByRole("alert").textContent?.replace(/\s/g, "")).toContain(
       "pembayaranRp5.000.000",
@@ -121,6 +121,14 @@ describe("DepositLedgerTraceability", () => {
             "Rp10.000.000-Rp0-Rp0=Rp10.000.000",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("tidak mengklaim catatan sesuai ketika hasil pemeriksaan belum tersedia", () => {
+    render(<DepositLedgerTraceability item={{
+      nominal: 0, paid_amount: 0, processed_amount: 0, remaining_amount: 0, ledger: null,
+    }} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Kesesuaian catatan belum bisa diperiksa. Coba muat ulang.");
+    expect(screen.queryByText("Rekap tersimpan sesuai dengan riwayat transaksi.")).not.toBeInTheDocument();
   });
 
   it.each([

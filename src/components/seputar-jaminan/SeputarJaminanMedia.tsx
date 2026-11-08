@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ImageOff, RefreshCw } from "lucide-react";
 
 import { seputarJaminanService } from "@/services/seputar-jaminan.service";
@@ -78,28 +78,77 @@ export function formatSjMediaMeta(media: MediaMeta) {
     .join(" · ");
 }
 
+type SjMediaPreviewProps = {
+  mediaId: string;
+  alt: string;
+  fit?: "cover" | "contain";
+  className?: string;
+  compact?: boolean;
+  thumbnail?: boolean;
+};
+
 export function SjMediaPreview({
   mediaId,
   alt,
   fit = "cover",
   className,
-}: {
-  mediaId: string;
-  alt: string;
-  fit?: "cover" | "contain";
-  className?: string;
-}) {
+  compact = false,
+  thumbnail = compact,
+}: SjMediaPreviewProps) {
+  // A different resource must not inherit visibility or blob ownership.
+  return (
+    <SjMediaResourcePreview
+      key={`${mediaId}:${thumbnail}:${compact}`}
+      mediaId={mediaId}
+      alt={alt}
+      fit={fit}
+      className={className}
+      compact={compact}
+      thumbnail={thumbnail}
+    />
+  );
+}
+
+function SjMediaResourcePreview({
+  mediaId,
+  alt,
+  fit,
+  className,
+  compact,
+  thumbnail,
+}: SjMediaPreviewProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
   const [preview, setPreview] = useState<{ key: string; url: string } | null>(null);
   const [failureKey, setFailureKey] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const requestKey = `${mediaId}:${attempt}`;
+  const requestKey = `${mediaId}:${thumbnail}:${attempt}`;
+  const shouldLoad = !compact || visible || typeof IntersectionObserver === "undefined";
 
   useEffect(() => {
+    if (!compact || visible || typeof IntersectionObserver === "undefined") return;
+    const container = containerRef.current;
+    if (!container) return;
+    let active = true;
+    const observer = new IntersectionObserver((entries) => {
+      if (!active || !entries.some((entry) => entry.isIntersecting)) return;
+      setVisible(true);
+      observer.disconnect();
+    }, { rootMargin: "0px" });
+    observer.observe(container);
+    return () => {
+      active = false;
+      observer.disconnect();
+    };
+  }, [compact, visible]);
+
+  useEffect(() => {
+    if (!shouldLoad) return;
     let active = true;
     let nextObjectUrl: string | null = null;
 
     void seputarJaminanService
-      .getMediaBlob(mediaId)
+      .getMediaBlob(mediaId, thumbnail ? "thumbnail" : undefined)
       .then((blob) => {
         if (!active) return;
         nextObjectUrl = URL.createObjectURL(blob);
@@ -113,19 +162,21 @@ export function SjMediaPreview({
       active = false;
       if (nextObjectUrl) URL.revokeObjectURL(nextObjectUrl);
     };
-  }, [mediaId, requestKey]);
+  }, [mediaId, requestKey, shouldLoad, thumbnail]);
 
   const objectUrl = preview?.key === requestKey ? preview.url : null;
   const failed = failureKey === requestKey;
 
   return (
     <div
+      ref={containerRef}
+      data-sj-thumbnail={compact ? "" : undefined}
       className={cn(
         "relative isolate overflow-hidden rounded-lg border border-slate-200 bg-slate-100",
         className,
       )}
     >
-      {objectUrl ? (
+      {objectUrl && !failed ? (
         <Image
           src={objectUrl}
           alt={alt}
@@ -133,23 +184,24 @@ export function SjMediaPreview({
           unoptimized
           sizes="(max-width: 640px) 100vw, 160px"
           className={fit === "contain" ? "object-contain p-3" : "object-cover"}
+          onError={() => setFailureKey(requestKey)}
         />
       ) : failed ? (
         <button
           type="button"
-          className="flex size-full min-h-28 flex-col items-center justify-center gap-2 px-3 text-center text-sm font-semibold text-slate-600 outline-none transition hover:text-slate-900 focus-visible:ring-3 focus-visible:ring-inset focus-visible:ring-sky-600/20"
+          className={cn("flex size-full min-w-11 flex-col items-center justify-center text-center text-sm font-semibold text-slate-600 outline-none transition hover:text-slate-900 focus-visible:ring-3 focus-visible:ring-inset focus-visible:ring-sky-600/20", compact ? "min-h-14 gap-1 p-1" : "min-h-28 gap-2 px-3")}
           onClick={() => setAttempt((current) => current + 1)}
           aria-label={`Muat ulang pratinjau ${alt}`}
         >
           <ImageOff className="size-7" aria-hidden="true" />
-          <span>Pratinjau belum tersedia</span>
+          {!compact ? <span>Pratinjau belum tersedia</span> : null}
           <span className="inline-flex items-center gap-1 text-xs text-sky-700">
             <RefreshCw className="size-3.5" aria-hidden="true" /> Coba lagi
           </span>
         </button>
       ) : (
         <div
-          className="size-full min-h-28 animate-pulse bg-slate-200 motion-reduce:animate-none"
+          className={cn("size-full animate-pulse bg-slate-200 motion-reduce:animate-none", compact ? "min-h-14" : "min-h-28")}
           role="status"
           aria-label={`Memuat pratinjau ${alt}`}
         />

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -45,6 +45,24 @@ describe("LaporanTitipanSection", () => {
     expect(screen.queryByRole("region", { name: "Tabel data" })).not.toBeInTheDocument();
   });
 
+  it("menghapus peringatan dari kartu tetapi mempertahankan perbedaan catatan di detail", async () => {
+    serviceMocks.getThirdPartyDepositFundsReport.mockResolvedValue([{
+      type: "NOTARIS", total_records: 1, mismatched_records: 1,
+      total_deposit_amount: 10_000_000, total_payment_amount: 0,
+      total_refund_amount: 0, balance_amount: 10_000_000,
+    }]);
+    const user = userEvent.setup();
+    render(<LaporanTitipanSection />);
+    const card = screen.getByTitle("Lihat Titipan Notaris");
+    await waitFor(() => expect(within(card).getAllByText(/10\.000\.000/)).toHaveLength(2));
+    expect(within(card).queryByText(/rekonsiliasi|perbedaan catatan/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await user.click(card);
+    expect(await screen.findByRole("alert")).toHaveTextContent("1 data memiliki perbedaan catatan.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Angka laporan dihitung dari riwayat transaksi.");
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/ledger|agregat|rekonsiliasi/i);
+  });
+
   it("tetap merender tabel, header, dan pagination ketika record tersedia", async () => {
     serviceMocks.getDepositsPage.mockResolvedValue({
       items: [
@@ -80,5 +98,8 @@ describe("LaporanTitipanSection", () => {
     expect(
       screen.queryByText("Belum ada laporan untuk jenis titipan ini"),
     ).not.toBeInTheDocument();
+    screen.getByRole("button", { name: "Buka aksi dana titipan KTR-001" }).focus();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });

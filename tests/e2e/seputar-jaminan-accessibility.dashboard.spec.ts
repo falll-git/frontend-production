@@ -10,18 +10,11 @@ import { assertViewportAccessibilityContract } from "./support/accessibility-con
 const screenshotOutputDir = process.env.SJ_SCREENSHOT_OUTPUT_DIR?.trim();
 
 const moduleRoutes = [
-  ["/dashboard/seputar-jaminan", "Pusat publikasi aset", "dashboard"],
-  ["/dashboard/seputar-jaminan/katalog", "Katalog aset", "katalog"],
-  [
-    "/dashboard/seputar-jaminan/pemeriksaan",
-    "Pemeriksaan publikasi",
-    "pemeriksaan",
-  ],
-  [
-    "/dashboard/seputar-jaminan/profil-kontak",
-    "Profil BPRS & kontak",
-    "profil-kontak",
-  ],
+  ["/dashboard/seputar-jaminan/pengajuan?view=pengiriman", "Pengiriman", "ringkasan"],
+  ["/dashboard/seputar-jaminan/profil", "Profil BPRS", "profil"],
+  ["/dashboard/seputar-jaminan/kontak", "Kontak WhatsApp", "kontak"],
+  ["/dashboard/seputar-jaminan/publikasi", "Daftar Publikasi", "publikasi"],
+  ["/dashboard/seputar-jaminan/pengajuan", "Pengajuan", "pengajuan"],
 ] as const;
 
 const viewports = [
@@ -77,7 +70,9 @@ test.describe("quality gate visual dan aksesibilitas Seputar Jaminan", () => {
 
       for (const [route, heading, routeName] of moduleRoutes) {
         await page.goto(route, { waitUntil: "domcontentloaded" });
-        await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+        await expect(
+          page.getByRole("heading", { name: heading, exact: true }),
+        ).toBeVisible();
         await expect(page.locator("main")).toBeVisible();
         await expectNoPageOverflow(page);
 
@@ -120,12 +115,13 @@ test.describe("quality gate visual dan aksesibilitas Seputar Jaminan", () => {
 
   test("modal mengunci scroll dan mengembalikan fokus", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/dashboard/seputar-jaminan/katalog", {
+    await page.goto("/dashboard/seputar-jaminan/publikasi", {
       waitUntil: "domcontentloaded",
     });
 
-    const detailOpener = page.getByRole("button", { name: "Lihat detail" });
+    const detailOpener = page.getByRole("button", { name: /^Aksi publikasi / });
     await detailOpener.press("Enter");
+  await page.getByRole("menuitem", { name: "Lihat detail", exact: true }).press("Enter");
     const detailDialog = page.getByRole("dialog", {
       name: "Rumah tinggal dua lantai",
     });
@@ -140,7 +136,7 @@ test.describe("quality gate visual dan aksesibilitas Seputar Jaminan", () => {
 
     const createOpener = page.getByRole("button", { name: "Buat katalog" });
     await createOpener.press("Enter");
-    const createDialog = page.getByRole("dialog", { name: "Buat katalog baru" });
+    const createDialog = page.getByRole("dialog", { name: "Buat publikasi baru" });
     await expect(createDialog).toBeVisible();
     expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).toBe(
       "hidden",
@@ -155,7 +151,7 @@ test.describe("quality gate visual dan aksesibilitas Seputar Jaminan", () => {
     await expect(createDialog).toBeHidden();
     await expect(createOpener).toBeFocused();
 
-    await page.goto("/dashboard/seputar-jaminan/profil-kontak", {
+    await page.goto("/dashboard/seputar-jaminan/kontak", {
       waitUntil: "domcontentloaded",
     });
     const contactOpener = page.getByRole("button", { name: "Tambah kontak" });
@@ -180,12 +176,12 @@ test.describe("quality gate visual dan aksesibilitas Seputar Jaminan", () => {
       await new Promise((resolve) => setTimeout(resolve, 1_200));
       await route.continue();
     });
-    await page.goto("/dashboard/seputar-jaminan", {
+    await page.goto("/dashboard/seputar-jaminan/pengajuan?view=pengiriman", {
       waitUntil: "domcontentloaded",
     });
-    await expect(page.getByText("Memuat ringkasan publikasi…")).toBeVisible();
+    await expect(page.getByText("Memuat pengiriman…")).toBeVisible();
     await saveScreenshot(page, "state-loading-dashboard-mobile-390");
-    await expect(page.getByText("Memuat ringkasan publikasi…")).toBeHidden();
+    await expect(page.getByText("Memuat pengiriman…")).toBeHidden();
     await page.unroute("**/api/v1/seputar-jaminan/dashboard");
 
     await page.route("**/api/v1/seputar-jaminan/dashboard", async (route) => {
@@ -196,19 +192,32 @@ test.describe("quality gate visual dan aksesibilitas Seputar Jaminan", () => {
       });
     });
     await page.reload({ waitUntil: "domcontentloaded" });
-    await expect(page.getByText("Ringkasan belum dapat dimuat")).toBeVisible();
+    await expect(page.getByText("Pengiriman belum dapat dimuat")).toBeVisible();
     await saveScreenshot(page, "state-error-dashboard-mobile-390");
     await page.unroute("**/api/v1/seputar-jaminan/dashboard");
 
-    await page.goto("/dashboard/seputar-jaminan/pemeriksaan", {
+    await page.route("**/api/v1/seputar-jaminan/submissions?**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            items: [],
+            pagination: { page: 1, limit: 20, total: 0, total_pages: 0 },
+          },
+        }),
+      });
+    });
+    await page.goto("/dashboard/seputar-jaminan/pengajuan", {
       waitUntil: "domcontentloaded",
     });
     await expect(
-      page.getByText("Tidak ada pengajuan yang menunggu", { exact: true }),
+      page.getByText("Belum ada pengajuan", { exact: true }),
     ).toBeVisible();
-    await saveScreenshot(page, "state-empty-review-mobile-390");
+    await saveScreenshot(page, "state-empty-submission-mobile-390");
+    await page.unroute("**/api/v1/seputar-jaminan/submissions?**");
 
-    await page.goto("/dashboard/seputar-jaminan/katalog", {
+    await page.goto("/dashboard/seputar-jaminan/publikasi", {
       waitUntil: "domcontentloaded",
     });
     await page.getByRole("textbox", { name: "Cari katalog" }).fill(
@@ -235,7 +244,7 @@ test("halaman SJ meminta autentikasi sebelum memberi akses", async (
   const page = await context.newPage();
 
   try {
-    await page.goto("/dashboard/seputar-jaminan", {
+    await page.goto("/dashboard/seputar-jaminan/pengajuan?view=pengiriman", {
       waitUntil: "domcontentloaded",
     });
     await expect(page).toHaveURL(/\/$/);

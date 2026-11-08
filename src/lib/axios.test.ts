@@ -176,7 +176,7 @@ describe("API request correlation", () => {
     await expect(result).rejects.toMatchObject({
       requestId: "header-request-12345678",
       statusCode: 500,
-      message: "Terjadi kesalahan pada server",
+      message: "Layanan sedang bermasalah. Silakan coba lagi.",
     });
     const report = JSON.parse(
       String((fetchMock.mock.calls[0][1] as RequestInit).body),
@@ -383,6 +383,16 @@ describe("API request correlation", () => {
       SessionRefreshRateLimitError,
     );
     expect(refreshPost).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    [{code:'ERR_NETWORK'},'Belum mendapat respons. Periksa koneksi Anda, lalu coba lagi.',null],
+    [{code:'ECONNABORTED'},'Permintaan terlalu lama. Silakan coba lagi.',null],
+    [{response:{status:422,data:{},headers:{}}},'Permintaan tidak dapat diproses. Periksa isian atau akses Anda.',422],
+    [{response:{status:503,data:{},headers:{}}},'Layanan sedang bermasalah. Silakan coba lagi.',503],
+  ])('does not invent a server cause for network failures: %j',async(error,message,statusCode)=>{
+    const result=api.get('/menus',{adapter:async config=>Promise.reject({...error,config})});
+    await expect(result).rejects.toMatchObject({name:'ApiRequestError',message,statusCode});
   });
 
   it("tidak mencoba refresh untuk endpoint login", async () => {
