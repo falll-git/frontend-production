@@ -128,6 +128,7 @@ export default function PermintaanDisposisiPage() {
   const [alasanAksi, setAlasanAksi] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const todayKey = useMemo(() => new Date().toDateString(), []);
+  const userId = user?.id;
 
   const data = useMemo(() => {
     return disposisi
@@ -147,17 +148,17 @@ export default function PermintaanDisposisiPage() {
   }, [disposisi]);
 
   const approvedTodayCount = useMemo(() => {
-    if (!user?.id) return 0;
+    if (!userId) return 0;
 
     return disposisi.filter((item) => {
-      if (item.owner?.id !== user.id || item.statusKey !== "APPROVED" || !item.tglAksi) {
+      if (item.owner?.id !== userId || item.statusKey !== "APPROVED" || !item.tglAksi) {
         return false;
       }
 
       const actionDate = parseDateString(item.tglAksi);
       return actionDate?.toDateString() === todayKey;
     }).length;
-  }, [disposisi, todayKey, user?.id]);
+  }, [disposisi, todayKey, userId]);
 
   const canProcessItem = (
     item: (typeof data)[0],

@@ -43,7 +43,7 @@ const INITIAL_FORM_DATA = {
   originDivisionId: "",
   storageId: "",
   targetDivisionIds: [] as string[],
-  pembuatMemo: "",
+  pembuatMemo: null as string | null,
   keteranganMemo: "",
 };
 
@@ -56,7 +56,11 @@ export default function InputMemorandumPage() {
     status === "authenticated" && !canCreateMemorandum;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [formData, setFormData] = useState(INITIAL_FORM_DATA);
+  const [formDraft, setFormData] = useState(INITIAL_FORM_DATA);
+  const formData = {
+    ...formDraft,
+    pembuatMemo: formDraft.pembuatMemo ?? user?.name ?? "",
+  };
   const [file, setFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeadlineModalOpen, setIsDeadlineModalOpen] = useState(false);
@@ -64,14 +68,6 @@ export default function InputMemorandumPage() {
   const [divisionOptions, setDivisionOptions] = useState<DivisionOption[]>([]);
   const [storageOptions, setStorageOptions] = useState<Storage[]>([]);
   const [isMasterLoading, setIsMasterLoading] = useState(true);
-
-  useEffect(() => {
-    if (!user?.name) return;
-
-    setFormData((prev) =>
-      prev.pembuatMemo ? prev : { ...prev, pembuatMemo: user.name },
-    );
-  }, [user?.name]);
 
   useEffect(() => {
     let ignore = false;

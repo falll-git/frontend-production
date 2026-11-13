@@ -135,7 +135,8 @@ export default function SeputarJaminanSubmissionsClient() {
   const [loadedQuery, setLoadedQuery] = useState('');
   const requestKey = JSON.stringify(tab === 'changes' ? [tab, changeCursor, changeState, changeAction, legacyChangePage] : [tab, kind, state, cursor, legacyPage]);
   const loading = pending || loadedQuery !== requestKey;
-  const [error, setError] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<{key: string; message: string} | null>(null);
+  const error = requestError?.key === requestKey ? requestError.message : null;
   const loadSequence = useRef(0);
   const selected = !loading && !error && tab === 'content' ? items.find(item => item.id === detailId) ?? null : null;
   const selectedChange = !loading && !error && tab === 'changes' ? changeRequests.find(item => item.id === detailId) ?? null : null;
@@ -146,37 +147,43 @@ export default function SeputarJaminanSubmissionsClient() {
   const closeDetail = () => updateListQuery({submission: '', change: ''});
   const openChange = (request: SjChangeRequest) => { setResubmitError(null); setResubmitReason(request.reason); updateListQuery({change:request.id}); };
 
-  useEffect(() => {
+  const [reasonSelection, setReasonSelection] = useState<SjChangeRequest | null>(null);
+  if (reasonSelection !== selectedChange) {
+    setReasonSelection(selectedChange);
     setResubmitReason(selectedChange?.reason ?? '');
     setResubmitError(null);
-  }, [selectedChange]);
+  }
 
   const { showToast } = useAppToast();
   useSeputarJaminanModalScrollLock(Boolean(selected) || Boolean(selectedChange));
 
-  const load = useCallback(async () => {
+  const load = useCallback(() => {
     const sequence = ++loadSequence.current;
-    setPending(true);
-    setError(null);
-    try {
+    const readPage = () => {
       if (!validTab) throw new Error('Tab pada tautan ini tidak dikenali. Pilih salah satu tab di atas.');
       const legacy = tab === 'changes' ? legacyChangePage : legacyPage;
       if (legacy !== null && legacy !== '1') throw new Error('Tautan halaman lama tidak dapat dipakai. Kembali ke awal daftar.');
       const pageRequest = tab === 'changes'
         ? seputarJaminanService.getChangeRequestPage({ ...(changeCursor ? {cursor:changeCursor} : {}), ...(changeState ? {state:changeState} : {}), ...(changeAction ? {action:changeAction} : {}), limit:20 })
         : seputarJaminanService.getSubmissionPage({ ...(cursor ? {cursor} : {}), limit:20, ...(kind ? {kind} : {}), ...(state ? {state} : {}) });
-      const [result, nextSettings] = await Promise.all([pageRequest, seputarJaminanService.getSettings()]);
+      return Promise.all([pageRequest, seputarJaminanService.getSettings()] as const);
+    };
+    let request: ReturnType<typeof readPage>;
+    try { request = readPage(); } catch (failure) { request = Promise.reject(failure); }
+    return request.then(([result, nextSettings]) => {
       if (sequence !== loadSequence.current) return;
+      setRequestError(null);
       if (tab === 'changes') { setChangeRequests(result.items as SjChangeRequest[]); setChangeNextCursor(result.page_info.next_cursor); }
       else { setItems(result.items as SjSubmission[]); setNextCursor(result.page_info.next_cursor); }
       setSettings(nextSettings);
-    } catch (loadError) {
+    }).catch((loadError) => {
       if (sequence !== loadSequence.current) return;
-      setError(readableError(loadError));
-    } finally {
+      setRequestError({key: requestKey, message: readableError(loadError)});
+    }).finally(() => {
       if (sequence === loadSequence.current) { setPending(false); setLoadedQuery(requestKey); }
-    }
-  }, [kind, cursor, state, changeCursor, changeState, changeAction, legacyPage, legacyChangePage, tab, validTab, requestKey]);
+    });
+  }, [kind, cursor, state, changeCursor, changeState, changeAction, legacyPage, legacyChangePage, tab, validTab, requestKey, setNextCursor, setChangeNextCursor, setPending, setLoadedQuery]);
+  const reload = async () => { setPending(true); setRequestError(null); await load(); };
 
   const invalidateLoad = useCallback(() => { ++loadSequence.current; }, []);
   useEffect(() => {
@@ -204,7 +211,7 @@ export default function SeputarJaminanSubmissionsClient() {
       await seputarJaminanService.resubmitChangeRequest(selectedChange.id, selectedChange.request_version, reason);
       showToast("Permintaan perubahan diajukan ulang.", "success");
       closeDetail();
-      await load();
+      await reload();
     } catch (submitError) {
       setResubmitError(readableError(submitError));
     } finally {
@@ -220,7 +227,7 @@ export default function SeputarJaminanSubmissionsClient() {
         description="Periksa pengajuan dan tindak lanjuti catatan pemeriksa."
         icon={ClipboardList}
         action={(
-          <SjSecondaryButton loading={loading} onClick={() => void load()}>
+          <SjSecondaryButton loading={loading} onClick={() => void reload()}>
             {!loading ? <RefreshCw className="size-4" aria-hidden="true" /> : null}
             Muat ulang
           </SjSecondaryButton>
@@ -345,7 +352,7 @@ export default function SeputarJaminanSubmissionsClient() {
         </>}
       </SjSection> : null}
 
-      {error && validTab ? <div className="mt-3"><SjSecondaryButton onClick={()=>void load()}>Coba lagi</SjSecondaryButton>{tab==='changes'&&(changeCursor||legacyChangePage)?<SjSecondaryButton onClick={()=>updateListQuery({changes_cursor:'',changes_page:'',change:''})}>Kembali ke awal permintaan</SjSecondaryButton>:null}</div> : null}
+      {error && validTab ? <div className="mt-3"><SjSecondaryButton onClick={()=>void reload()}>Coba lagi</SjSecondaryButton>{tab==='changes'&&(changeCursor||legacyChangePage)?<SjSecondaryButton onClick={()=>updateListQuery({changes_cursor:'',changes_page:'',change:''})}>Kembali ke awal permintaan</SjSecondaryButton>:null}</div> : null}
       {!loading && !error && validTab && detailId && !selected && !selectedChange ? <DashboardNotice tone="amber" title="Detail tidak ada pada halaman ini" description="Periksa filter atau halaman daftar. Tidak ada data lain yang dibuka sebagai pengganti."><SjSecondaryButton onClick={closeDetail}>Tutup rincian</SjSecondaryButton></DashboardNotice> : null}
       </div>
 

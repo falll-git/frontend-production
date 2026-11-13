@@ -2160,11 +2160,14 @@ export default function LaporanPersuratanClient() {
   const { hasCapability, hasFeature, ensureCapability, ensureFeature } =
     useProtectedAction();
   const [activeKind, setActiveKind] = useState<ReportKind | null>(null);
-  const [reportScope, setReportScope] =
+  const [requestedReportScope, setReportScope] =
     useState<CorrespondenceReportScope>("my");
   const [availableReportScopes, setAvailableReportScopes] = useState<
     CorrespondenceReportScope[]
   >(["my"]);
+  const reportScope = availableReportScopes.includes(requestedReportScope)
+    ? requestedReportScope
+    : availableReportScopes[0] ?? "my";
   const [myReportFilter, setMyReportFilter] =
     useState<CorrespondenceMyReportFilter>("active");
   const [searchValue, setSearchValue] = useState("");
@@ -2375,17 +2378,12 @@ export default function LaporanPersuratanClient() {
     [memorandumDisposisiUsers, suratDisposisiUsers],
   );
 
-  const refreshReportData = useCallback(async (): Promise<{
+  const receiveReportData = useCallback((isCurrent: () => boolean): Promise<{
     incoming: SuratMasukRecord[];
     outgoing: SuratKeluarRecord[];
     memorandums: MemorandumRecord[];
   }> => {
-    setIsLoadingSuratMasuk(true);
-    setIsLoadingSuratKeluar(true);
-    setIsLoadingMemorandum(true);
-
-    try {
-      const [report, outgoingReport] = await Promise.all([
+    return Promise.all([
         correspondenceService.getReport({
           scope: reportScope,
           myFilter: reportScope === "my" ? myReportFilter : undefined,
@@ -2394,7 +2392,8 @@ export default function LaporanPersuratanClient() {
           kind: "surat-keluar",
           scope: reportScope,
         }),
-      ]);
+    ]).then(([report, outgoingReport]) => {
+      if (!isCurrent()) return { incoming: [], outgoing: [], memorandums: [] };
       const userNameById = new Map<string, string>();
       const nextAvailableScopes =
         report.filters.available_scopes.length > 0
@@ -2437,7 +2436,8 @@ export default function LaporanPersuratanClient() {
         outgoing: nextOutgoing,
         memorandums: nextMemorandums,
       };
-    } catch (error) {
+    }).catch((error) => {
+      if (!isCurrent()) return { incoming: [], outgoing: [], memorandums: [] };
       showToast(
         error instanceof Error ? error.message : "Gagal memuat data persuratan",
         "error",
@@ -2451,16 +2451,51 @@ export default function LaporanPersuratanClient() {
         outgoing: [],
         memorandums: [],
       };
-    } finally {
-      setIsLoadingSuratMasuk(false);
-      setIsLoadingSuratKeluar(false);
-      setIsLoadingMemorandum(false);
-    }
+    }).finally(() => {
+      if (isCurrent()) {
+        setIsLoadingSuratMasuk(false);
+        setIsLoadingSuratKeluar(false);
+        setIsLoadingMemorandum(false);
+      }
+    });
   }, [myReportFilter, reportScope, showToast]);
 
+  const [reportOwner, setReportOwner] = useState({
+    userId: user?.id,
+    request: receiveReportData,
+  });
+  if (reportOwner.userId !== user?.id || reportOwner.request !== receiveReportData) {
+    setReportOwner({ userId: user?.id, request: receiveReportData });
+    setSuratMasukRecords([]);
+    setSuratKeluarRecords([]);
+    setMemorandumRecords([]);
+    setIsLoadingSuratMasuk(true);
+    setIsLoadingSuratKeluar(true);
+    setIsLoadingMemorandum(true);
+  }
+  const activeReportRequestRef = useRef<{
+    request: typeof receiveReportData;
+    userId: string | undefined;
+  } | null>(null);
   useEffect(() => {
-    void refreshReportData();
-  }, [refreshReportData]);
+    activeReportRequestRef.current = { request: receiveReportData, userId: user?.id };
+    let ignore = false;
+    void receiveReportData(() => !ignore);
+    return () => {
+      ignore = true;
+      activeReportRequestRef.current = null;
+    };
+  }, [receiveReportData, user?.id]);
+
+  const refreshReportData = useCallback(() => {
+    setIsLoadingSuratMasuk(true);
+    setIsLoadingSuratKeluar(true);
+    setIsLoadingMemorandum(true);
+    return receiveReportData(() =>
+      activeReportRequestRef.current?.request === receiveReportData &&
+      activeReportRequestRef.current.userId === user?.id,
+    );
+  }, [receiveReportData, user?.id]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -2546,16 +2581,7 @@ export default function LaporanPersuratanClient() {
   }, [deepLinkIdParam, deepLinkKindParam, reportScope, showToast]);
 
   useEffect(() => {
-    if (!availableReportScopes.includes(reportScope)) {
-      setReportScope(availableReportScopes[0] ?? "my");
-    }
-  }, [availableReportScopes, reportScope]);
-
-  useEffect(() => {
-    if (activeDisposisiSuratId === null) {
-      setSuratDisposisiUsers([]);
-      return;
-    }
+    if (activeDisposisiSuratId === null) return;
 
     let ignore = false;
     const timer = window.setTimeout(async () => {
@@ -2588,10 +2614,7 @@ export default function LaporanPersuratanClient() {
   }, [activeDisposisiSuratId, disposisiUserSearch, showToast]);
 
   useEffect(() => {
-    if (activeMemorandumDisposisiId === null) {
-      setMemorandumDisposisiUsers([]);
-      return;
-    }
+    if (activeMemorandumDisposisiId === null) return;
 
     let ignore = false;
     const timer = window.setTimeout(async () => {
@@ -3882,6 +3905,17 @@ export default function LaporanPersuratanClient() {
     );
   };
 
+  const selectedWorkflowRecord = selectedDetail && selectedDetail.kind !== "surat-keluar"
+    ? selectedDetail.record
+    : null;
+  const currentUserDisposition = getCurrentDispositionForUser<WorkflowDisposition>(
+    selectedWorkflowRecord?.disposisi_history ?? [],
+    user?.id,
+  );
+  const tenggatStatusLabel = selectedWorkflowRecord
+    ? formatWorkflowTenggatStatus(selectedWorkflowRecord, today)
+    : "-";
+
   return (
     <div className="mt-6 space-y-6">
       <SetupReportSelectorCards
@@ -4703,20 +4737,7 @@ export default function LaporanPersuratanClient() {
         }
       >
         {selectedDetail?.kind === "surat-masuk"
-          ? (() => {
-              const currentUserDisposition = getCurrentDispositionForUser(
-                selectedDetail.record.disposisi_history,
-                user?.id,
-              );
-              const statusLabel =
-                selectedDetail.record.statusLabel ??
-                formatSuratMasukStatus(selectedDetail.record.status);
-              const tenggatStatusLabel = formatWorkflowTenggatStatus(
-                selectedDetail.record,
-                today,
-              );
-
-              return (
+          ? (
                 <SetupModalDetailLayout
                   information={
                     <section className="space-y-4">
@@ -4774,7 +4795,7 @@ export default function LaporanPersuratanClient() {
                             />
                             <PersuratanInfoItem
                               label="Status Surat"
-                              value={statusLabel}
+                              value={selectedDetail.record.statusLabel ?? formatSuratMasukStatus(selectedDetail.record.status)}
                             />
                           </div>
 
@@ -4905,8 +4926,7 @@ export default function LaporanPersuratanClient() {
                     />
                   }
                 />
-              );
-            })()
+              )
           : null}
 
         {selectedDetail?.kind === "surat-keluar" ? (
@@ -4999,17 +5019,7 @@ export default function LaporanPersuratanClient() {
         ) : null}
 
         {selectedDetail?.kind === "memorandum"
-          ? (() => {
-              const currentUserDisposition = getCurrentDispositionForUser(
-                selectedDetail.record.disposisi_history,
-                user?.id,
-              );
-              const tenggatStatusLabel = formatWorkflowTenggatStatus(
-                selectedDetail.record,
-                today,
-              );
-
-              return (
+          ? (
                 <SetupModalDetailLayout
                   information={
                     <section className="space-y-4">
@@ -5202,8 +5212,7 @@ export default function LaporanPersuratanClient() {
                     />
                   }
                 />
-              );
-            })()
+              )
           : null}
       </DashboardModal>
 

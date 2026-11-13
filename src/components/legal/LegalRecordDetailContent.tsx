@@ -414,80 +414,90 @@ export function LegalDepositDetailContent({
   item: LegalDeposit;
   onOpenFile: LegalFileOpenHandler;
 }) {
-  const [transactionPage, setTransactionPage] = useState(1);
-  const [transactions, setTransactions] = useState<LegalDepositTransaction[]>(
-    item.transactions,
-  );
+  const [transactionSelection, setTransactionSelection] = useState({
+    itemId: item.id,
+    source: item.transactions,
+    page: 1,
+  });
+  const transactionPage =
+    transactionSelection.itemId === item.id &&
+    transactionSelection.source === item.transactions
+      ? transactionSelection.page
+      : 1;
+  const setTransactionPage = (page: number) =>
+    setTransactionSelection({ itemId: item.id, source: item.transactions, page });
   const initialTransactionTotal =
     item.ledger?.transaction_count ?? item.transactions.length;
   const isTransactionHistoryComplete =
     !item.ledger || item.ledger.history_complete;
-  const [transactionMeta, setTransactionMeta] = useState<PaginationMeta>({
-    page: 1,
-    limit: SETUP_TABLE_PAGE_SIZE,
-    total: initialTransactionTotal,
-    lastPage: Math.max(
-      1,
-      Math.ceil(initialTransactionTotal / SETUP_TABLE_PAGE_SIZE),
-    ),
-  });
-  const [isTransactionLoading, setIsTransactionLoading] = useState(false);
-  const [transactionError, setTransactionError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setTransactionPage(1);
-    setTransactions(item.transactions);
-  }, [item.id, item.transactions]);
-
-  useEffect(() => {
-    if (isTransactionHistoryComplete) {
-      setTransactionMeta({
-        page: 1,
+  const [transactionResult, setTransactionResult] = useState<{
+    itemId: string;
+    source: LegalDepositTransaction[];
+    page: number;
+    items: LegalDepositTransaction[];
+    meta: PaginationMeta;
+    error: string | null;
+  } | null>(null);
+  if (
+    transactionSelection.itemId !== item.id ||
+    transactionSelection.source !== item.transactions
+  ) {
+    setTransactionSelection({ itemId: item.id, source: item.transactions, page: 1 });
+    setTransactionResult(null);
+  }
+  const currentResult =
+    transactionResult?.itemId === item.id &&
+    transactionResult.source === item.transactions &&
+    transactionResult.page === transactionPage
+      ? transactionResult
+      : null;
+  const transactions = isTransactionHistoryComplete
+    ? item.transactions
+    : currentResult?.items ?? (transactionPage === 1 ? item.transactions : []);
+  const transactionMeta: PaginationMeta = isTransactionHistoryComplete
+    ? { page: 1, limit: SETUP_TABLE_PAGE_SIZE, total: initialTransactionTotal, lastPage: 1 }
+    : currentResult?.meta ?? {
+        page: transactionPage,
         limit: SETUP_TABLE_PAGE_SIZE,
-        total: item.ledger?.transaction_count ?? item.transactions.length,
-        lastPage: 1,
-      });
-      setTransactionError(null);
-      return undefined;
-    }
+        total: initialTransactionTotal,
+        lastPage: Math.max(1, Math.ceil(initialTransactionTotal / SETUP_TABLE_PAGE_SIZE)),
+      };
+  const isTransactionLoading = !isTransactionHistoryComplete && !currentResult;
+  const transactionError = isTransactionHistoryComplete ? null : currentResult?.error;
 
+  useEffect(() => {
+    if (isTransactionHistoryComplete) return;
     let ignore = false;
 
     async function loadTransactions() {
+      const owner = { itemId: item.id, source: item.transactions, page: transactionPage };
       try {
-        setIsTransactionLoading(true);
-        setTransactionError(null);
         const result = await legalService.getDepositTransactionsPage({
           deposit_id: item.id,
           page: transactionPage,
           limit: SETUP_TABLE_PAGE_SIZE,
         });
-        if (ignore) return;
-        setTransactions(result.items);
-        setTransactionMeta(result.meta);
+        if (!ignore) {
+          setTransactionResult({ ...owner, ...result, error: null });
+        }
       } catch (error) {
         if (ignore) return;
-        setTransactionError(
-          error instanceof Error
-            ? error.message
-            : "Riwayat transaksi tidak dapat dimuat.",
-        );
-      } finally {
-        if (!ignore) setIsTransactionLoading(false);
+        setTransactionResult({
+          ...owner,
+          items: transactionPage === 1 ? item.transactions : [],
+          meta: {
+            page: transactionPage,
+            limit: SETUP_TABLE_PAGE_SIZE,
+            total: initialTransactionTotal,
+            lastPage: Math.max(1, Math.ceil(initialTransactionTotal / SETUP_TABLE_PAGE_SIZE)),
+          },
+          error: error instanceof Error ? error.message : "Riwayat transaksi tidak dapat dimuat.",
+        });
       }
     }
-
     void loadTransactions();
-    return () => {
-      ignore = true;
-    };
-  }, [
-    isTransactionHistoryComplete,
-    item.id,
-    item.ledger?.transaction_count,
-    item.transactions.length,
-    transactionPage,
-  ]);
+    return () => { ignore = true; };
+  }, [initialTransactionTotal, isTransactionHistoryComplete, item.id, item.transactions, transactionPage]);
 
   const attachmentFiles = resolveDepositFiles({ ...item, transactions });
 

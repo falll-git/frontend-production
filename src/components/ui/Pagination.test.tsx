@@ -59,4 +59,20 @@ describe("Pagination", () => {
 
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("resets an unfinished draft on external page changes while preserving input focus", async () => {
+    const user = userEvent.setup();
+    const onPageChange = vi.fn();
+    const view = render(<Pagination page={2} lastPage={5} onPageChange={onPageChange} />);
+    const input = screen.getByRole('spinbutton', { name: 'Halaman' });
+    await user.clear(input);
+    await user.type(input, '4');
+    expect(input).toHaveValue(4);
+    view.rerender(<Pagination page={3} lastPage={5} onPageChange={onPageChange} />);
+    expect(input).toHaveValue(3);
+    expect(input).toHaveFocus();
+    view.rerender(<Pagination page={2} lastPage={5} onPageChange={onPageChange} />);
+    expect(input).toHaveValue(2);
+    expect(onPageChange).not.toHaveBeenCalled();
+  });
 });

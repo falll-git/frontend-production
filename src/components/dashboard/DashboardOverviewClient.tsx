@@ -319,21 +319,25 @@ function getDashboardReportSectionOrder(widget: DashboardMenuNode): number {
 
 export default function DashboardOverviewClient() {
   const { user, role, status } = useAuth();
-  const [isWidgetLoading, setIsWidgetLoading] = useState(false);
+  const [isWidgetLoading, setIsWidgetLoading] = useState(status === "authenticated");
   const [dashboardWidgets, setDashboardWidgets] = useState<DashboardMenuNode[]>(
     [],
   );
+  const [widgetOwner, setWidgetOwner] = useState({ status, userId: user?.id, role });
+  if (widgetOwner.status !== status || widgetOwner.userId !== user?.id || widgetOwner.role !== role) {
+    setWidgetOwner({ status, userId: user?.id, role });
+    setDashboardWidgets([]);
+    setIsWidgetLoading(status === "authenticated");
+  }
 
   useEffect(() => {
     if (status !== "authenticated") {
-      setDashboardWidgets([]);
       return;
     }
 
     let ignore = false;
 
     async function loadDashboardWidgets() {
-      setIsWidgetLoading(true);
       try {
         const items = await menuService.getDashboardWidgets();
         if (!ignore) setDashboardWidgets(items);
@@ -349,7 +353,7 @@ export default function DashboardOverviewClient() {
     return () => {
       ignore = true;
     };
-  }, [status]);
+  }, [role, status, user?.id]);
 
   const widgetCards = useMemo(
     () => dashboardWidgets.filter(canRenderDashboardWidget),

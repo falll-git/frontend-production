@@ -179,16 +179,20 @@ export default function SetupWatermarkDokumenPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isDeletingImage, setIsDeletingImage] = useState(false);
   const [isApplyingExisting, setIsApplyingExisting] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [selectedImage, setSelectedImageFile] = useState<File | null>(null);
   const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState<
     string | null
   >(null);
-  const [storedImagePreviewUrl, setStoredImagePreviewUrl] = useState<
-    string | null
+  const [storedImagePreview, setStoredImagePreview] = useState<
+    { path: string; url: string } | null
   >(null);
 
   const canUpdate = hasCapability(PAGE_URL, "update");
   const options = settings?.options ?? EMPTY_OPTIONS;
+  const storedImagePreviewUrl =
+    storedImagePreview?.path === settings?.image_path
+      ? storedImagePreview?.url ?? null
+      : null;
   const previewImageUrl = selectedImagePreviewUrl ?? storedImagePreviewUrl;
   const previewContext = useMemo(() => {
     const now = new Date();
@@ -238,26 +242,22 @@ export default function SetupWatermarkDokumenPage() {
     };
   }, [showToast]);
 
+  function setSelectedImage(file: File | null) {
+    setSelectedImageFile(file);
+    setSelectedImagePreviewUrl(file ? URL.createObjectURL(file) : null);
+  }
+
   useEffect(() => {
-    if (!selectedImage) {
-      setSelectedImagePreviewUrl(null);
-      return undefined;
-    }
-
-    const nextUrl = URL.createObjectURL(selectedImage);
-    setSelectedImagePreviewUrl(nextUrl);
-
-    return () => {
-      URL.revokeObjectURL(nextUrl);
-    };
-  }, [selectedImage]);
+    if (!selectedImagePreviewUrl) return;
+    return () => URL.revokeObjectURL(selectedImagePreviewUrl);
+  }, [selectedImagePreviewUrl]);
 
   useEffect(() => {
     let disposed = false;
     let objectUrl: string | null = null;
 
-    setStoredImagePreviewUrl(null);
-    if (!settings?.image_path) {
+    const imagePath = settings?.image_path;
+    if (!imagePath) {
       return undefined;
     }
 
@@ -268,10 +268,10 @@ export default function SetupWatermarkDokumenPage() {
           return;
         }
         objectUrl = URL.createObjectURL(blob);
-        setStoredImagePreviewUrl(objectUrl);
+        setStoredImagePreview({ path: imagePath, url: objectUrl });
       })
       .catch(() => {
-        if (!disposed) setStoredImagePreviewUrl(null);
+        if (!disposed) setStoredImagePreview(null);
       });
 
     return () => {

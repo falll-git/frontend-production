@@ -476,36 +476,23 @@ export default function SetupRoleMenuPage() {
     [flatMenus],
   );
 
-  const loadPageData = useCallback(async () => {
-    setIsPageLoading(true);
-
-    try {
-      const [roleList, menuTree] = await Promise.all([
-        roleService.getAll(),
-        menuService.getAllForManagement(),
-      ]);
-
-      setRoles(
-        [...roleList].sort((left, right) =>
-          left.name.localeCompare(right.name),
-        ),
-      );
-      setFlatMenus(flattenMenus(menuTree));
-    } catch (error) {
-      showToast(
-        error instanceof Error
-          ? error.message
-          : "Gagal memuat data akses menu role",
-        "error",
-      );
-    } finally {
-      setIsPageLoading(false);
-    }
-  }, [showToast]);
-
   useEffect(() => {
-    void loadPageData();
-  }, [loadPageData]);
+    let ignore = false;
+    void Promise.all([roleService.getAll(), menuService.getAllForManagement()])
+      .then(([roleList, menuTree]) => {
+        if (ignore) return;
+        setRoles([...roleList].sort((left, right) => left.name.localeCompare(right.name)));
+        setFlatMenus(flattenMenus(menuTree));
+      })
+      .catch((error) => {
+        if (!ignore) showToast(
+          error instanceof Error ? error.message : "Gagal memuat data akses menu role",
+          "error",
+        );
+      })
+      .finally(() => { if (!ignore) setIsPageLoading(false); });
+    return () => { ignore = true; };
+  }, [showToast]);
 
   const applyFetchedPermissions = useCallback(
     (items: RoleMenuPermission[]) => {
@@ -517,18 +504,25 @@ export default function SetupRoleMenuPage() {
     [flatMenus, supportByMenuId],
   );
 
+  const [permissionOwner, setPermissionOwner] = useState({
+    roleId: selectedRoleId,
+    menus: flatMenus,
+  });
+  if (permissionOwner.roleId !== selectedRoleId || permissionOwner.menus !== flatMenus) {
+    setPermissionOwner({ roleId: selectedRoleId, menus: flatMenus });
+    setSelectedRolePermissions([]);
+    setDraftPermissions({});
+    setInitialPermissions({});
+    setIsPermissionsLoading(Boolean(selectedRoleId && flatMenus.length));
+    setFeatureModalMenuId(null);
+  }
+
   useEffect(() => {
-    if (!selectedRoleId || flatMenus.length === 0) {
-      setSelectedRolePermissions([]);
-      setDraftPermissions({});
-      setInitialPermissions({});
-      return;
-    }
+    if (!selectedRoleId || flatMenus.length === 0) return;
 
     let ignore = false;
 
     async function loadPermissions() {
-      setIsPermissionsLoading(true);
       try {
         const items = await roleMenuService.getByRoleId(selectedRoleId);
         if (!ignore) {

@@ -71,6 +71,7 @@ const INITIAL_PAGINATION_META: PaginationMeta = {
   ...DEFAULT_PAGINATION_META,
   limit: OPERATIONAL_TABLE_PAGE_SIZE,
 };
+const EMPTY_LOANS: Peminjaman[] = [];
 
 const STATUS_FILTER_TO_API: Record<
   string,
@@ -201,12 +202,6 @@ export default function LaporanPeminjamanPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageLoans, setPageLoans] = useState<Peminjaman[]>([]);
-  const [reportLoans, setReportLoans] = useState<Peminjaman[]>([]);
-  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>(
-    INITIAL_PAGINATION_META,
-  );
-  const [isLoading, setIsLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<LaporanPeminjamanRow | null>(
     null,
   );
@@ -225,6 +220,32 @@ export default function LaporanPeminjamanPage() {
     }),
     [debouncedSearch, filterStatus, normalizedFrom, normalizedTo],
   );
+  const reportQueryKey = JSON.stringify(reportQuery);
+  const [paginationQuery, setPaginationQuery] = useState(reportQueryKey);
+  if (paginationQuery !== reportQueryKey) {
+    setPaginationQuery(reportQueryKey);
+    setCurrentPage(1);
+  }
+  const [pageResult, setPageResult] = useState<{
+    queryKey: string;
+    page: number;
+    items: Peminjaman[];
+    meta: PaginationMeta;
+  } | null>(null);
+  const [reportResult, setReportResult] = useState<{
+    queryKey: string;
+    items: Peminjaman[];
+  } | null>(null);
+  const currentPageResult =
+    pageResult?.queryKey === reportQueryKey && pageResult.page === currentPage
+      ? pageResult
+      : null;
+  const pageLoans = currentPageResult?.items ?? EMPTY_LOANS;
+  const reportLoans = reportResult?.queryKey === reportQueryKey
+    ? reportResult.items
+    : EMPTY_LOANS;
+  const paginationMeta = currentPageResult?.meta ?? INITIAL_PAGINATION_META;
+  const isLoading = currentPageResult === null;
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -237,14 +258,9 @@ export default function LaporanPeminjamanPage() {
   }, [searchTerm]);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [reportQuery]);
-
-  useEffect(() => {
     let ignore = false;
 
     async function loadPage() {
-      setIsLoading(true);
       try {
         const result = await peminjamanService.getReportPage({
           ...reportQuery,
@@ -252,12 +268,20 @@ export default function LaporanPeminjamanPage() {
           limit: OPERATIONAL_TABLE_PAGE_SIZE,
         });
         if (ignore) return;
-        setPageLoans(result.items);
-        setPaginationMeta(result.meta);
+        setPageResult({
+          queryKey: reportQueryKey,
+          page: currentPage,
+          items: result.items,
+          meta: result.meta,
+        });
       } catch (error) {
         if (!ignore) {
-          setPageLoans([]);
-          setPaginationMeta(INITIAL_PAGINATION_META);
+          setPageResult({
+            queryKey: reportQueryKey,
+            page: currentPage,
+            items: EMPTY_LOANS,
+            meta: INITIAL_PAGINATION_META,
+          });
           showToast(
             error instanceof Error
               ? error.message
@@ -265,8 +289,6 @@ export default function LaporanPeminjamanPage() {
             "error",
           );
         }
-      } finally {
-        if (!ignore) setIsLoading(false);
       }
     }
 
@@ -275,7 +297,7 @@ export default function LaporanPeminjamanPage() {
     return () => {
       ignore = true;
     };
-  }, [currentPage, reportQuery, showToast]);
+  }, [currentPage, reportQuery, reportQueryKey, showToast]);
 
   useEffect(() => {
     let ignore = false;
@@ -283,9 +305,9 @@ export default function LaporanPeminjamanPage() {
     async function loadReportRows() {
       try {
         const result = await peminjamanService.getReport(reportQuery);
-        if (!ignore) setReportLoans(result);
+        if (!ignore) setReportResult({ queryKey: reportQueryKey, items: result });
       } catch {
-        if (!ignore) setReportLoans([]);
+        if (!ignore) setReportResult({ queryKey: reportQueryKey, items: [] });
       }
     }
 
@@ -294,7 +316,7 @@ export default function LaporanPeminjamanPage() {
     return () => {
       ignore = true;
     };
-  }, [reportQuery]);
+  }, [reportQuery, reportQueryKey]);
 
   const riwayatPeminjaman = useMemo(
     () => reportLoans.map((item) => mapLoanReportRow(item)),
@@ -616,6 +638,7 @@ export default function LaporanPeminjamanPage() {
           lastPage={paginationMeta.lastPage}
           total={paginationMeta.total}
           limit={paginationMeta.limit}
+          isLoading={isLoading}
           onPageChange={setCurrentPage}
         />
       </SetupTableCard>

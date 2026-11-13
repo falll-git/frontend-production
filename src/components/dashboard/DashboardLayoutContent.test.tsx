@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DashboardLayoutContent from './DashboardLayoutContent';
+type RbacModule = typeof import('@/lib/rbac');
 
 const context = vi.hoisted(() => ({ pathname: '/dashboard/seputar-jaminan/profil', roleLabel: 'Operator' }));
 vi.mock('next/navigation', () => ({ usePathname: () => context.pathname, useRouter: () => ({ replace: vi.fn() }) }));
@@ -8,7 +9,7 @@ vi.mock('@/components/auth/AuthProvider', () => ({ useAuth: () => ({ status: 'au
 vi.mock('@/components/ui/DocumentPreviewContext', () => ({ useDocumentPreviewContext: () => ({ isPreviewOpen: false }) }));
 vi.mock('@/components/ui/AppToastProvider', () => ({ useAppToast: () => ({ showToast: vi.fn() }) }));
 vi.mock('@/components/Notification', () => ({ default: () => null }));
-vi.mock('@/lib/rbac', async (importOriginal) => ({ ...await importOriginal<typeof import('@/lib/rbac')>(), RBAC_DENIED_MESSAGE: 'Ditolak', filterMenuTreeForRoleRead: () => [], getMenuTitleForPath: () => 'Halaman uji', getRoleLabel: () => context.roleLabel, getDashboardRouteDecision: () => ({ allowed: true }) }));
+vi.mock('@/lib/rbac', async (importOriginal) => ({ ...await importOriginal<RbacModule>(), RBAC_DENIED_MESSAGE: 'Ditolak', filterMenuTreeForRoleRead: () => [], getMenuTitleForPath: () => 'Halaman uji', getRoleLabel: () => context.roleLabel, getDashboardRouteDecision: () => ({ allowed: true }) }));
 
 describe('Shared mobile navigation', () => {
   beforeEach(() => { sessionStorage.clear(); context.roleLabel = 'Operator'; });

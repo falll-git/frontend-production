@@ -816,11 +816,14 @@ export default function CetakDokumenClient() {
   const { openPreview } = useDocumentPreviewContext();
   const { showToast } = useAppToast();
   const [activeKind, setActiveKind] = useState<DocumentKind>("surat-masuk");
-  const [reportScope, setReportScope] =
+  const [requestedReportScope, setReportScope] =
     useState<CorrespondenceReportScope>("my");
   const [availableReportScopes, setAvailableReportScopes] = useState<
     CorrespondenceReportScope[]
   >(["my"]);
+  const reportScope = availableReportScopes.includes(requestedReportScope)
+    ? requestedReportScope
+    : availableReportScopes[0] ?? "my";
   const [myReportFilter, setMyReportFilter] =
     useState<CorrespondenceMyReportFilter>("active");
   const [sortValue, setSortValue] = useState<"tanggal-desc" | "tanggal-asc">(
@@ -843,18 +846,27 @@ export default function CetakDokumenClient() {
         )
       : REPORT_SCOPE_OPTIONS;
 
-  useEffect(() => {
-    if (!availableReportScopes.includes(reportScope)) {
-      setReportScope(availableReportScopes[0] ?? "my");
-    }
-  }, [availableReportScopes, reportScope]);
+  const [printOwner, setPrintOwner] = useState({
+    activeKind,
+    scope: displayedReportScope,
+    filter: effectiveMyReportFilter,
+  });
+  if (
+    printOwner.activeKind !== activeKind ||
+    printOwner.scope !== displayedReportScope ||
+    printOwner.filter !== effectiveMyReportFilter
+  ) {
+    setPrintOwner({ activeKind, scope: displayedReportScope, filter: effectiveMyReportFilter });
+    setIsLoading(true);
+    setPrintableData([]);
+    setSelectedRecordId(null);
+    setDetailRecord(null);
+  }
 
   useEffect(() => {
     let ignore = false;
 
     async function loadData() {
-      setIsLoading(true);
-
       try {
         const { filters, items } =
           await correspondenceService.getPrintableDocuments({

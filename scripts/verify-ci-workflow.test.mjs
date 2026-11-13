@@ -13,7 +13,7 @@ const securityWorkflow = fs.readFileSync(path.resolve(".github", "workflows", "s
 
 test("workflow Quality memenuhi kebijakan CI quality-only", () => {
   assert.deepEqual(validateQualityWorkflow(workflow), {
-    checkout_count: 2,
+    checkout_count: 3,
     deployment_capability: false,
   });
 });
@@ -104,6 +104,22 @@ test("dependency-audit Security terpin tanpa melarang permission CodeQL yang sah
   assert.deepEqual(validateSecurityDependencyWorkflow(securityWorkflow), {
     npm_version: "11.21.0", age_check_before_ci: true,
   });
+});
+
+test("Security menolak cache npm yang berjalan sebelum bootstrap versi pinned", () => {
+  const changed = securityWorkflow.replace("          node-version: 24", "          node-version: 24\n          cache: npm");
+  assert.throws(() => validateSecurityDependencyWorkflow(changed), /Cache npm.*sebelum bootstrap/);
+});
+
+test("Quality mewajibkan Control peer beserta dependency runtime bagi pure backend tests", () => {
+  for (const changed of [
+    workflow.replace("repository: falll-git/ruwang-control", "repository: falll-git/different-peer"),
+    workflow.replace("path: ruwang-control", "path: misplaced-control"),
+    workflow.replace("run: npm ci --omit=dev", "run: echo no-control-dependencies"),
+    workflow.replace("      - name: Install Control domain peer dependencies", "      - name: Install Control domain peer dependencies\n        if: false"),
+  ]) {
+    assert.throws(() => validateQualityWorkflow(changed), /Pure backend tests/);
+  }
 });
 
 for (const [label, mutate] of [

@@ -308,22 +308,23 @@ export default function LaporanTitipanSection({
     };
   }, []);
 
+  const [depositOwner, setDepositOwner] = useState({ type: selectedJenisTitipan, page: depositPage });
+  if (depositOwner.type !== selectedJenisTitipan || depositOwner.page !== depositPage) {
+    setDepositOwner({ type: selectedJenisTitipan, page: depositPage });
+    setDepositRecords([]);
+    setDepositMeta({ ...EMPTY_META, page: depositPage });
+    setDepositErrorMessage(null);
+    setIsDepositLoading(Boolean(selectedJenisTitipan));
+  }
+
   useEffect(() => {
-    if (!selectedJenisTitipan) {
-      setDepositRecords([]);
-      setDepositMeta(EMPTY_META);
-      setDepositErrorMessage(null);
-      return;
-    }
+    if (!selectedJenisTitipan) return;
 
     let ignore = false;
     const typeToLoad = selectedJenisTitipan;
 
     async function loadDeposits() {
       try {
-        setIsDepositLoading(true);
-        setDepositErrorMessage(null);
-        setDepositRecords([]);
         const result = await legalService.getDepositsPage({
           page: depositPage,
           limit: SETUP_TABLE_PAGE_SIZE,

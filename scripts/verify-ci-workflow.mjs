@@ -67,6 +67,9 @@ export function validateNpmPolicyWorkflow(source, { jobId, frontendDirectory }) 
   for (const [index, step] of steps.entries()) {
     if (index !== bootstrap && bypass.test(step)) errors.push("Langkah dependency tidak boleh membawa override policy npm.");
     if (/\bnpm\s+ci\b/.test(step) && index < bootstrap) errors.push("npm ci tidak boleh berjalan sebelum bootstrap npm pinned.");
+    if (!frontendDirectory && index < bootstrap && /^\s+cache:\s*npm\s*$/m.test(step)) {
+      errors.push("Cache npm pada root checkout tidak boleh memanggil npm sebelum bootstrap versi pinned.");
+    }
   }
   if (errors.length) throw new Error(`Workflow npm policy ${jobId} tidak sesuai:\n- ${errors.join("\n- ")}`);
   return { npm_version: REQUIRED_NPM_VERSION, age_check_before_ci: true };
@@ -121,8 +124,21 @@ export function validateQualityWorkflow(source) {
   const checkoutCount = (
     text.match(/uses:\s*actions\/checkout@[0-9a-f]{40}/gi) || []
   ).length;
-  if (checkoutCount < 2) {
-    errors.push("Workflow wajib checkout frontend dan backend dengan action terpin.");
+  if (checkoutCount < 3) {
+    errors.push("Workflow wajib checkout frontend, backend, dan Control dengan action terpin.");
+  }
+
+  const { steps } = jobSteps(text, "release-quality");
+  const controlCheckout = steps.findIndex(step => /^\s+repository:\s*falll-git\/ruwang-control\s*$/m.test(step));
+  const controlInstall = steps.findIndex(step => /^      - name: Install Control domain peer dependencies\s*$/m.test(step));
+  const bootstrap = steps.findIndex(step => /^      - name: Bootstrap pinned npm in ephemeral runner\s*$/m.test(step));
+  const gate = steps.findIndex(step => /^\s+run:\s*npm run quality:release\s*$/m.test(step));
+  if (controlCheckout < 0 || !/^\s+path:\s*ruwang-control\s*$/m.test(steps[controlCheckout]) ||
+      controlInstall <= bootstrap || controlInstall <= controlCheckout || controlInstall >= gate ||
+      !/^        working-directory: ruwang-control\s*$/m.test(steps[controlInstall] || "") ||
+      !/^        run: npm ci --omit=dev\s*$/m.test(steps[controlInstall] || "") ||
+      /^\s+(?:if|continue-on-error):/m.test((steps[controlCheckout] || "") + "\n" + (steps[controlInstall] || ""))) {
+    errors.push("Pure backend tests wajib membaca checkout Control asli beserta dependency runtime sebelum quality gate.");
   }
 
   const detachedCheckoutCount = (

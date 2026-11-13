@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { clampPage } from "@/lib/pagination";
@@ -31,11 +31,12 @@ export default function Pagination({
   const inputId = useId();
   const normalizedLastPage = Math.max(1, lastPage);
   const currentPage = clampPage(page, normalizedLastPage);
-  const [draftPage, setDraftPage] = useState(String(currentPage));
-
-  useEffect(() => {
-    setDraftPage(String(currentPage));
-  }, [currentPage]);
+  const [draft, setDraft] = useState({ page: currentPage, value: String(currentPage) });
+  if (draft.page !== currentPage) {
+    setDraft({ page: currentPage, value: String(currentPage) });
+  }
+  const draftPage = draft.page === currentPage ? draft.value : String(currentPage);
+  const setDraftPage = (value: string) => setDraft({ page: currentPage, value });
 
   if (normalizedLastPage <= 1 && (!total || total <= (limit ?? total))) {
     return null;

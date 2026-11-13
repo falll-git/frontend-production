@@ -321,11 +321,15 @@ export default function SeputarJaminanCatalogClient() {
   const categoryFilter = listQuery.get("category") ?? "";
   const confirmation = listQuery.get('confirmation') ?? '';
   const setCategoryFilter = (value: string) => updateListQuery({category: value, page: '', cursor: ''});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const requestKey = JSON.stringify([categoryFilter, confirmation, cursor, legacyPage, search, stateFilter, sort]);
+  const [loadedRequest, setLoadedRequest] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const loading = refreshing || loadedRequest !== requestKey;
+  const [requestError, setRequestError] = useState<{key: string; message: string} | null>(null);
+  const error = requestError?.key === requestKey ? requestError.message : null;
   const [formOpen, setFormOpen] = useState(false);
   const [detail, setDetail] = useState<SjPublication | null>(null);
-  const [detailBusy,setDetailBusy]=useState(false);
+  const [detailBusy,setDetailBusy]=useState(Boolean(detailId));
   const [detailError,setDetailError]=useState<string|null>(null);
   const [savedSubmissionNotice,setSavedSubmissionNotice]=useState<{id:string;message:string}|null>(null);
   const [detailReload,setDetailReload]=useState(0);
@@ -363,6 +367,13 @@ export default function SeputarJaminanCatalogClient() {
   const [actionLoading, setActionLoading] = useState(false);
   const [unpublishConfirm, setUnpublishConfirm] = useState(false);
   const [archiveConfirm, setArchiveConfirm] = useState(false);
+  const detailIdentity = `${detailId}:${detailReload}`;
+  const [storedDetailIdentity, setStoredDetailIdentity] = useState(detailIdentity);
+  if (storedDetailIdentity !== detailIdentity) {
+    setStoredDetailIdentity(detailIdentity);
+    setDetail(null); setDetailError(null); setCommandError(null);
+    setUnpublishConfirm(false); setArchiveConfirm(false); setDetailBusy(Boolean(detailId));
+  }
   const [changeRequest, setChangeRequest] = useState<{
     target: SjChangeRequestTarget;
     actions: SjChangeRequestAction[];
@@ -379,14 +390,12 @@ export default function SeputarJaminanCatalogClient() {
     return action.available;
   };
 
-  const load = useCallback(async () => {
+  const load = useCallback(() => {
     const requestId = ++loadRequestRef.current;
-    setLoading(true);
-    setError(null);
-    try {
+    const readPage = () => {
       if(sort!=='created_desc')throw new Error('Urutan pada tautan ini tidak didukung. Atur ulang untuk memakai urutan terbaru dibuat.');
       if (legacyPage !== null && legacyPage !== '1') throw new Error('Tautan halaman lama tidak dapat dipakai. Ubah filter atau hapus nomor halaman untuk mulai dari awal.');
-      const [result, nextSettings] = await Promise.all([
+      return Promise.all([
         seputarJaminanService.getPublicationPage({
           ...(cursor ? {cursor} : {}),
           limit: 20,
@@ -396,18 +405,24 @@ export default function SeputarJaminanCatalogClient() {
           ...(confirmation ? { confirmation } : {}),
         }),
         seputarJaminanService.getSettings(),
-      ]);
+      ] as const);
+    };
+    let request: ReturnType<typeof readPage>;
+    try { request = readPage(); } catch (failure) { request = Promise.reject(failure); }
+    return request.then(([result, nextSettings]) => {
       if (requestId !== loadRequestRef.current) return;
+      setRequestError(null);
       setItems(result.items);
       setNextCursor(result.page_info.next_cursor);
       setSettings(nextSettings);
-    } catch (loadError) {
+    }).catch((loadError) => {
       if (requestId !== loadRequestRef.current) return;
-      setError(readableError(loadError));
-    } finally {
-      if (requestId === loadRequestRef.current) setLoading(false);
-    }
-  }, [categoryFilter, confirmation, cursor, legacyPage, search, stateFilter, sort]);
+      setRequestError({key: requestKey, message: readableError(loadError)});
+    }).finally(() => {
+      if (requestId === loadRequestRef.current) { setRefreshing(false); setLoadedRequest(requestKey); }
+    });
+  }, [categoryFilter, confirmation, cursor, legacyPage, search, stateFilter, sort, requestKey, setNextCursor]);
+  const reload = async () => { setRefreshing(true); setRequestError(null); await load(); };
 
   useEffect(() => {
     const sequence=loadRequestRef;
@@ -416,9 +431,8 @@ export default function SeputarJaminanCatalogClient() {
   }, [load]);
 
   useEffect(()=>{
-    let active=true;setDetail(null);setDetailError(null);setCommandError(null);setUnpublishConfirm(false);setArchiveConfirm(false);
-    if(!detailId){setDetailBusy(false);return;}
-    setDetailBusy(true);
+    let active=true;
+    if(!detailId)return;
     void (async()=>{
       try{
         if(!/^[a-zA-Z0-9-]{1,64}$/.test(detailId))throw new Error('Identitas publikasi pada tautan tidak valid.');
@@ -681,14 +695,14 @@ export default function SeputarJaminanCatalogClient() {
         setFormOpen(false);
         updateListQuery({detail:result.resource_id});
         setDetailReload(value=>value+1);
-        await load();
+        await reload();
         return;
       }
       showToast(result.intent === 'SAVE_AND_SUBMIT' ? 'Publikasi disimpan dan diajukan untuk diperiksa.' : 'Draf publikasi berhasil disimpan.', 'success');
       setSavedSubmissionNotice(null);
       setFormOpen(false);
       setDetailReload(value=>value+1);
-      await load();
+      await reload();
     } catch (saveError) {
       setFormError(readableError(saveError));
       focusSaveError.current = true;
@@ -760,7 +774,7 @@ export default function SeputarJaminanCatalogClient() {
       );
       setUnpublishConfirm(false);setArchiveConfirm(false);
       closeDetail();
-      await load();
+      await reload();
     } catch (commandError) {
       setCommandError(readableError(commandError));
     } finally {
@@ -810,7 +824,7 @@ export default function SeputarJaminanCatalogClient() {
         title="Daftar Publikasi"
         description="Kelola draf dan status publikasi. Harga, dokumen internal, serta identitas nasabah tidak pernah ditampilkan di website publik."
         icon={Store}
-        action={<><SjSecondaryButton disabled={loading || formOpen || Boolean(detailId)} aria-busy={loading || undefined} onClick={() => void load()} aria-label="Muat ulang daftar publikasi"><RefreshCw className={loading ? "size-4 motion-safe:animate-spin" : "size-4"} aria-hidden="true" />Muat ulang</SjSecondaryButton>{sjEntryAction(settings,'create_publication').reason_code!=='PERMISSION_DENIED'?<SjPrimaryButton {...sjEntryButton(settings,'create_publication')} loading={saving} onClick={() => void openCreate()}><Plus className="size-4" aria-hidden="true" />Buat publikasi</SjPrimaryButton>:null}</>}
+        action={<><SjSecondaryButton disabled={loading || formOpen || Boolean(detailId)} aria-busy={loading || undefined} onClick={() => void reload()} aria-label="Muat ulang daftar publikasi"><RefreshCw className={loading ? "size-4 motion-safe:animate-spin" : "size-4"} aria-hidden="true" />Muat ulang</SjSecondaryButton>{sjEntryAction(settings,'create_publication').reason_code!=='PERMISSION_DENIED'?<SjPrimaryButton {...sjEntryButton(settings,'create_publication')} loading={saving} onClick={() => void openCreate()}><Plus className="size-4" aria-hidden="true" />Buat publikasi</SjPrimaryButton>:null}</>}
       />
 
       <SjSection
@@ -924,7 +938,7 @@ export default function SeputarJaminanCatalogClient() {
         </SetupTableScroll>
         {!error ? <SjCursorNavigation key={`${search}:${stateFilter}:${categoryFilter}:${confirmation}`} busy={loading} label="publikasi" count={items.length} cursor={cursor} next={nextCursor} onNavigate={value => updateListQuery({cursor:value,page:''})} /> : null}
         {error && (cursor || legacyPage) ? <SjSecondaryButton onClick={() => updateListQuery({cursor:'',page:''})}>Kembali ke awal daftar</SjSecondaryButton> : null}
-        {error?<div className="p-4"><SjSecondaryButton onClick={()=>void load()}>Coba muat ulang daftar</SjSecondaryButton></div>:null}
+        {error?<div className="p-4"><SjSecondaryButton onClick={()=>void reload()}>Coba muat ulang daftar</SjSecondaryButton></div>:null}
       </SjSection>
 
       <DashboardModal
@@ -1392,7 +1406,7 @@ export default function SeputarJaminanCatalogClient() {
         target={changeRequest?.target ?? null}
         actions={changeRequest?.actions ?? []}
         onClose={() => setChangeRequest(null)}
-        onSubmitted={async()=>{await load();setDetailReload(value=>value+1);}}
+        onSubmitted={async()=>{await reload();setDetailReload(value=>value+1);}}
       />
     </DashboardPageShell>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CalendarClock, Save } from "lucide-react";
 
 import DashboardModal from "@/components/ui/DashboardModal";
@@ -195,20 +195,35 @@ export function CollateralExpiryModal({
   onClose: () => void;
   onSave: (payload: DebtorCollateralExpiryPayload) => Promise<void>;
 }) {
-  const [hasExpiryDate, setHasExpiryDate] = useState(false);
-  const [expiryDate, setExpiryDate] = useState("");
-  const [expiryNote, setExpiryNote] = useState("");
+  if (!isOpen || !item) return null;
+  return (
+    <CollateralExpiryForm
+      key={item.id}
+      item={item}
+      onClose={onClose}
+      onSave={onSave}
+    />
+  );
+}
+
+function CollateralExpiryForm({ item, onClose, onSave }: {
+  item: DebtorCollateral;
+  onClose: () => void;
+  onSave: (payload: DebtorCollateralExpiryPayload) => Promise<void>;
+}) {
+  const [hasExpiryDate, setHasExpiryDate] = useState(item.has_expiry_date === true);
+  const [expiryDate, setExpiryDate] = useState(item.expiry_date?.slice(0, 10) ?? "");
+  const [expiryNote, setExpiryNote] = useState(item.expiry_note ?? "");
   const [isSaving, setIsSaving] = useState(false);
+  const isMounted = useRef(false);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
   const expiryPreview = useMemo(
     () => buildExpiryPreview(hasExpiryDate, expiryDate),
     [expiryDate, hasExpiryDate],
   );
-
-  useEffect(() => {
-    setHasExpiryDate(item?.has_expiry_date === true);
-    setExpiryDate(item?.expiry_date?.slice(0, 10) ?? "");
-    setExpiryNote(item?.expiry_note ?? "");
-  }, [item]);
 
   const save = async () => {
     if (!item || isSaving || (hasExpiryDate && !expiryDate)) return;
@@ -219,17 +234,17 @@ export function CollateralExpiryModal({
         expiry_date: hasExpiryDate ? expiryDate : null,
         expiry_note: expiryNote.trim() || null,
       });
-      onClose();
+      if (isMounted.current) onClose();
     } catch {
       // Parent menampilkan pesan error dan modal tetap terbuka untuk koreksi.
     } finally {
-      setIsSaving(false);
+      if (isMounted.current) setIsSaving(false);
     }
   };
 
   return (
     <DashboardModal
-      isOpen={isOpen && item !== null}
+      isOpen
       title="Atur Monitoring Expired"
       description={item?.collateral_number ?? undefined}
       onClose={onClose}

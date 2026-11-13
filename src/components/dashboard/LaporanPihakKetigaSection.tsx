@@ -412,11 +412,17 @@ export default function LaporanPihakKetigaSection({
       ? asuransiModalView
       : selectedKategori;
 
+  const [recordOwner, setRecordOwner] = useState({ module: activeModule, page: recordPage });
+  if (recordOwner.module !== activeModule || recordOwner.page !== recordPage) {
+    setRecordOwner({ module: activeModule, page: recordPage });
+    setRecordRows([]);
+    setRecordMeta({ ...EMPTY_META, page: recordPage });
+    setRecordErrorMessage(null);
+    setIsRecordLoading(Boolean(activeModule));
+  }
+
   useEffect(() => {
     if (!activeModule) {
-      setRecordRows([]);
-      setRecordMeta(EMPTY_META);
-      setRecordErrorMessage(null);
       return;
     }
 
@@ -425,9 +431,6 @@ export default function LaporanPihakKetigaSection({
 
     async function loadRecords() {
       try {
-        setIsRecordLoading(true);
-        setRecordErrorMessage(null);
-        setRecordRows([]);
         const query = { page: recordPage, limit: SETUP_TABLE_PAGE_SIZE };
 
         if (moduleToLoad === "KLAIM") {

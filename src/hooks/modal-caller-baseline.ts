@@ -1094,7 +1094,7 @@ const MODAL_CALLER_SOURCE_INVENTORY: readonly ModalCallerSourceInventoryEntry[] 
     source: "src/components/seputar-jaminan/SeputarJaminanProfileContactClient.tsx",
     ordinal: 1, owner: "SeputarJaminanProfileContactClient",
     routes: ["/dashboard/seputar-jaminan/kontak"], title: "Detail kontak WhatsApp",
-    trigger: { label: "Lihat detail", tokens: ["setDetailContactId(contact.id)", "Lihat detail"] },
+    trigger: { label: "Lihat detail", tokens: ["<ContactActionMenu", "onDetail={setDetailContactId}", "onClick:()=>onDetail(contact.id)", "Lihat detail"] },
     kind: "detail", dataConditions: DETAIL_DATA, viewport: NEEDS_FIX_ALL, evidence: "source-only",
   },
   {

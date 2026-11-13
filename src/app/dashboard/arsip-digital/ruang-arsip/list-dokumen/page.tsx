@@ -103,6 +103,8 @@ const formatPersonName = (value: string) =>
     .replace(/\b\w/g, (char) => char.toUpperCase());
 
 const EMPTY_LABEL = "-";
+const EMPTY_USERS: UserRecord[] = [];
+const EMPTY_DIVISIONS: Division[] = [];
 
 const getUserDisplayName = (user?: ArsipUserSummary | null) =>
   user?.name?.trim() || user?.username?.trim() || EMPTY_LABEL;
@@ -217,9 +219,11 @@ export default function ListDokumenPage() {
   const [showDelete, setShowDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [users, setUsers] = useState<UserRecord[]>([]);
-  const [divisions, setDivisions] = useState<Division[]>([]);
-  const [isOwnershipLoading, setIsOwnershipLoading] = useState(true);
+  const [ownershipOptions, setOwnershipOptions] = useState<{
+    scope: string;
+    users: UserRecord[];
+    divisions: Division[];
+  } | null>(null);
   const [editFile, setEditFile] = useState<File | null>(null);
   const [editDragOver, setEditDragOver] = useState(false);
   const editFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -228,6 +232,22 @@ export default function ListDokumenPage() {
   const canUpdateDokumen = hasCapability(LIST_DOKUMEN_MENU_URL, "update");
   const canDeleteDokumen = hasCapability(LIST_DOKUMEN_MENU_URL, "delete");
   const canManageAllDokumen = hasFeature(LIST_DOKUMEN_MENU_URL, "manage_all");
+  const ownershipScope = canUpdateDokumen
+    ? `${user?.id ?? ""}:${user?.role_id ?? ""}`
+    : null;
+  const currentOwnershipOptions = ownershipOptions?.scope === ownershipScope
+    ? ownershipOptions
+    : null;
+  const users = currentOwnershipOptions?.users ?? EMPTY_USERS;
+  const divisions = currentOwnershipOptions?.divisions ?? EMPTY_DIVISIONS;
+  const isOwnershipLoading = ownershipScope !== null && currentOwnershipOptions === null;
+  const [previousOwnershipScope, setPreviousOwnershipScope] = useState(ownershipScope);
+
+  if (previousOwnershipScope !== ownershipScope) {
+    setPreviousOwnershipScope(ownershipScope);
+    setOwnershipOptions(null);
+    setShowEdit(false);
+  }
 
   const requireUpdateDokumenAction = () =>
     ensureCapability(LIST_DOKUMEN_MENU_URL, "update", {
@@ -240,19 +260,12 @@ export default function ListDokumenPage() {
     });
 
   useEffect(() => {
+    if (ownershipScope === null) return;
+    const scope = ownershipScope;
+
     let ignore = false;
 
-    if (!canUpdateDokumen) {
-      setUsers([]);
-      setDivisions([]);
-      setIsOwnershipLoading(false);
-      return () => {
-        ignore = true;
-      };
-    }
-
     async function loadOwnershipOptions() {
-      setIsOwnershipLoading(true);
       try {
         const [userRows, divisionRows] = await Promise.all([
           userService.getAssignableAll(),
@@ -261,18 +274,18 @@ export default function ListDokumenPage() {
 
         if (ignore) return;
 
-        setUsers(
-          userRows
+        setOwnershipOptions({
+          scope,
+          users: userRows
             .filter((item) => item.is_active)
             .sort((left, right) => left.name.localeCompare(right.name)),
-        );
-        setDivisions(
-          [...divisionRows].sort((left, right) =>
+          divisions: [...divisionRows].sort((left, right) =>
             left.name.localeCompare(right.name),
           ),
-        );
+        });
       } catch (error) {
         if (!ignore) {
+          setOwnershipOptions({ scope, users: [], divisions: [] });
           showToast(
             error instanceof Error
               ? error.message
@@ -280,8 +293,6 @@ export default function ListDokumenPage() {
             "error",
           );
         }
-      } finally {
-        if (!ignore) setIsOwnershipLoading(false);
       }
     }
 
@@ -290,7 +301,7 @@ export default function ListDokumenPage() {
     return () => {
       ignore = true;
     };
-  }, [canUpdateDokumen, showToast]);
+  }, [ownershipScope, showToast]);
 
   const allDokumen = useMemo<DokumenRow[]>(() => {
     return dokumen.map((item) => ({

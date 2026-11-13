@@ -84,3 +84,30 @@ it('distinguishes no matches, empty catalogue and API failure with retry',async(
  fireEvent.click(screen.getByRole('button',{name:'Muat ulang daftar publikasi'}));expect(await screen.findByText('Publikasi belum dapat dimuat')).toBeVisible();expect(screen.queryByText('Belum ada publikasi')).not.toBeInTheDocument();
  fireEvent.click(screen.getByRole('button',{name:'Coba muat ulang daftar'}));expect(await screen.findByText('Belum ada publikasi')).toBeVisible();
 });
+
+it('recovers a failed filter after another filter succeeds without requiring manual reload', async () => {
+ mocks.getPublicationPage.mockRejectedValueOnce(new Error('Filter A temporarily unavailable'));
+ render(<Catalog/>);
+ expect(await screen.findByText('Filter A temporarily unavailable')).toBeVisible();
+ act(() => { history.pushState(null, '', '/dashboard/seputar-jaminan/publikasi?category=BUILDING'); window.dispatchEvent(new PopStateEvent('popstate')); });
+ expect(await screen.findByRole('button', {name:/^Aksi publikasi /})).toBeVisible();
+ act(() => { history.pushState(null, '', '/dashboard/seputar-jaminan/publikasi?category=LAND&search=tanah'); window.dispatchEvent(new PopStateEvent('popstate')); });
+ await waitFor(() => expect(mocks.getPublicationPage).toHaveBeenCalledTimes(3));
+ expect(await screen.findByRole('button', {name:/^Aksi publikasi /})).toBeVisible();
+ expect(screen.queryByText('Filter A temporarily unavailable')).not.toBeInTheDocument();
+ expect(screen.queryByText('Publikasi belum dapat dimuat')).not.toBeInTheDocument();
+});
+
+it('does not clear the active filter error when an older filter succeeds late', async () => {
+ let finishOld!: (value: unknown) => void;
+ mocks.getPublicationPage
+  .mockImplementationOnce(() => new Promise(resolve => { finishOld=resolve; }))
+  .mockRejectedValueOnce(new Error('Current filter unavailable'));
+ render(<Catalog/>);
+ act(() => { history.pushState(null, '', '/dashboard/seputar-jaminan/publikasi?category=BUILDING'); window.dispatchEvent(new PopStateEvent('popstate')); });
+ expect(await screen.findByText('Current filter unavailable')).toBeVisible();
+ await act(async () => { finishOld({items:[asset],page_info:{next_cursor:null}}); });
+ expect(screen.getByText('Current filter unavailable')).toBeVisible();
+ expect(screen.getByText('Publikasi belum dapat dimuat')).toBeVisible();
+ expect(screen.queryByRole('button', {name:/^Aksi publikasi /})).not.toBeInTheDocument();
+});

@@ -143,11 +143,47 @@ function validateContact(form: ContactForm) {
   return null;
 }
 
+function ContactActionMenu({
+  contact,
+  settings,
+  busyContactId,
+  contactActionsReady,
+  onDetail,
+  onEdit,
+  onCommand,
+  onRemoval,
+}: {
+  contact: SjContact;
+  settings: SjSettings | null;
+  busyContactId: string | null;
+  contactActionsReady: boolean;
+  onDetail: (id: string) => void;
+  onEdit: (contact: SjContact) => void;
+  onCommand: (contact: SjContact, command: "submit" | "set-default") => Promise<void>;
+  onRemoval: (target: SjChangeRequestTarget) => void;
+}) {
+  return (
+    <SetupActionMenu label={`Aksi kontak ${contact.label}`} menuLabel={`Aksi kontak ${contact.label}`} showDisabledItems items={[
+                        {key:'detail',label:'Lihat detail',icon:Eye,onClick:()=>onDetail(contact.id)},
+                        {key:'edit_draft',label:contact.state==='REJECTED'?'Perbaiki kontak':'Ubah',icon:Pencil,onClick:()=>onEdit(contact)},
+                        ...(contact.state === 'DRAFT' ? [{key:'submit',label:'Ajukan',icon:Send,onClick:()=>void onCommand(contact,'submit')}] : []),
+                        ...(contact.state === 'VERIFIED' && !contact.is_default ? [{key:'set_default',label:'Jadikan utama',icon:CheckCircle2,onClick:()=>void onCommand(contact,'set-default')}] : []),
+                        ...(contact.state === 'VERIFIED' && settings?.review_authority === 'central' ? [{key:'revoke',label:'Ajukan pencabutan',icon:EyeOff,onClick:()=>onRemoval({kind:'contact',id:contact.id,label:contact.label,version:contact.lock_version})}] : []),
+                      ].filter(item=>item.key==='detail'||sjAction(contact,item.key).reason_code!=='PERMISSION_DENIED').map(item=>item.key === 'detail' ? item : ({...item,disabled:busyContactId===contact.id || !contactActionsReady || !sjAction(contact,item.key).available,disabledReason:busyContactId===contact.id ? 'Tunggu proses kontak selesai.' : !contactActionsReady ? 'Muat ulang untuk memeriksa tindakan yang tersedia.' : sjAction(contact,item.key).reason || undefined}))} />
+  );
+}
+
 export default function SeputarJaminanProfileContactClient({
   view,
 }: {
   view: "profile" | "contacts";
 }) {
+  const access = useProtectedAction();
+  const scope = `${view}:${access.status}:${access.roleId}:${access.hasCapability(view === 'contacts' ? SJ_CONTACTS : SJ_PROFILE, 'read')}`;
+  return <ProfileContactSession key={scope} view={view} />;
+}
+
+function ProfileContactSession({view}: {view: "profile" | "contacts"}) {
   const [profile, setProfile] = useState<SjProfile | null>(null);
   const [contacts, setContacts] = useState<SjContact[]>([]);
   const [contactCursor,setContactCursor]=useState<string|null>(null);
@@ -169,11 +205,17 @@ export default function SeputarJaminanProfileContactClient({
   const contactSearch = view === 'contacts' ? query.get('search') ?? '' : '';
   const setDetailContactId = (id: string | null) => updateQuery({detail: id ?? '', edit: ''});
   const [contactDetail, setContactDetail] = useState<SjContact | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(Boolean(detailContactId));
   const [detailError, setDetailError] = useState<{title: string; description: string; retry: boolean} | null>(null);
   const [detailReload, setDetailReload] = useState(0);
   const detailContact = contactDetail?.id === detailContactId && !detailLoading && !detailError ? contactDetail : null;
   const wantsContactEdit = query.get('edit') === '1';
+  const detailIdentity = `${detailContactId ?? ''}:${detailReload}:${wantsContactEdit}`;
+  const [storedDetailIdentity, setStoredDetailIdentity] = useState(detailIdentity);
+  if (storedDetailIdentity !== detailIdentity) {
+    setStoredDetailIdentity(detailIdentity);
+    setDetailLoading(Boolean(detailContactId)); setDetailError(null); setContactDetail(null);
+  }
   const openedRevision = useRef<string | null>(null);
   const [changeRequestTarget, setChangeRequestTarget] = useState<SjChangeRequestTarget | null>(null);
   const [loading, setLoading] = useState(true);
@@ -220,7 +262,6 @@ export default function SeputarJaminanProfileContactClient({
     if (!detailContactId) { openedRevision.current = null; return; }
     let cancelled = false;
     const read = async () => {
-      setDetailLoading(true); setDetailError(null); setContactDetail(null);
       try {
         const contact = await seputarJaminanService.getContact(detailContactId);
         if (cancelled) return;
@@ -259,23 +300,21 @@ export default function SeputarJaminanProfileContactClient({
     return action.available;
   };
 
-  const loadContactSettings = useCallback(async () => {
+  const loadContactSettings = useCallback(() => {
     const sequence = ++settingsSequence.current;
-    setSettingsLoading(true);
-    setSettings(null);
-    setSettingsError(null);
-    try {
-      const nextSettings = await seputarJaminanService.getSettings();
-      if (sequence === settingsSequence.current && activeView.current === 'contacts') setSettings(nextSettings);
-    } catch (failure) {
+    let request: ReturnType<typeof seputarJaminanService.getSettings>;
+    try { request = seputarJaminanService.getSettings(); } catch (failure) { request = Promise.reject(failure); }
+    return request.then(nextSettings => {
+      if (sequence === settingsSequence.current && activeView.current === 'contacts') { setSettings(nextSettings); setSettingsError(null); }
+    }).catch(failure => {
       if (sequence === settingsSequence.current && activeView.current === 'contacts') setSettingsError(readableError(failure));
-    } finally {
+    }).finally(() => {
       if (sequence === settingsSequence.current && activeView.current === 'contacts') setSettingsLoading(false);
-    }
+    });
   }, []);
 
-  const load = useCallback(async (options: {refreshSettings?: boolean; search?: string} = {}) => {
-    if (activeView.current !== view) return;
+  const load = useCallback((options: {refreshSettings?: boolean; search?: string} = {}) => {
+    if (activeView.current !== view) return Promise.resolve();
     const refreshSettings = options.refreshSettings !== false;
     const search = options.search ?? new URLSearchParams(window.location.search).get('search') ?? '';
     if (refreshSettings && searchTimer.current) {
@@ -284,42 +323,49 @@ export default function SeputarJaminanProfileContactClient({
     }
     const sequence = ++loadSequence.current;
     ++moreSequence.current;
-    setLoadingMore(false);
-    setLoading(true);
-    setError(null);
-    if (refreshSettings) setActionError(null);
-    setMoreError(null);
     const settingsRead = view === 'contacts' && refreshSettings ? loadContactSettings() : Promise.resolve();
+    let request: Promise<void>;
     try {
       if (view === "profile") {
-        const [nextProfile, nextSettings] = await Promise.all([
+        request = Promise.all([
           seputarJaminanService.getProfile(),
           seputarJaminanService.getSettings(),
-        ]);
-        const currentLogo=nextProfile?.logo_media_id?await seputarJaminanService.getMediaRecord(nextProfile.logo_media_id):null;
+        ]).then(async ([nextProfile, nextSettings]) => {
+          const currentLogo=nextProfile?.logo_media_id?await seputarJaminanService.getMediaRecord(nextProfile.logo_media_id):null;
         if (sequence !== loadSequence.current) return;
+        setError(null);
+        if (refreshSettings) setActionError(null);
         setProfile(nextProfile);
         setForm(profileForm(nextProfile));
         setSettings(nextSettings);
         setLogoMedia(currentLogo);
         savedLogoMedia.current = currentLogo;
+        });
       } else {
-        setContactCursor(null);
-        const nextContacts = await seputarJaminanService.getContactPage({limit:20, ...(search ? {search} : {})});
+        request = seputarJaminanService.getContactPage({limit:20, ...(search ? {search} : {})}).then(nextContacts => {
         if (sequence !== loadSequence.current) return;
+        setError(null); setLoadingMore(false); setMoreError(null);
+        if (refreshSettings) setActionError(null);
         setContacts(nextContacts.items);
         setContactCursor(nextContacts.page_info.next_cursor);
         setSettledContactSearch(search);
+        });
       }
-    } catch (loadError) {
+    } catch (failure) { request = Promise.reject(failure); }
+    return request.catch(loadError => {
       if (sequence !== loadSequence.current) return;
       setError(readableError(loadError));
       if (view === 'contacts') setSettledContactSearch(search);
-    } finally {
-      await settingsRead;
-      if (sequence === loadSequence.current) setLoading(false);
-    }
+    }).then(() => settingsRead).finally(() => {
+      if (sequence === loadSequence.current) { setLoading(false); setLoadingMore(false); }
+    });
   }, [view, loadContactSettings]);
+  const reload = async () => {
+    if (activeView.current !== view) return;
+    setLoading(true); setLoadingMore(false); setError(null); setActionError(null); setMoreError(null);
+    if (view === 'contacts') { setSettingsLoading(true); setSettings(null); setSettingsError(null); }
+    await load();
+  };
   const loadMoreContacts=async()=>{
     if(!contactCursor||loadingMore||contactsPending||error)return;
     const sequence=loadSequence.current, append=++moreSequence.current;
@@ -418,7 +464,7 @@ export default function SeputarJaminanProfileContactClient({
       }});
       if (!result) return;
       showToast(result.intent === 'SAVE_AND_SUBMIT' ? 'Profil disimpan dan diajukan untuk diperiksa.' : "Draf profil BPRS berhasil disimpan.", "success");
-      await load();
+      await reload();
       setProfileEditing(false);
     } catch (saveError) {
       focusSaveError.current = true;
@@ -442,7 +488,7 @@ export default function SeputarJaminanProfileContactClient({
     try {
       await seputarJaminanService.profileCommand("submit", profile.lock_version);
       showToast("Profil BPRS diajukan untuk diperiksa.", "success");
-      await load();
+      await reload();
     } catch (submitError) {
       setActionError(readableError(submitError));
 
@@ -488,7 +534,7 @@ export default function SeputarJaminanProfileContactClient({
       showToast(result.intent === 'SAVE_AND_SUBMIT' ? 'Kontak disimpan dan diajukan untuk diperiksa.' : 'Draf kontak berhasil disimpan.', 'success');
       setContactModalOpen(false);
       setDetailReload(value => value + 1);
-      await load();
+      await reload();
     } catch (saveError) {
       focusSaveError.current = true;
       setEditorError(readableError(saveError));
@@ -516,7 +562,7 @@ export default function SeputarJaminanProfileContactClient({
       await seputarJaminanService.contactCommand(contact.id, command, contact.lock_version);
       showToast(command === "submit" ? "Kontak diajukan untuk diperiksa." : "Kontak utama berhasil dipilih.", "success");
       setDetailReload(value => value + 1);
-      await load();
+      await reload();
     } catch (commandError) {
       setActionError(readableError(commandError));
 
@@ -563,7 +609,7 @@ export default function SeputarJaminanProfileContactClient({
           ? "Kelola identitas yang diajukan untuk tampil pada profil publik BPRS."
           : "Kelola kontak WhatsApp yang dipilih untuk setiap publikasi."}
         icon={view === "profile" ? Building2 : MessageCircle}
-        action={<><SjSecondaryButton loading={loading || contactsPending || (view === 'contacts' && settingsLoading)} disabled={profileEditing || contactModalOpen || saving || uploading || loadingMore} title={profileEditing || contactModalOpen ? 'Tutup editor terlebih dahulu agar isian Anda tidak hilang.' : undefined} onClick={() => void load()}>{!loading && !contactsPending ? <RefreshCw className="size-4" aria-hidden="true" /> : null}Muat ulang</SjSecondaryButton>{view === "contacts" && sjEntryAction(settings,"create_contact").reason_code!=='PERMISSION_DENIED' ? <SjPrimaryButton {...sjEntryButton(settings,"create_contact")} onClick={() => openContact()}><Plus className="size-4" aria-hidden="true" />Tambah kontak</SjPrimaryButton> : null}</>}
+        action={<><SjSecondaryButton loading={loading || contactsPending || (view === 'contacts' && settingsLoading)} disabled={profileEditing || contactModalOpen || saving || uploading || loadingMore} title={profileEditing || contactModalOpen ? 'Tutup editor terlebih dahulu agar isian Anda tidak hilang.' : undefined} onClick={() => void reload()}>{!loading && !contactsPending ? <RefreshCw className="size-4" aria-hidden="true" /> : null}Muat ulang</SjSecondaryButton>{view === "contacts" && sjEntryAction(settings,"create_contact").reason_code!=='PERMISSION_DENIED' ? <SjPrimaryButton {...sjEntryButton(settings,"create_contact")} onClick={() => openContact()}><Plus className="size-4" aria-hidden="true" />Tambah kontak</SjPrimaryButton> : null}</>}
       />
       {actionError && !detailContactId ? <SetupState compact variant="error" title="Tindakan belum selesai" description={actionError} /> : null}
 
@@ -809,13 +855,16 @@ export default function SeputarJaminanProfileContactClient({
                       <SjContactContext contact={contact} compact />
                     </SetupDataTableCell>
                     <SetupDataTableCell className="text-center">
-                      <SetupActionMenu label={`Aksi kontak ${contact.label}`} menuLabel={`Aksi kontak ${contact.label}`} showDisabledItems items={[
-                        {key:'detail',label:'Lihat detail',icon:Eye,onClick:()=>setDetailContactId(contact.id)},
-                        {key:'edit_draft',label:contact.state==='REJECTED'?'Perbaiki kontak':'Ubah',icon:Pencil,onClick:()=>openContact(contact)},
-                        ...(contact.state === 'DRAFT' ? [{key:'submit',label:'Ajukan',icon:Send,onClick:()=>void contactCommand(contact,'submit')}] : []),
-                        ...(contact.state === 'VERIFIED' && !contact.is_default ? [{key:'set_default',label:'Jadikan utama',icon:CheckCircle2,onClick:()=>void contactCommand(contact,'set-default')}] : []),
-                        ...(contact.state === 'VERIFIED' && settings?.review_authority === 'central' ? [{key:'revoke',label:'Ajukan pencabutan',icon:EyeOff,onClick:()=>openRemovalRequest({kind:'contact',id:contact.id,label:contact.label,version:contact.lock_version})}] : []),
-                      ].filter(item=>item.key==='detail'||sjAction(contact,item.key).reason_code!=='PERMISSION_DENIED').map(item=>item.key === 'detail' ? item : ({...item,disabled:busyContactId===contact.id || !contactActionsReady || !sjAction(contact,item.key).available,disabledReason:busyContactId===contact.id ? 'Tunggu proses kontak selesai.' : !contactActionsReady ? 'Muat ulang untuk memeriksa tindakan yang tersedia.' : sjAction(contact,item.key).reason || undefined}))} />
+                      <ContactActionMenu
+                        contact={contact}
+                        settings={settings}
+                        busyContactId={busyContactId}
+                        contactActionsReady={contactActionsReady}
+                        onDetail={setDetailContactId}
+                        onEdit={openContact}
+                        onCommand={contactCommand}
+                        onRemoval={openRemovalRequest}
+                      />
                     </SetupDataTableCell>
                   </SetupDataTableRow>
                 ))}
@@ -877,7 +926,7 @@ export default function SeputarJaminanProfileContactClient({
         target={changeRequestTarget}
         actions={changeRequestTarget?.kind === "profile" ? ["HIDE_PROFILE"] : ["REVOKE_CONTACT"]}
         onClose={() => setChangeRequestTarget(null)}
-        onSubmitted={() => load()}
+        onSubmitted={() => reload()}
       />
     </DashboardPageShell>
   );

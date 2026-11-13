@@ -52,6 +52,12 @@ function targetLabel(target: ReviewTarget | null) {
 }
 
 export default function SeputarJaminanReviewClient() {
+  const access = useProtectedAction();
+  const scope = `${access.hasCapability('/dashboard/seputar-jaminan/profil', 'read')}:${access.hasCapability('/dashboard/seputar-jaminan/kontak', 'read')}`;
+  return <ReviewSession key={scope} />;
+}
+
+function ReviewSession() {
   const [publications, setPublications] = useState<SjReviewPublication[]>([]);
   const [profile, setProfile] = useState<SjProfile | null>(null);
   const [contacts, setContacts] = useState<SjContact[]>([]);
@@ -73,17 +79,19 @@ export default function SeputarJaminanReviewClient() {
   const canReadProfile = access.hasCapability("/dashboard/seputar-jaminan/profil", "read");
   const canReadContacts = access.hasCapability("/dashboard/seputar-jaminan/kontak", "read");
 
-  const load = useCallback(async () => {
+  const load = useCallback(() => {
     const sequence = ++loadSequence.current;
-    setLoading(true);
-    setError(null);
-    try {
-      const [nextPublications, nextProfile, nextContacts, nextSettings] = await Promise.all([
+    const readReview = () => Promise.all([
         seputarJaminanService.getReviewPage({limit:20}),
         canReadProfile ? seputarJaminanService.getProfile() : Promise.resolve(null),
         canReadContacts ? seputarJaminanService.getContactPage({limit:20,state:'IN_REVIEW'}) : Promise.resolve(null),
         seputarJaminanService.getSettings(),
-      ]);
+      ] as const);
+    let request: ReturnType<typeof readReview>;
+    try {
+      request = readReview();
+    } catch (error) { request = Promise.reject(error); }
+    return request.then(([nextPublications, nextProfile, nextContacts, nextSettings]) => {
       if (sequence !== loadSequence.current) return;
       setPublications(nextPublications.items);
       setProfile(nextProfile?.state === "IN_REVIEW" ? nextProfile : null);
@@ -91,13 +99,14 @@ export default function SeputarJaminanReviewClient() {
       setCursors({publication:nextPublications.page_info.next_cursor,contact:nextContacts?.page_info.next_cursor ?? null});
       setMoreError(null);
       setSettings(nextSettings);
-    } catch (loadError) {
+    }).catch((loadError) => {
       if (sequence !== loadSequence.current) return;
       setError(readableError(loadError));
-    } finally {
+    }).finally(() => {
       if (sequence === loadSequence.current) setLoading(false);
-    }
+    });
   }, [canReadProfile, canReadContacts]);
+  const reload = async () => { setLoading(true); setError(null); await load(); };
   const more=async(kind:'publication'|'contact')=>{
     const cursor=cursors[kind];if(!cursor||moreBusy)return;const sequence=loadSequence.current;setMoreBusy(true);setMoreError(null);
     try{
@@ -199,7 +208,7 @@ export default function SeputarJaminanReviewClient() {
       setTarget(null);
       setReason("");
       setReasonError(null);
-      await load();
+      await reload();
     } catch (decisionError) {
       setDecisionError(readableError(decisionError));
     } finally {
@@ -227,7 +236,7 @@ export default function SeputarJaminanReviewClient() {
         title="Pemeriksaan publikasi"
         description="Periksa isi publik, sumber data, gambar, profil, dan kontak. Pemeriksa harus berbeda dari pembuat atau pengaju."
         icon={ClipboardCheck}
-        action={<SjSecondaryButton loading={loading} onClick={() => void load()}>{!loading ? <RefreshCw className="size-4" aria-hidden="true" /> : null}Muat ulang</SjSecondaryButton>}
+        action={<SjSecondaryButton loading={loading} onClick={() => void reload()}>{!loading ? <RefreshCw className="size-4" aria-hidden="true" /> : null}Muat ulang</SjSecondaryButton>}
       />
 
       {loading ? <SetupState variant="loading" title="Memuat daftar pemeriksaan…" /> : error ? <SetupState variant="error" title="Daftar pemeriksaan belum dapat dimuat" description={error} /> : total === 0 ? <SetupState title="Tidak ada pengajuan yang menunggu" description="Tidak ada pengajuan yang menunggu dalam daftar ini." icon={BadgeCheck} className="max-w-none text-slate-900" /> : (

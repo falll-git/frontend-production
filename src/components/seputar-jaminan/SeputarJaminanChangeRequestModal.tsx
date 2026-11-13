@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Send } from "lucide-react";
 
 import DashboardModal from "@/components/ui/DashboardModal";
@@ -36,7 +36,13 @@ type Props = {
   onSubmitted: () => void | Promise<void>;
 };
 
-export default function SeputarJaminanChangeRequestModal({ open, target, actions, onClose, onSubmitted }: Props) {
+export default function SeputarJaminanChangeRequestModal(props: Props) {
+  const initialAction = props.actions[0] ?? "UNPUBLISH_PUBLICATION";
+  const sessionKey = `${props.open}:${props.target?.kind ?? 'none'}:${props.target?.id ?? 'none'}:${initialAction}`;
+  return <ChangeRequestForm key={sessionKey} {...props} />;
+}
+
+function ChangeRequestForm({ open, target, actions, onClose, onSubmitted }: Props) {
   const [action, setAction] = useState<SjChangeRequestAction>(actions[0] ?? "UNPUBLISH_PUBLICATION");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -45,14 +51,6 @@ export default function SeputarJaminanChangeRequestModal({ open, target, actions
   const isContact = target?.kind === "contact";
   useSeputarJaminanModalScrollLock(open);
   const guard = useDiscardChanges(open, {reason, action}, onClose, submitting, {reason: "", action: actions[0] ?? "UNPUBLISH_PUBLICATION"});
-
-  const initialAction = actions[0] ?? "UNPUBLISH_PUBLICATION";
-  useEffect(() => {
-    if (!open) return;
-    setAction(initialAction);
-    setReason("");
-    setError(null);
-  }, [initialAction, open]);
 
   async function submit() {
     if (!target) return;

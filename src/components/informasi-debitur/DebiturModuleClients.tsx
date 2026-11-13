@@ -1,6 +1,7 @@
 "use client";
 
 import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
+import { useDebtorRequest } from "@/components/informasi-debitur/useDebtorRequest";
 import {
   useCallback,
   useDeferredValue,
@@ -1663,55 +1664,25 @@ function useMasterOptions() {
 }
 
 function useDebtorContractOptions() {
-  const { showToast } = useAppToast();
-  const [debtors, setDebtors] = useState<DebtorRecord[]>([]);
-  const [contracts, setContracts] = useState<DebtorContract[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const [debtorResult, contractResult] = await Promise.all([
-        debiturService.getDebtorsPage({
-          page: 1,
-          limit: 20,
-          status: "ACTIVE",
-          sort_by: "name",
-          sort_order: "asc",
-        }),
-        debiturService.getContractsPage({
-          page: 1,
-          limit: 20,
-          status: "ACTIVE",
-          sort_by: "no_kontrak",
-          sort_order: "asc",
-        }),
-      ]);
-      setDebtors(debtorResult.items);
-      setContracts(contractResult.items);
-    } catch (error) {
-      showToast(
-        error instanceof Error
-          ? error.message
-          : "Gagal memuat opsi debitur dan kontrak",
-        "error",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [showToast]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
+  const request = useCallback(async () => {
+    const [debtorResult, contractResult] = await Promise.all([
+      debiturService.getDebtorsPage({
+        page: 1, limit: 20, status: "ACTIVE", sort_by: "name", sort_order: "asc",
+      }),
+      debiturService.getContractsPage({
+        page: 1, limit: 20, status: "ACTIVE", sort_by: "no_kontrak", sort_order: "asc",
+      }),
+    ]);
+    return { debtors: debtorResult.items, contracts: contractResult.items };
+  }, []);
+  const { data, isLoading, reload } = useDebtorRequest(
+    request, "Gagal memuat opsi debitur dan kontrak",
+  );
+  const debtors = data?.debtors ?? [];
+  const contracts = data?.contracts ?? [];
   return {
-    debtors,
-    debtorOptions: toDebtorOptions(debtors),
-    contracts,
-    contractOptions: toContractOptions(contracts),
-    isLoading,
-    reload: load,
+    debtors, debtorOptions: toDebtorOptions(debtors),
+    contracts, contractOptions: toContractOptions(contracts), isLoading, reload,
   };
 }
 
@@ -3134,232 +3105,99 @@ function ContractFormModal({
 }
 
 function useDebtorTable() {
-  const { showToast } = useAppToast();
-  const [items, setItems] = useState<DebtorRecord[]>([]);
-  const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [customerType, setCustomerType] = useState("");
   const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const result = await debiturService.getDebtorsPage({
-        page,
-        limit: SETUP_TABLE_PAGE_SIZE,
-        search: query,
-        status,
-        customer_type: customerType,
-      });
-      setItems(result.items);
-      setMeta(result.meta);
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Gagal memuat data debitur",
-        "error",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [customerType, page, query, showToast, status]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
+  const request = useCallback(() => debiturService.getDebtorsPage({
+      page, limit: SETUP_TABLE_PAGE_SIZE, search: query, status, customer_type: customerType,
+    }), [customerType, page, query, status]);
+  const { data, isLoading, reload } = useDebtorRequest(request, "Gagal memuat data debitur");
+  const changeFilter = (setter: (value: string) => void) => (value: string) => {
+    setter(value);
     setPage(1);
-  }, [customerType, query, status]);
-
+  };
   return {
-    items,
-    meta,
-    query,
-    setQuery,
-    status,
-    setStatus,
-    customerType,
-    setCustomerType,
-    page,
-    setPage,
-    isLoading,
-    reload: load,
+    items: data?.items ?? [],
+    meta: data?.meta ?? EMPTY_META,
+    query, setQuery: changeFilter(setQuery),
+    status, setStatus: changeFilter(setStatus),
+    customerType, setCustomerType: changeFilter(setCustomerType),
+    page, setPage, isLoading, reload,
   };
 }
 
 function useContractTable() {
-  const { showToast } = useAppToast();
-  const [items, setItems] = useState<DebtorContract[]>([]);
-  const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const result = await debiturService.getContractsPage({
-        page,
-        limit: SETUP_TABLE_PAGE_SIZE,
-        search: query,
-        status,
-      });
-      setItems(result.items);
-      setMeta(result.meta);
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Gagal memuat data kontrak",
-        "error",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [page, query, showToast, status]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
+  const request = useCallback(() => debiturService.getContractsPage({
+      page, limit: SETUP_TABLE_PAGE_SIZE, search: query, status,
+    }), [page, query, status]);
+  const { data, isLoading, reload } = useDebtorRequest(request, "Gagal memuat data kontrak");
+  const changeFilter = (setter: (value: string) => void) => (value: string) => {
+    setter(value);
     setPage(1);
-  }, [query, status]);
-
+  };
   return {
-    items,
-    meta,
-    query,
-    setQuery,
-    status,
-    setStatus,
-    page,
-    setPage,
-    isLoading,
-    reload: load,
+    items: data?.items ?? [],
+    meta: data?.meta ?? EMPTY_META,
+    query, setQuery: changeFilter(setQuery),
+    status, setStatus: changeFilter(setStatus),
+    page, setPage, isLoading, reload,
   };
 }
 
 function useFinancingListTable(enabled: boolean) {
-  const { showToast } = useAppToast();
-  const [items, setItems] = useState<DebtorContract[]>([]);
-  const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
   const [query, setQuery] = useState("");
   const [periodMonth, setPeriodMonth] = useState("");
   const [collectibilityLevel, setCollectibilityLevel] = useState("");
   const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const load = useCallback(async () => {
-    if (!enabled) return;
-    try {
-      setIsLoading(true);
-      const result = await debiturService.getContractsPage({
-        page,
-        limit: SETUP_TABLE_PAGE_SIZE,
-        search: query,
-        period_month: periodMonth,
-        collectibility_level: collectibilityLevel,
-        sort_by: periodMonth ? "no_kontrak" : "created_at",
-        sort_order: periodMonth ? "asc" : "desc",
-      });
-      setItems(result.items);
-      setMeta(result.meta);
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Gagal memuat data pembiayaan",
-        "error",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [collectibilityLevel, enabled, page, periodMonth, query, showToast]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
+  const request = useCallback(() => debiturService.getContractsPage({
+      page, limit: SETUP_TABLE_PAGE_SIZE, search: query,
+      period_month: periodMonth, collectibility_level: collectibilityLevel,
+      sort_by: periodMonth ? "no_kontrak" : "created_at", sort_order: periodMonth ? "asc" : "desc",
+    }), [collectibilityLevel, page, periodMonth, query]);
+  const { data, isLoading, reload } = useDebtorRequest(request, "Gagal memuat data pembiayaan", { enabled });
+  const changeFilter = (setter: (value: string) => void) => (value: string) => {
+    setter(value);
     setPage(1);
-  }, [collectibilityLevel, periodMonth, query]);
-
+  };
   return {
-    items,
-    meta,
-    query,
-    setQuery,
-    periodMonth,
-    setPeriodMonth,
-    collectibilityLevel,
-    setCollectibilityLevel,
-    page,
-    setPage,
-    isLoading,
-    reload: load,
+    items: data?.items ?? [],
+    meta: data?.meta ?? EMPTY_META,
+    query, setQuery: changeFilter(setQuery),
+    periodMonth, setPeriodMonth: changeFilter(setPeriodMonth),
+    collectibilityLevel, setCollectibilityLevel: changeFilter(setCollectibilityLevel),
+    page, setPage, isLoading, reload,
   };
 }
 
 function useCollateralTable(enabled: boolean) {
-  const { showToast } = useAppToast();
-  const [items, setItems] = useState<DebtorCollateral[]>([]);
-  const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
   const [query, setQuery] = useState("");
   const [collateralType, setCollateralType] = useState("");
   const [linkStatus, setLinkStatus] = useState("");
   const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const load = useCallback(async () => {
-    if (!enabled) return;
-    try {
-      setIsLoading(true);
-      const result = await debiturService.getCollateralsPage({
-        page,
-        limit: SETUP_TABLE_PAGE_SIZE,
-        search: query,
-        collateral_type: collateralType,
-        link_status: linkStatus,
-        sort_by: "created_at",
-        sort_order: "desc",
-      });
-      setItems(result.items);
-      setMeta(result.meta);
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Gagal memuat data agunan",
-        "error",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [collateralType, enabled, linkStatus, page, query, showToast]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
+  const request = useCallback(() => debiturService.getCollateralsPage({
+      page, limit: SETUP_TABLE_PAGE_SIZE, search: query, collateral_type: collateralType,
+      link_status: linkStatus, sort_by: "created_at", sort_order: "desc",
+    }), [collateralType, linkStatus, page, query]);
+  const { data, isLoading, reload, updateData } = useDebtorRequest(request, "Gagal memuat data agunan", { enabled });
+  const changeFilter = (setter: (value: string) => void) => (value: string) => {
+    setter(value);
     setPage(1);
-  }, [collateralType, linkStatus, query]);
-
+  };
   return {
-    items,
-    meta,
-    query,
-    setQuery,
-    collateralType,
-    setCollateralType,
-    linkStatus,
-    setLinkStatus,
-    page,
-    setPage,
-    isLoading,
-    patchItem: (updated: DebtorCollateral) =>
-      setItems((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item)),
-      ),
-    reload: load,
+    items: data?.items ?? [],
+    meta: data?.meta ?? EMPTY_META,
+    query, setQuery: changeFilter(setQuery),
+    collateralType, setCollateralType: changeFilter(setCollateralType),
+    linkStatus, setLinkStatus: changeFilter(setLinkStatus),
+    page, setPage, isLoading, reload,
+    patchItem: (updated: DebtorCollateral) => updateData((current) => ({
+      ...current,
+      items: current.items.map((item) => item.id === updated.id ? updated : item),
+    })),
   };
 }
 
@@ -6228,6 +6066,10 @@ function MarketingDetailModal({
 }
 
 export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
+  return <DebtorMarketingView key={kind} kind={kind} />;
+}
+
+function DebtorMarketingView({ kind }: { kind: DebtorMarketingKind }) {
   const pathname = usePathname() ?? "";
   const config = getMarketingConfig(kind);
   const Icon = config.icon;
@@ -6238,12 +6080,9 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
   const canUpdate = hasCapability(pathname, "update");
   const canDelete = hasCapability(pathname, "delete");
 
-  const [items, setItems] = useState<DebtorMarketingActivity[]>([]);
-  const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
   const [form, setForm] = useState<MarketingFormState>(emptyMarketingForm);
   const [editing, setEditing] = useState<DebtorMarketingActivity | null>(null);
   const [detail, setDetail] = useState<DebtorMarketingActivity | null>(null);
@@ -6254,34 +6093,12 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
   );
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const result = await debiturService.getMarketingPage(kind, {
-        page,
-        limit: SETUP_TABLE_PAGE_SIZE,
-        search: query,
-        status,
-      });
-      setItems(result.items);
-      setMeta(result.meta);
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : `Gagal memuat ${config.title}`,
-        "error",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [config.title, kind, page, query, showToast, status]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [query, status]);
+  const request = useCallback(() => debiturService.getMarketingPage(kind, {
+    page, limit: SETUP_TABLE_PAGE_SIZE, search: query, status,
+  }), [kind, page, query, status]);
+  const { data, isLoading, reload: load } = useDebtorRequest(request, `Gagal memuat ${config.title}`);
+  const items = data?.items ?? [];
+  const meta = data?.meta ?? EMPTY_META;
 
   const openCreate = () => {
     if (!ensureCapability(pathname, "create")) return;
@@ -6379,7 +6196,7 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
         <SetupSearchInput
           label="Cari Data"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => { setQuery(event.target.value); setPage(1); }}
           placeholder="Cari debitur, kontrak, catatan, atau aktivitas..."
         />
         <div>
@@ -6387,7 +6204,7 @@ export function DebtorMarketingClient({ kind }: { kind: DebtorMarketingKind }) {
           <SetupSelect
             aria-label="Status aktivitas marketing"
             value={status}
-            onChange={(event) => setStatus(event.target.value)}
+            onChange={(event) => { setStatus(event.target.value); setPage(1); }}
           >
             {activityStatusOptions.map((option) => (
               <option key={option.label} value={option.value}>
@@ -7262,17 +7079,8 @@ export function DebtorImportClient({
   const [importTypeFilter, setImportTypeFilter] = useState("");
   const [importStatusFilter, setImportStatusFilter] = useState("");
   const [importPeriodFilter, setImportPeriodFilter] = useState("");
-  const [items, setItems] = useState<DebtorImportJob[]>([]);
-  const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
   const [page, setPage] = useState(1);
-  const [pendingIdebItems, setPendingIdebItems] = useState<
-    DebtorIdebPendingUpload[]
-  >([]);
-  const [pendingIdebMeta, setPendingIdebMeta] =
-    useState<PaginationMeta>(EMPTY_META);
   const [pendingIdebPage, setPendingIdebPage] = useState(1);
-  const [isLoadingPendingIdeb, setIsLoadingPendingIdeb] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState<ImportFormState>(emptyImportForm);
   const [isSaving, setIsSaving] = useState(false);
@@ -7287,20 +7095,7 @@ export function DebtorImportClient({
     useState<IdebResolveFormState>(emptyIdebResolveForm);
   const [isResolvingIdeb, setIsResolvingIdeb] = useState(false);
   const [exportingIdebId, setExportingIdebId] = useState<string | null>(null);
-  const isMountedRef = useRef(false);
   const accessRedirectedRef = useRef(false);
-  const loadRequestIdRef = useRef(0);
-  const pendingIdebRequestIdRef = useRef(0);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-
-    return () => {
-      isMountedRef.current = false;
-      loadRequestIdRef.current += 1;
-      pendingIdebRequestIdRef.current += 1;
-    };
-  }, []);
 
   useEffect(() => {
     if (canAccessPage) {
@@ -7313,62 +7108,21 @@ export function DebtorImportClient({
     ensureCapability(pathname, "create", { redirectTo: "/dashboard" });
   }, [canAccessPage, ensureCapability, pathname]);
 
-  const load = useCallback(async () => {
-    if (!canAccessPage) {
-      if (isMountedRef.current) setIsLoading(false);
-      return;
-    }
-
-    const requestId = loadRequestIdRef.current + 1;
-    loadRequestIdRef.current = requestId;
-
-    try {
-      if (isMountedRef.current) setIsLoading(true);
-      const result = await debiturService.getImportJobs({
-        page,
-        limit: SETUP_TABLE_PAGE_SIZE,
-        ...(isMonitoringMode
-          ? {
-              search: deferredImportSearch.trim() || undefined,
-              type: importTypeFilter || undefined,
-              status: importStatusFilter || undefined,
-              period_month: importPeriodFilter || undefined,
-            }
-          : { type }),
-      });
-      if (!isMountedRef.current || loadRequestIdRef.current !== requestId)
-        return;
-      setItems(result.items);
-      setMeta(result.meta);
-    } catch (error) {
-      if (isMountedRef.current && loadRequestIdRef.current === requestId) {
-        showToast(
-          error instanceof Error
-            ? error.message
-            : "Gagal memuat riwayat import",
-          "error",
-        );
-      }
-    } finally {
-      if (isMountedRef.current && loadRequestIdRef.current === requestId) {
-        setIsLoading(false);
-      }
-    }
-  }, [
-    canAccessPage,
-    deferredImportSearch,
-    importPeriodFilter,
-    importStatusFilter,
-    importTypeFilter,
-    isMonitoringMode,
+  const request = useCallback(() => debiturService.getImportJobs({
     page,
-    showToast,
-    type,
-  ]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+    limit: SETUP_TABLE_PAGE_SIZE,
+    ...(isMonitoringMode ? {
+      search: deferredImportSearch.trim() || undefined,
+      type: importTypeFilter || undefined,
+      status: importStatusFilter || undefined,
+      period_month: importPeriodFilter || undefined,
+    } : { type }),
+  }), [deferredImportSearch, importPeriodFilter, importStatusFilter, importTypeFilter, isMonitoringMode, page, type]);
+  const { data, isLoading, reload: load } = useDebtorRequest(
+    request, "Gagal memuat riwayat import", { enabled: canAccessPage },
+  );
+  const items = data?.items ?? [];
+  const meta = data?.meta ?? EMPTY_META;
 
   const hasActiveImportJobs = items.some((item) =>
     ["PENDING", "PROCESSING"].includes(item.status),
@@ -7390,47 +7144,14 @@ export function DebtorImportClient({
     return () => window.clearInterval(timer);
   }, [hasActiveImportJobs, isMonitoringMode, load, monitoringTab]);
 
-  const loadPendingIdeb = useCallback(async () => {
-    if (!isMonitoringMode) return;
-    const requestId = pendingIdebRequestIdRef.current + 1;
-    pendingIdebRequestIdRef.current = requestId;
-
-    try {
-      if (isMountedRef.current) setIsLoadingPendingIdeb(true);
-      const result = await debiturService.getPendingIdebUploads({
-        page: pendingIdebPage,
-        limit: SETUP_TABLE_PAGE_SIZE,
-      });
-      if (
-        !isMountedRef.current ||
-        pendingIdebRequestIdRef.current !== requestId
-      )
-        return;
-      setPendingIdebItems(result.items);
-      setPendingIdebMeta(result.meta);
-    } catch (error) {
-      if (
-        isMountedRef.current &&
-        pendingIdebRequestIdRef.current === requestId
-      ) {
-        showToast(
-          error instanceof Error ? error.message : "Gagal memuat IDEB pending",
-          "error",
-        );
-      }
-    } finally {
-      if (
-        isMountedRef.current &&
-        pendingIdebRequestIdRef.current === requestId
-      ) {
-        setIsLoadingPendingIdeb(false);
-      }
-    }
-  }, [isMonitoringMode, pendingIdebPage, showToast]);
-
-  useEffect(() => {
-    void loadPendingIdeb();
-  }, [loadPendingIdeb]);
+  const pendingRequest = useCallback(() => debiturService.getPendingIdebUploads({
+    page: pendingIdebPage, limit: SETUP_TABLE_PAGE_SIZE,
+  }), [pendingIdebPage]);
+  const { data: pendingData, isLoading: isLoadingPendingIdeb, reload: loadPendingIdeb } = useDebtorRequest(
+    pendingRequest, "Gagal memuat IDEB pending", { enabled: canAccessPage && isMonitoringMode },
+  );
+  const pendingIdebItems = pendingData?.items ?? [];
+  const pendingIdebMeta = pendingData?.meta ?? EMPTY_META;
 
   const openUpload = () => {
     if (isMonitoringMode) return;
@@ -8348,8 +8069,6 @@ export function DebtorCompletenessAuditReportClient() {
   const router = useRouter();
   const options = useMasterOptions();
   const reportRowActivationRef = useRef<DoubleRowActivationState | null>(null);
-  const [data, setData] = useState<DebtorCompletenessReport | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -8359,16 +8078,6 @@ export function DebtorCompletenessAuditReportClient() {
   const [periodMonth, setPeriodMonth] = useState("");
   const [collectibilityLevel, setCollectibilityLevel] = useState("");
   const [issueType, setIssueType] = useState("");
-
-  const summary = data?.summary;
-  const meta = data?.meta ?? EMPTY_META;
-  const scopeLabel = useMemo(() => {
-    const scope = summary?.scope ?? null;
-    if (!scope) return "Scope mengikuti akses user";
-    if (scope.can_report_all) return "Semua Data";
-    if (scope.can_view_division) return "Data Divisi";
-    return "Data Saya";
-  }, [summary]);
 
   const buildQuery = useCallback(
     (
@@ -8407,26 +8116,18 @@ export function DebtorCompletenessAuditReportClient() {
     router.push(`/dashboard/informasi-debitur/${debtorId}`);
   };
 
-  const loadReport = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const result = await debiturService.getCompletenessReport(buildQuery());
-      setData(result);
-    } catch (error) {
-      showToast(
-        error instanceof Error
-          ? error.message
-          : "Gagal memuat audit kelengkapan SLIK",
-        "error",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [buildQuery, showToast]);
+  const request = useCallback(() => debiturService.getCompletenessReport(buildQuery()), [buildQuery]);
+  const { data, isLoading } = useDebtorRequest(request, "Gagal memuat audit kelengkapan SLIK");
 
-  useEffect(() => {
-    void loadReport();
-  }, [loadReport]);
+  const summary = data?.summary;
+  const meta = data?.meta ?? EMPTY_META;
+  const scopeLabel = useMemo(() => {
+    const scope = summary?.scope ?? null;
+    if (!scope) return "Scope mengikuti akses user";
+    if (scope.can_report_all) return "Semua Data";
+    if (scope.can_view_division) return "Data Divisi";
+    return "Data Saya";
+  }, [summary]);
 
   const auditCards = [
     {

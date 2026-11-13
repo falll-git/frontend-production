@@ -4,7 +4,6 @@ import { formatDate } from "@/lib/utils/date";
 
 import {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -13,6 +12,7 @@ import {
 import { Download, Eye, FileSearch, RefreshCw } from "lucide-react";
 
 import DashboardPageShell from "@/components/dashboard/DashboardPageShell";
+import { useDebtorRequest } from "@/components/informasi-debitur/useDebtorRequest";
 import FeatureHeader from "@/components/ui/FeatureHeader";
 import DashboardModal from "@/components/ui/DashboardModal";
 import ParameterizedConclusionPanel from "@/components/informasi-debitur/IdebParameterizedConclusionPanel";
@@ -789,60 +789,38 @@ function conclusionIndicatorBadgeClass(
 
 export default function DebtorIdebReportClient() {
   const { showToast } = useAppToast();
-  const [items, setItems] = useState<DebtorIdebReportUpload[]>([]);
-  const [selected, setSelected] = useState<DebtorIdebReportUpload | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [linkStatus, setLinkStatus] = useState("");
   const [facilityFilter, setFacilityFilter] =
     useState<IdebFacilityFilter>("ALL");
   const [detailTab, setDetailTab] = useState<IdebDetailTab>("SUMMARY");
-  const [isLoading, setIsLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [page, setPage] = useState(1);
-  const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
   const activationRef = useRef<{ id: string; time: number } | null>(null);
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const result = await debiturService.getIdebReports({
-        page,
-        limit: IDEB_REPORT_PAGE_SIZE,
-        search,
-        link_status: linkStatus,
-      });
-      setItems(result.items);
-      setMeta(result.meta);
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Gagal memuat Laporan IDEB",
-        "error",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [linkStatus, page, search, showToast]);
+  const request = useCallback(() => debiturService.getIdebReports({
+    page, limit: IDEB_REPORT_PAGE_SIZE, search, link_status: linkStatus,
+  }), [linkStatus, page, search]);
+  const { data, isLoading, reload: load } = useDebtorRequest(request, "Gagal memuat Laporan IDEB");
+  const items = data?.items ?? [];
+  const meta = data?.meta ?? EMPTY_META;
+  const detailRequest = useCallback(() => debiturService.getIdebReportDetail(selectedId!), [selectedId]);
+  const { data: selected, isLoading: isDetailLoading, reload: reloadDetail } = useDebtorRequest(
+    detailRequest, "Gagal memuat detail IDEB", { enabled: selectedId !== null },
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const openDetail = async (item: DebtorIdebReportUpload) => {
-    try {
-      const detail = await debiturService.getIdebReportDetail(item.id);
-      setSelected(detail);
-      setFacilityFilter("ALL");
-      setDetailTab("SUMMARY");
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Gagal memuat detail IDEB",
-        "error",
-      );
+  const openDetail = (item: DebtorIdebReportUpload) => {
+    if (selectedId !== item.id) {
+      setSelectedId(item.id);
+    } else if (!isDetailLoading) {
+      void reloadDetail();
     }
+    setFacilityFilter("ALL");
+    setDetailTab("SUMMARY");
   };
 
-  const activateRow = (item: DebtorIdebReportUpload) => {
-    const now = Date.now();
+  const activateRow = (item: DebtorIdebReportUpload, now: number) => {
     if (
       activationRef.current?.id === item.id &&
       now - activationRef.current.time < 550
@@ -1070,7 +1048,7 @@ export default function DebtorIdebReportClient() {
                   key={item.id}
                   title="Double-click untuk melihat detail IDEB"
                   className={`${SETUP_PAGE_MODERN_TABLE_ROW_CLASS} cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-200`}
-                  onClick={() => activateRow(item)}
+                  onClick={(event) => activateRow(item, event.timeStamp)}
                   onDoubleClick={() => void openDetail(item)}
                 >
                   <SetupDataTableCell
@@ -1218,13 +1196,13 @@ export default function DebtorIdebReportClient() {
         }
         description={selected ? formatPeriod(selected.period_month) : undefined}
         maxWidth="5xl"
-        onClose={() => setSelected(null)}
+        onClose={() => setSelectedId(null)}
         footer={
           <div className="flex flex-wrap justify-end gap-2">
             <button
               type="button"
               className="uiverse-modal-button uiverse-modal-button--neutral"
-              onClick={() => setSelected(null)}
+              onClick={() => setSelectedId(null)}
             >
               Tutup
             </button>

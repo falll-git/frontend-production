@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -10,7 +10,32 @@ import type {
   LegalClaim,
   LegalDeposit,
   LegalProgressRecord,
+  LegalDepositTransaction,
 } from "@/types/legal.types";
+
+const serviceMocks = vi.hoisted(() => ({ getDepositTransactionsPage: vi.fn() }));
+vi.mock("@/services/legal.service", () => ({ legalService: serviceMocks }));
+
+function depositFixture(id: string, historyComplete = false): LegalDeposit {
+  return {
+    id, type: "NOTARIS", status: "AKTIF", nominal: 0, paid_amount: 0,
+    processed_amount: 0, remaining_amount: 0, transactions: [],
+    ledger: {
+      history_complete: historyComplete,
+      transaction_count: 21,
+      source_summary: [],
+      reconciliation: { status: "MATCHED" },
+    },
+  } as unknown as LegalDeposit;
+}
+
+function transactionFixture(id: string): LegalDepositTransaction {
+  return {
+    id, deposit_id: "deposit-1", transaction_date: "2026-04-04",
+    action: "TITIPAN", source: "MANUAL_ENTRY", amount: 1, notes: id,
+    file: null, files: [], created_at: null,
+  };
+}
 
 const contract = {
   id: "contract-1",
@@ -49,6 +74,49 @@ function progressFixture(
 }
 
 describe("LegalRecordDetailContent", () => {
+  it("resets transaction pages for a new deposit and ignores the previous response", async () => {
+    let finishPrevious!: (value: unknown) => void;
+    serviceMocks.getDepositTransactionsPage
+      .mockResolvedValueOnce({ items: [transactionFixture("first-page")], meta: { page: 1, limit: 20, total: 21, lastPage: 2 } })
+      .mockImplementationOnce(() => new Promise((resolve) => { finishPrevious = resolve; }))
+      .mockResolvedValueOnce({ items: [transactionFixture("new-deposit")], meta: { page: 1, limit: 20, total: 21, lastPage: 2 } });
+    const first = depositFixture("deposit-1");
+    const { rerender } = render(<LegalDepositDetailContent item={first} onOpenFile={vi.fn()} />);
+    expect(await screen.findByText("first-page")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Halaman berikutnya" }));
+    await waitFor(() => expect(serviceMocks.getDepositTransactionsPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ deposit_id: "deposit-1", page: 2 }),
+    ));
+    expect(screen.queryByText("first-page")).not.toBeInTheDocument();
+    rerender(<LegalDepositDetailContent item={depositFixture("deposit-2")} onOpenFile={vi.fn()} />);
+    expect(await screen.findByText("new-deposit")).toBeInTheDocument();
+    expect(serviceMocks.getDepositTransactionsPage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ deposit_id: "deposit-2", page: 1 }),
+    );
+    await act(async () => {
+      finishPrevious({ items: [transactionFixture("late-private-transaction")], meta: { page: 2, limit: 20, total: 21, lastPage: 2 } });
+    });
+    expect(screen.queryByText("late-private-transaction")).not.toBeInTheDocument();
+    expect(screen.getByText("new-deposit")).toBeInTheDocument();
+    expect(screen.getByText("Halaman 1 dari 2")).toBeInTheDocument();
+  });
+
+  it("uses refreshed complete history immediately and retains the server total", async () => {
+    serviceMocks.getDepositTransactionsPage.mockResolvedValue({
+      items: [transactionFixture("server-first-page")],
+      meta: { page: 1, limit: 20, total: 21, lastPage: 2 },
+    });
+    const item = depositFixture("deposit-1");
+    const { rerender } = render(<LegalDepositDetailContent item={item} onOpenFile={vi.fn()} />);
+    await screen.findByText("server-first-page");
+    const complete = { ...item, ledger: { ...item.ledger!, history_complete: true }, transactions: [transactionFixture("complete-history")] };
+    rerender(<LegalDepositDetailContent item={complete} onOpenFile={vi.fn()} />);
+    expect(screen.getByText("complete-history")).toBeInTheDocument();
+    expect(screen.queryByText("server-first-page")).not.toBeInTheDocument();
+    expect(screen.queryByText("Memuat riwayat transaksi...")).not.toBeInTheDocument();
+    expect(screen.getByText("Total 21 data")).toBeInTheDocument();
+  });
+
   it("menampilkan field khusus notaris dengan pola detail bersama", () => {
     const { container } = render(
       <LegalProgressDetailContent

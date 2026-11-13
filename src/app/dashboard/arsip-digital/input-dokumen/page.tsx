@@ -127,13 +127,9 @@ export default function InputDokumenPage() {
     };
   }, [showToast]);
 
-  useEffect(() => {
-    if (!canReadDebtors) {
-      setFormData((prev) =>
-        prev.debtorId ? { ...prev, debtorId: "" } : prev,
-      );
-    }
-  }, [canReadDebtors]);
+  if (!canReadDebtors && formData.debtorId) {
+    setFormData({ ...formData, debtorId: "" });
+  }
 
   const tempatPenyimpananList = useMemo(() => {
     return tempatPenyimpanan

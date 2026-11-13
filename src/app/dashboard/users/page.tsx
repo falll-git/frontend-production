@@ -296,39 +296,59 @@ export default function ManajemenUserPage() {
       user.division_name ?? divisionNameById.get(user.division_id) ?? user.division_id,
     [divisionNameById],
   );
-  const loadData = useCallback(async () => {
-    setIsFetching(true);
-
-    try {
-      const [userList, divisionList, roleList] = await Promise.all([
-        userService.getAll({ status: statusFilter }),
-        divisionService.getAll(),
-        roleService.getAll(),
-      ]);
-
-      setUsers(userList);
-      setDivisions(divisionList);
-      setRoles(roleList);
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Gagal memuat data pengguna",
-        "error",
-      );
-    } finally {
-      setIsFetching(false);
-    }
-  }, [showToast, statusFilter]);
+  const [dataOwner, setDataOwner] = useState({
+    userId: authUser?.id,
+    role,
+    statusFilter,
+    canReadUsers,
+  });
+  if (
+    dataOwner.userId !== authUser?.id ||
+    dataOwner.role !== role ||
+    dataOwner.statusFilter !== statusFilter ||
+    dataOwner.canReadUsers !== canReadUsers
+  ) {
+    setDataOwner({ userId: authUser?.id, role, statusFilter, canReadUsers });
+    setUsers([]);
+    setDivisions([]);
+    setRoles([]);
+    setIsFetching(Boolean(role && canReadUsers));
+  }
 
   useEffect(() => {
     if (!role) return;
-    if (usersRouteDecision.allowed) {
-      void loadData();
+    if (!canReadUsers) {
+      showToast(RBAC_DENIED_MESSAGE, "warning");
+      router.replace("/dashboard");
       return;
     }
 
-    showToast(RBAC_DENIED_MESSAGE, "warning");
-    router.replace("/dashboard");
-  }, [loadData, role, router, showToast, usersRouteDecision.allowed]);
+    let ignore = false;
+    async function loadData() {
+      try {
+        const [userList, divisionList, roleList] = await Promise.all([
+          userService.getAll({ status: statusFilter }),
+          divisionService.getAll(),
+          roleService.getAll(),
+        ]);
+        if (ignore) return;
+        setUsers(userList);
+        setDivisions(divisionList);
+        setRoles(roleList);
+      } catch (error) {
+        if (!ignore) {
+          showToast(
+            error instanceof Error ? error.message : "Gagal memuat data pengguna",
+            "error",
+          );
+        }
+      } finally {
+        if (!ignore) setIsFetching(false);
+      }
+    }
+    void loadData();
+    return () => { ignore = true; };
+  }, [authUser?.id, canReadUsers, role, router, showToast, statusFilter]);
 
   const filteredUsers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();

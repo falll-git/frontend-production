@@ -56,4 +56,21 @@ describe('Change request identity and safe dismissal', () => {
     expect(screen.getByText(/bukan penarikan atau pengarsipan aset/)).toBeVisible();
     expect(create).not.toHaveBeenCalled();
   });
+
+  it('starts a clean reason for another target and after closing and reopening', () => {
+    const callbacks = { onClose: vi.fn(), onSubmitted: vi.fn() };
+    const first = { kind: 'contact' as const, id: 'first', label: 'First contact', version: 1 };
+    const second = { ...first, id: 'second', label: 'Second contact' };
+    const view = render(<SeputarJaminanChangeRequestModal open target={first} actions={['REVOKE_CONTACT']} {...callbacks} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Reason for the first contact.' } });
+    view.rerender(<SeputarJaminanChangeRequestModal open target={second} actions={['REVOKE_CONTACT']} {...callbacks} />);
+    expect(screen.getByRole('textbox')).toHaveValue('');
+    fireEvent.click(screen.getByRole('button', { name: 'Kirim permintaan' }));
+    expect(screen.getByRole('alert')).toBeVisible();
+    view.rerender(<SeputarJaminanChangeRequestModal open={false} target={second} actions={['REVOKE_CONTACT']} {...callbacks} />);
+    view.rerender(<SeputarJaminanChangeRequestModal open target={second} actions={['REVOKE_CONTACT']} {...callbacks} />);
+    expect(screen.getByRole('textbox')).toHaveValue('');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(create).not.toHaveBeenCalled();
+  });
 });

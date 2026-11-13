@@ -115,6 +115,7 @@ import {
   type IdebFacilityFilter,
 } from "@/lib/ideb-facility-filter";
 import { debiturService } from "@/services/debitur.service";
+import { useDebtorRequest } from "@/components/informasi-debitur/useDebtorRequest";
 import {
   createParameterMasterService,
   type ParameterMasterRecord,
@@ -6809,8 +6810,7 @@ function TitipanTab({
             </SetupDataTableRow>
           </SetupDataTableHead>
           <SetupDataTableBody>
-            {deposits.map((item, index) =>
-              (() => {
+            {deposits.map((item, index) => {
                 const isActive = item.id === selectedDeposit?.id;
                 const activateRow = () => setSelectedDepositId(item.id);
 
@@ -6910,8 +6910,7 @@ function TitipanTab({
                     </SetupDataTableCell>
                   </SetupDataTableRow>
                 );
-              })(),
-            )}
+            })}
             {deposits.length === 0 ? (
               <SetupDataTableEmptyRow colSpan={10}>
                 Belum ada dana titipan untuk debitur ini.
@@ -7310,15 +7309,17 @@ export default function DebtorWorkflowDetailClient({
   debtorId: string;
 }) {
   const { role, user } = useAuth();
+  return <DebtorWorkflowDetailView key={JSON.stringify([debtorId, user?.id, user?.role_id, role])} debtorId={debtorId} />;
+}
+
+function DebtorWorkflowDetailView({ debtorId }: { debtorId: string }) {
+  const { role, user } = useAuth();
   const { showToast } = useAppToast();
   const { openPreview } = useDocumentPreviewContext();
-  const [workflow, setWorkflow] = useState<DebtorWorkflow | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>("info");
-  const [selectedContractId, setSelectedContractId] = useState<string | null>(
+  const [contractSelection, setSelectedContractId] = useState<string | null>(
     null,
   );
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [documentUploadForm, setDocumentUploadForm] =
     useState<DebtorDocumentUploadFormState>(emptyDocumentUploadForm);
   const [documentUploadMode, setDocumentUploadMode] =
@@ -7382,20 +7383,15 @@ export default function DebtorWorkflowDetailClient({
     ? activeTab
     : (visibleTabs[0]?.id ?? "info");
 
-  const loadWorkflow = useCallback(async () => {
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
-      setWorkflow(await debiturService.getDebtorWorkflow(debtorId));
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Gagal memuat detail debitur",
-      );
-      setWorkflow(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [debtorId]);
+  const request = useCallback(() => debiturService.getDebtorWorkflow(debtorId), [debtorId]);
+  const { data: workflow, isLoading, errorMessage, reload: loadWorkflow, updateData: updateWorkflow } = useDebtorRequest(
+    request, "Gagal memuat detail debitur", { notifyError: false, clearDataOnError: true },
+  );
+  const selectedContractId = workflow
+    ? (workflow.contracts.some((contract) => contract.id === contractSelection) || workflow.debtor.latest_contract?.id === contractSelection)
+      ? contractSelection
+      : getPreferredActiveContractId(workflow.contracts, workflow.debtor.latest_contract)
+    : null;
 
   const saveCollateralExpiry = useCallback(
     async (payload: DebtorCollateralExpiryPayload) => {
@@ -7406,16 +7402,10 @@ export default function DebtorWorkflowDetailClient({
           expiryCollateral.id,
           payload,
         );
-        setWorkflow((current) =>
-          current
-            ? {
-                ...current,
-                collaterals: current.collaterals.map((item) =>
-                  item.id === updated.id ? updated : item,
-                ),
-              }
-            : current,
-        );
+        updateWorkflow((current) => ({
+          ...current,
+          collaterals: current.collaterals.map((item) => item.id === updated.id ? updated : item),
+        }));
         setExpiryCollateral((current) =>
           current?.id === updated.id ? updated : current,
         );
@@ -7431,38 +7421,8 @@ export default function DebtorWorkflowDetailClient({
         throw error;
       }
     },
-    [expiryCollateral, loadWorkflow, showToast],
+    [expiryCollateral, loadWorkflow, showToast, updateWorkflow],
   );
-
-  useEffect(() => {
-    void loadWorkflow();
-  }, [loadWorkflow]);
-
-  useEffect(() => {
-    if (!workflow) {
-      setSelectedContractId(null);
-      return;
-    }
-
-    const fallbackContractId = getPreferredActiveContractId(
-      workflow.contracts,
-      workflow.debtor.latest_contract,
-    );
-
-    if (!fallbackContractId) {
-      setSelectedContractId(null);
-      return;
-    }
-
-    const selectedContractStillExists =
-      workflow.contracts.some(
-        (contract) => contract.id === selectedContractId,
-      ) || workflow.debtor.latest_contract?.id === selectedContractId;
-
-    if (!selectedContractId || !selectedContractStillExists) {
-      setSelectedContractId(fallbackContractId);
-    }
-  }, [selectedContractId, workflow]);
 
   useEffect(() => {
     let ignore = false;

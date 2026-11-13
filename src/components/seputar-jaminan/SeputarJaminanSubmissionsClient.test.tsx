@@ -98,6 +98,33 @@ describe("Seputar Jaminan submissions", () => {
     });
   });
 
+  it('recovers a failed filter after another filter succeeds without requiring manual reload', async () => {
+    service.getSubmissionPage.mockRejectedValueOnce(new Error('Filter A temporarily unavailable'));
+    render(<SeputarJaminanSubmissionsClient />);
+    expect(await screen.findByText('Filter A temporarily unavailable')).toBeVisible();
+    fireEvent.change(screen.getByLabelText('Filter jenis pengajuan'), {target:{value:'PUBLICATION'}});
+    expect(await screen.findByText('Belum ada pengajuan')).toBeVisible();
+    fireEvent.change(screen.getByLabelText('Filter jenis pengajuan'), {target:{value:''}});
+    await waitFor(() => expect(service.getSubmissionPage).toHaveBeenCalledTimes(3));
+    expect(await screen.findByText('Belum ada pengajuan')).toBeVisible();
+    expect(screen.queryByText('Filter A temporarily unavailable')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pengajuan belum dapat dimuat')).not.toBeInTheDocument();
+  });
+
+  it('does not clear the active filter error when an older filter succeeds late', async () => {
+    let finishOld!: (value: unknown) => void;
+    service.getSubmissionPage
+      .mockImplementationOnce(() => new Promise(resolve => { finishOld=resolve; }))
+      .mockRejectedValueOnce(new Error('Current filter unavailable'));
+    render(<SeputarJaminanSubmissionsClient />);
+    fireEvent.change(screen.getByLabelText('Filter jenis pengajuan'), {target:{value:'CONTACT'}});
+    expect(await screen.findByText('Current filter unavailable')).toBeVisible();
+    await act(async () => { finishOld({items:[submission],page_info:{next_cursor:null}}); });
+    expect(screen.getByText('Current filter unavailable')).toBeVisible();
+    expect(screen.getByText('Pengajuan belum dapat dimuat')).toBeVisible();
+    expect(screen.queryByText('BPRS Contoh')).not.toBeInTheDocument();
+  });
+
   it("shows an honest empty state when no submission exists", async () => {
     render(<SeputarJaminanSubmissionsClient />);
 

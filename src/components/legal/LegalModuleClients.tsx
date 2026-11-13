@@ -27,6 +27,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -980,6 +981,62 @@ function LegalFlowBoard({
   );
 }
 
+function useLegalPage<T>(
+  fetchPage: () => Promise<{ items: T[]; meta: PaginationMeta }>,
+  errorMessage: string,
+) {
+  const { showToast } = useAppToast();
+  const [response, setResponse] = useState<{
+    request: typeof fetchPage;
+    items: T[];
+    meta: PaginationMeta;
+  } | null>(null);
+  const [refreshingRequest, setRefreshingRequest] = useState<typeof fetchPage | null>(null);
+  const activeRequestRef = useRef<typeof fetchPage | null>(fetchPage);
+
+  const reportError = useCallback((error: unknown) => {
+    setResponse((current) => current?.request === fetchPage
+      ? current
+      : { request: fetchPage, items: [], meta: EMPTY_META });
+    showToast(error instanceof Error ? error.message : errorMessage, "error");
+  }, [errorMessage, fetchPage, showToast]);
+
+  useEffect(() => {
+    activeRequestRef.current = fetchPage;
+    let ignore = false;
+    void fetchPage()
+      .then((result) => {
+        if (!ignore) setResponse({ request: fetchPage, ...result });
+      })
+      .catch((error) => { if (!ignore) reportError(error); });
+    return () => {
+      ignore = true;
+      activeRequestRef.current = null;
+    };
+  }, [fetchPage, reportError]);
+
+  const load = useCallback(async () => {
+    setRefreshingRequest(() => fetchPage);
+    try {
+      const result = await fetchPage();
+      if (activeRequestRef.current === fetchPage) setResponse({ request: fetchPage, ...result });
+    } catch (error) {
+      if (activeRequestRef.current === fetchPage) reportError(error);
+    } finally {
+      if (activeRequestRef.current === fetchPage) {
+        setRefreshingRequest((current) => current === fetchPage ? null : current);
+      }
+    }
+  }, [fetchPage, reportError]);
+  const currentResponse = response?.request === fetchPage ? response : null;
+  return {
+    items: currentResponse?.items ?? [],
+    meta: currentResponse?.meta ?? EMPTY_META,
+    isLoading: !currentResponse || refreshingRequest === fetchPage,
+    load,
+  };
+}
+
 function useLegalLookups({ insurance = false } = {}) {
   const { showToast } = useAppToast();
   const [contracts, setContracts] = useState<DebtorContract[]>([]);
@@ -1409,11 +1466,8 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
   const canCreate = hasCapability(pathname, "create");
   const canUpdate = hasCapability(pathname, "update");
   const canDelete = hasCapability(pathname, "delete");
-  const [items, setItems] = useState<LegalProgressRecord[]>([]);
-  const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [selected, setSelected] = useState<LegalProgressRecord | null>(null);
   const [detailTarget, setDetailTarget] = useState<LegalProgressRecord | null>(
@@ -1428,30 +1482,15 @@ export function LegalProgressClient({ type }: { type: LegalProgressType }) {
   );
   const collateralLookup = useContractCollateralOptions(form.contract_id);
 
-  const load = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const query = { page, limit: SETUP_TABLE_PAGE_SIZE, search };
-      const result = isNotary
-        ? await legalService.getNotaryPage(query)
-        : isKjpp
-          ? await legalService.getKjppPage(query)
-          : await legalService.getInsurancePage(query);
-      setItems(result.items);
-      setMeta(result.meta);
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Gagal memuat progress legal",
-        "error",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isKjpp, isNotary, page, search, showToast]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const fetchPage = useCallback(async () => {
+    const query = { page, limit: SETUP_TABLE_PAGE_SIZE, search };
+    return isNotary
+      ? legalService.getNotaryPage(query)
+      : isKjpp
+        ? legalService.getKjppPage(query)
+        : legalService.getInsurancePage(query);
+  }, [isKjpp, isNotary, page, search]);
+  const { items, meta, isLoading, load } = useLegalPage(fetchPage, "Gagal memuat progress legal");
 
   const openCreate = () => {
     if (!ensureCapability(pathname, "create")) return;
@@ -2179,11 +2218,8 @@ export function LegalClaimClient() {
   const canCreate = hasCapability(pathname, "create");
   const canUpdate = hasCapability(pathname, "update");
   const canDelete = hasCapability(pathname, "delete");
-  const [items, setItems] = useState<LegalClaim[]>([]);
-  const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [selected, setSelected] = useState<LegalClaim | null>(null);
   const [detailTarget, setDetailTarget] = useState<LegalClaim | null>(null);
@@ -2205,29 +2241,11 @@ export function LegalClaimClient() {
     [form.contract_id, lookups.insuranceProgress],
   );
 
-  const load = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const result = await legalService.getClaimsPage({
-        page,
-        limit: SETUP_TABLE_PAGE_SIZE,
-        search,
-      });
-      setItems(result.items);
-      setMeta(result.meta);
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Gagal memuat klaim",
-        "error",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [page, search, showToast]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const fetchPage = useCallback(
+    () => legalService.getClaimsPage({ page, limit: SETUP_TABLE_PAGE_SIZE, search }),
+    [page, search],
+  );
+  const { items, meta, isLoading, load } = useLegalPage(fetchPage, "Gagal memuat klaim");
 
   const openCreate = () => {
     if (!ensureCapability(pathname, "create")) return;
@@ -2758,11 +2776,8 @@ export function LegalDepositClient({
   const canCreate = hasCapability(pathname, "create");
   const canUpdate = hasCapability(pathname, "update");
   const canDelete = hasCapability(pathname, "delete");
-  const [items, setItems] = useState<LegalDeposit[]>([]);
-  const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [selected, setSelected] = useState<LegalDeposit | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LegalDeposit | null>(null);
@@ -2793,30 +2808,11 @@ export function LegalDepositClient({
   ]);
   const canUseThirdParty = type !== "ANGSURAN";
 
-  const load = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const result = await legalService.getDepositsPage({
-        page,
-        limit: SETUP_TABLE_PAGE_SIZE,
-        search,
-        type,
-      });
-      setItems(result.items);
-      setMeta(result.meta);
-    } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Gagal memuat dana titipan",
-        "error",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [page, search, showToast, type]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const fetchPage = useCallback(
+    () => legalService.getDepositsPage({ page, limit: SETUP_TABLE_PAGE_SIZE, search, type }),
+    [page, search, type],
+  );
+  const { items, meta, isLoading, load } = useLegalPage(fetchPage, "Gagal memuat dana titipan");
 
   const openCreate = () => {
     if (!ensureCapability(pathname, "create")) return;
@@ -3961,11 +3957,8 @@ function AuditDeviceAndSystem({ item }: { item: LegalActivityLog }) {
 }
 
 function LegalActivityLogSection() {
-  const { showToast } = useAppToast();
   const { openPreview } = useDocumentPreviewContext();
   const now = useMemo(() => new Date(), []);
-  const [items, setItems] = useState<LegalActivityLog[]>([]);
-  const [meta, setMeta] = useState<PaginationMeta>(EMPTY_META);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [action, setAction] = useState("");
@@ -3975,7 +3968,6 @@ function LegalActivityLogSection() {
   const [day, setDay] = useState(localAuditDayValue(now));
   const [month, setMonth] = useState(localAuditMonthValue(now));
   const [year, setYear] = useState(String(now.getFullYear()));
-  const [isLoading, setIsLoading] = useState(true);
   const [detailTarget, setDetailTarget] = useState<LegalActivityLog | null>(
     null,
   );
@@ -3985,35 +3977,19 @@ function LegalActivityLogSection() {
     [day, month, periodMode, year],
   );
 
-  const load = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const result = await legalService.getActivityLogsPage({
-        page,
-        limit: SETUP_TABLE_PAGE_SIZE,
-        search,
-        action,
-        entity_type: entityType,
-        source,
-        ...periodRange,
-      });
-      setItems(result.items);
-      setMeta(result.meta);
-    } catch (error) {
-      showToast(
-        error instanceof Error
-          ? error.message
-          : "Gagal memuat audit aktivitas legal",
-        "error",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [action, entityType, page, periodRange, search, showToast, source]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const fetchPage = useCallback(
+    () => legalService.getActivityLogsPage({
+      page,
+      limit: SETUP_TABLE_PAGE_SIZE,
+      search,
+      action,
+      entity_type: entityType,
+      source,
+      ...periodRange,
+    }),
+    [action, entityType, page, periodRange, search, source],
+  );
+  const { items, meta, isLoading } = useLegalPage(fetchPage, "Gagal memuat audit aktivitas legal");
 
   const openAuditFile = useCallback(
     (file: DebtorFileMeta) => openFile(file.url, file.name, openPreview),

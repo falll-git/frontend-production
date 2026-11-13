@@ -14,7 +14,7 @@ import {
   SetupDataTableCol,
   SetupTableCard,
 } from "@/components/ui/SetupDataTable";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CalendarDays, FileText, Send, UserRound } from "lucide-react";
 import { useAppToast } from "@/components/ui/AppToastProvider";
 import FeatureHeader from "@/components/ui/FeatureHeader";
@@ -36,6 +36,7 @@ import {
   SETUP_PAGE_WIDTH_2XL_CLASS,
 } from "@/components/ui/setupPageStyles";
 import { useProtectedAction } from "@/hooks/useProtectedAction";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { useClientPagination } from "@/hooks/useClientPagination";
 import { OPERATIONAL_TABLE_PAGE_SIZE } from "@/lib/pagination";
 import { useArsipDigitalWorkflow } from "@/components/arsip-digital/ArsipDigitalWorkflowProvider";
@@ -98,51 +99,74 @@ function ModalInfoItem({
 
 export default function PengajuanDisposisiPageClient() {
   const { showToast } = useAppToast();
+  const { user } = useAuth();
   const { ensureCapability, hasCapability } = useProtectedAction();
   const { submitDisposisi } = useArsipDigitalWorkflow();
   const canCreatePengajuanDisposisi = hasCapability(
     "/dashboard/arsip-digital/disposisi/pengajuan",
     "create",
   );
-  const [requestableDocs, setRequestableDocs] = useState<Dokumen[]>([]);
+  const [requestableDocs, setRequestableDocs] = useState<Dokumen[] | null>(null);
+  const [requestableDocsVersion, setRequestableDocsVersion] = useState(0);
   const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [alasan, setAlasan] = useState("");
   const [tanggalExpired, setTanggalExpired] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isDocsLoading, setIsDocsLoading] = useState(true);
+  const isDocsLoading = canCreatePengajuanDisposisi && requestableDocs === null;
+  const requestableDocsScope = canCreatePengajuanDisposisi
+    ? `${user?.id ?? ""}:${user?.role_id ?? ""}`
+    : null;
+  const [previousDocsScope, setPreviousDocsScope] = useState(requestableDocsScope);
+  const submissionScopeRef = useRef<object | null>(null);
 
-  const loadRequestableDocs = useCallback(async () => {
-    if (!canCreatePengajuanDisposisi) {
-      setRequestableDocs([]);
-      setIsDocsLoading(false);
-      return;
-    }
-
-    setIsDocsLoading(true);
-    try {
-      const rows = await arsipService.getRequestable();
-      setRequestableDocs(rows);
-    } catch (error) {
-      setRequestableDocs([]);
-      showToast(
-        error instanceof Error
-          ? error.message
-          : "Gagal memuat dokumen yang bisa diajukan.",
-        "error",
-      );
-    } finally {
-      setIsDocsLoading(false);
-    }
-  }, [canCreatePengajuanDisposisi, showToast]);
+  if (previousDocsScope !== requestableDocsScope) {
+    setPreviousDocsScope(requestableDocsScope);
+    setRequestableDocs(null);
+    setSelectedDocs([]);
+    setShowModal(false);
+    setAlasan("");
+    setTanggalExpired("");
+    setIsLoading(false);
+  }
 
   useEffect(() => {
+    submissionScopeRef.current = requestableDocsScope === null ? null : {};
+    return () => {
+      submissionScopeRef.current = null;
+    };
+  }, [requestableDocsScope]);
+
+  useEffect(() => {
+    if (requestableDocsScope === null) return;
+    let ignore = false;
+
+    async function loadRequestableDocs() {
+      try {
+        const rows = await arsipService.getRequestable();
+        if (!ignore) setRequestableDocs(rows);
+      } catch (error) {
+        if (!ignore) {
+          setRequestableDocs([]);
+          showToast(
+            error instanceof Error
+              ? error.message
+              : "Gagal memuat dokumen yang bisa diajukan.",
+            "error",
+          );
+        }
+      }
+    }
+
     void loadRequestableDocs();
-  }, [loadRequestableDocs]);
+    return () => {
+      ignore = true;
+    };
+  }, [requestableDocsScope, requestableDocsVersion, showToast]);
 
   const dokumenList = useMemo(() => {
-    return requestableDocs
+    return (canCreatePengajuanDisposisi ? requestableDocs ?? [] : [])
       .map((item) => ({
         id: item.id,
         kode: item.kode,
@@ -156,7 +180,7 @@ export default function PengajuanDisposisiPageClient() {
           item.creator?.username ??
           item.userInput,
       }));
-  }, [requestableDocs]);
+  }, [canCreatePengajuanDisposisi, requestableDocs]);
 
   const filteredDokumen = dokumenList.filter(
     (doc) =>
@@ -218,6 +242,9 @@ export default function PengajuanDisposisiPageClient() {
       return;
     }
 
+    const submissionScope = submissionScopeRef.current;
+    if (submissionScope === null) return;
+
     setIsLoading(true);
     try {
       const created = await submitDisposisi({
@@ -225,6 +252,7 @@ export default function PengajuanDisposisiPageClient() {
         alasanPengajuan: alasan.trim(),
         tanggalExpired,
       });
+      if (submissionScopeRef.current !== submissionScope) return;
 
       if (created === 0) {
         showToast("Tidak ada dokumen yang bisa diajukan.", "warning");
@@ -239,14 +267,17 @@ export default function PengajuanDisposisiPageClient() {
       setSelectedDocs([]);
       setAlasan("");
       setTanggalExpired("");
-      await loadRequestableDocs();
+      setRequestableDocs(null);
+      setRequestableDocsVersion((version) => version + 1);
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Pengajuan gagal dikirim.",
-        "error",
-      );
+      if (submissionScopeRef.current === submissionScope) {
+        showToast(
+          error instanceof Error ? error.message : "Pengajuan gagal dikirim.",
+          "error",
+        );
+      }
     } finally {
-      setIsLoading(false);
+      if (submissionScopeRef.current === submissionScope) setIsLoading(false);
     }
   };
 

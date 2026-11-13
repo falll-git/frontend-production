@@ -1404,10 +1404,6 @@ export default function LaporanArsipDigitalPage() {
   const { showToast } = useAppToast();
   const [summary, setSummary] = useState<ArsipDigitalReportSummary | null>(null);
   const [activeReport, setActiveReport] = useState<ReportKind | null>(null);
-  const [rows, setRows] = useState<ReportRowsState>(EMPTY_ROWS);
-  const [paginationMeta, setPaginationMeta] = useState<PaginationMeta>(
-    INITIAL_PAGINATION_META,
-  );
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -1415,7 +1411,6 @@ export default function LaporanArsipDigitalPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [isSummaryLoading, setIsSummaryLoading] = useState(true);
-  const [isReportLoading, setIsReportLoading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [selectedReportDocument, setSelectedReportDocument] =
     useState<Dokumen | null>(null);
@@ -1443,6 +1438,25 @@ export default function LaporanArsipDigitalPage() {
     },
     [activeReport, debouncedSearch, normalizedDateRange, statusFilter],
   );
+  const reportQueryKey = JSON.stringify([activeReport, reportQuery]);
+  const [paginationQuery, setPaginationQuery] = useState(reportQueryKey);
+  if (paginationQuery !== reportQueryKey) {
+    setPaginationQuery(reportQueryKey);
+    setCurrentPage(1);
+  }
+  const [reportResult, setReportResult] = useState<{
+    queryKey: string;
+    page: number;
+    rows: ReportRowsState;
+    meta: PaginationMeta;
+  } | null>(null);
+  const currentReportResult =
+    reportResult?.queryKey === reportQueryKey && reportResult.page === currentPage
+      ? reportResult
+      : null;
+  const rows = currentReportResult?.rows ?? EMPTY_ROWS;
+  const paginationMeta = currentReportResult?.meta ?? INITIAL_PAGINATION_META;
+  const isReportLoading = activeReport !== null && currentReportResult === null;
   const scopeLabel = getScopeLabel(summary);
 
   useEffect(() => {
@@ -1486,21 +1500,11 @@ export default function LaporanArsipDigitalPage() {
   }, [showToast]);
 
   useEffect(() => {
-    if (!activeReport) return;
-    setCurrentPage(1);
-  }, [activeReport, reportQuery]);
-
-  useEffect(() => {
+    if (!activeReport || !activeDefinition) return;
+    const reportDefinition = activeDefinition;
     let ignore = false;
 
     async function loadReport() {
-      if (!activeReport || !activeDefinition) {
-        setIsReportLoading(false);
-        setPaginationMeta(INITIAL_PAGINATION_META);
-        return;
-      }
-
-      setIsReportLoading(true);
       try {
         if (activeReport === "documents") {
           const result = await arsipService.getDocumentReportPage({
@@ -1509,8 +1513,12 @@ export default function LaporanArsipDigitalPage() {
             limit: OPERATIONAL_TABLE_PAGE_SIZE,
           });
           if (!ignore) {
-            setRows((current) => ({ ...current, documents: result.items }));
-            setPaginationMeta(result.meta);
+            setReportResult({
+              queryKey: reportQueryKey,
+              page: currentPage,
+              rows: { ...EMPTY_ROWS, documents: result.items },
+              meta: result.meta,
+            });
           }
           return;
         }
@@ -1522,8 +1530,12 @@ export default function LaporanArsipDigitalPage() {
             limit: OPERATIONAL_TABLE_PAGE_SIZE,
           });
           if (!ignore) {
-            setRows((current) => ({ ...current, dueDates: result.items }));
-            setPaginationMeta(result.meta);
+            setReportResult({
+              queryKey: reportQueryKey,
+              page: currentPage,
+              rows: { ...EMPTY_ROWS, dueDates: result.items },
+              meta: result.meta,
+            });
           }
           return;
         }
@@ -1535,8 +1547,12 @@ export default function LaporanArsipDigitalPage() {
             limit: OPERATIONAL_TABLE_PAGE_SIZE,
           });
           if (!ignore) {
-            setRows((current) => ({ ...current, accessRequests: result.items }));
-            setPaginationMeta(result.meta);
+            setReportResult({
+              queryKey: reportQueryKey,
+              page: currentPage,
+              rows: { ...EMPTY_ROWS, accessRequests: result.items },
+              meta: result.meta,
+            });
           }
           return;
         }
@@ -1547,22 +1563,28 @@ export default function LaporanArsipDigitalPage() {
           limit: OPERATIONAL_TABLE_PAGE_SIZE,
         });
         if (!ignore) {
-          setRows((current) => ({ ...current, loans: result.items }));
-          setPaginationMeta(result.meta);
+          setReportResult({
+            queryKey: reportQueryKey,
+            page: currentPage,
+            rows: { ...EMPTY_ROWS, loans: result.items },
+            meta: result.meta,
+          });
         }
       } catch (error) {
         if (!ignore) {
-          setRows((current) => ({ ...current, [activeReport]: [] }));
-          setPaginationMeta(INITIAL_PAGINATION_META);
+          setReportResult({
+            queryKey: reportQueryKey,
+            page: currentPage,
+            rows: EMPTY_ROWS,
+            meta: INITIAL_PAGINATION_META,
+          });
           showToast(
             error instanceof Error
               ? error.message
-              : `Gagal memuat ${activeDefinition.title.toLowerCase()}.`,
+              : `Gagal memuat ${reportDefinition.title.toLowerCase()}.`,
             "error",
           );
         }
-      } finally {
-        if (!ignore) setIsReportLoading(false);
       }
     }
 
@@ -1571,7 +1593,7 @@ export default function LaporanArsipDigitalPage() {
     return () => {
       ignore = true;
     };
-  }, [activeDefinition, activeReport, currentPage, reportQuery, showToast]);
+  }, [activeDefinition, activeReport, currentPage, reportQuery, reportQueryKey, showToast]);
 
   const resetFilters = () => {
     setSearchTerm("");
@@ -1599,7 +1621,6 @@ export default function LaporanArsipDigitalPage() {
     setDateFrom("");
     setDateTo("");
     setCurrentPage(1);
-    setPaginationMeta(INITIAL_PAGINATION_META);
   };
 
   const handleExport = async () => {
