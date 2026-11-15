@@ -67,7 +67,7 @@ export default function SetupState({
           {title}
         </p>
         {description ? (
-          <p className="text-xs leading-5 opacity-80">{description}</p>
+          <p className="text-xs leading-5">{description}</p>
         ) : null}
       </div>
     </div>

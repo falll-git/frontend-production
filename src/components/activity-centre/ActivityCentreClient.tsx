@@ -389,7 +389,7 @@ export default function ActivityCentreClient() {
   const [day, setDay] = useState(localDayValue(now));
   const [month, setMonth] = useState(localMonthValue(now));
   const [year, setYear] = useState(String(now.getFullYear()));
-  const [isLoading, setIsLoading] = useState(true);
+  const [loadedQueryKey, setLoadedQueryKey] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ActivityCentreLog | null>(
     null,
@@ -415,6 +415,9 @@ export default function ActivityCentreClient() {
     }),
     [action, actorId, deferredSearch, module, periodRange, sort],
   );
+  const queryKey = JSON.stringify([baseQuery, page]);
+  const isLoading = search.trim() !== deferredSearch.trim() || loadedQueryKey !== queryKey;
+  const visibleItems = isLoading ? [] : items;
 
   useEffect(() => {
     let cancelled = false;
@@ -442,7 +445,6 @@ export default function ActivityCentreClient() {
     let cancelled = false;
     async function load() {
       try {
-        setIsLoading(true);
         const [pageResult, summaryResult] = await Promise.all([
           activityCentreService.getPage({
             ...baseQuery,
@@ -468,14 +470,14 @@ export default function ActivityCentreClient() {
           );
         }
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) setLoadedQueryKey(queryKey);
       }
     }
     void load();
     return () => {
       cancelled = true;
     };
-  }, [baseQuery, page, showToast]);
+  }, [baseQuery, page, queryKey, showToast]);
 
   const setFilter = useCallback(
     (setter: (value: string) => void, value: string) => {
@@ -795,7 +797,7 @@ export default function ActivityCentreClient() {
             </SetupDataTableRow>
           </SetupDataTableHead>
           <SetupDataTableBody>
-            {items.map((item, index) => {
+            {visibleItems.map((item, index) => {
               const itemAction = actionMeta(item.action);
               const ModuleIcon = moduleMeta(item.module).icon;
               return (
@@ -873,7 +875,7 @@ export default function ActivityCentreClient() {
                 </SetupDataTableRow>
               );
             })}
-            {items.length === 0 ? (
+            {visibleItems.length === 0 ? (
               <SetupDataTableEmptyRow
                 colSpan={6}
                 state={isLoading ? "loading" : "empty"}
