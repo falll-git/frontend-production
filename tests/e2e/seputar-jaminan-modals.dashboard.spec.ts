@@ -4,6 +4,40 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 import { login } from "./support/auth";
 
 const now = "2026-08-31T00:00:00.000Z";
+const directAction = { available: true, reason: null, reason_code: null, mode: "DIRECT" };
+const settings = {
+  institution_id: "bprs-modal-runtime",
+  installation_id: "installation-modal-runtime",
+  key_id: "key-modal-runtime",
+  central_base_url: "http://127.0.0.1:4320",
+  contract_version: 1,
+  taxonomy_version: 1,
+  connection_state: "ACTIVE",
+  review_authority: "local",
+  module_visible: true,
+  draft_enabled: true,
+  review_enabled: true,
+  review_submission_ready: true,
+  sync_enabled: true,
+  publish_enabled: true,
+  filesystem_upload_enabled: true,
+  s3_upload_enabled: false,
+  last_success_at: null,
+  last_error_at: null,
+  last_error_code: null,
+  entry_actions: {
+    scope: "START_ACTION",
+    expected_version: null,
+    revalidated_on_submit: true,
+    actions: {
+      create_publication: directAction,
+      create_contact: directAction,
+      create_profile: directAction,
+      upload_media: directAction,
+      reconcile: directAction,
+    },
+  },
+};
 
 const contact = {
   id: "contact-modal-runtime",
@@ -116,7 +150,7 @@ const submission = {
   reviewer_note: "Lengkapi deskripsi wilayah layanan sebelum diajukan kembali.",
   delivery_state: "RECEIVED_BY_CONTROL",
   bank_application_state: "APPLIED_BY_BANK",
-  public_state: "PUBLIC_CONFIRMED",
+  public_state: "PUBLIC_UNKNOWN",
   snapshot: {
     display_name: profile.display_name,
     city_regency: profile.city_regency,
@@ -127,6 +161,21 @@ const submission = {
 
 const reviewPublication = {
   ...publication,
+  action_availability: {
+    scope: "START_ACTION",
+    expected_version: publication.lock_version,
+    revalidated_on_submit: true,
+    actions: {
+      request_revision: directAction,
+      approve: directAction,
+      edit_draft: { available: false, reason: "Sedang diperiksa.", reason_code: "INVALID_STATE", mode: "DIRECT" },
+      submit: { available: false, reason: "Sudah diajukan.", reason_code: "INVALID_STATE", mode: "DIRECT" },
+      unpublish: { available: false, reason: "Belum diterbitkan.", reason_code: "INVALID_STATE", mode: "DIRECT" },
+      reconfirm: { available: false, reason: "Belum diterbitkan.", reason_code: "INVALID_STATE", mode: "DIRECT" },
+      archive: { available: false, reason: "Sedang diperiksa.", reason_code: "INVALID_STATE", mode: "DIRECT" },
+      check_public: { available: false, reason: "Belum diterbitkan.", reason_code: "INVALID_STATE", mode: "DIRECT" },
+    },
+  },
   review_source: {
     type: "COLLATERAL",
     collateral: {
@@ -173,6 +222,13 @@ function json(route: Route, data: unknown) {
   });
 }
 
+function cursorPage(items: unknown[], limit: number, order = "CREATED_DESC_ID_DESC") {
+  return {
+    items,
+    page_info: { limit, order, has_more: false, next_cursor: null, count_scope: "CURRENT_PAGE" },
+  };
+}
+
 async function installSeputarJaminanFixtures(page: Page) {
   await page.route("**/api/v1/digital-documents?**", (route) =>
     json(route, { items: [], total: 0, page: 1, limit: 100, lastPage: 1 }),
@@ -182,39 +238,37 @@ async function installSeputarJaminanFixtures(page: Page) {
     const request = route.request();
     if (request.method() !== "GET") return route.abort("blockedbyclient");
 
-    const pathname = new URL(request.url()).pathname.replace(/^\/api\/v1/, "");
+    const url = new URL(request.url());
+    const pathname = url.pathname.replace(/^\/api\/v1/, "");
+    const paged = url.searchParams.get("paged") === "true";
+    const limit = Number(url.searchParams.get("limit") ?? 20);
     if (pathname === "/seputar-jaminan/taxonomy") return json(route, taxonomy);
     if (pathname === "/seputar-jaminan/settings") {
-      return json(route, {
-        review_authority: "local",
-        review_submission_ready: true,
-      });
+      return json(route, settings);
     }
     if (pathname === "/seputar-jaminan/profile") return json(route, profile);
-    if (pathname === "/seputar-jaminan/contacts") return json(route, [contact]);
+    if (pathname === "/seputar-jaminan/contacts") {
+      const state = url.searchParams.get("state");
+      const contacts = !state || state === contact.state ? [contact] : [];
+      return json(route, paged ? cursorPage(contacts, limit) : contacts);
+    }
     if (pathname === "/seputar-jaminan/reviews") {
-      return json(route, [reviewPublication]);
+      return json(route, paged ? cursorPage([reviewPublication], limit) : [reviewPublication]);
     }
     if (pathname === "/seputar-jaminan/submissions") {
-      return json(route, {
-        items: [submission],
-        pagination: { page: 1, limit: 20, total: 1, total_pages: 1 },
-      });
+      return json(route, cursorPage([submission], limit, "SUBMITTED_AT_DESC_CREATED_AT_DESC_ID_DESC_KIND_ASC"));
     }
     if (pathname === "/seputar-jaminan/eligible-collaterals") {
       return json(route, {
         items: [],
-        pagination: { page: 1, limit: 100, total: 0, total_pages: 1 },
+        pagination: { page: 1, limit, total: 0, total_pages: 0 },
       });
     }
     if (pathname === `/seputar-jaminan/publications/${publication.id}`) {
       return json(route, publication);
     }
     if (pathname === "/seputar-jaminan/publications") {
-      return json(route, {
-        items: [publication],
-        pagination: { page: 1, limit: 20, total: 1, total_pages: 1 },
-      });
+      return json(route, cursorPage([publication], limit));
     }
     if (pathname === "/seputar-jaminan/media") return json(route, []);
 
@@ -289,7 +343,8 @@ test("lima modal Seputar Jaminan memenuhi kontrak runtime", async ({
   await expect(dialog).toBeHidden();
   await expect(detailOpener).toBeFocused();
 
-  const formOpener = page.getByRole("button", { name: "Buat katalog" });
+  const formOpener = page.getByRole("button", { name: "Buat publikasi" });
+  await expect(formOpener).toBeEnabled();
   await formOpener.press("Enter");
   dialog = await expectModalRuntimeContract(page, "Buat publikasi baru");
   await expect(dialog.getByLabel("Sumber data")).toBeVisible();
@@ -309,8 +364,9 @@ test("lima modal Seputar Jaminan memenuhi kontrak runtime", async ({
   await page.goto("/dashboard/seputar-jaminan/pemeriksaan", {
     waitUntil: "domcontentloaded",
   });
-  const reviewOpener = page.getByRole("button", { name: "Minta revisi" });
+  const reviewOpener = page.getByRole("button", { name: /^Aksi pemeriksaan / });
   await reviewOpener.press("Enter");
+  await page.getByRole("menuitem", { name: "Minta perbaikan" }).press("Enter");
   dialog = await expectModalRuntimeContract(page, "Minta revisi?");
   await expect(dialog.getByLabel(/Bagian yang perlu diperbaiki/)).toBeVisible();
   await dialog.getByRole("button", { name: "Kirim catatan" }).click();
@@ -329,9 +385,11 @@ test("lima modal Seputar Jaminan memenuhi kontrak runtime", async ({
     waitUntil: "domcontentloaded",
   });
   const contactOpener = page.getByRole("button", { name: "Tambah kontak" });
+  await expect(contactOpener).toBeEnabled();
   await contactOpener.press("Enter");
   dialog = await expectModalRuntimeContract(page, "Tambah kontak WhatsApp");
-  await expect(dialog.getByText(/Nomor yang sama dapat dipilih/)).toBeVisible();
+  await expect(dialog.getByLabel("Nama kontak")).toBeVisible();
+  await expect(dialog.getByLabel("Nomor WhatsApp")).toHaveAttribute("inputmode", "tel");
   await page.screenshot({
     path: testInfo.outputPath("contact-form.png"),
     fullPage: true,
@@ -349,8 +407,8 @@ test("lima modal Seputar Jaminan memenuhi kontrak runtime", async ({
   await page.getByRole("menuitem", { name: "Lihat detail", exact: true }).press("Enter");
   dialog = await expectModalRuntimeContract(page, profile.display_name);
   await expect(dialog.getByText("Catatan pemeriksa")).toBeVisible();
-  await expect(dialog.getByText("Diterapkan bank")).toBeVisible();
-  await expect(dialog.getByText("Tampil publik")).toBeVisible();
+  await expect(dialog.getByText("Diterapkan di bank", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Tampil publik", { exact: true })).toHaveCount(0);
   await page.screenshot({
     path: testInfo.outputPath("submission-detail.png"),
     fullPage: true,

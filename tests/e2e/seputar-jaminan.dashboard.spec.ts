@@ -19,9 +19,8 @@ test("modul Seputar Jaminan menyatu dengan navigasi Ruwang", async (
   await page.goto("/dashboard/seputar-jaminan/pengajuan?view=pengiriman", {
     waitUntil: "domcontentloaded",
   });
-  await expect(
-    page.getByRole("heading", { name: "Pengiriman" }),
-  ).toBeVisible();
+  await expect(page).toHaveURL(/\/dashboard\/seputar-jaminan\/pengajuan$/);
+  await expect(page.getByRole("heading", { name: "Pengajuan", exact: true })).toBeVisible();
 
   const openMenuButton = page.getByRole("button", { name: "Buka menu" });
   const usesMenuDrawer = await openMenuButton.isVisible();
@@ -30,6 +29,7 @@ test("modul Seputar Jaminan menyatu dengan navigasi Ruwang", async (
   const sidebar = page.locator("aside");
   await expect(sidebar).toBeVisible();
   await expect(sidebar.getByRole("link", { name: "Ringkasan", exact: true })).toHaveCount(0);
+  await expect(sidebar.getByRole("link", { name: "Pengiriman", exact: true })).toHaveCount(0);
   await expect(sidebar.getByText("Ruwang Arsip", { exact: true })).toBeVisible();
   await expect(
     sidebar.getByText("Arsip dan operasional internal BPRS.", { exact: true }),
@@ -51,11 +51,11 @@ test("modul Seputar Jaminan menyatu dengan navigasi Ruwang", async (
   }
 
   const routes = [
-    ["/dashboard/seputar-jaminan/pengajuan?view=pengiriman", "Pengiriman"],
     ["/dashboard/seputar-jaminan/profil", "Profil BPRS"],
     ["/dashboard/seputar-jaminan/kontak", "Kontak WhatsApp"],
     ["/dashboard/seputar-jaminan/publikasi", "Daftar Publikasi"],
     ["/dashboard/seputar-jaminan/pengajuan", "Pengajuan"],
+    ["/dashboard/seputar-jaminan/pemeriksaan", "Pemeriksaan publikasi"],
   ] as const;
 
   for (const [route, heading] of routes) {
@@ -71,7 +71,7 @@ test("modul Seputar Jaminan menyatu dengan navigasi Ruwang", async (
   expect(horizontalOverflow).toBeLessThanOrEqual(1);
 
   await page.screenshot({
-    path: testInfo.outputPath("seputar-jaminan-five-child-navigation.png"),
+    path: testInfo.outputPath("seputar-jaminan-active-module-navigation.png"),
     fullPage: true,
     animations: "disabled",
   });
@@ -82,12 +82,13 @@ test("data pilot lokal tampil dan kontrol utama dapat digunakan", async ({
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
 
-  await page.goto("/dashboard/seputar-jaminan/pengajuan?view=pengiriman", {
+  await page.goto("/dashboard/seputar-jaminan/pengajuan", {
     waitUntil: "domcontentloaded",
   });
-  await expect(page.getByRole("heading", { name: "Pemantauan pengiriman" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pengajuan", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Ringkasan publikasi" })).toHaveCount(0);
-  await expect(page.getByText("Terhubung", { exact: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Pengajuan konten" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { name: "Daftar pengajuan" })).toBeVisible();
 
   await page.goto("/dashboard/seputar-jaminan/publikasi", {
     waitUntil: "domcontentloaded",
@@ -104,12 +105,12 @@ test("data pilot lokal tampil dan kontrol utama dapat digunakan", async ({
   });
   await expect(detailDialog).toBeVisible();
   await expect(detailDialog).toContainText("SJ-MDENGFCA");
-  await expect(detailDialog).toContainText("Tayang");
-  await expect(detailDialog).toContainText("Sudah tersambung");
+  await expect(detailDialog).toContainText("Disetujui di bank");
+  await expect(detailDialog).toContainText("Diterima tujuan");
   await detailDialog.getByRole("button", { name: "Tutup modal" }).click();
   await expect(detailDialog).toBeHidden();
 
-  await page.getByRole("button", { name: "Buat katalog" }).click();
+  await page.getByRole("button", { name: "Buat publikasi" }).click();
   const createDialog = page.getByRole("dialog", {
     name: "Buat publikasi baru",
   });
@@ -157,11 +158,11 @@ test("seluruh halaman modul memenuhi kontrak aksesibilitas", async (
   test.setTimeout(3 * 60_000);
   await page.emulateMedia({ reducedMotion: "reduce" });
   const routes = [
-    "/dashboard/seputar-jaminan/pengajuan?view=pengiriman",
     "/dashboard/seputar-jaminan/profil",
     "/dashboard/seputar-jaminan/kontak",
     "/dashboard/seputar-jaminan/publikasi",
     "/dashboard/seputar-jaminan/pengajuan",
+    "/dashboard/seputar-jaminan/pemeriksaan",
   ];
 
   for (const route of routes) {

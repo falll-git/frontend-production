@@ -236,8 +236,9 @@ export default function LaporanPeminjamanPage() {
     queryKey: string;
     items: Peminjaman[];
   } | null>(null);
+  const searchPending = searchTerm.trim() !== debouncedSearch;
   const currentPageResult =
-    pageResult?.queryKey === reportQueryKey && pageResult.page === currentPage
+    !searchPending && pageResult?.queryKey === reportQueryKey && pageResult.page === currentPage
       ? pageResult
       : null;
   const pageLoans = currentPageResult?.items ?? EMPTY_LOANS;

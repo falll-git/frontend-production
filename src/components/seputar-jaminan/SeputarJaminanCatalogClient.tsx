@@ -9,7 +9,7 @@ import { sjAction, sjEntryAction, sjEntryButton, sjMediaAction } from './actionA
 import SjRecordActions from './SjRecordActions';
 import SjCursorNavigation from './SjCursorNavigation';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import useSjSaveOperation from './useSjSaveOperation';
 import {
   Archive,
@@ -307,6 +307,7 @@ function editablePayload(payload: SjPublicationDraftPayload) {
 }
 
 export default function SeputarJaminanCatalogClient() {
+  const confirmationFilterId = useId();
   const [items, setItems] = useState<SjPublication[]>([]);
   const { params: listQuery, update: updateListQuery } = useSjListQuery();
   const cursor = listQuery.get('cursor') ?? '';
@@ -844,7 +845,15 @@ export default function SeputarJaminanCatalogClient() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-3 text-sm text-slate-600" aria-label="Filter aktif dan urutan">
-          <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={Boolean(confirmation)} onChange={e=>updateListQuery({confirmation:e.target.checked?'soon':'',cursor:'',page:''})}/>Konfirmasi ≤ 7 hari atau lewat tenggat</label>
+          <label htmlFor={confirmationFilterId} className="flex min-h-11 items-center gap-2">
+            <input
+              id={confirmationFilterId}
+              type="checkbox"
+              checked={Boolean(confirmation)}
+              onChange={(event) => updateListQuery({ confirmation: event.target.checked ? 'soon' : '', cursor: '', page: '' })}
+            />
+            Konfirmasi ≤ 7 hari atau lewat tenggat
+          </label>
           <span className="mr-auto">Urutan: terbaru dibuat</span>
 {([{key:'search',value:search,label:`Pencarian: ${search}`},{key:'state',value:stateFilter,label:PUBLICATION_STATE_LABEL[stateFilter]||stateFilter},{key:'category',value:categoryFilter,label:CATEGORY_LABEL[categoryFilter as SjAssetCategory]||categoryFilter}]).filter(item=>item.value).map(item=><button key={item.key} type="button" aria-label={`Hapus filter ${item.label}`} onClick={()=>updateListQuery({[item.key]:'',cursor:'',page:''})} className="min-h-11 max-w-full break-words rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left font-medium text-slate-700 hover:border-sky-500 focus-visible:outline-2 focus-visible:outline-sky-600">{item.label} <span aria-hidden="true">×</span></button>)}
           {search||stateFilter||categoryFilter||confirmation||cursor||legacyPage||sort!=='created_desc'?<SjSecondaryButton onClick={()=>updateListQuery({search:'',state:'',category:'',confirmation:'',cursor:'',page:'',sort:''})}>Atur ulang</SjSecondaryButton>:null}

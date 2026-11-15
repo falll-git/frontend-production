@@ -10,11 +10,11 @@ import { assertViewportAccessibilityContract } from "./support/accessibility-con
 const screenshotOutputDir = process.env.SJ_SCREENSHOT_OUTPUT_DIR?.trim();
 
 const moduleRoutes = [
-  ["/dashboard/seputar-jaminan/pengajuan?view=pengiriman", "Pengiriman", "ringkasan"],
   ["/dashboard/seputar-jaminan/profil", "Profil BPRS", "profil"],
   ["/dashboard/seputar-jaminan/kontak", "Kontak WhatsApp", "kontak"],
   ["/dashboard/seputar-jaminan/publikasi", "Daftar Publikasi", "publikasi"],
   ["/dashboard/seputar-jaminan/pengajuan", "Pengajuan", "pengajuan"],
+  ["/dashboard/seputar-jaminan/pemeriksaan", "Pemeriksaan publikasi", "pemeriksaan"],
 ] as const;
 
 const viewports = [
@@ -121,7 +121,7 @@ test.describe("quality gate visual dan aksesibilitas Seputar Jaminan", () => {
 
     const detailOpener = page.getByRole("button", { name: /^Aksi publikasi / });
     await detailOpener.press("Enter");
-  await page.getByRole("menuitem", { name: "Lihat detail", exact: true }).press("Enter");
+    await page.getByRole("menuitem", { name: "Lihat detail", exact: true }).press("Enter");
     const detailDialog = page.getByRole("dialog", {
       name: "Rumah tinggal dua lantai",
     });
@@ -134,7 +134,8 @@ test.describe("quality gate visual dan aksesibilitas Seputar Jaminan", () => {
     await expect(detailDialog).toBeHidden();
     await expect(detailOpener).toBeFocused();
 
-    const createOpener = page.getByRole("button", { name: "Buat katalog" });
+    const createOpener = page.getByRole("button", { name: "Buat publikasi" });
+    await expect(createOpener).toBeEnabled();
     await createOpener.press("Enter");
     const createDialog = page.getByRole("dialog", { name: "Buat publikasi baru" });
     await expect(createDialog).toBeVisible();
@@ -155,6 +156,7 @@ test.describe("quality gate visual dan aksesibilitas Seputar Jaminan", () => {
       waitUntil: "domcontentloaded",
     });
     const contactOpener = page.getByRole("button", { name: "Tambah kontak" });
+    await expect(contactOpener).toBeEnabled();
     await contactOpener.press("Enter");
     const contactDialog = page.getByRole("dialog", {
       name: "Tambah kontak WhatsApp",
@@ -172,38 +174,43 @@ test.describe("quality gate visual dan aksesibilitas Seputar Jaminan", () => {
   test("loading, empty, error, dan tanpa hasil tetap terbaca", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
 
-    await page.route("**/api/v1/seputar-jaminan/dashboard", async (route) => {
-      await new Promise((resolve) => setTimeout(resolve, 1_200));
-      await route.continue();
-    });
-    await page.goto("/dashboard/seputar-jaminan/pengajuan?view=pengiriman", {
-      waitUntil: "domcontentloaded",
-    });
-    await expect(page.getByText("Memuat pengiriman…")).toBeVisible();
-    await saveScreenshot(page, "state-loading-dashboard-mobile-390");
-    await expect(page.getByText("Memuat pengiriman…")).toBeHidden();
-    await page.unroute("**/api/v1/seputar-jaminan/dashboard");
-
-    await page.route("**/api/v1/seputar-jaminan/dashboard", async (route) => {
+    const submissionsEndpoint = "**/api/v1/seputar-jaminan/submissions?**";
+    const { promise: resume, resolve: releaseRequest } = Promise.withResolvers<void>();
+    await page.route(submissionsEndpoint, async (route) => {
+      await resume;
       await route.fulfill({
         status: 503,
         contentType: "application/json",
         body: JSON.stringify({ message: "Layanan uji sementara tidak tersedia." }),
       });
     });
-    await page.reload({ waitUntil: "domcontentloaded" });
-    await expect(page.getByText("Pengiriman belum dapat dimuat")).toBeVisible();
-    await saveScreenshot(page, "state-error-dashboard-mobile-390");
-    await page.unroute("**/api/v1/seputar-jaminan/dashboard");
+    try {
+      await page.goto("/dashboard/seputar-jaminan/pengajuan", {
+        waitUntil: "domcontentloaded",
+      });
+      await expect(page.getByText("Memuat pengajuan…", { exact: true }).first()).toBeVisible();
+      await saveScreenshot(page, "state-loading-submission-mobile-390");
+    } finally {
+      releaseRequest();
+    }
+    await expect(page.getByText("Pengajuan belum dapat dimuat", { exact: true })).toBeVisible();
+    await saveScreenshot(page, "state-error-submission-mobile-390");
+    await page.unroute(submissionsEndpoint);
 
-    await page.route("**/api/v1/seputar-jaminan/submissions?**", async (route) => {
+    await page.route(submissionsEndpoint, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
           data: {
             items: [],
-            pagination: { page: 1, limit: 20, total: 0, total_pages: 0 },
+            page_info: {
+              limit: 20,
+              has_more: false,
+              next_cursor: null,
+              count_scope: "CURRENT_PAGE",
+              order: "SUBMITTED_AT_DESC_CREATED_AT_DESC_ID_DESC_KIND_ASC",
+            },
           },
         }),
       });
@@ -215,15 +222,15 @@ test.describe("quality gate visual dan aksesibilitas Seputar Jaminan", () => {
       page.getByText("Belum ada pengajuan", { exact: true }),
     ).toBeVisible();
     await saveScreenshot(page, "state-empty-submission-mobile-390");
-    await page.unroute("**/api/v1/seputar-jaminan/submissions?**");
+    await page.unroute(submissionsEndpoint);
 
     await page.goto("/dashboard/seputar-jaminan/publikasi", {
       waitUntil: "domcontentloaded",
     });
-    await page.getByRole("textbox", { name: "Cari katalog" }).fill(
+    await page.getByRole("textbox", { name: "Cari publikasi" }).fill(
       "DATA-YANG-TIDAK-ADA",
     );
-    await expect(page.getByText("Katalog tidak ditemukan")).toBeVisible();
+    await expect(page.getByText("Publikasi tidak ditemukan")).toBeVisible();
     await saveScreenshot(page, "state-no-result-catalog-mobile-390");
     await expectNoPageOverflow(page);
   });
@@ -249,7 +256,7 @@ test("halaman SJ meminta autentikasi sebelum memberi akses", async (
     });
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("heading", { name: "Masuk ke Ruwang Arsip" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Buat katalog" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Buat publikasi" })).toHaveCount(0);
     await saveScreenshot(page, "state-permission-login-required-mobile-390");
     await expectNoPageOverflow(page);
   } finally {
