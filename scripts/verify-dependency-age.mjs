@@ -43,11 +43,25 @@ function verifyReviewedFork(root, node) {
   if (node.resolved !== REVIEWED_FORK.resolved || node.name !== REVIEWED_FORK.name || node.version !== REVIEWED_FORK.version) fail("UNREVIEWED_LOCAL_DEPENDENCY");
   const archive = path.resolve(root, node.resolved.slice(5));
   if (!archive.startsWith(path.resolve(root) + path.sep)) fail("LOCAL_ARTIFACT_OUTSIDE_PROJECT");
-  const realRelative = path.relative(fs.realpathSync(root), fs.realpathSync(archive));
-  if (realRelative.startsWith(".." + path.sep) || realRelative === ".." || path.isAbsolute(realRelative)) fail("LOCAL_ARTIFACT_OUTSIDE_PROJECT");
-  const stat = fs.lstatSync(archive);
-  if (!stat.isFile() || stat.isSymbolicLink()) fail("INVALID_LOCAL_ARTIFACT");
-  const bytes = fs.readFileSync(archive);
+  // Read the opened file, never reopen a pathname after checking its metadata.
+  const descriptor = fs.openSync(archive, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0));
+  let bytes;
+  try {
+    const opened = fs.fstatSync(descriptor, { bigint: true });
+    if (!opened.isFile() || opened.nlink !== 1n) fail("INVALID_LOCAL_ARTIFACT");
+    const canonicalRoot = fs.realpathSync.native(root);
+    const expectedArchive = path.join(canonicalRoot, path.relative(path.resolve(root), archive));
+    const assertBinding = () => {
+      const bound = fs.lstatSync(archive, { bigint: true });
+      if (!bound.isFile() || bound.isSymbolicLink() || bound.nlink !== 1n || bound.dev !== opened.dev || bound.ino !== opened.ino) fail("INVALID_LOCAL_ARTIFACT");
+      if (fs.realpathSync.native(path.dirname(archive)) !== path.dirname(expectedArchive) || fs.realpathSync.native(archive) !== expectedArchive) fail("LOCAL_ARTIFACT_OUTSIDE_PROJECT");
+    };
+    assertBinding();
+    bytes = fs.readFileSync(descriptor);
+    const after = fs.fstatSync(descriptor, { bigint: true });
+    if (after.dev !== opened.dev || after.ino !== opened.ino || after.nlink !== 1n || after.size !== opened.size || after.mtimeNs !== opened.mtimeNs || after.ctimeNs !== opened.ctimeNs) fail("INVALID_LOCAL_ARTIFACT");
+    assertBinding();
+  } finally { fs.closeSync(descriptor); }
   if (digest(bytes) !== REVIEWED_FORK.sha256) fail("LOCAL_ARTIFACT_CHECKSUM_MISMATCH");
   const expected = "sha512-" + crypto.createHash("sha512").update(bytes).digest("base64");
   if (node.integrity !== expected) fail("LOCAL_ARTIFACT_LOCK_INTEGRITY_MISMATCH");

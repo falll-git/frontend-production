@@ -38,24 +38,58 @@ const simpleLock = (nodes = { "node_modules/age-unit-a": packageNode() }, root =
   lockfileVersion: 3, packages: { "": root, ...nodes },
 });
 
+function assertFixtureOwnership({ root, canonical, rootIdentity, owner, ownerIdentity, marker }) {
+  const descriptor = fs.openSync(owner, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0));
+  try {
+    const opened = fs.fstatSync(descriptor, { bigint: true });
+    assert.equal(opened.isFile(), true);
+    assert.equal(opened.nlink, 1n);
+    assert.equal(opened.dev, ownerIdentity.dev);
+    assert.equal(opened.ino, ownerIdentity.ino);
+    const assertBinding = () => {
+      assert.ok(path.isAbsolute(canonical));
+      assert.equal(path.dirname(canonical), tempParent);
+      assert.equal(path.relative(tempParent, canonical), path.basename(canonical));
+      assert.ok(path.basename(canonical).startsWith("ra-dependency-age-unit-"));
+      assert.equal(fs.realpathSync.native(root), canonical);
+      const currentRoot = fs.lstatSync(root, { bigint: true });
+      assert.equal(currentRoot.isDirectory(), true);
+      assert.equal(currentRoot.isSymbolicLink(), false);
+      assert.equal(currentRoot.dev, rootIdentity.dev);
+      assert.equal(currentRoot.ino, rootIdentity.ino);
+      const bound = fs.lstatSync(owner, { bigint: true });
+      assert.equal(bound.isFile(), true);
+      assert.equal(bound.isSymbolicLink(), false);
+      assert.equal(bound.nlink, 1n);
+      assert.equal(bound.dev, opened.dev);
+      assert.equal(bound.ino, opened.ino);
+      assert.equal(fs.realpathSync.native(path.dirname(owner)), canonical);
+      assert.equal(fs.realpathSync.native(owner), path.join(canonical, "owner.json"));
+    };
+    assertBinding();
+    assert.deepEqual(fs.readFileSync(descriptor), marker);
+    const after = fs.fstatSync(descriptor, { bigint: true });
+    for (const key of ["dev", "ino", "nlink", "size", "mtimeNs", "ctimeNs"]) assert.equal(after[key], opened[key]);
+    assertBinding();
+  } finally { fs.closeSync(descriptor); }
+}
+
 function fixture(t, { nodes, rootLock = {}, manifest = {}, npmrc = "fund=false\nmin-release-age=7\nengine-strict=true\n", fork = false } = {}) {
   const root = fs.mkdtempSync(path.join(tempParent, "ra-dependency-age-unit-"));
   const canonical = fs.realpathSync.native(root);
+  const rootIdentity = fs.lstatSync(root, { bigint: true });
   assert.equal(path.dirname(canonical), tempParent);
   assert.equal(fs.lstatSync(root).isSymbolicLink(), false);
   const marker = Buffer.from(JSON.stringify({ kind: "owned-dependency-age-unit-v1", id: crypto.randomUUID(), root: canonical, pid: process.pid }));
   const owner = path.join(root, "owner.json");
-  fs.writeFileSync(owner, marker, { flag: "wx", mode: 0o600 });
+  const ownerDescriptor = fs.openSync(owner, "wx", 0o600);
+  let ownerIdentity;
+  try { fs.writeFileSync(ownerDescriptor, marker); ownerIdentity = fs.fstatSync(ownerDescriptor, { bigint: true }); }
+  finally { fs.closeSync(ownerDescriptor); }
+  const assertOwned = () => assertFixtureOwnership({ root, canonical, rootIdentity, owner, ownerIdentity, marker });
   t.after(() => {
     // Refuse cleanup if the exact fresh run, canonical parent or owner has changed.
-    assert.equal(fs.realpathSync.native(root), canonical);
-    assert.equal(path.dirname(canonical), tempParent);
-    assert.ok(path.basename(canonical).startsWith("ra-dependency-age-unit-"));
-    assert.equal(fs.lstatSync(root).isSymbolicLink(), false);
-    assert.equal(fs.lstatSync(owner).isSymbolicLink(), false);
-    assert.equal(fs.statSync(owner).isFile(), true);
-    assert.equal(fs.statSync(owner).nlink, 1);
-    assert.deepEqual(fs.readFileSync(owner), marker);
+    assertOwned();
     fs.rmSync(canonical, { recursive: true, force: false });
     assert.equal(fs.existsSync(canonical), false);
   });
@@ -67,7 +101,7 @@ function fixture(t, { nodes, rootLock = {}, manifest = {}, npmrc = "fund=false\n
     fs.mkdirSync(path.join(root, "vendor"));
     fs.copyFileSync(path.join(project, forkRelative), path.join(root, forkRelative), fs.constants.COPYFILE_EXCL);
   }
-  return { root, lock, write: (name, bytes) => {
+  return { root, lock, owner, marker, assertOwned, write: (name, bytes) => {
     assert.ok(["package-lock.json", "package.json", ".npmrc", forkRelative].includes(name));
     fs.writeFileSync(path.join(root, name), bytes);
   } };
@@ -232,6 +266,94 @@ test("local fork rejects changed archive bytes in an owned fixture", t => {
   const f = fixture(t, { nodes: { "node_modules/age-unit-a": packageNode(), "node_modules/braces": forkNode() }, fork: true });
   f.write(forkRelative, "owned-unit-tampered-copy");
   assert.throws(() => collectLockedPackages(f.lock, { root: f.root }), /LOCAL_ARTIFACT_CHECKSUM_MISMATCH/);
+});
+
+test("local fork rejects a hard-linked archive even when its bytes and SRI match", t => {
+  const f = fixture(t, { nodes: { "node_modules/age-unit-a": packageNode(), "node_modules/braces": forkNode() }, fork: true });
+  fs.linkSync(path.join(f.root, forkRelative), path.join(f.root, "archive-alias.tgz"));
+  assert.throws(() => collectLockedPackages(f.lock, { root: f.root }), /INVALID_LOCAL_ARTIFACT/);
+});
+
+test("local fork rejects a redirected vendor directory with the same pinned archive", t => {
+  const f = fixture(t, { nodes: { "node_modules/age-unit-a": packageNode(), "node_modules/braces": forkNode() }, fork: true });
+  const vendor = path.join(f.root, "vendor"), relocated = path.join(f.root, "vendor-original");
+  fs.renameSync(vendor, relocated);
+  fs.symlinkSync(relocated, vendor, process.platform === "win32" ? "junction" : "dir");
+  assert.throws(() => collectLockedPackages(f.lock, { root: f.root }), /LOCAL_ARTIFACT_OUTSIDE_PROJECT/);
+});
+
+for (const stage of ["open", "read"]) test(`local fork rejects a same-byte pathname replacement during descriptor ${stage}`, t => {
+  const f = fixture(t, { nodes: { "node_modules/age-unit-a": packageNode(), "node_modules/braces": forkNode() }, fork: true });
+  const archive = path.join(f.root, forkRelative), parked = archive + ".original";
+  const nativeOpen = fs.openSync, nativeRead = fs.readFileSync;
+  const bytes = nativeRead(archive);
+  let descriptor, swapped = false;
+  const swap = () => {
+    swapped = true;
+    fs.renameSync(archive, parked);
+    fs.writeFileSync(archive, bytes, { flag: "wx" });
+  };
+  const opened = t.mock.method(fs, "openSync", (file, flags, ...rest) => {
+    const value = nativeOpen(file, flags, ...rest);
+    if (file === archive && typeof flags === "number" && !swapped) {
+      descriptor = value;
+      if (stage === "open") swap();
+    }
+    return value;
+  });
+  const read = t.mock.method(fs, "readFileSync", (file, ...rest) => {
+    const value = nativeRead(file, ...rest);
+    if (file === descriptor && stage === "read" && !swapped) swap();
+    return value;
+  });
+  try {
+    assert.throws(() => collectLockedPackages(f.lock, { root: f.root }), /INVALID_LOCAL_ARTIFACT/);
+    assert.equal(swapped, true);
+  } finally {
+    opened.mock.restore(); read.mock.restore();
+    if (swapped) { f.assertOwned(); fs.unlinkSync(archive); fs.renameSync(parked, archive); }
+  }
+  assert.equal(collectLockedPackages(f.lock, { root: f.root }).local.length, 1);
+});
+
+test("fixture ownership rejects a same-marker replacement without deleting the owned root", t => {
+  const f = fixture(t), parked = f.owner + ".original";
+  fs.renameSync(f.owner, parked);
+  fs.writeFileSync(f.owner, f.marker, { flag: "wx" });
+  try {
+    assert.throws(f.assertOwned, assert.AssertionError);
+    assert.equal(fs.existsSync(f.root), true);
+  } finally { fs.unlinkSync(f.owner); fs.renameSync(parked, f.owner); }
+  f.assertOwned();
+});
+
+test("fixture ownership rejects replacement during descriptor read before cleanup", t => {
+  const f = fixture(t), parked = f.owner + ".original";
+  const nativeOpen = fs.openSync, nativeRead = fs.readFileSync;
+  let descriptor, swapped = false;
+  const opened = t.mock.method(fs, "openSync", (file, flags, ...rest) => {
+    const value = nativeOpen(file, flags, ...rest);
+    if (file === f.owner && typeof flags === "number") descriptor = value;
+    return value;
+  });
+  const read = t.mock.method(fs, "readFileSync", (file, ...rest) => {
+    const value = nativeRead(file, ...rest);
+    if (file === descriptor && !swapped) {
+      swapped = true;
+      fs.renameSync(f.owner, parked);
+      fs.writeFileSync(f.owner, f.marker, { flag: "wx" });
+    }
+    return value;
+  });
+  try {
+    assert.throws(f.assertOwned, assert.AssertionError);
+    assert.equal(swapped, true);
+    assert.equal(fs.existsSync(f.root), true);
+  } finally {
+    opened.mock.restore(); read.mock.restore();
+    if (swapped) { fs.unlinkSync(f.owner); fs.renameSync(parked, f.owner); }
+  }
+  f.assertOwned();
 });
 
 function metadataResponse(chunks = [Buffer.from('{"unit":true}')], { ok = true, declared = null, readError = null } = {}) {
