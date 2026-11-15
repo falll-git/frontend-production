@@ -71,7 +71,7 @@ test.describe("quality gate visual dan aksesibilitas Seputar Jaminan", () => {
       for (const [route, heading, routeName] of moduleRoutes) {
         await page.goto(route, { waitUntil: "domcontentloaded" });
         await expect(
-          page.getByRole("heading", { name: heading, exact: true }),
+          page.getByRole("heading", { level: 1, name: heading, exact: true }),
         ).toBeVisible();
         await expect(page.locator("main")).toBeVisible();
         await expectNoPageOverflow(page);

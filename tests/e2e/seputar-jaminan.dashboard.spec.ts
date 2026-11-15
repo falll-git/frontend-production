@@ -61,7 +61,7 @@ test("modul Seputar Jaminan menyatu dengan navigasi Ruwang", async (
   for (const [route, heading] of routes) {
     await page.goto(route, { waitUntil: "domcontentloaded" });
     await expect(
-      page.getByRole("heading", { name: heading, exact: true }),
+      page.getByRole("heading", { level: 1, name: heading, exact: true }),
     ).toBeVisible();
   }
 

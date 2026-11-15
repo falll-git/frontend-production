@@ -406,7 +406,8 @@ test("lima modal Seputar Jaminan memenuhi kontrak runtime", async ({
   await submissionOpener.press("Enter");
   await page.getByRole("menuitem", { name: "Lihat detail", exact: true }).press("Enter");
   dialog = await expectModalRuntimeContract(page, profile.display_name);
-  await expect(dialog.getByText("Catatan pemeriksa")).toBeVisible();
+  await expect(dialog.getByText("Catatan pemeriksa", { exact: true })).toBeVisible();
+  await expect(dialog.getByText(submission.reviewer_note, { exact: true })).toBeVisible();
   await expect(dialog.getByText("Diterapkan di bank", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Tampil publik", { exact: true })).toHaveCount(0);
   await page.screenshot({
