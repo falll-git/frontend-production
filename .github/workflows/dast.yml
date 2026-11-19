@@ -1,8 +1,6 @@
 name: DAST baseline
 
 on:
-  schedule:
-    - cron: "23 4 * * 6"
   workflow_dispatch:
 
 permissions:
