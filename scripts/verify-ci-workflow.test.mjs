@@ -18,6 +18,16 @@ test("workflow Quality memenuhi kebijakan CI quality-only", () => {
   });
 });
 
+test("identitas build frontend mengikuti checkout frontend sebelum install dan build", () => {
+  for (const changed of [
+    workflow.replace("frontend_sha=$(git -C frontend-production rev-parse --verify HEAD)", "frontend_sha=${{ github.sha }}"),
+    workflow.replace("frontend_sha=$(git -C frontend-production rev-parse --verify HEAD)", "frontend_sha=$(git -C backend-production rev-parse --verify HEAD)"),
+    workflow.replace("          [[ \"$frontend_sha\" =~ ^[0-9a-f]{40}$ ]] || { echo 'Expected frontend commit SHA'; exit 1; }\n", ""),
+    workflow.replace("      - name: Bind frontend build identity to checked-out commit", "      - name: Bind frontend build identity to checked-out commit\n        if: false"),
+    workflow.replace("    env:\n", "    env:\n      NEXT_DEPLOYMENT_ID: stale-override\n"),
+  ]) assert.throws(() => validateQualityWorkflow(changed), /identitas build frontend/);
+});
+
 test("workflow Quality menolak permission write", () => {
   assert.throws(
     () => validateQualityWorkflow(workflow.replace("contents: read", "contents: write")),
@@ -128,7 +138,7 @@ for (const [label, mutate] of [
   ["versi bootstrap tidak diverifikasi", text => text.replace('          test "$(npm --version)" = "11.21.0"', "")],
   ["bootstrap dari checkout", text => text.replace("working-directory: ${{ runner.temp }}", "working-directory: frontend-production")],
   ["bootstrap hanya komentar", text => text.replace("          npm install --global npm@11.21.0", "          # npm install --global npm@11.21.0")],
-  ["bootstrap menelan kegagalan", text => text.replace("set -euo pipefail", "set +e")],
+  ["bootstrap menelan kegagalan", text => text.replace(/(      - name: Bootstrap pinned npm in ephemeral runner[\s\S]*?)set -euo pipefail/, "$1set +e")],
   ["bootstrap dilewati", text => text.replace("      - name: Bootstrap pinned npm in ephemeral runner", "      - name: Bootstrap pinned npm in ephemeral runner\n        if: false")],
   ["lock-age hilang", text => text.replace("          node scripts/verify-dependency-age.mjs\n", "")],
   ["lock-age setelah instalasi", text => text.replace("          node scripts/verify-dependency-age.mjs\n          npm ci", "          npm ci\n          node scripts/verify-dependency-age.mjs")],
